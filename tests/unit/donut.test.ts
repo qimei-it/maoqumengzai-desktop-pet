@@ -116,20 +116,20 @@ describe('donut sizing', () => {
   test('the hole keeps room for the sprite and the ring stays constant', () => {
     for (const scale of [0.75, 1, 1.5, 2]) {
       const metrics = donutMetrics(scale)
-      expect(metrics.inner).toBeGreaterThanOrEqual(70)
-      expect(metrics.outer - metrics.inner).toBe(96)
+      expect(metrics.inner).toBeGreaterThanOrEqual(64)
+      expect(metrics.outer - metrics.inner).toBe(76)
       expect(metrics.subOuter).toBeGreaterThan(metrics.outer)
-      expect(metrics.window).toBe(2 * (metrics.subOuter + 26))
+      expect(metrics.window).toBe(2 * (metrics.outer + 34))
     }
   })
 
   test('window never shrinks below the base pet window', () => {
     for (const scale of [0.75, 1, 1.5, 2]) {
       const size = donutWindowSize(scale)
-      expect(size.width).toBeGreaterThanOrEqual(Math.round(232 * scale))
-      expect(size.height).toBeGreaterThanOrEqual(Math.round(240 * scale))
+      expect(size.width).toBeGreaterThanOrEqual(Math.round(180 * scale))
+      expect(size.height).toBeGreaterThanOrEqual(Math.round(192 * scale))
     }
-    expect(donutWindowSize(1).width).toBeGreaterThan(300)
+    expect(donutWindowSize(1).width).toBe(348)
   })
 })
 

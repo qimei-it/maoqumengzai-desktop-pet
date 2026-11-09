@@ -361,8 +361,8 @@ onUnmounted(() => {
           :src="probeUrl"
           class="marker"
           :style="{
-            width: `${128 * markerScale}px`,
-            height: `${128 * markerScale}px`,
+            width: `${96 * markerScale}px`,
+            height: `${96 * markerScale}px`,
           }"
           alt="可拖动的像素交互测试标记"
           draggable="false"

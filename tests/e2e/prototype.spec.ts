@@ -140,7 +140,7 @@ test("controls resize the real native window and switch the whole file receiving
             .getBounds().width,
       ),
     )
-    .toBe(464);
+    .toBe(360);
   await lab.getByTestId("drop-mode").click();
   // The pet stays visible; the donut appears during a real drag, not on a toggle.
   await expect(pet.locator(".marker")).toBeVisible();
@@ -504,7 +504,7 @@ async function dropOnPet(
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.petBounds.width : 0;
     })
-    .toBe(468);
+    .toBe(348);
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
   const cx = box.x + box.width / 2;
@@ -513,10 +513,10 @@ async function dropOnPet(
     region === "center"
       ? { x: cx, y: cy }
       : region === "right"
-        ? { x: cx + 118, y: cy }
+        ? { x: cx + 102, y: cy }
         : region === "left"
-          ? { x: cx - 118, y: cy }
-          : { x: cx, y: cy + 216 };
+          ? { x: cx - 102, y: cy }
+          : { x: cx, y: cy + 160 };
   await pet.evaluate(({ x, y }) => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
     const transfer = new DataTransfer();
@@ -583,14 +583,14 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
       );
     }, { x, y });
   };
-  await hover(cx + 118, cy);
+  await hover(cx + 102, cy);
   await expect(pet.locator('[data-region="eat"]')).toHaveClass(/active/);
   await pet.waitForTimeout(220);
   await pet.screenshot({
     path: "/tmp/mqmz-donut.png",
     omitBackground: true,
   });
-  await hover(cx - 118, cy);
+  await hover(cx - 102, cy);
   await expect(pet.locator('[data-region="convert"]')).toHaveClass(/active/);
   await pet.waitForTimeout(220);
   await pet.screenshot({
@@ -609,7 +609,7 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.wheelOpen).toBe(false);
   expect(state.ok && state.value.files.length).toBe(0);
-  expect(state.ok && state.value.petBounds.width).toBe(232);
+  expect(state.ok && state.value.petBounds.width).toBe(180);
   await pet
     .locator("#mqmz-donut-input")
     .evaluate((element) => element.remove());
@@ -637,7 +637,7 @@ test("dropping on the centre stashes without opening the shelf", async () => {
     .toBe("shelved");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.wheelOpen).toBe(false);
-  expect(state.ok && state.value.petBounds.width).toBe(232);
+  expect(state.ok && state.value.petBounds.width).toBe(180);
   expect(
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()

@@ -47,7 +47,7 @@ import {
   hitOpaquePixel,
   movedBeyondThreshold,
 } from '../shared/geometry'
-import { donutWindowSize } from '../shared/donut'
+import { basePetSize, donutWindowSize } from '../shared/donut'
 import {
   captureIdSchema,
   commandSchema,
@@ -420,10 +420,10 @@ function recover(): void {
   pet.setBounds(
     fitToDisplays(
       {
-        x: a.x + a.width - Math.round(232 * scale) - 40,
-        y: a.y + a.height - Math.round(240 * scale) - 32,
-        width: Math.round(232 * scale),
-        height: Math.round(240 * scale),
+        x: a.x + a.width - Math.round(basePetSize.width * scale) - 40,
+        y: a.y + a.height - Math.round(basePetSize.height * scale) - 32,
+        width: Math.round(basePetSize.width * scale),
+        height: Math.round(basePetSize.height * scale),
       },
       [a],
     ),
@@ -437,8 +437,8 @@ function reconcileDisplays(): void {
   const current = pet.getBounds()
   // Shrinking back keeps the sprite where the user left it, because the
   // expanded window was grown symmetrically around the same center.
-  const baseWidth = Math.round(232 * scale)
-  const baseHeight = Math.round(240 * scale)
+  const baseWidth = Math.round(basePetSize.width * scale)
+  const baseHeight = Math.round(basePetSize.height * scale)
   pet.setBounds(
     fitToDisplays(
       wheelOpen
@@ -719,8 +719,8 @@ function setupIpc(): void {
         wheelOpen = false
         baseBounds = undefined
         const old = pet.getBounds()
-        const width = Math.round(232 * scale)
-        const height = Math.round(240 * scale)
+        const width = Math.round(basePetSize.width * scale)
+        const height = Math.round(basePetSize.height * scale)
         pet.setBounds(
           fitToDisplays(
             {
@@ -743,8 +743,8 @@ function setupIpc(): void {
         if (!display) throw new Error('该显示器已断开，请刷新环境。')
         closeWheelWindow()
         const a = display.workArea
-        const width = Math.round(232 * scale)
-        const height = Math.round(240 * scale)
+        const width = Math.round(basePetSize.width * scale)
+        const height = Math.round(basePetSize.height * scale)
         pet.setBounds(
           fitToDisplays(
             {
@@ -953,8 +953,8 @@ async function createWindows(): Promise<void> {
   let bounds: Rect = {
     x: primary.x + primary.width - 280,
     y: primary.y + primary.height - 280,
-    width: 232,
-    height: 240,
+    width: basePetSize.width,
+    height: basePetSize.height,
   }
   try {
     const saved = z
@@ -977,8 +977,8 @@ async function createWindows(): Promise<void> {
     scale = saved.scale
     bounds = {
       ...saved.bounds,
-      width: Math.round(232 * scale),
-      height: Math.round(240 * scale),
+      width: Math.round(basePetSize.width * scale),
+      height: Math.round(basePetSize.height * scale),
     }
   } catch {
     /* First launch or invalid local state: use safe defaults. */

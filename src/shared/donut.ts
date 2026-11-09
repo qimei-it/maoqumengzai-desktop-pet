@@ -164,13 +164,20 @@ export type DonutMetrics = {
   window: number
 }
 
-/** Ring sizes follow the pet scale but keep a usable hole for the sprite. */
+/** Default transparent window around the 96 DIP sprite. */
+export const basePetSize = { width: 180, height: 192 }
+
+/**
+ * Ring sizes follow the pet scale but keep a clear hole around the sprite.
+ * 48 is half of the default 96 DIP sprite; the ring stays 76 DIP thick and the
+ * window only reserves what the ring actually draws.
+ */
 export function donutMetrics(scale: number): DonutMetrics {
-  const inner = Math.min(92, Math.max(70, Math.round(64 * scale + 6)))
-  const thickness = 96
+  const inner = Math.min(104, Math.max(64, Math.round(48 * scale + 16)))
+  const thickness = 76
   const outer = inner + thickness
   const subInner = outer + 6
-  const subThickness = 36
+  const subThickness = 32
   const subOuter = subInner + subThickness
   return {
     inner,
@@ -180,7 +187,7 @@ export function donutMetrics(scale: number): DonutMetrics {
     subInner,
     subOuter,
     subThickness,
-    window: 2 * (subOuter + 26),
+    window: 2 * (outer + 34),
   }
 }
 
@@ -190,8 +197,8 @@ export function donutWindowSize(scale: number): {
 } {
   const { window } = donutMetrics(scale)
   return {
-    width: Math.max(Math.round(232 * scale), window),
-    height: Math.max(Math.round(240 * scale), window),
+    width: Math.max(Math.round(basePetSize.width * scale), window),
+    height: Math.max(Math.round(basePetSize.height * scale), window),
   }
 }
 

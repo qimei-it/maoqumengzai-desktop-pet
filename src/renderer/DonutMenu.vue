@@ -34,7 +34,7 @@ const leftWedge = computed(() =>
     TAU - gap.value,
   ),
 )
-const box = computed(() => metrics.value.subOuter + 26)
+const box = computed(() => metrics.value.outer + 34)
 const popRight = computed(() => (props.active === 'eat' ? 7 : 0))
 const popLeft = computed(() => (props.active === 'convert' ? -7 : 0))
 const hint = computed(() => {
@@ -93,7 +93,7 @@ const hint = computed(() => {
       :style="{ left: `calc(50% + ${metrics.mid}px)` }"
     >
       <strong>吃掉</strong>
-      <small>收进肚子 · 7 天可取回</small>
+      <small>7 天可取回</small>
     </div>
     <div
       class="donut-label label-left"
@@ -102,7 +102,7 @@ const hint = computed(() => {
       :style="{ left: `calc(50% - ${metrics.mid}px)` }"
     >
       <strong>格式转换</strong>
-      <small>引擎接入后可用</small>
+      <small>引擎待接入</small>
     </div>
 
     <p
@@ -179,7 +179,7 @@ const hint = computed(() => {
     transform 120ms var(--ease-standard);
 }
 .donut-label strong {
-  font-size: var(--font-size-section);
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   line-height: 1.25;
 }

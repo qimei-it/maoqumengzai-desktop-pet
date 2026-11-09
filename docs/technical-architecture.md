@@ -93,7 +93,7 @@ tests/
 - 子目录划分为 `db/`、`credentials/`、`cache/`、`assets/`、`jobs/`、`logs/` 与 Chromium 会话目录；数据库拟名 `mqmz.sqlite3`，表如 `mqmz_settings`、`mqmz_todos`、`mqmz_reminder_records`、`mqmz_clipboard_items`、`mqmz_conversion_jobs`。
 - P0 最小置物架已用 `mqmz.file-shelf.json` 持久化本地文件索引，原件保留原处；P3 接入 SQLite 时迁移并保留这些记录。文件卡片独立为旁侧轻窗口；大型开发诊断台不进入正式版。
 - “吃掉”把文件移入 `mqmz-desktop/belly/`，索引写入 `mqmz.belly.json`，默认保留 7 天并可在置物架取回；到期清理只删除回收区内的副本。该目录属于本地数据，不参与云端同步。
-- 文件拖入桌宠时使用 Filee 式圆环（MIT 移植）：中心孔暂存、左半环格式转换、右半环吃掉；松手按落点执行，环外取消。圆环只在拖拽期间存在，不额外占用常驻窗口；展开时窗口 232×240 → 468×468 DIP，关闭恢复。
+- 文件拖入桌宠时使用 Filee 式圆环（MIT 移植）：中心孔暂存、左半环格式转换、右半环吃掉；松手按落点执行，环外取消。圆环只在拖拽期间存在，不额外占用常驻窗口；展开时窗口 180×192 → 348×348 DIP，关闭恢复。
 - 原始文件保持在原处；置物架保存索引。截图、附件、缓存、素材与引擎采用各自明确的所有权/清理策略。
 - 清理先展示类别与大小；固定项、凭据、历史、下载素材与临时文件分开处理，保护运行中的任务，不因移除索引删除用户源文件。SQLite 清理通过事务执行，不在运行中直接删除数据库文件。
 - 使用 Electron `safeStorage` 异步接口保护邮箱、DeepSeek 等凭据，密文写本机，UI 只展示脱敏状态；密钥不可用时停止相关认证，不回退明文存储。其 macOS Keychain、Windows DPAPI 语义和签名要求见 [safeStorage 文档](https://www.electronjs.org/docs/latest/api/safe-storage)。本方案不承诺防止同一已登录用户下的所有恶意进程读取数据。
