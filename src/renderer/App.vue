@@ -42,6 +42,7 @@ let pointerId: number | undefined;
 let activatingDrop = false;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let hoverFrame = 0;
+let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -95,9 +96,25 @@ function regionAt(
   if (hit.kind === "segment") return hit.index === 0 ? "eat" : "convert";
   return null;
 }
+function armWatchdog(): void {
+  if (dragWatchdog) clearTimeout(dragWatchdog);
+  // A drag that leaves the window or ends on the desktop can stop sending
+  // events without a dragleave; close the donut when the stream goes quiet.
+  dragWatchdog = setTimeout(() => {
+    dragWatchdog = undefined;
+    if (!donutOpen.value) return;
+    void closeDonut();
+    void command({ type: "drop-mode", enabled: false });
+  }, 900);
+}
+function disarmWatchdog(): void {
+  if (dragWatchdog) clearTimeout(dragWatchdog);
+  dragWatchdog = undefined;
+}
 function trackHover(event: DragEvent): void {
   dragPoint.x = event.clientX;
   dragPoint.y = event.clientY;
+  armWatchdog();
   if (hoverFrame) return;
   hoverFrame = requestAnimationFrame(() => {
     hoverFrame = 0;
@@ -111,6 +128,7 @@ async function openDonut(): Promise<void> {
   await command({ type: "wheel", open: true });
 }
 async function closeDonut(send = true): Promise<void> {
+  disarmWatchdog();
   const active = donutOpen.value;
   donutOpen.value = false;
   donutActive.value = null;
@@ -126,6 +144,7 @@ function enter(event: DragEvent): void {
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
   dragOver.value = true;
   if (!petView) return;
+  armWatchdog();
   if (!state.value?.dropMode && !activatingDrop) {
     activatingDrop = true;
     void command({ type: "drop-mode", enabled: true }).finally(() => {
@@ -158,6 +177,7 @@ async function receive(event: DragEvent): Promise<void> {
   event.preventDefault();
   const action = petView ? regionAt(event.clientX, event.clientY) : null;
   const files = [...(event.dataTransfer?.files || [])];
+  disarmWatchdog();
   dragOver.value = false;
   if (petView) {
     await closeDonut();
@@ -337,6 +357,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener("resize", updateMask);
   window.removeEventListener("keydown", onKeydown);
+  disarmWatchdog();
   if (toastTimer) clearTimeout(toastTimer);
   unsubscribe?.();
   observer?.disconnect();

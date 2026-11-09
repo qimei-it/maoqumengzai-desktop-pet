@@ -74,15 +74,14 @@ function receive(event: DragEvent): void {
           aria-hidden="true"
           focusable="false"
         />
-        <h2>把文件交给我</h2>
-        <p>直接拖到桌宠身上，<br />就能暂存或另存一份。</p>
+        <h2>拖到桌宠身上</h2>
         <button class="button-soft" @click="emit('selectFiles')">
           选择本地文件
         </button>
       </div>
 
       <template v-else>
-        <p class="pocket-drag-hint">按住文件卡片，拖到桌面或文件夹</p>
+        <p class="pocket-drag-hint">按住卡片拖出</p>
         <div class="pocket-files" role="group" aria-label="本地文件">
           <article
             v-for="file in state.files"
@@ -150,19 +149,16 @@ function receive(event: DragEvent): void {
           <button
             class="pocket-convert button-soft"
             disabled
-            aria-describedby="conversion-unavailable"
+            title="格式转换引擎尚未接入"
           >
             转换格式
           </button>
-          <p id="conversion-unavailable" class="pocket-state-note">
-            格式转换暂不可用；当前可暂存、另存和拖出。
-          </p>
           <p
             v-if="selected.status === 'shelved'"
             class="pocket-saved"
             role="status"
           >
-            已暂存；原件留在原处，重启后仍可找到。
+            已暂存
           </p>
           <div class="pocket-secondary-actions">
             <button
@@ -205,7 +201,7 @@ function receive(event: DragEvent): void {
       </section>
       <p v-if="error" class="pocket-error" role="alert">{{ error }}</p>
       <footer class="pocket-footer">
-        <span>文件留在本机 · 原件保留</span
+        <span>本地保存 · 原件保留</span
         ><button v-if="state?.files.length" @click="emit('selectFiles')">
           添加文件
         </button>
@@ -335,12 +331,6 @@ function receive(event: DragEvent): void {
   cursor: not-allowed;
   opacity: 1;
 }
-.pocket-state-note {
-  font-size: var(--font-size-label);
-  line-height: 1.6;
-  color: var(--color-muted);
-  margin: 8px 0 0;
-}
 .pocket-saved {
   font-size: var(--font-size-label);
   color: var(--color-success);
@@ -462,14 +452,9 @@ function receive(event: DragEvent): void {
   font-size: var(--font-size-section);
   margin: 0;
 }
-.pocket-empty p {
-  font-size: var(--font-size-label);
-  line-height: 1.8;
-  color: var(--color-muted);
-  margin: 9px 0 19px;
-}
 .pocket-empty button {
   min-height: var(--tap-min);
+  margin-top: 16px;
   padding-inline: var(--space-8);
   font-size: var(--font-size-label);
 }

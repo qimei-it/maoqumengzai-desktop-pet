@@ -615,6 +615,46 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
     .evaluate((element) => element.remove());
 });
 
+test("the donut closes when a drag ends without a drop", async () => {
+  await pet.evaluate(() => {
+    document.querySelector("#mqmz-stuck-input")?.remove();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = "mqmz-stuck-input";
+    input.hidden = true;
+    document.body.append(input);
+  });
+  const fixture = join(directory, "拖回桌面.txt");
+  await writeFile(fixture, "left-on-desktop");
+  await pet.locator("#mqmz-stuck-input").setInputFiles(fixture);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-stuck-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await expect(pet.locator(".donut-ring")).toBeVisible();
+  // No further dragover/drop: the drag ended on the desktop.
+  await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 3000 });
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.wheelOpen).toBe(false);
+  expect(state.ok && state.value.dropMode).toBe(false);
+  expect(state.ok && state.value.petBounds.width).toBe(180);
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(await readFile(fixture, "utf8")).toBe("left-on-desktop");
+  await pet
+    .locator("#mqmz-stuck-input")
+    .evaluate((element) => element.remove());
+});
+
 test("dropping on the centre stashes without opening the shelf", async () => {
   const fixture = join(directory, "轮盘暂存.txt");
   await writeFile(fixture, "donut-stash");
@@ -943,7 +983,7 @@ test("stashing persists a local index across restart and removing the card prese
   await pocket
     .getByRole("button", { name: "暂存到置物架", exact: true })
     .click();
-  await expect(pocket.getByRole("status")).toContainText("重启后仍可找到");
+  await expect(pocket.getByRole("status")).toHaveText("已暂存");
   const stored = JSON.parse(
     await readFile(join(directory, "data", "mqmz.file-shelf.json"), "utf8"),
   );

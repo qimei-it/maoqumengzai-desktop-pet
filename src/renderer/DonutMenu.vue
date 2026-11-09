@@ -93,7 +93,6 @@ const hint = computed(() => {
       :style="{ left: `calc(50% + ${metrics.mid}px)` }"
     >
       <strong>吃掉</strong>
-      <small>7 天可取回</small>
     </div>
     <div
       class="donut-label label-left"
@@ -102,7 +101,6 @@ const hint = computed(() => {
       :style="{ left: `calc(50% - ${metrics.mid}px)` }"
     >
       <strong>格式转换</strong>
-      <small>引擎待接入</small>
     </div>
 
     <p
@@ -123,7 +121,7 @@ const hint = computed(() => {
   width: 0;
   height: 0;
   pointer-events: none;
-  animation: donut-in 180ms var(--ease-standard) both;
+  animation: donut-in 260ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
 }
 .donut-ring {
   position: absolute;
@@ -132,7 +130,7 @@ const hint = computed(() => {
   overflow: visible;
 }
 .donut-segment {
-  transition: transform 120ms var(--ease-standard);
+  transition: transform 180ms cubic-bezier(0.22, 1.4, 0.36, 1);
 }
 .donut-slice {
   fill: var(--color-surface);
@@ -166,34 +164,25 @@ const hint = computed(() => {
 .donut-label {
   position: absolute;
   top: 50%;
-  width: calc(var(--thickness) - 15px);
+  width: calc(var(--thickness) - 12px);
   transform: translate(-50%, -50%);
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  justify-content: center;
   text-align: center;
   color: var(--color-ink);
   transition:
-    color 120ms var(--ease-standard),
-    transform 120ms var(--ease-standard);
+    color 160ms var(--ease-standard),
+    transform 180ms cubic-bezier(0.22, 1.4, 0.36, 1);
 }
 .donut-label strong {
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
-  line-height: 1.25;
-}
-.donut-label small {
-  font-size: var(--font-size-caption);
-  line-height: 1.35;
-  color: var(--color-muted);
+  line-height: 1.3;
+  white-space: nowrap;
 }
 .donut-label.active {
   color: var(--color-on-brand);
-}
-.donut-label.active small {
-  color: var(--color-on-brand);
-  opacity: 0.85;
 }
 .label-right.active {
   transform: translate(calc(-50% + 7px), -50%);
@@ -219,7 +208,7 @@ const hint = computed(() => {
 @keyframes donut-in {
   from {
     opacity: 0;
-    transform: scale(0.86);
+    transform: scale(0.72);
   }
 }
 @media (prefers-reduced-motion: reduce) {
