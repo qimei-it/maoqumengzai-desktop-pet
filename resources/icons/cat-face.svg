@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<mask id="face" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+<rect width="64" height="64" fill="white"/>
+<ellipse cx="24" cy="35" rx="2.7" ry="3.3" fill="black"/>
+<ellipse cx="40" cy="35" rx="2.7" ry="3.3" fill="black"/>
+<ellipse cx="32" cy="43" rx="3.2" ry="2.3" fill="black"/>
+<path d="M27.5 48Q32 52 36.5 48" fill="none" stroke="black" stroke-width="2.4" stroke-linecap="round"/>
+</mask>
+<path d="M12 28C9 21 7 10 10 8C13 6 23 13 27 17Q32 15 37 17C41 13 51 6 54 8C57 10 55 21 52 28C56 33 56 41 53 47C49 55 41 58 32 58C23 58 15 55 11 47C8 41 8 33 12 28Z" fill="#000000" mask="url(#face)"/>
+</svg>

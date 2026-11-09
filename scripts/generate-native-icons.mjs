@@ -17,7 +17,6 @@ const svg = (icon, size) =>
         h(icon, { size, color: 'black', strokeWidth: 2, 'aria-hidden': true }),
     }),
   )
-await writeFile(resolve(directory, 'paw-print.svg'), await svg(PawPrint, 24))
 await writeFile(resolve(directory, 'file.svg'), await svg(FileIcon, 24))
 await writeFile(
   resolve('src/renderer/assets/lucide-paw-print.svg'),
@@ -44,8 +43,8 @@ const application = await electron.launch({ args: [entry], env: environment })
 try {
   const page = await application.firstWindow()
   for (const [source, output, size] of [
-    ['paw-print.svg', 'trayTemplate.png', 20],
-    ['paw-print.svg', 'trayTemplate@2x.png', 40],
+    ['cat-face.svg', 'trayTemplate.png', 20],
+    ['cat-face.svg', 'trayTemplate@2x.png', 40],
     ['file.svg', 'file-drag.png', 32],
     ['file.svg', 'file-drag@2x.png', 64],
   ]) {
@@ -79,5 +78,5 @@ try {
   await rm(temporary, { recursive: true, force: true })
 }
 console.log(
-  'Generated Lucide SVG sources and native PNG derivatives; copied complete upstream license.',
+  'Generated brand tray and Lucide SVG derivatives; copied complete upstream license.',
 )
