@@ -2,11 +2,8 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const root = new URL('../', import.meta.url)
-for (const file of [
-  'src/renderer/App.vue',
-  'src/renderer/FilePocket.vue',
-  'src/renderer/ActionWheel.vue',
-]) {
+// DonutMenu.vue draws the ring itself; it is geometry, not an icon set.
+for (const file of ['src/renderer/App.vue', 'src/renderer/FilePocket.vue']) {
   const source = await readFile(new URL(file, root), 'utf8')
   assert(
     /from ["']@lucide\/vue["']/.test(source),

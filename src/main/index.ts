@@ -47,7 +47,7 @@ import {
   hitOpaquePixel,
   movedBeyondThreshold,
 } from '../shared/geometry'
-import { wheelWindowSize } from '../shared/wheel'
+import { donutWindowSize } from '../shared/donut'
 import {
   captureIdSchema,
   commandSchema,
@@ -230,7 +230,7 @@ function openWheelWindow(): void {
   if (wheelOpen) return
   baseBounds = pet.getBounds()
   wheelOpen = true
-  const size = wheelWindowSize(scale)
+  const size = donutWindowSize(scale)
   const width = Math.max(baseBounds.width, size.width)
   const height = Math.max(baseBounds.height, size.height)
   pet.setBounds(
@@ -521,10 +521,7 @@ async function inspectFile(path: string): Promise<{
     inode: info.ino,
   }
 }
-async function receivePaths(
-  paths: string[],
-  options: { wheel?: boolean } = {},
-): Promise<void> {
+async function receivePaths(paths: string[]): Promise<void> {
   // Validate the complete batch before mutating the registry.
   const inspected = await Promise.all(paths.map(inspectFile))
   const known = new Set([...files.values()].map((file) => file.path))
@@ -545,22 +542,19 @@ async function receivePaths(
     })
   }
   dropMode = false
-  addEvent(
-    `已接收 ${inspected.length} 个本地文件；只登记索引，不读取正文或上传。`,
-  )
-  if (options.wheel) {
-    const ids = inspected
+  receiveToken += 1
+  received = {
+    token: receiveToken,
+    fileIds: inspected
       .map(
         (item) =>
           [...files.values()].find((file) => file.path === item.path)?.id,
       )
-      .filter((id): id is string => !!id)
-    if (ids.length) {
-      receiveToken += 1
-      received = { token: receiveToken, fileIds: [...new Set(ids)] }
-      openWheelWindow()
-    }
+      .filter((id): id is string => !!id),
   }
+  addEvent(
+    `已接收 ${inspected.length} 个本地文件；只登记索引，不读取正文或上传。`,
+  )
 }
 async function eatFiles(fileIds: string[]): Promise<void> {
   const targets: { file: LocalFile; path: string }[] = []
@@ -871,17 +865,15 @@ function setupIpc(): void {
       properties: ['openFile', 'multiSelections'],
     })
     if (!selection.canceled) {
-      await receivePaths(pathsSchema.parse(selection.filePaths), {
-        wheel: owner === pet,
-      })
-      // The pet answers with its own wheel; the shelf stays a separate surface.
+      await receivePaths(pathsSchema.parse(selection.filePaths))
+      // The shelf stays a separate surface; a drag onto the pet uses the donut.
       if (owner !== pet) showPocket()
     }
     return snapshot()
   })
   handle(channels.receiveFiles, 'either', async (event, payload) => {
     const owner = BrowserWindow.fromWebContents(event.sender)
-    await receivePaths(pathsSchema.parse(payload), { wheel: owner === pet })
+    await receivePaths(pathsSchema.parse(payload))
     if (owner !== pet) showPocket()
     return snapshot()
   })

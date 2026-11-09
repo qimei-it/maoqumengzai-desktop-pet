@@ -449,6 +449,14 @@ footer button {
   position: relative;
   line-height: 0;
 }
+/* Absolute so the sprite centre always matches the window centre. */
+.marker-anchor .marker-caption {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%);
+  line-height: 1.5;
+}
 .wheel-scrim {
   position: absolute;
   inset: 0;

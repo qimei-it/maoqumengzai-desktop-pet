@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { FolderInput, Inbox, Plus } from "@lucide/vue";
+import { Inbox, Plus } from "@lucide/vue";
 import type {
   CapturePreview,
   Command,
   Result,
   Snapshot,
 } from "../shared/protocol";
-import { conversionTargets } from "../shared/wheel";
+import {
+  conversionTargets,
+  donutMetrics,
+  hitTest,
+} from "../shared/donut";
 import probeUrl from "./assets/lucide-paw-print.svg";
-import ActionWheel from "./ActionWheel.vue";
+import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
@@ -28,25 +32,17 @@ const captureBusy = ref(false);
 const dragOver = ref(false);
 const marker = ref<HTMLImageElement>();
 const displayId = ref<number>();
-const wheel = ref<{
-  token: number;
-  level: "actions" | "convert";
-  busy: boolean;
-}>();
+const donutOpen = ref(false);
+const donutActive = ref<"stash" | "convert" | "eat" | null>(null);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
-const wheelFiles = computed(() => {
-  const ids = state.value?.received?.fileIds ?? [];
-  return (state.value?.files ?? []).filter((file) => ids.includes(file.id));
-});
-const wheelTargets = computed(() =>
-  conversionTargets(wheelFiles.value.map((file) => file.name)),
-);
 let unsubscribe: (() => void) | undefined;
 let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
 let activatingDrop = false;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let hoverFrame = 0;
+const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
   if (!result.ok) throw new Error(result.error);
@@ -71,17 +67,6 @@ async function selectFiles(): Promise<void> {
     if (api) state.value = unwrap(await api.selectFiles());
   });
 }
-async function receive(event: DragEvent): Promise<void> {
-  event.preventDefault();
-  dragOver.value = false;
-  await receiveFiles([...(event.dataTransfer?.files || [])]);
-}
-async function receiveFiles(files: File[]): Promise<void> {
-  await attempt(async () => {
-    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-    state.value = unwrap(await api.receiveFiles(files));
-  });
-}
 function flash(message: string): void {
   toast.value = message;
   if (toastTimer) clearTimeout(toastTimer);
@@ -89,9 +74,46 @@ function flash(message: string): void {
     toast.value = "";
   }, 6000);
 }
-async function closeWheel(send = true): Promise<void> {
-  const active = !!wheel.value;
-  wheel.value = undefined;
+/** Region under the cursor, measured from the sprite centre. */
+function regionAt(
+  clientX: number,
+  clientY: number,
+): "stash" | "convert" | "eat" | null {
+  const rect = marker.value?.getBoundingClientRect();
+  if (!rect) return null;
+  const metrics = donutMetrics(markerScale.value);
+  const hit = hitTest(
+    clientX - (rect.x + rect.width / 2),
+    clientY - (rect.y + rect.height / 2),
+    metrics.inner,
+    metrics.outer,
+    2,
+    4,
+    Math.PI / 2,
+  );
+  if (hit.kind === "center") return "stash";
+  if (hit.kind === "segment") return hit.index === 0 ? "eat" : "convert";
+  return null;
+}
+function trackHover(event: DragEvent): void {
+  dragPoint.x = event.clientX;
+  dragPoint.y = event.clientY;
+  if (hoverFrame) return;
+  hoverFrame = requestAnimationFrame(() => {
+    hoverFrame = 0;
+    donutActive.value = regionAt(dragPoint.x, dragPoint.y);
+  });
+}
+async function openDonut(): Promise<void> {
+  if (donutOpen.value) return;
+  donutOpen.value = true;
+  donutActive.value = null;
+  await command({ type: "wheel", open: true });
+}
+async function closeDonut(send = true): Promise<void> {
+  const active = donutOpen.value;
+  donutOpen.value = false;
+  donutActive.value = null;
   if (!active || !send || !api) return;
   try {
     state.value = unwrap(await api.command({ type: "wheel", open: false }));
@@ -99,62 +121,24 @@ async function closeWheel(send = true): Promise<void> {
     error.value = cause instanceof Error ? cause.message : "本地操作失败。";
   }
 }
-async function wheelStash(): Promise<void> {
-  const current = wheel.value;
-  const ids = wheelFiles.value.map((file) => file.id);
-  if (!current || current.busy) return;
-  if (!ids.length) {
-    await closeWheel();
-    return;
-  }
-  current.busy = true;
-  await attempt(async () => {
-    if (!api) return;
-    for (const id of ids) {
-      state.value = unwrap(
-        await api.command({ type: "stash-file", fileId: id }),
-      );
-    }
-    await closeWheel();
-    flash("已暂存到置物架；按住卡片可以拖出。");
-  });
-  if (wheel.value) wheel.value.busy = false;
-}
-async function wheelEat(): Promise<void> {
-  const current = wheel.value;
-  const ids = wheelFiles.value.map((file) => file.id);
-  if (!current || current.busy) return;
-  if (!ids.length) {
-    await closeWheel();
-    return;
-  }
-  current.busy = true;
-  await attempt(async () => {
-    if (!api) return;
-    state.value = unwrap(await api.command({ type: "eat-files", fileIds: ids }));
-    await closeWheel(false);
-    flash("吃掉了；7 天内在置物架可以取回。");
-  });
-  if (wheel.value) wheel.value.busy = false;
-}
-function wheelConvert(): void {
-  if (!wheel.value || wheel.value.busy) return;
-  wheel.value = { ...wheel.value, level: "convert" };
-}
-function wheelBack(): void {
-  if (!wheel.value || wheel.value.level === "actions") return;
-  wheel.value = { ...wheel.value, level: "actions" };
-}
 function enter(event: DragEvent): void {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
   dragOver.value = true;
-  if (petView && !state.value?.dropMode && !activatingDrop) {
+  if (!petView) return;
+  if (!state.value?.dropMode && !activatingDrop) {
     activatingDrop = true;
     void command({ type: "drop-mode", enabled: true }).finally(() => {
       activatingDrop = false;
     });
   }
+  void openDonut();
+  trackHover(event);
+}
+function over(event: DragEvent): void {
+  event.preventDefault();
+  if (!petView) return;
+  trackHover(event);
 }
 function leave(event: DragEvent): void {
   const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -166,7 +150,65 @@ function leave(event: DragEvent): void {
   )
     return;
   dragOver.value = false;
-  if (petView) void command({ type: "drop-mode", enabled: false });
+  if (!petView) return;
+  void closeDonut();
+  void command({ type: "drop-mode", enabled: false });
+}
+async function receive(event: DragEvent): Promise<void> {
+  event.preventDefault();
+  const action = petView ? regionAt(event.clientX, event.clientY) : null;
+  const files = [...(event.dataTransfer?.files || [])];
+  dragOver.value = false;
+  if (petView) {
+    await closeDonut();
+    void command({ type: "drop-mode", enabled: false });
+  }
+  if (!files.length) return;
+  if (!petView) {
+    await receiveFiles(files);
+    return;
+  }
+  if (!action) return;
+  await applyDrop(files, action);
+}
+async function applyDrop(
+  files: File[],
+  action: "stash" | "convert" | "eat",
+): Promise<void> {
+  if (action === "convert") {
+    const targets = conversionTargets(files.map((file) => file.name));
+    flash(
+      targets.length
+        ? `格式转换引擎尚未接入；接入后可选 ${targets.join("、")}`
+        : "格式转换引擎尚未接入；这批文件暂无统一目标格式",
+    );
+    return;
+  }
+  await attempt(async () => {
+    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+    const snapshot = unwrap(await api.receiveFiles(files));
+    state.value = snapshot;
+    const ids = snapshot.received?.fileIds ?? [];
+    if (!ids.length) return;
+    if (action === "stash") {
+      for (const id of ids)
+        state.value = unwrap(
+          await api.command({ type: "stash-file", fileId: id }),
+        );
+      flash("已暂存到置物架；按住卡片可以拖出。");
+    } else {
+      state.value = unwrap(
+        await api.command({ type: "eat-files", fileIds: ids }),
+      );
+      flash("吃掉了；7 天内在置物架可以取回。");
+    }
+  });
+}
+async function receiveFiles(files: File[]): Promise<void> {
+  await attempt(async () => {
+    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+    state.value = unwrap(await api.receiveFiles(files));
+  });
 }
 async function updateMask(): Promise<void> {
   if (!api || !marker.value || !marker.value.complete || state.value?.dropMode)
@@ -195,18 +237,14 @@ async function updateMask(): Promise<void> {
   });
 }
 function onKeydown(event: KeyboardEvent): void {
-  if (!wheel.value || event.key !== "Escape") return;
+  if (!donutOpen.value || event.key !== "Escape") return;
   event.preventDefault();
-  if (wheel.value.level === "convert") wheelBack();
-  else void closeWheel();
+  void closeDonut();
+  void command({ type: "drop-mode", enabled: false });
 }
 function pointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !api || pointerId !== undefined) return;
   event.preventDefault();
-  if (wheel.value) {
-    void closeWheel();
-    return;
-  }
   pointerId = event.pointerId;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   void attempt(async () => {
@@ -262,21 +300,13 @@ watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
   await updateMask();
 });
 watch(
-  () => state.value?.received?.token,
-  (token) => {
-    if (!token) return;
-    wheel.value = { token, level: "actions", busy: false };
-    void nextTick(() => {
-      const petal = document.querySelector<HTMLButtonElement>(".wheel-petal");
-      petal?.focus({ preventScroll: true });
-    });
-  },
-);
-watch(
-  () => [state.value?.dropMode, state.value?.wheelOpen],
-  ([dropMode, open]) => {
-    // Main closes the wheel on drop mode, recovery and display changes.
-    if (wheel.value && (dropMode || open === false)) wheel.value = undefined;
+  () => state.value?.wheelOpen,
+  (open) => {
+    // Main closes the donut on recovery or display changes.
+    if (!open && donutOpen.value) {
+      donutOpen.value = false;
+      donutActive.value = null;
+    }
   },
 );
 onMounted(async () => {
@@ -319,61 +349,42 @@ onUnmounted(() => {
     class="pet-surface"
     :class="{ receiving: state?.dropMode, over: dragOver }"
     @dragenter="enter"
-    @dragover="enter"
+    @dragover="over"
     @dragleave="leave"
     @drop="receive"
     @contextmenu.prevent="command({ type: 'show-pocket' })"
   >
-    <div v-if="state?.dropMode" class="drop-target">
-      <FolderInput
-        class="drop-symbol"
-        :size="36"
-        :stroke-width="2"
-        aria-hidden="true"
-        focusable="false"
-      /><strong>把文件放在这里</strong><small>本地登记 · 不上传</small>
-    </div>
-    <template v-else>
-      <div v-if="wheel" class="wheel-scrim" @pointerdown="closeWheel()"></div>
-      <div class="marker-content" :class="{ wheeling: wheel }">
-        <div class="marker-anchor">
-          <img
-            ref="marker"
-            :src="probeUrl"
-            class="marker"
-            :style="{
-              width: `${128 * markerScale}px`,
-              height: `${128 * markerScale}px`,
-            }"
-            alt="可拖动的像素交互测试标记"
-            draggable="false"
-            @load="updateMask"
-            @pointerdown="pointerDown"
-            @pointerup="pointerUp"
-            @pointercancel="pointerUp"
-          />
-          <ActionWheel
-            v-if="wheel"
-            :files="wheelFiles"
-            :level="wheel.level"
-            :scale="markerScale"
-            :targets="wheelTargets"
-            :busy="wheel.busy"
-            @stash="wheelStash"
-            @convert="wheelConvert"
-            @eat="wheelEat"
-            @back="wheelBack"
-            @close="closeWheel()"
-          />
-        </div>
+    <div class="marker-content">
+      <div class="marker-anchor">
+        <img
+          ref="marker"
+          :src="probeUrl"
+          class="marker"
+          :style="{
+            width: `${128 * markerScale}px`,
+            height: `${128 * markerScale}px`,
+          }"
+          alt="可拖动的像素交互测试标记"
+          draggable="false"
+          @load="updateMask"
+          @pointerdown="pointerDown"
+          @pointerup="pointerUp"
+          @pointercancel="pointerUp"
+        />
+        <DonutMenu
+          v-if="donutOpen"
+          :scale="markerScale"
+          :active="donutActive"
+          :summary="error || '松开落在扇区上执行 · 中心暂存'"
+        />
         <span
           class="marker-caption"
-          :class="{ hidden: wheel }"
+          :class="{ hidden: donutOpen }"
           :style="{ fontSize: `${11 * markerScale}px` }"
           >交互测试标记</span
         >
       </div>
-    </template>
+    </div>
     <span v-if="toast" class="pet-toast" role="status">{{ toast }}</span>
     <span v-if="error" class="pet-error" role="alert">{{ error }}</span>
   </main>

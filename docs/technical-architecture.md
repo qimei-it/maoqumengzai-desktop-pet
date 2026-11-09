@@ -74,7 +74,7 @@ tests/
 - 三类 UI 各自使用受限 preload；渲染进程关闭 Node 集成，启用上下文隔离和沙箱，只加载项目 UI。邮件 HTML 经清洗并隔离显示，默认不加载远程图片或执行脚本。
 - 数据库通过单个独立任务进程串行写入；迁移与事务保持原子性，防止多窗口竞争写入。
 - Node 任务采用 `utilityProcess`；外部转换引擎使用参数数组启动独立子进程，`shell: false`，设超时、取消与进程树清理。独立进程不等于安全沙箱，仍限制工作目录、输入路径与输出范围。
-- 原生媒体适配按 macOS / Windows 分开实现，只接入经真实验证的能力；参考项目用于理解思路，不复制业务实现或私有凭据路线。
+- 原生媒体适配按 macOS / Windows 分开实现，只接入经真实验证的能力；Daozai 仅参考思路，不复制业务实现或私有凭据路线。Filee 的 MIT 轮盘几何与拖拽交互按用户要求移植，保留版权声明并改为 mqmz 命名。
 
 ## 4. IPC、任务与命名
 
@@ -93,6 +93,7 @@ tests/
 - 子目录划分为 `db/`、`credentials/`、`cache/`、`assets/`、`jobs/`、`logs/` 与 Chromium 会话目录；数据库拟名 `mqmz.sqlite3`，表如 `mqmz_settings`、`mqmz_todos`、`mqmz_reminder_records`、`mqmz_clipboard_items`、`mqmz_conversion_jobs`。
 - P0 最小置物架已用 `mqmz.file-shelf.json` 持久化本地文件索引，原件保留原处；P3 接入 SQLite 时迁移并保留这些记录。文件卡片独立为旁侧轻窗口；大型开发诊断台不进入正式版。
 - “吃掉”把文件移入 `mqmz-desktop/belly/`，索引写入 `mqmz.belly.json`，默认保留 7 天并可在置物架取回；到期清理只删除回收区内的副本。该目录属于本地数据，不参与云端同步。
+- 文件拖入桌宠时使用 Filee 式圆环（MIT 移植）：中心孔暂存、左半环格式转换、右半环吃掉；松手按落点执行，环外取消。圆环只在拖拽期间存在，不额外占用常驻窗口；展开时窗口 232×240 → 468×468 DIP，关闭恢复。
 - 原始文件保持在原处；置物架保存索引。截图、附件、缓存、素材与引擎采用各自明确的所有权/清理策略。
 - 清理先展示类别与大小；固定项、凭据、历史、下载素材与临时文件分开处理，保护运行中的任务，不因移除索引删除用户源文件。SQLite 清理通过事务执行，不在运行中直接删除数据库文件。
 - 使用 Electron `safeStorage` 异步接口保护邮箱、DeepSeek 等凭据，密文写本机，UI 只展示脱敏状态；密钥不可用时停止相关认证，不回退明文存储。其 macOS Keychain、Windows DPAPI 语义和签名要求见 [safeStorage 文档](https://www.electronjs.org/docs/latest/api/safe-storage)。本方案不承诺防止同一已登录用户下的所有恶意进程读取数据。
@@ -147,4 +148,4 @@ P5 的引擎安装任务改为全量内置与完整性管理。卸载本地历�
 - [Electron 安全建议](https://www.electronjs.org/docs/latest/tutorial/security)
 - [electron-builder NSIS](https://www.electron.build/v26/docs/nsis/) 与 [DMG](https://www.electron.build/v26/docs/dmg/)
 
-以上是项目自行设计的工程边界；参考项目的实现代码与素材没有被引入。
+以上是项目自行设计的工程边界。Filee 的 MIT 许可轮盘几何与交互代码已移植并在 [THIRD-PARTY-NOTICES](../THIRD-PARTY-NOTICES.md) 署名；其品牌素材与其余业务实现未引入，Daozai 仅参考思路。

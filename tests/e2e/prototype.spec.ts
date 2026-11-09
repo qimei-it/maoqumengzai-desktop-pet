@@ -142,7 +142,8 @@ test("controls resize the real native window and switch the whole file receiving
     )
     .toBe(464);
   await lab.getByTestId("drop-mode").click();
-  await expect(pet.getByText("把文件放在这里")).toBeVisible();
+  // The pet stays visible; the donut appears during a real drag, not on a toggle.
+  await expect(pet.locator(".marker")).toBeVisible();
   const dropping = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(
     dropping.ok && dropping.value.dropMode && !dropping.value.passthrough,
@@ -252,65 +253,22 @@ test("OS-backed File objects reach the real local registry; removal preserves so
   const fixture = join(directory, "验证 空格&文件.txt");
   await writeFile(fixture, "mqmz local integration fixture\n");
   // A real disk-backed browser File is injected, not a mock path or demo record.
-  // This verifies the DOM/preload/filesystem flow; Finder/Explorer drag is separately recorded.
-  await lab.evaluate(() => {
+  // The pet's drag donut has its own tests below; this one covers the shelf path.
+  await pocket.evaluate(() => {
     const input = document.createElement("input");
     input.type = "file";
     input.id = "mqmz-test-file";
     input.hidden = true;
     document.body.append(input);
   });
-  await lab.locator("#mqmz-test-file").setInputFiles(fixture);
-  // Real browser File values are delivered through the pet's native page, as in a pet drop.
-  await pet.evaluate(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.id = "mqmz-pet-input";
-    input.hidden = true;
-    document.body.append(input);
-  });
-  await pet.locator("#mqmz-pet-input").setInputFiles(fixture);
-  await pet.evaluate(() => {
-    const input = document.querySelector<HTMLInputElement>("#mqmz-pet-input")!;
-    const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
-    document.querySelector(".pet-surface")!.dispatchEvent(
-      new DragEvent("drop", {
-        dataTransfer: transfer,
-        bubbles: true,
-        cancelable: true,
-      }),
+  await pocket.locator("#mqmz-test-file").setInputFiles(fixture);
+  const registration = await pocket
+    .locator("#mqmz-test-file")
+    .evaluate((element) =>
+      window.mqmz!.receiveFiles([...(element as HTMLInputElement).files!]),
     );
-  });
+  expect(registration.ok).toBe(true);
   await expect(lab.getByTestId("file-row")).toHaveCount(1);
-
-  // A drop on the pet answers with the three-action wheel, not with the shelf.
-  await expect(pet.locator('[data-petal="stash"]')).toBeVisible();
-  await expect(pet.locator('[data-petal="convert"]')).toBeVisible();
-  await expect(pet.locator('[data-petal="eat"]')).toBeVisible();
-  await expect(pet.locator(".wheel-summary")).toContainText("1 个文件");
-  for (const icon of await pet.locator(".wheel svg").all()) {
-    await expect(icon).toHaveAttribute("viewBox", "0 0 24 24");
-    await expect(icon).toHaveAttribute("stroke-width", "2");
-    await expect(icon).toHaveAttribute("aria-hidden", "true");
-  }
-  await pet.screenshot({
-    path: "/tmp/mqmz-wheel.png",
-    omitBackground: true,
-  });
-  const expanded = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(expanded.ok && expanded.value.wheelOpen).toBe(true);
-  expect(expanded.ok && expanded.value.petBounds.width).toBe(320);
-  // Escape cancels the wheel without touching the files.
-  await pet.locator('[data-petal="stash"]').focus();
-  await pet.keyboard.press("Escape");
-  await expect(pet.locator(".wheel")).toHaveCount(0);
-  const cancelled = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(cancelled.ok && cancelled.value.wheelOpen).toBe(false);
-  expect(cancelled.ok && cancelled.value.files.length).toBe(1);
-  expect(cancelled.ok && cancelled.value.petBounds.width).toBe(232);
-
-  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
   await expect(pocket.getByTestId("pocket-file")).toHaveCount(1);
   await expect(pocket.getByTestId("pocket-file")).toHaveAttribute(
     "draggable",
@@ -460,7 +418,9 @@ test("OS-backed File objects reach the real local registry; removal preserves so
   expect(await readFile(fixture, "utf8")).toBe(
     "mqmz local integration fixture\n",
   );
-  await lab.locator("#mqmz-test-file").evaluate((element) => element.remove());
+  await pocket
+    .locator("#mqmz-test-file")
+    .evaluate((element) => element.remove());
 });
 
 test("file-card drag gestures dispatch the system drag capability rather than a drag button", async () => {
@@ -511,9 +471,153 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
   expect(await readFile(fixture, "utf8")).toBe("drag-card-fixture");
 });
 
-test("the wheel stashes a batch without opening the shelf panel", async () => {
+async function dropOnPet(
+  fixture: string,
+  region: "center" | "left" | "right" | "outside",
+): Promise<void> {
+  await pet.evaluate(() => {
+    document.querySelector("#mqmz-drop-input")?.remove();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = "mqmz-drop-input";
+    input.hidden = true;
+    document.body.append(input);
+  });
+  await pet.locator("#mqmz-drop-input").setInputFiles(fixture);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await expect(pet.locator(".donut-ring")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(468);
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const point =
+    region === "center"
+      ? { x: cx, y: cy }
+      : region === "right"
+        ? { x: cx + 118, y: cy }
+        : region === "left"
+          ? { x: cx - 118, y: cy }
+          : { x: cx, y: cy + 216 };
+  await pet.evaluate(({ x, y }) => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("drop", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+  }, point);
+}
+
+test("dragging over the pet opens the two-half donut and Esc closes it", async () => {
+  const fixture = join(directory, "拖拽预览.txt");
+  await writeFile(fixture, "donut preview");
+  await pet.evaluate(() => {
+    document.querySelector("#mqmz-donut-input")?.remove();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = "mqmz-donut-input";
+    input.hidden = true;
+    document.body.append(input);
+  });
+  await pet.locator("#mqmz-donut-input").setInputFiles(fixture);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await expect(pet.locator(".donut-ring")).toBeVisible();
+  await expect(pet.locator(".donut-hole")).toBeVisible();
+  await expect(pet.locator('[data-region="convert"]')).toContainText("格式转换");
+  await expect(pet.locator('[data-region="eat"]')).toContainText("吃掉");
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const hover = async (x: number, y: number) => {
+    await pet.evaluate(({ x, y }) => {
+      const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+      const transfer = new DataTransfer();
+      transfer.items.add(input.files![0]);
+      document.querySelector(".pet-surface")!.dispatchEvent(
+        new DragEvent("dragover", {
+          dataTransfer: transfer,
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    }, { x, y });
+  };
+  await hover(cx + 118, cy);
+  await expect(pet.locator('[data-region="eat"]')).toHaveClass(/active/);
+  await pet.waitForTimeout(220);
+  await pet.screenshot({
+    path: "/tmp/mqmz-donut.png",
+    omitBackground: true,
+  });
+  await hover(cx - 118, cy);
+  await expect(pet.locator('[data-region="convert"]')).toHaveClass(/active/);
+  await pet.waitForTimeout(220);
+  await pet.screenshot({
+    path: "/tmp/mqmz-donut-convert.png",
+    omitBackground: true,
+  });
+  await hover(cx, cy);
+  await expect(pet.locator(".donut-hole")).toHaveClass(/active/);
+  await pet.waitForTimeout(220);
+  await pet.screenshot({
+    path: "/tmp/mqmz-donut-center.png",
+    omitBackground: true,
+  });
+  await pet.keyboard.press("Escape");
+  await expect(pet.locator(".donut-ring")).toHaveCount(0);
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.wheelOpen).toBe(false);
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(state.ok && state.value.petBounds.width).toBe(232);
+  await pet
+    .locator("#mqmz-donut-input")
+    .evaluate((element) => element.remove());
+});
+
+test("dropping on the centre stashes without opening the shelf", async () => {
   const fixture = join(directory, "轮盘暂存.txt");
-  await writeFile(fixture, "wheel-stash");
+  await writeFile(fixture, "donut-stash");
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
   await expect
     .poll(() =>
@@ -524,25 +628,14 @@ test("the wheel stashes a batch without opening the shelf panel", async () => {
       ),
     )
     .toBe(false);
-  await pet.evaluate(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.id = "mqmz-wheel-stash";
-    input.hidden = true;
-    document.body.append(input);
-  });
-  await pet.locator("#mqmz-wheel-stash").setInputFiles(fixture);
-  const registration = await pet
-    .locator("#mqmz-wheel-stash")
-    .evaluate((element) =>
-      window.mqmz!.receiveFiles([...(element as HTMLInputElement).files!]),
-    );
-  expect(registration.ok).toBe(true);
-  await expect(pet.locator('[data-petal="stash"]')).toBeVisible();
-  await pet.locator('[data-petal="stash"]').click();
-  await expect(pet.locator(".wheel")).toHaveCount(0);
+  await dropOnPet(fixture, "center");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.files[0]?.status : undefined;
+    })
+    .toBe("shelved");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.files[0].status).toBe("shelved");
   expect(state.ok && state.value.wheelOpen).toBe(false);
   expect(state.ok && state.value.petBounds.width).toBe(232);
   expect(
@@ -557,30 +650,12 @@ test("the wheel stashes a batch without opening the shelf panel", async () => {
     pocket.getByRole("button", { name: "已暂存到置物架", exact: true }),
   ).toBeDisabled();
   await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
-  await pet
-    .locator("#mqmz-wheel-stash")
-    .evaluate((element) => element.remove());
 });
 
-test("eating stores the file in a reversible belly area", async () => {
+test("dropping on the right half eats the file into a reversible belly", async () => {
   const fixture = join(directory, "被吃掉.txt");
   await writeFile(fixture, "eaten-bytes");
-  await pet.evaluate(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.id = "mqmz-wheel-eat";
-    input.hidden = true;
-    document.body.append(input);
-  });
-  await pet.locator("#mqmz-wheel-eat").setInputFiles(fixture);
-  await pet
-    .locator("#mqmz-wheel-eat")
-    .evaluate((element) =>
-      window.mqmz!.receiveFiles([...(element as HTMLInputElement).files!]),
-    );
-  await expect(pet.locator('[data-petal="stash"]')).toBeVisible();
-  await pet.locator('[data-petal="eat"]').click();
-  await expect(pet.locator(".wheel")).toHaveCount(0);
+  await dropOnPet(fixture, "right");
   await expect(pet.getByRole("status")).toContainText("7 天内");
   await expect
     .poll(async () => {
@@ -611,43 +686,28 @@ test("eating stores the file in a reversible belly area", async () => {
   const restored = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(restored.ok && restored.value.belly.length).toBe(0);
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
-  await pet.locator("#mqmz-wheel-eat").evaluate((element) => element.remove());
 });
 
-test("the conversion ring lists planned targets without faking a result", async () => {
+test("dropping on the left half states that conversion is not wired yet", async () => {
   const fixture = join(directory, "待转换.png");
   await writeFile(fixture, "not-a-real-png");
-  await pet.evaluate(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.id = "mqmz-wheel-convert";
-    input.hidden = true;
-    document.body.append(input);
-  });
-  await pet.locator("#mqmz-wheel-convert").setInputFiles(fixture);
-  await pet
-    .locator("#mqmz-wheel-convert")
-    .evaluate((element) =>
-      window.mqmz!.receiveFiles([...(element as HTMLInputElement).files!]),
-    );
-  await expect(pet.locator('[data-petal="stash"]')).toBeVisible();
-  await pet.locator('[data-petal="convert"]').click();
-  await expect(pet.locator(".wheel-summary")).toContainText("尚未接入");
-  await expect(pet.locator('[data-petal="target"]')).toHaveCount(4);
-  await expect(pet.locator('[data-petal="target"]').first()).toBeDisabled();
-  await pet.screenshot({
-    path: "/tmp/mqmz-wheel-convert.png",
-    omitBackground: true,
-  });
-  await pet.getByRole("button", { name: "返回", exact: true }).click();
-  await expect(pet.locator('[data-petal="stash"]')).toBeVisible();
-  await pet.keyboard.press("Escape");
-  await expect(pet.locator(".wheel")).toHaveCount(0);
-  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
-  await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
-  await pet
-    .locator("#mqmz-wheel-convert")
-    .evaluate((element) => element.remove());
+  await dropOnPet(fixture, "left");
+  await expect(pet.getByRole("status")).toContainText("格式转换引擎尚未接入");
+  await expect(pet.getByRole("status")).toContainText("JPG");
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(state.ok && state.value.belly.length).toBe(0);
+  expect(state.ok && state.value.wheelOpen).toBe(false);
+});
+
+test("dropping outside the ring leaves the file untouched", async () => {
+  const fixture = join(directory, "环外.txt");
+  await writeFile(fixture, "outside-ring");
+  await dropOnPet(fixture, "outside");
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(state.ok && state.value.belly.length).toBe(0);
+  expect(await readFile(fixture, "utf8")).toBe("outside-ring");
 });
 
 test("saving a real copy preserves the original and refuses to overwrite it", async () => {
