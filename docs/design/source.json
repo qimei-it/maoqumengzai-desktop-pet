@@ -1,0 +1,14 @@
+{
+  "sourceRepository": "maoquyinghua-frontend",
+  "sourceFile": "src/styles/tokens.css",
+  "relatedFiles": [
+    "src/styles/patterns.css",
+    "docs/design/tokens.md"
+  ],
+  "sourceSha256": "92c6ee067f131e630c6141e119d53c7a58b158e882e084b5ee7255ef8dbd1fd4",
+  "sourceRelativeToProject": "../../wechat-miniprogram/maoquyinghua/maoquyinghua-frontend/src/styles/tokens.css",
+  "adaptations": [
+    "page selector becomes :root",
+    "rpx values become px at 0.5 scale"
+  ]
+}

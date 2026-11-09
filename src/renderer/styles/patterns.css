@@ -1,0 +1,84 @@
+/* Desktop adaptation of Maoquyinghua's button-pair / button-soft / button-glass.
+ * Palette/material tokens are generated from its canonical tokens.css.
+ * Native desktop dimensions and focus/hover behavior live here.
+ */
+:root {
+  --mqmz-panel-padding: var(--page-x);
+  --mqmz-panel-shadow: var(--shadow-stage);
+  --mqmz-action-background: var(--color-brand-ink);
+  --mqmz-focus-ring: 2px solid var(--color-focus);
+}
+.button-pair {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-4);
+}
+.button-pair > .button-glass,
+.button-pair > .button-soft {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  margin: 0;
+  padding-inline: var(--space-4);
+}
+.button-glass,
+.button-soft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: var(--shadow-button-3d);
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+.button-soft {
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+}
+.button-glass {
+  /* Opaque brand ink keeps small white text legible over arbitrary desktops. */
+  background-color: var(--mqmz-action-background);
+  background-image: var(--gradient-button-primary);
+  color: var(--color-on-brand);
+  border-color: var(--color-brand-ink);
+}
+.button-glass:hover:not(:disabled) {
+  background-color: color-mix(
+    in srgb,
+    var(--color-brand-ink) 92%,
+    var(--color-ink)
+  );
+}
+.button-soft:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+}
+.button-glass:active:not(:disabled),
+.button-soft:active:not(:disabled) {
+  box-shadow: var(--shadow-control-pressed);
+}
+.button-glass:focus-visible,
+.button-soft:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+}
+.button-glass:disabled,
+.button-soft:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-muted);
+  border-color: var(--color-line);
+  box-shadow: none;
+  opacity: 1;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .button-glass,
+  .button-soft {
+    transition: none;
+  }
+}

@@ -1,0 +1,28 @@
+appId: com.mqmz.desktop
+productName: 毛趣萌仔
+directories:
+  output: dist
+files:
+  - out/**/*
+  - package.json
+asar: true
+extraResources:
+  - from: resources/icons
+    to: icons
+  - from: resources/licenses
+    to: licenses
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  minimumSystemVersion: '13.0'
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+# P0 仅构建窗口原型；完整首版的全量转换引擎在 P5 加入，当前包不代表发布包。

@@ -1,0 +1,247 @@
+{
+  "checked_on": "2026-11-09",
+  "purpose": "P0 planned dependency versions; not installed or integration-tested",
+  "source": "npm publisher metadata",
+  "packages": [
+    {
+      "name": "electron",
+      "version": "45.2.3",
+      "engines": {
+        "node": ">= 22.12.0"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/electron/45.2.3"
+    },
+    {
+      "name": "electron-vite",
+      "version": "5.0.0",
+      "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+      },
+      "peerDependencies": {
+        "vite": "^5.0.0 || ^6.0.0 || ^7.0.0",
+        "@swc/core": "^1.0.0"
+      },
+      "peerDependenciesMeta": {
+        "@swc/core": {
+          "optional": true
+        }
+      },
+      "registry_url": "https://registry.npmjs.org/electron-vite/5.0.0"
+    },
+    {
+      "name": "electron-builder",
+      "version": "26.18.1",
+      "engines": {
+        "node": ">=14.0.0"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/electron-builder/26.18.1"
+    },
+    {
+      "name": "vue",
+      "version": "3.5.45",
+      "engines": null,
+      "peerDependencies": {
+        "typescript": "*"
+      },
+      "peerDependenciesMeta": {
+        "typescript": {
+          "optional": true
+        }
+      },
+      "registry_url": "https://registry.npmjs.org/vue/3.5.45"
+    },
+    {
+      "name": "typescript",
+      "version": "5.9.3",
+      "engines": {
+        "node": ">=14.17"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/typescript/5.9.3"
+    },
+    {
+      "name": "pinia",
+      "version": "3.0.4",
+      "engines": null,
+      "peerDependencies": {
+        "vue": "^3.5.11",
+        "typescript": ">=4.5.0"
+      },
+      "peerDependenciesMeta": {
+        "typescript": {
+          "optional": true
+        }
+      },
+      "registry_url": "https://registry.npmjs.org/pinia/3.0.4"
+    },
+    {
+      "name": "vue-router",
+      "version": "4.6.4",
+      "engines": null,
+      "peerDependencies": {
+        "vue": "^3.5.0"
+      },
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/vue-router/4.6.4"
+    },
+    {
+      "name": "zod",
+      "version": "4.6.7",
+      "engines": null,
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/zod/4.6.7"
+    },
+    {
+      "name": "better-sqlite3",
+      "version": "13.0.3",
+      "engines": {
+        "node": ">=22"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/better-sqlite3/13.0.3"
+    },
+    {
+      "name": "vite",
+      "version": "7.3.7",
+      "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+      },
+      "peerDependencies": {
+        "tsx": "^4.8.1",
+        "jiti": ">=1.21.0",
+        "less": "^4.0.0",
+        "sass": "^1.70.0",
+        "yaml": "^2.4.2",
+        "stylus": ">=0.54.8",
+        "terser": "^5.16.0",
+        "sugarss": "^5.0.0",
+        "@types/node": "^20.19.0 || >=22.12.0",
+        "lightningcss": "^1.21.0",
+        "sass-embedded": "^1.70.0"
+      },
+      "peerDependenciesMeta": {
+        "tsx": {
+          "optional": true
+        },
+        "jiti": {
+          "optional": true
+        },
+        "less": {
+          "optional": true
+        },
+        "sass": {
+          "optional": true
+        },
+        "yaml": {
+          "optional": true
+        },
+        "stylus": {
+          "optional": true
+        },
+        "terser": {
+          "optional": true
+        },
+        "sugarss": {
+          "optional": true
+        },
+        "@types/node": {
+          "optional": true
+        },
+        "lightningcss": {
+          "optional": true
+        },
+        "sass-embedded": {
+          "optional": true
+        }
+      },
+      "registry_url": "https://registry.npmjs.org/vite/7.3.7"
+    },
+    {
+      "name": "vitest",
+      "version": "4.1.12",
+      "engines": {
+        "node": "^20.0.0 || ^22.0.0 || >=24.0.0"
+      },
+      "peerDependencies": {
+        "vite": "^6.0.0 || ^7.0.0 || ^8.0.0",
+        "jsdom": "*",
+        "happy-dom": "*",
+        "@vitest/ui": "4.1.12",
+        "@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0",
+        "@edge-runtime/vm": "*",
+        "@opentelemetry/api": "^1.9.0",
+        "@vitest/coverage-v8": "4.1.12",
+        "@vitest/browser-preview": "4.1.12",
+        "@vitest/coverage-istanbul": "4.1.12",
+        "@vitest/browser-playwright": "4.1.12",
+        "@vitest/browser-webdriverio": "^4.1.11"
+      },
+      "peerDependenciesMeta": {
+        "vite": {
+          "optional": false
+        },
+        "jsdom": {
+          "optional": true
+        },
+        "happy-dom": {
+          "optional": true
+        },
+        "@vitest/ui": {
+          "optional": true
+        },
+        "@types/node": {
+          "optional": true
+        },
+        "@edge-runtime/vm": {
+          "optional": true
+        },
+        "@opentelemetry/api": {
+          "optional": true
+        },
+        "@vitest/coverage-v8": {
+          "optional": true
+        },
+        "@vitest/browser-preview": {
+          "optional": true
+        },
+        "@vitest/coverage-istanbul": {
+          "optional": true
+        },
+        "@vitest/browser-playwright": {
+          "optional": true
+        },
+        "@vitest/browser-webdriverio": {
+          "optional": true
+        }
+      },
+      "registry_url": "https://registry.npmjs.org/vitest/4.1.12"
+    },
+    {
+      "name": "@playwright/test",
+      "version": "1.65.0",
+      "engines": {
+        "node": ">=20"
+      },
+      "peerDependencies": null,
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/@playwright%2ftest/1.65.0"
+    },
+    {
+      "name": "vue-tsc",
+      "version": "3.3.14",
+      "engines": null,
+      "peerDependencies": {
+        "typescript": ">=5.0.0"
+      },
+      "peerDependenciesMeta": null,
+      "registry_url": "https://registry.npmjs.org/vue-tsc/3.3.14"
+    }
+  ]
+}
