@@ -10,8 +10,8 @@ import {
 const props = defineProps<{
   scale: number
   active: 'stash' | 'convert' | 'eat' | null
-  summary: string
   error?: string
+  closing?: boolean
 }>()
 
 const metrics = computed(() => donutMetrics(props.scale))
@@ -37,17 +37,12 @@ const leftWedge = computed(() =>
 const box = computed(() => metrics.value.outer + 34)
 const popRight = computed(() => (props.active === 'eat' ? 7 : 0))
 const popLeft = computed(() => (props.active === 'convert' ? -7 : 0))
-const hint = computed(() => {
-  if (props.active === 'stash') return '松开 · 暂存到置物架'
-  if (props.active === 'convert') return '松开 · 格式转换（引擎待接入）'
-  if (props.active === 'eat') return '松开 · 吃掉（7 天可取回）'
-  return props.summary
-})
 </script>
 
 <template>
   <div
     class="donut"
+    :class="{ closing }"
     :style="{
       '--inner': `${metrics.inner}px`,
       '--mid': `${metrics.mid}px`,
@@ -104,11 +99,11 @@ const hint = computed(() => {
     </div>
 
     <p
+      v-if="error"
       class="donut-hint"
-      :class="{ warn: !!error }"
       :style="{ top: `calc(50% + ${metrics.subOuter + 6}px)` }"
     >
-      {{ error || hint }}
+      {{ error }}
     </p>
   </div>
 </template>
@@ -200,15 +195,21 @@ const hint = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: var(--font-size-caption);
-  color: var(--color-muted);
-}
-.donut-hint.warn {
   color: var(--color-danger);
 }
 @keyframes donut-in {
   from {
     opacity: 0;
     transform: scale(0.72);
+  }
+}
+.donut.closing {
+  animation: donut-out 150ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+@keyframes donut-out {
+  to {
+    opacity: 0;
+    transform: scale(0.78);
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -14,7 +14,6 @@ import {
   subIndexAt,
   subMidAngle,
   subSpan,
-  summarizeBatch,
 } from '../../src/shared/donut'
 
 describe('donut geometry (ported Filee cases)', () => {
@@ -134,17 +133,6 @@ describe('donut sizing', () => {
 })
 
 describe('batch copy', () => {
-  test('summarizes distinct extensions without paths', () => {
-    expect(
-      summarizeBatch([
-        { name: '猫咪.png' },
-        { name: '奶糖.PNG' },
-        { name: '报告.pdf' },
-      ]),
-    ).toBe('3 个文件 · PNG、PDF')
-    expect(summarizeBatch([])).toBe('把文件放在桌宠上')
-  })
-
   test('conversion targets stay an intersection', () => {
     expect(conversionTargets(['照片.heic'])).toEqual(['JPG', 'PNG', 'PDF'])
     expect(conversionTargets(['a.png', 'b.pdf'])).toEqual(['JPG', 'PNG'])

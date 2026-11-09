@@ -505,6 +505,21 @@ async function dropOnPet(
       return snapshot.ok ? snapshot.value.petBounds.width : 0;
     })
     .toBe(348);
+  await pet.waitForFunction(() => innerWidth === 348);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragover", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
   const cx = box.x + box.width / 2;
@@ -563,11 +578,44 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
   await expect(pet.locator(".donut-hole")).toBeVisible();
   await expect(pet.locator('[data-region="convert"]')).toContainText("格式转换");
   await expect(pet.locator('[data-region="eat"]')).toContainText("吃掉");
-  const box = await pet.locator(".marker").boundingBox();
-  if (!box) throw new Error("Marker is not rendered");
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  const hover = async (x: number, y: number) => {
+  // The window grows from 180 to 348 while the donut opens; client coordinates
+  // only map to the same screen point once the layout has settled, so every
+  // synthetic drag is aimed from a fresh, fully expanded marker centre.
+  const waitForExpanded = async () => {
+    await expect
+      .poll(async () => {
+        const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+        return snapshot.ok ? snapshot.value.petBounds.width : 0;
+      })
+      .toBe(348);
+    await pet.waitForFunction(() => innerWidth === 348);
+  };
+  const hover = async (dx: number, dy: number) => {
+    if ((await pet.locator(".donut-ring").count()) === 0) {
+      // A slow frame or screenshot may let the inactivity guard close the
+      // donut mid-drag; re-enter like a real drag would.
+      await pet.evaluate(() => {
+        const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+        const transfer = new DataTransfer();
+        transfer.items.add(input.files![0]);
+        document.querySelector(".pet-surface")!.dispatchEvent(
+          new DragEvent("dragenter", {
+            dataTransfer: transfer,
+            bubbles: true,
+            cancelable: true,
+            clientX: 2,
+            clientY: 2,
+          }),
+        );
+      });
+    }
+    await waitForExpanded();
+    const box = await pet.locator(".marker").boundingBox();
+    if (!box) throw new Error("Marker is not rendered");
+    const point = {
+      x: box.x + box.width / 2 + dx,
+      y: box.y + box.height / 2 + dy,
+    };
     await pet.evaluate(({ x, y }) => {
       const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
       const transfer = new DataTransfer();
@@ -581,23 +629,23 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
           clientY: y,
         }),
       );
-    }, { x, y });
+    }, point);
   };
-  await hover(cx + 102, cy);
+  await hover(102, 0);
   await expect(pet.locator('[data-region="eat"]')).toHaveClass(/active/);
   await pet.waitForTimeout(220);
   await pet.screenshot({
     path: "/tmp/mqmz-donut.png",
     omitBackground: true,
   });
-  await hover(cx - 102, cy);
+  await hover(-102, 0);
   await expect(pet.locator('[data-region="convert"]')).toHaveClass(/active/);
   await pet.waitForTimeout(220);
   await pet.screenshot({
     path: "/tmp/mqmz-donut-convert.png",
     omitBackground: true,
   });
-  await hover(cx, cy);
+  await hover(0, 0);
   await expect(pet.locator(".donut-hole")).toHaveClass(/active/);
   await pet.waitForTimeout(220);
   await pet.screenshot({
@@ -606,10 +654,16 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
   });
   await pet.keyboard.press("Escape");
   await expect(pet.locator(".donut-ring")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
+        : "";
+    })
+    .toBe("false:180");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.wheelOpen).toBe(false);
   expect(state.ok && state.value.files.length).toBe(0);
-  expect(state.ok && state.value.petBounds.width).toBe(180);
   await pet
     .locator("#mqmz-donut-input")
     .evaluate((element) => element.remove());
@@ -644,10 +698,15 @@ test("the donut closes when a drag ends without a drop", async () => {
   await expect(pet.locator(".donut-ring")).toBeVisible();
   // No further dragover/drop: the drag ended on the desktop.
   await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 3000 });
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropMode}:${snapshot.value.petBounds.width}`
+        : "";
+    })
+    .toBe("false:false:180");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.wheelOpen).toBe(false);
-  expect(state.ok && state.value.dropMode).toBe(false);
-  expect(state.ok && state.value.petBounds.width).toBe(180);
   expect(state.ok && state.value.files.length).toBe(0);
   expect(await readFile(fixture, "utf8")).toBe("left-on-desktop");
   await pet
@@ -675,9 +734,14 @@ test("dropping on the centre stashes without opening the shelf", async () => {
       return snapshot.ok ? snapshot.value.files[0]?.status : undefined;
     })
     .toBe("shelved");
-  const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.wheelOpen).toBe(false);
-  expect(state.ok && state.value.petBounds.width).toBe(180);
+await expect
+  .poll(async () => {
+    const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+    return snapshot.ok
+      ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
+      : "";
+  })
+  .toBe("false:180");
   expect(
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
@@ -737,7 +801,14 @@ test("dropping on the left half states that conversion is not wired yet", async 
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(0);
   expect(state.ok && state.value.belly.length).toBe(0);
-  expect(state.ok && state.value.wheelOpen).toBe(false);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
+        : "";
+    })
+    .toBe("false:180");
 });
 
 test("dropping outside the ring leaves the file untouched", async () => {

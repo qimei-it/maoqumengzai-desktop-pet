@@ -49,6 +49,12 @@ import {
 } from '../shared/geometry'
 import { basePetSize, donutWindowSize } from '../shared/donut'
 import {
+  createChannel,
+  isSettled,
+  stepSpring,
+  windowSpring,
+} from '../shared/spring'
+import {
   captureIdSchema,
   commandSchema,
   fileIdSchema,
@@ -104,6 +110,7 @@ let drag:
 let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
 let persistQueue = Promise.resolve()
+let boundsTween: ReturnType<typeof setInterval> | undefined
 const events: LabEvent[] = []
 const files = new Map<
   string,
@@ -228,12 +235,16 @@ function showPocket(): void {
  */
 function openWheelWindow(): void {
   if (wheelOpen) return
+  // A close tween may still be shrinking the window; finish it so the pet
+  // bounds captured as the resting size stay exact instead of drifting a
+  // pixel per interrupted frame.
+  settleBounds()
   baseBounds = pet.getBounds()
   wheelOpen = true
   const size = donutWindowSize(scale)
   const width = Math.max(baseBounds.width, size.width)
   const height = Math.max(baseBounds.height, size.height)
-  pet.setBounds(
+  animateBounds(
     fitToDisplays(
       {
         x: baseBounds.x - Math.round((width - baseBounds.width) / 2),
@@ -251,11 +262,14 @@ function openWheelWindow(): void {
 function closeWheelWindow(): void {
   if (!wheelOpen) return
   wheelOpen = false
-  if (baseBounds) pet.setBounds(fitToDisplays(baseBounds, areas()))
+  const target = baseBounds
+    ? fitToDisplays(baseBounds, areas())
+    : pet.getBounds()
+  animateBounds(target)
   baseBounds = undefined
   mask = undefined
   setPassthrough(false)
-  persist()
+  persist(target)
   broadcast()
 }
 async function saveBelly(): Promise<void> {
@@ -397,8 +411,69 @@ function setPassthrough(enabled: boolean): void {
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)
 }
-function persist(): void {
-  const bounds = wheelOpen && baseBounds ? baseBounds : pet.getBounds()
+let boundsTarget: Rect | undefined
+
+/** Place the pet at once; any in-flight spring would fight the new bounds. */
+function placePet(bounds: Rect): void {
+  if (boundsTween) clearInterval(boundsTween)
+  boundsTween = undefined
+  boundsTarget = undefined
+  if (!pet.isDestroyed()) pet.setBounds(bounds)
+}
+function settleBounds(): void {
+  if (boundsTween) clearInterval(boundsTween)
+  boundsTween = undefined
+  if (!boundsTarget) return
+  if (!pet.isDestroyed()) pet.setBounds(boundsTarget)
+  boundsTarget = undefined
+}
+function animateBounds(target: Rect): void {
+  if (boundsTween) clearInterval(boundsTween)
+  boundsTarget = target
+  const start = pet.getBounds()
+  const channels = {
+    x: createChannel(start.x),
+    y: createChannel(start.y),
+    width: createChannel(start.width),
+    height: createChannel(start.height),
+  }
+  let lastFrame = Date.now()
+  const stop = () => {
+    if (boundsTween) clearInterval(boundsTween)
+    boundsTween = undefined
+    boundsTarget = undefined
+  }
+  boundsTween = setInterval(() => {
+    if (pet.isDestroyed()) {
+      stop()
+      return
+    }
+    const now = Date.now()
+    const delta = (now - lastFrame) / 1000
+    lastFrame = now
+    channels.x = stepSpring(channels.x, target.x, windowSpring, delta)
+    channels.y = stepSpring(channels.y, target.y, windowSpring, delta)
+    channels.width = stepSpring(channels.width, target.width, windowSpring, delta)
+    channels.height = stepSpring(channels.height, target.height, windowSpring, delta)
+    const settled =
+      isSettled(channels.x, target.x) &&
+      isSettled(channels.y, target.y) &&
+      isSettled(channels.width, target.width) &&
+      isSettled(channels.height, target.height)
+    pet.setBounds(
+      settled
+        ? target
+        : {
+            x: Math.round(channels.x.value),
+            y: Math.round(channels.y.value),
+            width: Math.round(channels.width.value),
+            height: Math.round(channels.height.value),
+          },
+    )
+    if (settled) stop()
+  }, 16)
+}
+function persist(bounds = wheelOpen && baseBounds ? baseBounds : pet.getBounds()): void {
   const value = JSON.stringify({ version: 1, scale, bounds })
   persistQueue = persistQueue
     .then(async () => {
@@ -417,7 +492,7 @@ function recover(): void {
   received = undefined
   setPassthrough(false)
   const a = screen.getPrimaryDisplay().workArea
-  pet.setBounds(
+  placePet(
     fitToDisplays(
       {
         x: a.x + a.width - Math.round(basePetSize.width * scale) - 40,
@@ -439,7 +514,7 @@ function reconcileDisplays(): void {
   // expanded window was grown symmetrically around the same center.
   const baseWidth = Math.round(basePetSize.width * scale)
   const baseHeight = Math.round(basePetSize.height * scale)
-  pet.setBounds(
+  placePet(
     fitToDisplays(
       wheelOpen
         ? {
@@ -659,7 +734,7 @@ function setupIpc(): void {
                 y: drag.bounds.y + cursor.y - drag.origin.y,
               }
             : pet.getBounds()
-        pet.setBounds(fitToDisplays(releasedBounds, areas()))
+        placePet(fitToDisplays(releasedBounds, areas()))
         persist()
         addEvent('拖动结束，位置已保存。')
       }
@@ -721,7 +796,7 @@ function setupIpc(): void {
         const old = pet.getBounds()
         const width = Math.round(basePetSize.width * scale)
         const height = Math.round(basePetSize.height * scale)
-        pet.setBounds(
+        placePet(
           fitToDisplays(
             {
               x: old.x + Math.round((old.width - width) / 2),
@@ -745,7 +820,7 @@ function setupIpc(): void {
         const a = display.workArea
         const width = Math.round(basePetSize.width * scale)
         const height = Math.round(basePetSize.height * scale)
-        pet.setBounds(
+        placePet(
           fitToDisplays(
             {
               x: a.x + a.width - width - 32,
@@ -1184,6 +1259,7 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    if (boundsTween) clearInterval(boundsTween)
     if (pointerTimer) clearInterval(pointerTimer)
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()

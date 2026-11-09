@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 双平台支持矩阵 | 支持目标与环境缺口已定案，见[支持矩阵](platform-support-matrix.md)：Windows 10 22H2 / Windows 11 x64，macOS 13+ Intel / Apple Silicon；均未完成应用兼容验收 | 第 1 项的范围确认完成；后续原型和功能实测逐格补证据，缺少设备保持待验证 |
 | 技术方案与验收清单 | [技术方案](technical-architecture.md)、[57 项验收映射](v1-acceptance-matrix.md)已形成；第 3 项已安装窗口原型依赖并生成 lockfile；用户已确定安装渠道、全量内置引擎与系统数据目录 | 第 2 项的方案记录完成；完整 P1、数据库原生模块、引擎制品与全量离线运行仍待实现及实测 |
-| 透明窗口与交互 | [可运行原型与验证记录](p0-window-prototype.md)已建立；用户确认文件投递可用；拖入时出现 Filee 式圆环，松手落在扇区执行（中心暂存、左半环转换、右半环吃掉），环外取消；20 项单元与 18 项 Electron 集成通过 | 原生拖出落地、真实 Finder 拖放落点、物理拖动、插拔/唤醒/权限拒绝及 Windows/Intel/最低系统证据仍待补；H-P0-05 保持未完成 |
+| 透明窗口与交互 | [可运行原型与验证记录](p0-window-prototype.md)已建立；用户确认文件投递可用；拖入时出现 Filee 式圆环，松手落在扇区执行（中心暂存、左半环转换、右半环吃掉），环外取消；22 项单元与 19 项 Electron 集成通过 | 原生拖出落地、真实 Finder 拖放落点、物理拖动、插拔/唤醒/权限拒绝及 Windows/Intel/最低系统证据仍待补；H-P0-05 保持未完成 |
 | 播放器 | 本机实测已安装网易云音乐 3.1.9 与 Apple Music 1.7；QQ 音乐、酷狗尚未安装。只读摸底确认 Apple Music 有完整 AppleScript 控制/进度/歌词属性，网易云无脚本字典，见[能力记录](research/player-control-probe.md) | 安装其余两款并实测媒体键与辅助功能授权；Windows 四款按 SMTC 逐格验证；macOS 不承诺四款均有歌词 |
 | 邮箱 | 用户拥有 QQ、163、Outlook、Gmail 邮箱；授权路径未验证 | 核实官方授权方式及 OAuth 应用注册情况；本地录入凭据，执行真实收件、正文、附件与验证码验证 |
 | 订阅额度与余额 | 已通过本机 Codex CLI 0.156.1 的 `account/rateLimits/read` 真实读取 OpenAI 订阅额度（plus，5 小时/7 天窗口），见[验证记录](research/codex-quota-probe.md)；DeepSeek 余额与 Claude 仍未实测 | 补 Windows 复验；DeepSeek 需本地录入 Key 后调用真实余额接口；Claude 仍需安装与登录环境 |
@@ -42,7 +42,7 @@
 - 用户补充 Lucide.dev + Firefox Emoji 图标方案；已将当前手绘/字符功能图标、托盘与临时标记替换为官方 Lucide，并加入本地资源、完整许可与 [图标规范](design/icon-system.md)。
 - 已完成播放器只读能力摸底：Apple Music 可通过 AppleScript 控制并读取进度/歌词，网易云无脚本接口；macOS 第三方播放器只能走媒体键 + 辅助功能授权，且拿不到歌曲信息。未播放音频，实际控制仍待用户确认后进行。
 - 已完成 OpenAI/Codex 额度真实读取验证：`codex app-server` 的 `account/rateLimits/read` 返回计划与双窗口，`account/read` 的邮箱字段不落库；提供只读复现脚本。
-- 用户要求直接按 Filee 的拖拽轮盘实现：拖入显示、松手落在选项上执行；中心孔为暂存，外围两个半环为格式转换与吃掉。已移植 Filee 的 MIT 轮盘几何与拖拽判定到 TypeScript/Vue，并在 `THIRD-PARTY-NOTICES.md` 署名；吃掉仍为可撤销的桌宠回收区（7 天，置物架取回）。20 项单元与 18 项 Electron 集成通过。
+- 用户要求直接按 Filee 的拖拽轮盘实现：拖入显示、松手落在选项上执行；中心孔为暂存，外围两个半环为格式转换与吃掉。已移植 Filee 的 MIT 轮盘几何与拖拽判定到 TypeScript/Vue，并在 `THIRD-PARTY-NOTICES.md` 署名；吃掉仍为可撤销的桌宠回收区（7 天，置物架取回）。22 项单元与 19 项 Electron 集成通过。
 - 本轮先整理并提交当前资料，按 GitHub → GitLab 顺序同步；两个远端已在本地配置。
 - 默认角色先验证布偶猫，继续遵守 2.5D 像素风、无衣物与透明背景要求。
 - 当前样例改为用户先在 ChatGPT App 制作，不启动火山方舟付费生成；生产端火山方舟、积分与资源包交付方案仍按需求基线保留，尚未验证。

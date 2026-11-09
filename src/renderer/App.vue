@@ -33,6 +33,7 @@ const dragOver = ref(false);
 const marker = ref<HTMLImageElement>();
 const displayId = ref<number>();
 const donutOpen = ref(false);
+const donutClosing = ref(false);
 const donutActive = ref<"stash" | "convert" | "eat" | null>(null);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
@@ -41,7 +42,6 @@ let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
 let activatingDrop = false;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-let hoverFrame = 0;
 let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
 const dragPoint = { x: 0, y: 0 };
 
@@ -105,21 +105,19 @@ function armWatchdog(): void {
     if (!donutOpen.value) return;
     void closeDonut();
     void command({ type: "drop-mode", enabled: false });
-  }, 900);
+  }, 1500);
 }
 function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
 }
 function trackHover(event: DragEvent): void {
+  // dragover already arrives at a human-scale rate; a direct update avoids
+  // requestAnimationFrame throttling when the pet window is backgrounded.
   dragPoint.x = event.clientX;
   dragPoint.y = event.clientY;
   armWatchdog();
-  if (hoverFrame) return;
-  hoverFrame = requestAnimationFrame(() => {
-    hoverFrame = 0;
-    donutActive.value = regionAt(dragPoint.x, dragPoint.y);
-  });
+  donutActive.value = regionAt(dragPoint.x, dragPoint.y);
 }
 async function openDonut(): Promise<void> {
   if (donutOpen.value) return;
@@ -129,10 +127,13 @@ async function openDonut(): Promise<void> {
 }
 async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
-  const active = donutOpen.value;
-  donutOpen.value = false;
+  if (!donutOpen.value) return;
+  donutClosing.value = true;
   donutActive.value = null;
-  if (!active || !send || !api) return;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  donutOpen.value = false;
+  donutClosing.value = false;
+  if (!send || !api) return;
   try {
     state.value = unwrap(await api.command({ type: "wheel", open: false }));
   } catch (cause) {
@@ -180,7 +181,7 @@ async function receive(event: DragEvent): Promise<void> {
   disarmWatchdog();
   dragOver.value = false;
   if (petView) {
-    await closeDonut();
+    void closeDonut();
     void command({ type: "drop-mode", enabled: false });
   }
   if (!files.length) return;
@@ -396,7 +397,8 @@ onUnmounted(() => {
           v-if="donutOpen"
           :scale="markerScale"
           :active="donutActive"
-          :summary="error || '松开落在扇区上执行 · 中心暂存'"
+          :closing="donutClosing"
+          :error="error"
         />
         <span
           class="marker-caption"

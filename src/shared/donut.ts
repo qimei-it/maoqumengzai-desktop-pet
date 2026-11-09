@@ -207,20 +207,6 @@ function extensionOf(name: string): string {
   return index > 0 ? name.slice(index + 1).toLowerCase() : ''
 }
 
-/** Human summary for the hint line; never includes a full path. */
-export function summarizeBatch(files: readonly { name: string }[]): string {
-  if (!files.length) return '把文件放在桌宠上'
-  const extensions = [
-    ...new Set(files.map((file) => extensionOf(file.name)).filter(Boolean)),
-  ]
-  const listed = extensions
-    .slice(0, 3)
-    .map((extension) => extension.toUpperCase())
-    .join('、')
-  const more = extensions.length > 3 ? ` 等 ${extensions.length} 种` : ''
-  return `${files.length} 个文件${listed ? ` · ${listed}${more}` : ''}`
-}
-
 const conversionMap: Record<string, readonly string[]> = {
   png: ['JPG', 'PNG', 'WEBP', 'PDF'],
   jpg: ['JPG', 'PNG', 'WEBP', 'PDF'],
