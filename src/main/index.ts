@@ -798,8 +798,8 @@ function setVolumePopup(show: boolean): void {
 function positionVolumePopup(): void {
   if (!volumePopup || volumePopup.isDestroyed() || !pill) return
   const b = pill.getBounds()
-  const width = 44
-  const height = 170
+  const width = 40
+  const height = 122
   const x = Math.round(b.x + b.width - 20 - width / 2)
   const y = b.y - height - 6
   volumePopup.setBounds(fitToDisplays({ x, y, width, height }, areas()))
@@ -1550,8 +1550,8 @@ async function createWindows(): Promise<void> {
     pill.setHiddenInMissionControl(true)
   }
   volumePopup = new BrowserWindow({
-    width: 44,
-    height: 170,
+    width: 40,
+    height: 122,
     title: '毛趣萌仔 · 音量',
     show: false,
     frame: false,

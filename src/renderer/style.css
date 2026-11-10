@@ -716,8 +716,8 @@ footer button {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 132px;
-  height: 22px;
+  width: 86px;
+  height: 20px;
   margin: 0;
   transform: translate(-50%, -50%) rotate(-90deg);
   accent-color: var(--color-brand-ink);
