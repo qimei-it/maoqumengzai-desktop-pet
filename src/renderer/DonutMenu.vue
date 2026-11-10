@@ -39,6 +39,16 @@ const reducedMotion =
 
 const metrics = computed(() => donutMetrics(props.scale))
 const box = computed(() => metrics.value.outer + 30)
+/** Filee's soft halo: a radial gradient just outside the rim, never inside the hole. */
+const shadowRadius = computed(() => metrics.value.outer + 14)
+const shadowStops = computed(() => ({
+  inner: (metrics.value.outer - 18) / shadowRadius.value,
+  peak: (metrics.value.outer - 2) / shadowRadius.value,
+}))
+const shadowOpacity = computed(
+  () =>
+    open.value.reduce((total, value) => total + value, 0) / sliceCount,
+)
 
 const wedges = computed(() => {
   const m = metrics.value
@@ -224,6 +234,30 @@ onUnmounted(() => {
       :height="box * 2"
       aria-hidden="true"
     >
+      <defs>
+        <radialGradient id="mqmz-donut-shadow" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="rgb(39, 32, 28)" stop-opacity="0" />
+          <stop
+            :offset="shadowStops.inner"
+            stop-color="rgb(39, 32, 28)"
+            stop-opacity="0"
+          />
+          <stop
+            :offset="shadowStops.peak"
+            stop-color="rgb(39, 32, 28)"
+            stop-opacity="0.14"
+          />
+          <stop offset="1" stop-color="rgb(39, 32, 28)" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <ellipse
+        cx="0"
+        cy="4"
+        :rx="shadowRadius"
+        :ry="shadowRadius"
+        fill="url(#mqmz-donut-shadow)"
+        :opacity="shadowOpacity"
+      />
       <g
         v-for="(slice, index) in wedges"
         :key="slice.action"
@@ -279,7 +313,6 @@ onUnmounted(() => {
   left: calc(-1 * var(--box));
   top: calc(-1 * var(--box));
   overflow: visible;
-  filter: drop-shadow(0 6px 18px rgba(31, 38, 77, 0.14));
 }
 .donut-slice {
   fill: var(--color-surface);
