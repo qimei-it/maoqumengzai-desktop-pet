@@ -5,6 +5,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import {
+  donutMetrics,
+  midAngle,
+  sliceActions,
+  sliceCount,
+  sliceLabels,
+  type DropAction,
+} from "../../src/shared/donut";
 
 let application: ElectronApplication;
 let lab: Page;
@@ -140,7 +148,7 @@ test("controls resize the real native window and switch the whole file receiving
             .getBounds().width,
       ),
     )
-    .toBe(360);
+    .toBe(264);
   await lab.getByTestId("drop-mode").click();
   // The pet stays visible; the donut appears during a real drag, not on a toggle.
   await expect(pet.locator(".marker")).toBeVisible();
@@ -473,8 +481,9 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
 
 async function dropOnPet(
   fixture: string,
-  region: "center" | "left" | "right" | "outside",
+  target: "center" | "outside" | DropAction,
 ): Promise<void> {
+  const metrics = donutMetrics(1);
   await pet.evaluate(() => {
     document.querySelector("#mqmz-drop-input")?.remove();
     const input = document.createElement("input");
@@ -504,34 +513,42 @@ async function dropOnPet(
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.petBounds.width : 0;
     })
-    .toBe(348);
-  await pet.waitForFunction(() => innerWidth === 348);
-  await pet.evaluate(() => {
-    const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
-    const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
-    document.querySelector(".pet-surface")!.dispatchEvent(
-      new DragEvent("dragover", {
-        dataTransfer: transfer,
-        bubbles: true,
-        cancelable: true,
-        clientX: 2,
-        clientY: 2,
-      }),
-    );
-  });
+    .toBe(metrics.window);
+  await pet.waitForFunction(
+    (width) => innerWidth === width,
+    metrics.window,
+  );
+  // The slices only answer once the wheel has opened around the pet.
+  await pet.waitForTimeout(320);
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const point =
-    region === "center"
+    target === "center"
       ? { x: cx, y: cy }
-      : region === "right"
-        ? { x: cx + 102, y: cy }
-        : region === "left"
-          ? { x: cx - 102, y: cy }
-          : { x: cx, y: cy + 160 };
+      : target === "outside"
+        ? { x: cx, y: cy + metrics.outer + 12 }
+        : pointOnSlice(target, cx, cy);
+  if (target !== "center" && target !== "outside") {
+    await pet.evaluate(({ x, y }) => {
+      const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
+      const transfer = new DataTransfer();
+      transfer.items.add(input.files![0]);
+      document.querySelector(".pet-surface")!.dispatchEvent(
+        new DragEvent("dragover", {
+          dataTransfer: transfer,
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    }, point);
+    await expect(pet.locator(`[data-region="${target}"]`)).toHaveClass(
+      /active/,
+    );
+  }
   await pet.evaluate(({ x, y }) => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
     const transfer = new DataTransfer();
@@ -548,7 +565,44 @@ async function dropOnPet(
   }, point);
 }
 
-test("dragging over the pet opens the two-half donut and Esc closes it", async () => {
+function pointOnSlice(
+  action: DropAction,
+  cx: number,
+  cy: number,
+): { x: number; y: number } {
+  const metrics = donutMetrics(1);
+  const angle = midAngle(
+    sliceActions.indexOf(action),
+    sliceActions.length,
+  );
+  return {
+    x: cx + metrics.mid * Math.sin(angle),
+    y: cy - metrics.mid * Math.cos(angle),
+  };
+}
+
+async function hoverSlice(action: DropAction): Promise<void> {
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  const point = pointOnSlice(action, box.x + box.width / 2, box.y + box.height / 2);
+  await pet.evaluate(({ x, y }) => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+    const transfer = new DataTransfer();
+    transfer.items.add(input.files![0]);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragover", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+  }, point);
+  await expect(pet.locator(`[data-region="${action}"]`)).toHaveClass(/active/);
+}
+
+test("dragging over the pet opens five equal slices and Esc closes them", async () => {
   const fixture = join(directory, "拖拽预览.txt");
   await writeFile(fixture, "donut preview");
   await pet.evaluate(() => {
@@ -575,83 +629,40 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
     );
   });
   await expect(pet.locator(".donut-ring")).toBeVisible();
-  await expect(pet.locator(".donut-hole")).toBeVisible();
-  await expect(pet.locator('[data-region="convert"]')).toContainText("格式转换");
-  await expect(pet.locator('[data-region="eat"]')).toContainText("吃掉");
-  // The window grows from 180 to 348 while the donut opens; client coordinates
-  // only map to the same screen point once the layout has settled, so every
-  // synthetic drag is aimed from a fresh, fully expanded marker centre.
-  const waitForExpanded = async () => {
-    await expect
-      .poll(async () => {
-        const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-        return snapshot.ok ? snapshot.value.petBounds.width : 0;
-      })
-      .toBe(348);
-    await pet.waitForFunction(() => innerWidth === 348);
-  };
-  const hover = async (dx: number, dy: number) => {
-    if ((await pet.locator(".donut-ring").count()) === 0) {
-      // A slow frame or screenshot may let the inactivity guard close the
-      // donut mid-drag; re-enter like a real drag would.
-      await pet.evaluate(() => {
-        const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
-        const transfer = new DataTransfer();
-        transfer.items.add(input.files![0]);
-        document.querySelector(".pet-surface")!.dispatchEvent(
-          new DragEvent("dragenter", {
-            dataTransfer: transfer,
-            bubbles: true,
-            cancelable: true,
-            clientX: 2,
-            clientY: 2,
-          }),
-        );
-      });
-    }
-    await waitForExpanded();
-    const box = await pet.locator(".marker").boundingBox();
-    if (!box) throw new Error("Marker is not rendered");
-    const point = {
-      x: box.x + box.width / 2 + dx,
-      y: box.y + box.height / 2 + dy,
-    };
-    await pet.evaluate(({ x, y }) => {
-      const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
-      const transfer = new DataTransfer();
-      transfer.items.add(input.files![0]);
-      document.querySelector(".pet-surface")!.dispatchEvent(
-        new DragEvent("dragover", {
-          dataTransfer: transfer,
-          bubbles: true,
-          cancelable: true,
-          clientX: x,
-          clientY: y,
-        }),
-      );
-    }, point);
-  };
-  await hover(102, 0);
-  await expect(pet.locator('[data-region="eat"]')).toHaveClass(/active/);
-  await pet.waitForTimeout(220);
+  await expect(pet.locator(".donut-segment")).toHaveCount(sliceCount);
+  for (const action of sliceActions) {
+    await expect(pet.locator(`[data-region="${action}"]`)).toContainText(
+      sliceLabels[action],
+    );
+  }
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(donutMetrics(1).window);
+  await pet.waitForFunction(
+    (width) => innerWidth === width,
+    donutMetrics(1).window,
+  );
+  await pet.waitForTimeout(320);
+
+  await hoverSlice("stash");
+  await pet.waitForTimeout(240);
+  await pet.screenshot({ path: "/tmp/mqmz-donut.png", omitBackground: true });
+  await hoverSlice("eat");
+  await pet.waitForTimeout(240);
   await pet.screenshot({
-    path: "/tmp/mqmz-donut.png",
+    path: "/tmp/mqmz-donut-eat.png",
     omitBackground: true,
   });
-  await hover(-102, 0);
-  await expect(pet.locator('[data-region="convert"]')).toHaveClass(/active/);
-  await pet.waitForTimeout(220);
+  await hoverSlice("convert");
+  await pet.waitForTimeout(240);
   await pet.screenshot({
     path: "/tmp/mqmz-donut-convert.png",
     omitBackground: true,
   });
-  await hover(0, 0);
-  await expect(pet.locator(".donut-hole")).toHaveClass(/active/);
-  await pet.waitForTimeout(220);
-  await pet.screenshot({
-    path: "/tmp/mqmz-donut-center.png",
-    omitBackground: true,
-  });
+
   await pet.keyboard.press("Escape");
   await expect(pet.locator(".donut-ring")).toHaveCount(0);
   await expect
@@ -661,7 +672,7 @@ test("dragging over the pet opens the two-half donut and Esc closes it", async (
         ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
         : "";
     })
-    .toBe("false:180");
+    .toBe("false:132");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(0);
   await pet
@@ -697,7 +708,7 @@ test("the donut closes when a drag ends without a drop", async () => {
   });
   await expect(pet.locator(".donut-ring")).toBeVisible();
   // No further dragover/drop: the drag ended on the desktop.
-  await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 3000 });
+  await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 4000 });
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -705,7 +716,7 @@ test("the donut closes when a drag ends without a drop", async () => {
         ? `${snapshot.value.wheelOpen}:${snapshot.value.dropMode}:${snapshot.value.petBounds.width}`
         : "";
     })
-    .toBe("false:false:180");
+    .toBe("false:false:132");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(0);
   expect(await readFile(fixture, "utf8")).toBe("left-on-desktop");
@@ -714,7 +725,23 @@ test("the donut closes when a drag ends without a drop", async () => {
     .evaluate((element) => element.remove());
 });
 
-test("dropping on the centre stashes without opening the shelf", async () => {
+test("releasing on the pet cancels instead of acting", async () => {
+  const fixture = join(directory, "中心取消.txt");
+  await writeFile(fixture, "cancel-me");
+  await dropOnPet(fixture, "center");
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(state.ok && state.value.belly.length).toBe(0);
+  expect(await readFile(fixture, "utf8")).toBe("cancel-me");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(132);
+});
+
+test("dropping on 暂存 stashes without opening the shelf", async () => {
   const fixture = join(directory, "轮盘暂存.txt");
   await writeFile(fixture, "donut-stash");
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
@@ -727,21 +754,21 @@ test("dropping on the centre stashes without opening the shelf", async () => {
       ),
     )
     .toBe(false);
-  await dropOnPet(fixture, "center");
+  await dropOnPet(fixture, "stash");
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.files[0]?.status : undefined;
     })
     .toBe("shelved");
-await expect
-  .poll(async () => {
-    const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-    return snapshot.ok
-      ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
-      : "";
-  })
-  .toBe("false:180");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
+        : "";
+    })
+    .toBe("false:132");
   expect(
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
@@ -756,10 +783,10 @@ await expect
   await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
 });
 
-test("dropping on the right half eats the file into a reversible belly", async () => {
+test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   const fixture = join(directory, "被吃掉.txt");
   await writeFile(fixture, "eaten-bytes");
-  await dropOnPet(fixture, "right");
+  await dropOnPet(fixture, "eat");
   await expect(pet.getByRole("status")).toContainText("7 天内");
   await expect
     .poll(async () => {
@@ -792,10 +819,10 @@ test("dropping on the right half eats the file into a reversible belly", async (
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
 });
 
-test("dropping on the left half states that conversion is not wired yet", async () => {
+test("dropping on 格式转换 states that conversion is not wired yet", async () => {
   const fixture = join(directory, "待转换.png");
   await writeFile(fixture, "not-a-real-png");
-  await dropOnPet(fixture, "left");
+  await dropOnPet(fixture, "convert");
   await expect(pet.getByRole("status")).toContainText("格式转换引擎尚未接入");
   await expect(pet.getByRole("status")).toContainText("JPG");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -808,7 +835,18 @@ test("dropping on the left half states that conversion is not wired yet", async 
         ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
         : "";
     })
-    .toBe("false:180");
+    .toBe("false:132");
+});
+
+test("dropping on 压缩 states that compression is not wired yet", async () => {
+  const fixture = join(directory, "待压缩.txt");
+  await writeFile(fixture, "not-a-zip");
+  await dropOnPet(fixture, "compress");
+  await expect(pet.getByRole("status")).toContainText("压缩引擎尚未接入");
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(state.ok && state.value.files.length).toBe(0);
+  expect(state.ok && state.value.belly.length).toBe(0);
+  expect(await readFile(fixture, "utf8")).toBe("not-a-zip");
 });
 
 test("dropping outside the ring leaves the file untouched", async () => {

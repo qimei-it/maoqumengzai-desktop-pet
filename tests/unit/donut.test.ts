@@ -1,19 +1,24 @@
 import { describe, expect, test } from 'vitest'
 import {
   TAU,
+  actionAt,
   angleOf,
-  arcPath,
   conversionTargets,
   donutMetrics,
   donutWindowSize,
   hitTest,
   indexAt,
   midAngle,
+  outlinePath,
   pointAt,
+  sliceCount,
+  sliceGap,
   span,
   subIndexAt,
   subMidAngle,
   subSpan,
+  wedge,
+  type WedgeOutline,
 } from '../../src/shared/donut'
 
 describe('donut geometry (ported Filee cases)', () => {
@@ -36,43 +41,126 @@ describe('donut geometry (ported Filee cases)', () => {
     expect(bottom.y).toBeCloseTo(100, 6)
   })
 
-  test('hit test separates the hole, the two halves and the outside', () => {
-    const inner = 70
-    const outer = 166
-    const rotation = Math.PI / 2
-    expect(hitTest(0, 0, inner, outer, 2, 0, rotation).kind).toBe('center')
-    expect(hitTest(0, 10, inner, outer, 2, 0, rotation).kind).toBe('center')
-    // Rotation π/2: slice 0 is the right half, slice 1 the left half.
-    expect(hitTest(118, 0, inner, outer, 2, 0, rotation)).toEqual({
+  test('hit test separates the hole, the slices and the outside', () => {
+    const { inner, outer, mid } = donutMetrics(1)
+    expect(hitTest(0, 0, inner, outer, sliceCount).kind).toBe('center')
+    expect(hitTest(0, inner - 4, inner, outer, sliceCount).kind).toBe('center')
+    expect(hitTest(0, -mid, inner, outer, sliceCount)).toEqual({
       kind: 'segment',
       index: 0,
     })
-    expect(hitTest(-118, 0, inner, outer, 2, 0, rotation)).toEqual({
-      kind: 'segment',
-      index: 1,
-    })
-    expect(hitTest(108, 40, inner, outer, 2, 0, rotation)).toEqual({
-      kind: 'segment',
-      index: 0,
-    })
-    expect(hitTest(-108, -40, inner, outer, 2, 0, rotation)).toEqual({
-      kind: 'segment',
-      index: 1,
-    })
-    expect(hitTest(0, 200, inner, outer, 2, 0, rotation).kind).toBe(
+    for (let index = 0; index < sliceCount; index += 1) {
+      const point = pointAt(mid, midAngle(index, sliceCount))
+      expect(hitTest(point.x, point.y, inner, outer, sliceCount)).toEqual({
+        kind: 'segment',
+        index,
+      })
+    }
+    expect(hitTest(0, -(outer + 10), inner, outer, sliceCount).kind).toBe(
       'outside',
     )
-    expect(hitTest(0, 166, inner, outer, 2, 4, rotation).kind).toBe('segment')
-    expect(hitTest(0, 171, inner, outer, 2, 4, rotation).kind).toBe('outside')
+    // Popped-out slices stay hittable through the slack.
+    expect(hitTest(0, -(outer + 5), inner, outer, sliceCount, 7).kind).toBe(
+      'segment',
+    )
+    expect(hitTest(0, -(outer + 8), inner, outer, sliceCount, 7).kind).toBe(
+      'outside',
+    )
   })
 
-  test('without rotation slice 0 is the top half (Filee default)', () => {
-    const top = hitTest(0, -118, 70, 166, 2)
-    expect(top.kind === 'segment' && top.index).toBe(0)
-    const bottom = hitTest(0, 118, 70, 166, 2)
-    expect(bottom.kind === 'segment' && bottom.index).toBe(1)
+  test('actions follow the ring order and the centre cancels', () => {
+    const { mid } = donutMetrics(1)
+    expect(actionAt(0, 0, 1)).toBeNull()
+    expect(actionAt(0, -mid, 1)).toBe('stash')
+    expect(actionAt(0, mid, 1)).toBe('eat')
+    expect(actionAt(mid, 0, 1)).toBe('convert')
+    expect(actionAt(-mid, 0, 1)).toBe('copy')
+    expect(actionAt(0, -400, 1)).toBeNull()
+  })
+})
+
+function outlinePoints(outline: WedgeOutline) {
+  return [outline.start, ...outline.steps.map((step) => step.to)]
+}
+
+describe('wedge outlines (ported Filee cases)', () => {
+  const inner = 68
+  const outer = 126
+  const sliceSpan = span(sliceCount)
+  const mid = midAngle(1, sliceCount)
+
+  test('a sharp slice keeps three steps on the two circles', () => {
+    const outline = wedge(inner, outer, mid, sliceSpan, sliceGap, 0)
+    expect(outline.cornerRadius).toBe(0)
+    expect(outline.steps).toHaveLength(3)
+    expect(Math.hypot(outline.start.x, outline.start.y)).toBeCloseTo(outer, 6)
+    const path = outlinePath(outline)
+    expect(path.match(/A /g)).toHaveLength(2)
+    expect(path.match(/L /g)).toHaveLength(1)
   })
 
+  test('a rounded slice stays inside its sharp shape and keeps the gap', () => {
+    const outline = wedge(inner, outer, mid, sliceSpan, sliceGap, 6)
+    expect(outline.cornerRadius).toBeCloseTo(6, 6)
+    expect(outline.steps).toHaveLength(8)
+    for (const point of outlinePoints(outline)) {
+      const distance = Math.hypot(point.x, point.y)
+      expect(distance).toBeGreaterThanOrEqual(inner - 1e-6)
+      expect(distance).toBeLessThanOrEqual(outer + 1e-6)
+      const delta = angleOf(point.x, point.y) - mid
+      const offset = delta - TAU * Math.round(delta / TAU)
+      expect(Math.abs(offset)).toBeLessThanOrEqual(sliceSpan / 2)
+      expect(
+        distance * Math.sin(sliceSpan / 2 - Math.abs(offset)),
+      ).toBeGreaterThanOrEqual(sliceGap / 2 - 0.05)
+    }
+    const path = outlinePath(outline)
+    expect(path.startsWith('M ')).toBe(true)
+    expect(path.endsWith('Z')).toBe(true)
+    expect(path.match(/A /g)).toHaveLength(6)
+  })
+
+  test('thin slices get only the rounding that fits', () => {
+    const thin = wedge(40, 126, 0, span(16), sliceGap, 6)
+    expect(thin.cornerRadius).toBeGreaterThan(0.25)
+    expect(thin.cornerRadius).toBeLessThanOrEqual(6)
+    expect(thin.steps).toHaveLength(8)
+
+    const shallow = wedge(inner, inner + 4, 0, span(4), sliceGap, 6)
+    expect(shallow.cornerRadius).toBeLessThanOrEqual(2)
+  })
+})
+
+describe('donut sizing', () => {
+  test('hole, thickness and window follow the pet scale', () => {
+    for (const scale of [0.75, 1, 1.25, 1.5]) {
+      const metrics = donutMetrics(scale)
+      expect(metrics.inner).toBe(Math.round(68 * scale))
+      expect(metrics.outer - metrics.inner).toBe(Math.round(58 * scale))
+      expect(metrics.window).toBe(2 * (metrics.outer + 30))
+    }
+    const metrics = donutMetrics(1)
+    expect(metrics.inner).toBe(68)
+    expect(metrics.outer).toBe(126)
+    expect(metrics.window).toBe(312)
+  })
+
+  test('window never shrinks below the base pet window', () => {
+    for (const scale of [0.75, 1, 1.25, 1.5]) {
+      const size = donutWindowSize(scale)
+      expect(size.width).toBeGreaterThanOrEqual(Math.round(132 * scale))
+      expect(size.height).toBeGreaterThanOrEqual(Math.round(140 * scale))
+    }
+    expect(donutWindowSize(1)).toEqual({ width: 312, height: 312 })
+  })
+
+  test('a full-body pet fits inside the hole', () => {
+    const { inner } = donutMetrics(1)
+    expect(inner * 2).toBeGreaterThanOrEqual(120)
+  })
+})
+
+describe('fan geometry (kept for the conversion sub-ring)', () => {
   test('a fan keeps every slice inside its parent span', () => {
     const parent = span(2)
     const step = subSpan(parent, 3)
@@ -100,40 +188,10 @@ describe('donut geometry (ported Filee cases)', () => {
       subIndexAt(tooClose.x, tooClose.y, 172, 208, parentMid, 3, step),
     ).toBe(-1)
   })
-
-  test('arc path stays a single sweep for a half ring', () => {
-    expect(arcPath(120, 0.1, Math.PI - 0.1)).toMatch(
-      /^M .* A 120 120 0 0 1 /,
-    )
-    expect(arcPath(120, Math.PI + 0.1, TAU - 0.1)).toMatch(
-      /^M .* A 120 120 0 0 1 /,
-    )
-  })
 })
 
-describe('donut sizing', () => {
-  test('the hole keeps room for the sprite and the ring stays constant', () => {
-    for (const scale of [0.75, 1, 1.5, 2]) {
-      const metrics = donutMetrics(scale)
-      expect(metrics.inner).toBeGreaterThanOrEqual(64)
-      expect(metrics.outer - metrics.inner).toBe(76)
-      expect(metrics.subOuter).toBeGreaterThan(metrics.outer)
-      expect(metrics.window).toBe(2 * (metrics.outer + 34))
-    }
-  })
-
-  test('window never shrinks below the base pet window', () => {
-    for (const scale of [0.75, 1, 1.5, 2]) {
-      const size = donutWindowSize(scale)
-      expect(size.width).toBeGreaterThanOrEqual(Math.round(180 * scale))
-      expect(size.height).toBeGreaterThanOrEqual(Math.round(192 * scale))
-    }
-    expect(donutWindowSize(1).width).toBe(348)
-  })
-})
-
-describe('batch copy', () => {
-  test('conversion targets stay an intersection', () => {
+describe('conversion targets', () => {
+  test('keep the formats every file shares', () => {
     expect(conversionTargets(['照片.heic'])).toEqual(['JPG', 'PNG', 'PDF'])
     expect(conversionTargets(['a.png', 'b.pdf'])).toEqual(['JPG', 'PNG'])
     expect(conversionTargets(['a.png', 'b.mp4'])).toEqual([])

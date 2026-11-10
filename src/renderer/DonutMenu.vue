@@ -1,55 +1,196 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   donutMetrics,
-  halfGap,
-  TAU,
-  wedgePath,
+  midAngle,
+  outlinePath,
+  pointAt,
+  popOut,
+  sliceActions,
+  sliceCornerRadius,
+  sliceCount,
+  sliceGap,
+  sliceLabels,
+  span,
+  wedge,
+  type DropAction,
 } from '../shared/donut'
+import { createChannel, isSettled, stepSpring } from '../shared/spring'
 
 const props = defineProps<{
   scale: number
-  active: 'stash' | 'convert' | 'eat' | null
+  active: DropAction | null
   error?: string
   closing?: boolean
 }>()
 
+/** Filee's spring: 320/20 pops out with a small bounce, 36 settles without one. */
+const popSpring = { stiffness: 320, damping: 20, mass: 1 }
+const settleSpring = { stiffness: 320, damping: 36, mass: 1 }
+/** Filee's open wave: 300ms with a 12ms stagger per slice, capped at 72ms. */
+const openDuration = 0.3
+const openStagger = 0.012
+const closeDuration = 0.14
+
+const reducedMotion =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const metrics = computed(() => donutMetrics(props.scale))
-const gap = computed(() => (halfGap * Math.PI) / 180)
-/** Inset so the soft stroke (6px) lands on the intended radii. */
-const inset = 3
-const rightWedge = computed(() =>
-  wedgePath(
-    metrics.value.inner + inset,
-    metrics.value.outer - inset,
-    gap.value,
-    Math.PI - gap.value,
-  ),
+const box = computed(() => metrics.value.outer + 30)
+
+const wedges = computed(() => {
+  const m = metrics.value
+  const step = span(sliceCount)
+  const gap = sliceGap * props.scale
+  const corner = sliceCornerRadius * props.scale
+  return sliceActions.map((action, index) => {
+    const mid = midAngle(index, sliceCount)
+    return {
+      action,
+      label: sliceLabels[action],
+      d: outlinePath(wedge(m.inner, m.outer, mid, step, gap, corner)),
+      anchor: pointAt(m.mid, mid),
+    }
+  })
+})
+
+const open = ref<number[]>(new Array(sliceCount).fill(reducedMotion ? 1 : 0))
+const hover = ref<number[]>(new Array(sliceCount).fill(0))
+const channels = Array.from({ length: sliceCount }, () => createChannel(0))
+
+let frame = 0
+let clock = 0
+let lastFrame = 0
+let closeStartedAt = 0
+const openAtClose = new Array(sliceCount).fill(1)
+
+function easeOutBack(t: number): number {
+  const c1 = 0.8
+  const c3 = c1 + 1
+  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+}
+
+function easeInCubic(t: number): number {
+  return t * t * t
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function tick(now: number): void {
+  frame = 0
+  const delta = clamp((now - lastFrame) / 1000, 0, 0.05)
+  lastFrame = now
+  clock += delta
+
+  let busy = false
+  if (props.closing) {
+    const progress = clamp((clock - closeStartedAt) / closeDuration, 0, 1)
+    open.value = openAtClose.map((value) => value * (1 - easeInCubic(progress)))
+    busy = progress < 1
+  } else {
+    open.value = open.value.map((_, index) => {
+      const delay = Math.min(index * openStagger, 0.072)
+      const progress = clamp((clock - delay) / openDuration, 0, 1)
+      if (progress < 1) busy = true
+      return easeOutBack(progress)
+    })
+  }
+
+  const nextHover = hover.value.slice()
+  for (let index = 0; index < sliceCount; index += 1) {
+    const target = props.active === sliceActions[index] ? 1 : 0
+    if (reducedMotion) {
+      channels[index] = { value: target, velocity: 0 }
+      nextHover[index] = target
+      continue
+    }
+    channels[index] = stepSpring(
+      channels[index],
+      target,
+      target > 0 ? popSpring : settleSpring,
+      delta,
+    )
+    nextHover[index] = channels[index].value
+    if (!isSettled(channels[index], target, 0.001)) busy = true
+  }
+  hover.value = nextHover
+
+  if (busy) frame = requestAnimationFrame(tick)
+}
+
+function syncHoverTargets(): void {
+  hover.value = sliceActions.map((action) => (props.active === action ? 1 : 0))
+  channels.forEach((channel, index) => {
+    channel.value = hover.value[index]
+    channel.velocity = 0
+  })
+}
+
+function start(): void {
+  if (reducedMotion) {
+    syncHoverTargets()
+    return
+  }
+  if (frame) return
+  lastFrame = performance.now()
+  frame = requestAnimationFrame(tick)
+}
+
+function isHot(index: number): boolean {
+  return hover.value[index] > 0.5
+}
+
+function emphasis(index: number): number {
+  return clamp(hover.value[index], 0, 1)
+}
+
+function sliceTransform(index: number): string {
+  const offset = pointAt(
+    popOut * props.scale * hover.value[index],
+    midAngle(index, sliceCount),
+  )
+  const scale =
+    (0.78 + 0.22 * open.value[index]) * (1 + hover.value[index] * 0.025)
+  const rotate = ((1 - Math.min(open.value[index], 1)) * -0.12 * 180) / Math.PI
+  return [
+    `translate(${offset.x.toFixed(2)} ${offset.y.toFixed(2)})`,
+    `rotate(${rotate.toFixed(3)})`,
+    `scale(${scale.toFixed(4)})`,
+  ].join(' ')
+}
+
+watch(
+  () => props.closing,
+  (closing) => {
+    if (!closing) return
+    openAtClose.splice(0, sliceCount, ...open.value)
+    closeStartedAt = clock
+    start()
+  },
 )
-const leftWedge = computed(() =>
-  wedgePath(
-    metrics.value.inner + inset,
-    metrics.value.outer - inset,
-    Math.PI + gap.value,
-    TAU - gap.value,
-  ),
+
+watch(
+  () => props.active,
+  () => start(),
 )
-const box = computed(() => metrics.value.outer + 34)
-const popRight = computed(() => (props.active === 'eat' ? 7 : 0))
-const popLeft = computed(() => (props.active === 'convert' ? -7 : 0))
+
+onMounted(() => {
+  start()
+})
+
+onUnmounted(() => {
+  if (frame) cancelAnimationFrame(frame)
+  frame = 0
+})
 </script>
 
 <template>
   <div
     class="donut"
-    :class="{ closing }"
-    :style="{
-      '--inner': `${metrics.inner}px`,
-      '--mid': `${metrics.mid}px`,
-      '--thickness': `${metrics.thickness}px`,
-      '--sub-outer': `${metrics.subOuter}px`,
-      '--box': `${box}px`,
-    }"
+    :style="{ '--box': `${box}px` }"
     role="group"
     aria-label="文件操作轮盘"
   >
@@ -61,47 +202,38 @@ const popLeft = computed(() => (props.active === 'convert' ? -7 : 0))
       aria-hidden="true"
     >
       <g
+        v-for="(slice, index) in wedges"
+        :key="slice.action"
         class="donut-segment"
-        :class="{ active: active === 'eat' }"
-        :style="{ transform: `translateX(${popRight}px)` }"
+        :class="{ active: isHot(index) }"
+        :data-region="slice.action"
+        :transform="sliceTransform(index)"
+        :opacity="Math.max(0, Math.min(1, open[index]))"
       >
-        <path :d="rightWedge" class="donut-slice" />
+        <path :d="slice.d" class="donut-slice" />
+        <path
+          :d="slice.d"
+          class="donut-accent"
+          :style="{ opacity: emphasis(index) }"
+        />
+        <text
+          :x="slice.anchor.x"
+          :y="slice.anchor.y"
+          class="donut-label"
+          :class="{ hot: isHot(index) }"
+          :style="{ fontSize: `${14 * scale}px` }"
+          text-anchor="middle"
+          dominant-baseline="central"
+        >
+          {{ slice.label }}
+        </text>
       </g>
-      <g
-        class="donut-segment"
-        :class="{ active: active === 'convert' }"
-        :style="{ transform: `translateX(${popLeft}px)` }"
-      >
-        <path :d="leftWedge" class="donut-slice" />
-      </g>
-      <circle
-        class="donut-hole"
-        :class="{ active: active === 'stash' }"
-        :r="metrics.inner"
-      />
     </svg>
-
-    <div
-      class="donut-label label-right"
-      data-region="eat"
-      :class="{ active: active === 'eat' }"
-      :style="{ left: `calc(50% + ${metrics.mid}px)` }"
-    >
-      <strong>吃掉</strong>
-    </div>
-    <div
-      class="donut-label label-left"
-      data-region="convert"
-      :class="{ active: active === 'convert' }"
-      :style="{ left: `calc(50% - ${metrics.mid}px)` }"
-    >
-      <strong>格式转换</strong>
-    </div>
 
     <p
       v-if="error"
       class="donut-hint"
-      :style="{ top: `calc(50% + ${metrics.subOuter + 6}px)` }"
+      :style="{ top: `calc(50% + ${metrics.outer + 6}px)` }"
     >
       {{ error }}
     </p>
@@ -116,107 +248,46 @@ const popLeft = computed(() => (props.active === 'convert' ? -7 : 0))
   width: 0;
   height: 0;
   pointer-events: none;
-  animation: donut-in 260ms cubic-bezier(0.22, 1.4, 0.36, 1) both;
 }
 .donut-ring {
   position: absolute;
   left: calc(-1 * var(--box));
   top: calc(-1 * var(--box));
   overflow: visible;
-}
-.donut-segment {
-  transition: transform 180ms cubic-bezier(0.22, 1.4, 0.36, 1);
+  filter: drop-shadow(0 6px 18px rgba(31, 38, 77, 0.14));
 }
 .donut-slice {
   fill: var(--color-surface);
-  stroke: var(--color-surface);
-  stroke-width: 6;
+  stroke: var(--color-line);
+  stroke-width: 1;
   stroke-linejoin: round;
-  filter: drop-shadow(0 6px 18px rgba(31, 38, 77, 0.14));
-  transition:
-    fill 120ms var(--ease-standard),
-    stroke 120ms var(--ease-standard);
 }
-.donut-segment.active .donut-slice {
+.donut-accent {
   fill: var(--color-brand-ink);
-  stroke: var(--color-brand-ink);
-}
-.donut-hole {
-  fill: transparent;
-  stroke: var(--color-brand-soft);
-  stroke-width: 1.5;
-  stroke-dasharray: 4 6;
-  transition:
-    fill 120ms var(--ease-standard),
-    stroke 120ms var(--ease-standard);
-}
-.donut-hole.active {
-  fill: transparent;
-  stroke: var(--color-brand-ink);
-  stroke-dasharray: none;
-  stroke-width: 2.5;
+  pointer-events: none;
 }
 .donut-label {
-  position: absolute;
-  top: 50%;
-  width: calc(var(--thickness) - 12px);
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--color-ink);
-  transition:
-    color 160ms var(--ease-standard),
-    transform 180ms cubic-bezier(0.22, 1.4, 0.36, 1);
-}
-.donut-label strong {
-  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
-  line-height: 1.3;
-  white-space: nowrap;
+  fill: var(--color-ink);
+  pointer-events: none;
+  transition: fill 120ms var(--ease-standard);
 }
-.donut-label.active {
-  color: var(--color-on-brand);
-}
-.label-right.active {
-  transform: translate(calc(-50% + 7px), -50%);
-}
-.label-left.active {
-  transform: translate(calc(-50% - 7px), -50%);
+.donut-label.hot {
+  fill: var(--color-on-brand);
 }
 .donut-hint {
   position: absolute;
-  left: 50%;
+  left: 0;
   transform: translate(-50%, -50%);
   margin: 0;
-  max-width: 300px;
+  max-width: calc(var(--box) * 2 - 24px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: var(--font-size-caption);
   color: var(--color-danger);
 }
-@keyframes donut-in {
-  from {
-    opacity: 0;
-    transform: scale(0.72);
-  }
-}
-.donut.closing {
-  animation: donut-out 150ms cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-@keyframes donut-out {
-  to {
-    opacity: 0;
-    transform: scale(0.78);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .donut {
-    animation: none;
-  }
-  .donut-segment,
   .donut-label {
     transition: none;
   }

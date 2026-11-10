@@ -1,24 +1,82 @@
 /**
  * Donut menu geometry, ported from Filee (MIT, KnifeLemon/Filee):
- * src/Filee.App/Controls/DonutGeometry.cs.
+ * src/Filee.App/Controls/DonutGeometry.cs and DonutMenu.cs.
  * See THIRD-PARTY-NOTICES.md and resources/licenses/filee-MIT.txt.
  *
- * Angles are measured clockwise from 12 o'clock; the first slice is centred on
- * the top. We keep two half slices (left = convert, right = eat) and a centre
- * hole (stash), so the ring is the same model with `count = 2`.
+ * Angles are measured clockwise from 12 o'clock. Slice i is centred on
+ * i * span, so the first action sits at the top and the rest follow clockwise.
+ * Slices are separated by a constant gap and have rounded corners, exactly like
+ * Filee's Wedge outline.
  */
+
+export type Point = { x: number; y: number }
 
 export type DonutHit =
   | { kind: 'outside' | 'center' }
   | { kind: 'segment'; index: number }
 
-export type Point = { x: number; y: number }
-
 export const TAU = Math.PI * 2
 
-/** Filee's hole ratio is 0.42 at outer radius 150. */
-export const holeRatio = 0.4286
+/** Five equal slices; the pet stands in the hole and is never a drop target. */
+export const sliceCount = 5
+/** Filee's GapPixels: the gap is measured along the slice edge, not in degrees. */
+export const sliceGap = 3
+/** Filee's SliceCornerRadius for the default softness. */
+export const sliceCornerRadius = 6
+/** Filee's PopOut: how far a hovered slice slides outward. */
+export const popOut = 7
 
+export const sliceActions = ['stash', 'convert', 'compress', 'eat', 'copy'] as const
+export type DropAction = (typeof sliceActions)[number]
+
+export const sliceLabels: Record<DropAction, string> = {
+  stash: '暂存',
+  convert: '格式转换',
+  compress: '压缩',
+  eat: '吃掉',
+  copy: '另存副本',
+}
+
+/** The sprite box drawn inside the hole; the final full-body art replaces it. */
+export const petSprite = { width: 112, height: 112 }
+/** Transparent window around the sprite: room for the shadow and idle motion. */
+export const basePetSize = { width: 132, height: 140 }
+
+export type DonutMetrics = {
+  inner: number
+  outer: number
+  mid: number
+  thickness: number
+  /** Transparent window that can host the ring and its shadow. */
+  window: number
+}
+
+/**
+ * Hole 136, ring 58 thick, outline 252 across: smaller than the old two-half
+ * wheel while still giving a full-body pet room to stand in the centre.
+ */
+export function donutMetrics(scale: number): DonutMetrics {
+  const inner = Math.round(68 * scale)
+  const thickness = Math.round(58 * scale)
+  const outer = inner + thickness
+  return {
+    inner,
+    outer,
+    mid: (inner + outer) / 2,
+    thickness,
+    window: 2 * (outer + 30),
+  }
+}
+
+export function donutWindowSize(scale: number): { width: number; height: number } {
+  const { window } = donutMetrics(scale)
+  return {
+    width: Math.max(Math.round(basePetSize.width * scale), window),
+    height: Math.max(Math.round(basePetSize.height * scale), window),
+  }
+}
+
+/** A slice of `<count>` slices covers this angle. */
 export function span(count: number): number {
   return count <= 0 ? TAU : TAU / count
 }
@@ -27,7 +85,7 @@ export function midAngle(index: number, count: number): number {
   return index * span(count)
 }
 
-/** Converts a clockwise-from-top angle and radius into a point relative to the centre. */
+/** Converts a clockwise-from-top angle and radius into a point around the origin. */
 export function pointAt(radius: number, angle: number): Point {
   return {
     x: radius * Math.sin(angle),
@@ -35,7 +93,7 @@ export function pointAt(radius: number, angle: number): Point {
   }
 }
 
-/** Clockwise-from-top angle (0..2π) of a point around the centre. */
+/** Clockwise-from-top angle (0..2π) of a point around the origin. */
 export function angleOf(x: number, y: number): number {
   const angle = Math.atan2(x, -y)
   return angle < 0 ? angle + TAU : angle
@@ -47,11 +105,6 @@ export function indexAt(angle: number, count: number): number {
   return Math.floor((angle + step / 2) / step) % count
 }
 
-/**
- * Which region a client point hits, relative to the donut centre.
- * `rotation` turns the slice grid; π/2 puts slice 0 on the right half and
- * slice 1 on the left half, which is how our two actions are drawn.
- */
 export function hitTest(
   x: number,
   y: number,
@@ -59,13 +112,298 @@ export function hitTest(
   outerRadius: number,
   count: number,
   slack = 0,
-  rotation = 0,
 ): DonutHit {
   const distance = Math.hypot(x, y)
   if (distance < innerRadius) return { kind: 'center' }
   if (distance > outerRadius + slack) return { kind: 'outside' }
-  if (count === 0) return { kind: 'outside' }
-  return { kind: 'segment', index: indexAt(angleOf(x, y) - rotation, count) }
+  if (count <= 0) return { kind: 'outside' }
+  return { kind: 'segment', index: indexAt(angleOf(x, y), count) }
+}
+
+/** The action under a client point measured from the donut centre. */
+export function actionAt(
+  x: number,
+  y: number,
+  scale: number,
+): DropAction | null {
+  const metrics = donutMetrics(scale)
+  const hit = hitTest(
+    x,
+    y,
+    metrics.inner,
+    metrics.outer,
+    sliceCount,
+    Math.round(popOut * scale),
+  )
+  return hit.kind === 'segment' ? sliceActions[hit.index] : null
+}
+
+export type OutlineStep =
+  | { kind: 'line'; to: Point }
+  | {
+      kind: 'arc'
+      to: Point
+      radius: number
+      largeArc: boolean
+      clockwise: boolean
+    }
+
+/** A closed slice outline; Filee's WedgeOutline. */
+export type WedgeOutline = {
+  start: Point
+  steps: OutlineStep[]
+  cornerRadius: number
+}
+
+/** Rounding below this is not visible: the slice stays sharp (Filee). */
+const minCornerRadius = 0.25
+
+/**
+ * Outline of a slice between `innerRadius` and `outerRadius`, centred on `mid`,
+ * with a constant `gap` to its neighbours and corners rounded by
+ * `cornerRadius`. Ported line for line from Filee's DonutGeometry.Wedge.
+ */
+export function wedge(
+  innerRadius: number,
+  outerRadius: number,
+  mid: number,
+  sliceSpan: number,
+  gap: number,
+  cornerRadius = 0,
+): WedgeOutline {
+  const outerHalf = Math.max(0.001, sliceSpan / 2 - gap / 2 / outerRadius)
+  const innerHalf = Math.max(0.001, sliceSpan / 2 - gap / 2 / innerRadius)
+  const outerStart = pointAt(outerRadius, mid - outerHalf)
+  const innerStart = pointAt(innerRadius, mid - innerHalf)
+
+  const radius = Math.min(cornerRadius, (outerRadius - innerRadius) / 2)
+  if (radius > minCornerRadius) {
+    const fits = rounded(
+      innerRadius,
+      outerRadius,
+      mid,
+      outerHalf,
+      innerHalf,
+      radius,
+    )
+    if (fits) return fits
+    // Too thin or short for the wanted rounding: largest that fits, found by
+    // halving, so the slice still looks soft instead of jumping to sharp.
+    let best: WedgeOutline | null = null
+    let low = 0
+    let high = radius
+    for (let step = 0; step < 14; step += 1) {
+      const candidate = (low + high) / 2
+      const attempt = rounded(
+        innerRadius,
+        outerRadius,
+        mid,
+        outerHalf,
+        innerHalf,
+        candidate,
+      )
+      if (attempt) {
+        best = attempt
+        low = candidate
+      } else {
+        high = candidate
+      }
+    }
+    if (best && low > minCornerRadius) return best
+  }
+
+  return {
+    start: outerStart,
+    steps: [
+      {
+        kind: 'arc',
+        to: pointAt(outerRadius, mid + outerHalf),
+        radius: outerRadius,
+        largeArc: outerHalf * 2 > Math.PI,
+        clockwise: true,
+      },
+      { kind: 'line', to: pointAt(innerRadius, mid + innerHalf) },
+      {
+        kind: 'arc',
+        to: innerStart,
+        radius: innerRadius,
+        largeArc: innerHalf * 2 > Math.PI,
+        clockwise: false,
+      },
+    ],
+    cornerRadius: 0,
+  }
+}
+
+/** The slice with corners of `radius`, or null when they do not fit (Filee). */
+function rounded(
+  innerRadius: number,
+  outerRadius: number,
+  mid: number,
+  outerHalf: number,
+  innerHalf: number,
+  radius: number,
+): WedgeOutline | null {
+  const outerSide = pointAt(outerRadius, mid - outerHalf)
+  const innerSide = pointAt(innerRadius, mid - innerHalf)
+  const outer = corner(outerSide, innerSide, outerRadius, radius, true)
+  const inner = corner(outerSide, innerSide, innerRadius, radius, false)
+  if (!outer || !inner) return null
+  if (
+    outer.along >= inner.along ||
+    offsetOf(outer.center, mid) >= 0 ||
+    offsetOf(inner.center, mid) >= 0
+  )
+    return null
+
+  const mirror = (point: Point): Point =>
+    pointAt(
+      Math.hypot(point.x, point.y),
+      2 * mid - angleOf(point.x, point.y),
+    )
+  const outerArc = -offsetOf(outer.center, mid)
+  const innerArc = -offsetOf(inner.center, mid)
+  return {
+    start: outer.onArc,
+    steps: [
+      {
+        kind: 'arc',
+        to: mirror(outer.onArc),
+        radius: outerRadius,
+        largeArc: outerArc > Math.PI / 2,
+        clockwise: true,
+      },
+      {
+        kind: 'arc',
+        to: mirror(outer.onLine),
+        radius,
+        largeArc: false,
+        clockwise: true,
+      },
+      { kind: 'line', to: mirror(inner.onLine) },
+      {
+        kind: 'arc',
+        to: mirror(inner.onArc),
+        radius,
+        largeArc: false,
+        clockwise: true,
+      },
+      {
+        kind: 'arc',
+        to: inner.onArc,
+        radius: innerRadius,
+        largeArc: innerArc > Math.PI / 2,
+        clockwise: false,
+      },
+      {
+        kind: 'arc',
+        to: inner.onLine,
+        radius,
+        largeArc: false,
+        clockwise: true,
+      },
+      { kind: 'line', to: outer.onLine },
+      {
+        kind: 'arc',
+        to: outer.onArc,
+        radius,
+        largeArc: false,
+        clockwise: true,
+      },
+    ],
+    cornerRadius: radius,
+  }
+}
+
+type Corner = {
+  center: Point
+  onArc: Point
+  onLine: Point
+  /** Distance along the start side, from the outer corner. */
+  along: number
+}
+
+/**
+ * The rounded corner where the slice's start side meets the circle of
+ * `circle`: the arc's centre, where it touches the circle and the side, and
+ * how far along the side it touches it (Filee's Corner).
+ */
+function corner(
+  outerSide: Point,
+  innerSide: Point,
+  circle: number,
+  radius: number,
+  outer: boolean,
+): Corner | null {
+  const length = Math.hypot(innerSide.x - outerSide.x, innerSide.y - outerSide.y)
+  if (length <= 0) return null
+  const u = {
+    x: (innerSide.x - outerSide.x) / length,
+    y: (innerSide.y - outerSide.y) / length,
+  }
+  // Into the slice: the start side's normal on the clockwise side.
+  const tangent = {
+    x: Math.cos(angleOf(outerSide.x, outerSide.y)),
+    y: Math.sin(angleOf(outerSide.x, outerSide.y)),
+  }
+  let normal = { x: -u.y, y: u.x }
+  if (normal.x * tangent.x + normal.y * tangent.y < 0)
+    normal = { x: -normal.x, y: -normal.y }
+
+  // The arc's centre lies `radius` inside the side and touches the circle.
+  const distance = outer ? circle - radius : circle + radius
+  const w = {
+    x: outerSide.x + normal.x * radius,
+    y: outerSide.y + normal.y * radius,
+  }
+  const b = w.x * u.x + w.y * u.y
+  const discriminant = b * b - (w.x * w.x + w.y * w.y - distance * distance)
+  if (discriminant < 0) return null
+  const t = -b - Math.sqrt(discriminant)
+  if (t < 0 || t > length) return null
+  const c = {
+    x: outerSide.x + normal.x * radius + u.x * t,
+    y: outerSide.y + normal.y * radius + u.y * t,
+  }
+  const toCenter = { x: c.x, y: c.y }
+  const lengthToCenter = Math.hypot(toCenter.x, toCenter.y)
+  if (lengthToCenter <= 0) return null
+  const onArc = {
+    x: (toCenter.x / lengthToCenter) * circle,
+    y: (toCenter.y / lengthToCenter) * circle,
+  }
+  return {
+    center: c,
+    onArc,
+    onLine: { x: outerSide.x + u.x * t, y: outerSide.y + u.y * t },
+    along: t,
+  }
+}
+
+/** Signed angle of `point` from `mid`, -π..π (negative before it). */
+function offsetOf(point: Point, mid: number): number {
+  const delta = angleOf(point.x, point.y) - mid
+  return delta - TAU * Math.round(delta / TAU)
+}
+
+/** SVG path data for a slice outline. */
+export function outlinePath(outline: WedgeOutline): string {
+  const parts = [
+    `M ${outline.start.x.toFixed(2)} ${outline.start.y.toFixed(2)}`,
+  ]
+  for (const step of outline.steps) {
+    if (step.kind === 'line') {
+      parts.push(`L ${step.to.x.toFixed(2)} ${step.to.y.toFixed(2)}`)
+    } else {
+      const large = step.largeArc ? 1 : 0
+      const sweep = step.clockwise ? 1 : 0
+      parts.push(
+        `A ${step.radius.toFixed(2)} ${step.radius.toFixed(2)} 0 ${large} ${sweep} ${step.to.x.toFixed(2)} ${step.to.y.toFixed(2)}`,
+      )
+    }
+  }
+  parts.push('Z')
+  return parts.join(' ')
 }
 
 /** How far a group's fan reaches into each neighbour slice (Filee). */
@@ -110,96 +448,6 @@ export function subIndexAt(
   delta = delta - TAU * Math.round(delta / TAU)
   const sub = Math.floor(delta / step + count / 2)
   return sub >= 0 && sub < count ? sub : -1
-}
-
-/** SVG arc path for one edge, centred on (0, 0). */
-export function arcPath(
-  radius: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const start = pointAt(radius, startAngle)
-  const end = pointAt(radius, endAngle)
-  const large = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0
-  const sweep = endAngle > startAngle ? 1 : 0
-  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius} ${radius} 0 ${large} ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`
-}
-
-/**
- * Filled annulus sector, the shape Filee draws for a slice. A same-colour
- * stroke with round joins (applied in CSS) softens its four corners.
- */
-export function wedgePath(
-  innerRadius: number,
-  outerRadius: number,
-  startAngle: number,
-  endAngle: number,
-): string {
-  const outerStart = pointAt(outerRadius, startAngle)
-  const outerEnd = pointAt(outerRadius, endAngle)
-  const innerStart = pointAt(innerRadius, startAngle)
-  const innerEnd = pointAt(innerRadius, endAngle)
-  const large = endAngle - startAngle > Math.PI ? 1 : 0
-  return [
-    `M ${outerStart.x.toFixed(2)} ${outerStart.y.toFixed(2)}`,
-    `A ${outerRadius} ${outerRadius} 0 ${large} 1 ${outerEnd.x.toFixed(2)} ${outerEnd.y.toFixed(2)}`,
-    `L ${innerEnd.x.toFixed(2)} ${innerEnd.y.toFixed(2)}`,
-    `A ${innerRadius} ${innerRadius} 0 ${large} 0 ${innerStart.x.toFixed(2)} ${innerStart.y.toFixed(2)}`,
-    'Z',
-  ].join(' ')
-}
-
-/** Gap between the two halves at 12 and 6 o'clock, in degrees. */
-export const halfGap = 2
-
-export type DonutMetrics = {
-  inner: number
-  outer: number
-  mid: number
-  thickness: number
-  subInner: number
-  subOuter: number
-  subThickness: number
-  /** Transparent window that can host the ring and its fan. */
-  window: number
-}
-
-/** Default transparent window around the 96 DIP sprite. */
-export const basePetSize = { width: 180, height: 192 }
-
-/**
- * Ring sizes follow the pet scale but keep a clear hole around the sprite.
- * 48 is half of the default 96 DIP sprite; the ring stays 76 DIP thick and the
- * window only reserves what the ring actually draws.
- */
-export function donutMetrics(scale: number): DonutMetrics {
-  const inner = Math.min(104, Math.max(64, Math.round(48 * scale + 16)))
-  const thickness = 76
-  const outer = inner + thickness
-  const subInner = outer + 6
-  const subThickness = 32
-  const subOuter = subInner + subThickness
-  return {
-    inner,
-    outer,
-    mid: (inner + outer) / 2,
-    thickness,
-    subInner,
-    subOuter,
-    subThickness,
-    window: 2 * (outer + 34),
-  }
-}
-
-export function donutWindowSize(scale: number): {
-  width: number
-  height: number
-} {
-  const { window } = donutMetrics(scale)
-  return {
-    width: Math.max(Math.round(basePetSize.width * scale), window),
-    height: Math.max(Math.round(basePetSize.height * scale), window),
-  }
 }
 
 function extensionOf(name: string): string {

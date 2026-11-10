@@ -8,9 +8,10 @@ import type {
   Snapshot,
 } from "../shared/protocol";
 import {
+  actionAt,
   conversionTargets,
-  donutMetrics,
-  hitTest,
+  petSprite,
+  type DropAction,
 } from "../shared/donut";
 import probeUrl from "./assets/lucide-paw-print.svg";
 import DonutMenu from "./DonutMenu.vue";
@@ -34,15 +35,17 @@ const marker = ref<HTMLImageElement>();
 const displayId = ref<number>();
 const donutOpen = ref(false);
 const donutClosing = ref(false);
-const donutActive = ref<"stash" | "convert" | "eat" | null>(null);
+const donutActive = ref<DropAction | null>(null);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
 let unsubscribe: (() => void) | undefined;
 let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
-let activatingDrop = false;
+let dropModeChain: Promise<void> = Promise.resolve();
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
+let acceptSlicesAfter = 0;
+let closeToken = 0;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -75,26 +78,23 @@ function flash(message: string): void {
     toast.value = "";
   }, 6000);
 }
-/** Region under the cursor, measured from the sprite centre. */
-function regionAt(
-  clientX: number,
-  clientY: number,
-): "stash" | "convert" | "eat" | null {
+/**
+ * The wheel grows around the pet, so the point where the file first enters the
+ * small window is not where the user is aiming. Slices only answer once the
+ * ring has opened.
+ */
+function slicesReady(): boolean {
+  return performance.now() >= acceptSlicesAfter;
+}
+/** Slice under the cursor, measured from the sprite centre. */
+function regionAt(clientX: number, clientY: number): DropAction | null {
   const rect = marker.value?.getBoundingClientRect();
-  if (!rect) return null;
-  const metrics = donutMetrics(markerScale.value);
-  const hit = hitTest(
+  if (!rect || !slicesReady()) return null;
+  return actionAt(
     clientX - (rect.x + rect.width / 2),
     clientY - (rect.y + rect.height / 2),
-    metrics.inner,
-    metrics.outer,
-    2,
-    4,
-    Math.PI / 2,
+    markerScale.value,
   );
-  if (hit.kind === "center") return "stash";
-  if (hit.kind === "segment") return hit.index === 0 ? "eat" : "convert";
-  return null;
 }
 function armWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
@@ -120,17 +120,23 @@ function trackHover(event: DragEvent): void {
   donutActive.value = regionAt(dragPoint.x, dragPoint.y);
 }
 async function openDonut(): Promise<void> {
-  if (donutOpen.value) return;
+  // A new drag may arrive while the previous wheel is fading out.
+  closeToken += 1;
+  if (donutOpen.value && !donutClosing.value) return;
+  acceptSlicesAfter = performance.now() + 260;
   donutOpen.value = true;
+  donutClosing.value = false;
   donutActive.value = null;
   await command({ type: "wheel", open: true });
 }
 async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
   if (!donutOpen.value) return;
+  const token = ++closeToken;
   donutClosing.value = true;
   donutActive.value = null;
   await new Promise((resolve) => setTimeout(resolve, 150));
+  if (token !== closeToken) return
   donutOpen.value = false;
   donutClosing.value = false;
   if (!send || !api) return;
@@ -146,14 +152,17 @@ function enter(event: DragEvent): void {
   dragOver.value = true;
   if (!petView) return;
   armWatchdog();
-  if (!state.value?.dropMode && !activatingDrop) {
-    activatingDrop = true;
-    void command({ type: "drop-mode", enabled: true }).finally(() => {
-      activatingDrop = false;
-    });
-  }
-  void openDonut();
-  trackHover(event);
+  donutActive.value = null;
+  // Enabling the receive region closes the wheel window; open only after that
+  // command has landed, otherwise its reply would close the fresh wheel.
+  dropModeChain = dropModeChain.then(async () => {
+    if (!state.value?.dropMode) {
+      await command({ type: "drop-mode", enabled: true });
+    }
+  });
+  void dropModeChain.then(() => {
+    if (dragOver.value) void openDonut();
+  });
 }
 function over(event: DragEvent): void {
   event.preventDefault();
@@ -192,10 +201,7 @@ async function receive(event: DragEvent): Promise<void> {
   if (!action) return;
   await applyDrop(files, action);
 }
-async function applyDrop(
-  files: File[],
-  action: "stash" | "convert" | "eat",
-): Promise<void> {
+async function applyDrop(files: File[], action: DropAction): Promise<void> {
   if (action === "convert") {
     const targets = conversionTargets(files.map((file) => file.name));
     flash(
@@ -203,6 +209,10 @@ async function applyDrop(
         ? `格式转换引擎尚未接入；接入后可选 ${targets.join("、")}`
         : "格式转换引擎尚未接入；这批文件暂无统一目标格式",
     );
+    return;
+  }
+  if (action === "compress") {
+    flash("压缩引擎尚未接入；当前可用暂存、另存副本和吃掉。");
     return;
   }
   await attempt(async () => {
@@ -217,12 +227,20 @@ async function applyDrop(
           await api.command({ type: "stash-file", fileId: id }),
         );
       flash("已暂存到置物架；按住卡片可以拖出。");
-    } else {
-      state.value = unwrap(
-        await api.command({ type: "eat-files", fileIds: ids }),
-      );
-      flash("吃掉了；7 天内在置物架可以取回。");
+      return;
     }
+    if (action === "copy") {
+      for (const id of ids)
+        state.value = unwrap(
+          await api.command({ type: "save-copy", fileId: id }),
+        );
+      flash("已另存副本；原件保留。");
+      return;
+    }
+    state.value = unwrap(
+      await api.command({ type: "eat-files", fileIds: ids }),
+    );
+    flash("吃掉了；7 天内在置物架可以取回。");
   });
 }
 async function receiveFiles(files: File[]): Promise<void> {
@@ -383,8 +401,8 @@ onUnmounted(() => {
           :src="probeUrl"
           class="marker"
           :style="{
-            width: `${96 * markerScale}px`,
-            height: `${96 * markerScale}px`,
+            width: `${petSprite.width * markerScale}px`,
+            height: `${petSprite.height * markerScale}px`,
           }"
           alt="可拖动的像素交互测试标记"
           draggable="false"
