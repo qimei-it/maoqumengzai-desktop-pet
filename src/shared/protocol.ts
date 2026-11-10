@@ -52,6 +52,7 @@ export type MusicState = {
   volume?: number
   duration?: number
   position?: number
+  positionAt?: number
   album?: string
   genre?: string
 }

@@ -131,6 +131,8 @@ let drag:
 let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
 let musicTimer: ReturnType<typeof setInterval> | undefined
+let musicPollBusy = false
+let musicPollMs = 2500
 let music: MusicState = { playing: false }
 let barVisible = true
 let volumeBeforeMute = 50
@@ -798,6 +800,7 @@ function applyMusic(next: MusicState): void {
   }
   if (!next.title) {
     lyricsOpen = false
+    scheduleMusicPoll(2500)
     lyrics = undefined
     lyricsKey = undefined
   } else if (lyricsOpen) {
@@ -825,8 +828,23 @@ function readAudio(done: (audio: { muted: boolean; volume?: number }) => void): 
     },
   )
 }
+function scheduleMusicPoll(interval: number): void {
+  if (musicPollMs === interval && musicTimer) return
+  musicPollMs = interval
+  if (musicTimer) clearInterval(musicTimer)
+  musicTimer = setInterval(pollMusic, interval)
+}
 function pollMusic(): void {
-  if (process.platform !== 'darwin') return
+  if (process.platform !== 'darwin' || musicPollBusy) return
+  musicPollBusy = true
+  const sampledAt = Date.now()
+  const watchdog = setTimeout(() => {
+    musicPollBusy = false
+  }, 5000)
+  const finish = () => {
+    clearTimeout(watchdog)
+    musicPollBusy = false
+  }
   execFile(
     '/usr/bin/osascript',
     ['-e', musicScript],
@@ -884,15 +902,24 @@ function pollMusic(): void {
             volume,
             duration: apple.duration,
             position: apple.position,
+            positionAt: sampledAt,
             album: apple.album,
             genre: apple.genre,
           })
+          finish()
           return
         }
         pollSystemMusic((system) => {
           if (system) {
             musicSource = 'system'
-            applyMusic({ ...system, source: 'system', muted, volume })
+            applyMusic({
+              ...system,
+              source: 'system',
+              muted,
+              volume,
+              positionAt: sampledAt,
+            })
+            finish()
             return
           }
           if (apple.state === 'paused' && apple.title) {
@@ -908,12 +935,21 @@ function pollMusic(): void {
               volume,
               duration: apple.duration,
               position: apple.position,
+              positionAt: sampledAt,
               album: apple.album,
               genre: apple.genre,
             })
+            finish()
             return
           }
-          applyMusic({ playing: false, muted, volume, position: 0 })
+          applyMusic({
+            playing: false,
+            muted,
+            volume,
+            position: 0,
+            positionAt: sampledAt,
+          })
+          finish()
         })
       })
     },
@@ -1164,6 +1200,7 @@ function setLyricsAvailable(value: boolean | undefined): void {
   lyricsAvailable = value
   if (value === false && lyricsOpen) {
     lyricsOpen = false
+    scheduleMusicPoll(2500)
     syncOverlays()
   }
   broadcast()
@@ -1191,6 +1228,7 @@ async function loadLyricsFor(key: string): Promise<void> {
 async function toggleLyrics(): Promise<void> {
   if (lyricsOpen) {
     lyricsOpen = false
+    scheduleMusicPoll(2500)
     syncOverlays()
     broadcast()
     return
@@ -1198,6 +1236,7 @@ async function toggleLyrics(): Promise<void> {
   const key = currentTrackKey()
   if (!key) return
   lyricsOpen = true
+  scheduleMusicPoll(1000)
   syncOverlays()
   broadcast()
   if (lyricsKey === key && lyrics) return
@@ -1963,6 +2002,7 @@ async function createWindows(): Promise<void> {
     alwaysOnTop: true,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -1983,6 +2023,7 @@ async function createWindows(): Promise<void> {
     skipTaskbar: true,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2005,6 +2046,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2030,6 +2072,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2054,6 +2097,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2078,6 +2122,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2102,6 +2147,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2129,6 +2175,7 @@ async function createWindows(): Promise<void> {
     focusable: false,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2152,6 +2199,7 @@ async function createWindows(): Promise<void> {
     alwaysOnTop: true,
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -2170,6 +2218,7 @@ async function createWindows(): Promise<void> {
         backgroundColor: '#f5f4f0',
         webPreferences: {
           preload: preloadPath,
+          backgroundThrottling: false,
           contextIsolation: true,
           nodeIntegration: false,
           sandbox: true,
@@ -2279,7 +2328,7 @@ async function createWindows(): Promise<void> {
   // ~60fps while dragging: the window follows the cursor from this loop, so a
   // slower tick reads as a low frame rate.
   pollMusic()
-  musicTimer = setInterval(pollMusic, 2500)
+  scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
   bubbleTickTimer = setInterval(bubbleTick, 1000)
   pointerTimer = setInterval(() => {

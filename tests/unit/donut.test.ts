@@ -72,15 +72,18 @@ describe('donut geometry (ported Filee cases)', () => {
     const { mid } = donutMetrics(1)
     expect(actionAt(0, 0, 1)).toBeNull()
     expect(actionAt(0, -mid, 1)).toBe('stash')
-    expect(actionAt(0, mid, 1)).toBe('eat')
+    expect(actionAt(0, mid, 1)).toBe('copy')
     expect(actionAt(mid, 0, 1)).toBe('compress')
     expect(actionAt(-mid, 0, 1)).toBe('ask')
     expect(actionAt(mid * Math.sin(Math.PI / 3), -mid * Math.cos(Math.PI / 3), 1)).toBe(
       'convert',
     )
-    expect(actionAt(-mid * Math.sin(Math.PI / 3), mid * Math.cos(Math.PI / 3), 1)).toBe(
-      'copy',
-    )
+    expect(
+      actionAt(-mid * Math.sin(Math.PI / 3), mid * Math.cos(Math.PI / 3), 1),
+    ).toBe('eat')
+    expect(
+      actionAt(mid * Math.sin(Math.PI / 3), mid * Math.cos(Math.PI / 3), 1),
+    ).toBe('compress')
     expect(actionAt(0, -400, 1)).toBeNull()
   })
 })

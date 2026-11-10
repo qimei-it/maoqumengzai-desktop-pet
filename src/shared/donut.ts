@@ -30,8 +30,8 @@ export const sliceActions = [
   'stash',
   'convert',
   'compress',
-  'eat',
   'copy',
+  'eat',
   'ask',
 ] as const
 export type DropAction = (typeof sliceActions)[number]

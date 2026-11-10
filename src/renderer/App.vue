@@ -498,19 +498,24 @@ function onVolumeInput(event: Event): void {
   void command({ type: "volume", value });
 }
 const lyricNow = ref(0);
-let lyricFrame: number | undefined;
+let lyricTimer: ReturnType<typeof setInterval> | undefined;
 let lyricBase = 0;
 let lyricBaseAt = 0;
 const reducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
-watch(
-  () => state.value?.music.position,
-  (position) => {
-    lyricBase = position ?? 0;
-    lyricBaseAt = performance.now();
-  },
-);
+/** Keep the interpolated clock aligned with when the player was sampled. */
+function syncLyricBase(): void {
+  const position = state.value?.music.position ?? 0;
+  const sampledAt = state.value?.music.positionAt;
+  const age =
+    state.value?.music.playing && typeof sampledAt === "number"
+      ? Math.max(0, (Date.now() - sampledAt) / 1000)
+      : 0;
+  lyricBase = position + age;
+  lyricBaseAt = performance.now();
+}
+watch(() => state.value?.music.position, syncLyricBase);
 const lyricLines = computed(() => {
   const synced = state.value?.lyrics?.synced;
   if (!synced) return [];
@@ -553,21 +558,21 @@ const currentLyric = computed(() => {
   };
 });
 const lyricRow = 24;
-const lyricLead = 1.1;
+const lyricLead = 0.5;
 const scrollOffset = computed(() => {
   const lyric = currentLyric.value;
   const elapsed = lyricElapsed.value;
   if (!lyric || elapsed === null) return lyricRow;
   if (reducedMotion) return (1 - lyric.index) * lyricRow;
+  const current = lyricLines.value[lyric.index];
   const next = lyricLines.value[lyric.index + 1];
-  if (!next) return (1 - lyric.index) * lyricRow;
-  const start = next.time - lyricLead;
+  if (!current || !next) return (1 - lyric.index) * lyricRow;
+  const gap = Math.max(next.time - current.time, 0.05);
+  const lead = Math.min(lyricLead, Math.max(0.12, gap * 0.5));
+  const start = next.time - lead;
   if (elapsed <= start) return (1 - lyric.index) * lyricRow;
-  const progress = Math.min(Math.max((elapsed - start) / lyricLead, 0), 1);
-  const eased =
-    progress < 0.5
-      ? 4 * progress * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  const progress = Math.min(Math.max((elapsed - start) / lead, 0), 1);
+  const eased = 1 - Math.pow(1 - progress, 3);
   return (1 - lyric.index - eased) * lyricRow;
 });
 const plainLines = computed(() =>
@@ -656,19 +661,17 @@ watch(displayPose, async () => {
 });
 function tickLyrics(): void {
   lyricNow.value = performance.now();
-  lyricFrame = requestAnimationFrame(tickLyrics);
 }
 function syncLyricTicker(): void {
   if (!lyricsView) return;
   const run = Boolean(state.value?.music.playing && state.value?.lyricsOpen);
-  if (run && lyricFrame === undefined) {
-    lyricBase = state.value?.music.position ?? lyricBase;
-    lyricBaseAt = performance.now();
+  if (run && lyricTimer === undefined) {
+    syncLyricBase();
     lyricNow.value = lyricBaseAt;
-    lyricFrame = requestAnimationFrame(tickLyrics);
-  } else if (!run && lyricFrame !== undefined) {
-    cancelAnimationFrame(lyricFrame);
-    lyricFrame = undefined;
+    lyricTimer = setInterval(tickLyrics, 50);
+  } else if (!run && lyricTimer !== undefined) {
+    clearInterval(lyricTimer);
+    lyricTimer = undefined;
     lyricNow.value = performance.now();
   }
 }
@@ -683,7 +686,7 @@ onMounted(() => {
   void nextTick(reportLyricsWidth);
 });
 onUnmounted(() => {
-  if (lyricFrame !== undefined) cancelAnimationFrame(lyricFrame);
+  if (lyricTimer !== undefined) clearInterval(lyricTimer);
 });
 watch(
   () => state.value?.wheelOpen,

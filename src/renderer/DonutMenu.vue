@@ -74,7 +74,8 @@ const wedges = computed(() => {
     // ring by walking the glyph anchors along the slice's arc.
     const first = pointAt(m.mid, mid + offsetOf(0))
     const last = pointAt(m.mid, mid + offsetOf(chars.length - 1))
-    const reversed = first.y > last.y
+    // Horizontal labels read left-to-right; vertical labels read top-to-bottom.
+    const reversed = horizontal ? first.x > last.x : first.y > last.y
     const glyphs = chars.map((char, position) => {
       const angle = mid + (reversed ? -offsetOf(position) : offsetOf(position))
       const point = pointAt(m.mid, angle)
