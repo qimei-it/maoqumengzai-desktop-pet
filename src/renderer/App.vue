@@ -17,6 +17,7 @@ import {
 import catBase from "./assets/pet/ragdoll/base.png";
 import catBlink from "./assets/pet/ragdoll/blink.png";
 import catLifted from "./assets/pet/ragdoll/lifted.png";
+import catMusic from "./assets/pet/ragdoll/music.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
@@ -40,16 +41,24 @@ const displayId = ref<number>();
 const donutOpen = ref(false);
 const donutClosing = ref(false);
 const donutActive = ref<DropAction | null>(null);
-type PetPose = "base" | "blink" | "lifted" | "ponder";
+type PetPose = "base" | "blink" | "lifted" | "music" | "ponder";
 const poseSources: Record<PetPose, string> = {
   base: catBase,
   blink: catBlink,
   lifted: catLifted,
+  music: catMusic,
   ponder: catPonder,
 };
 const petName = "麻薯";
 const petPose = ref<PetPose>("base");
-const poseSrc = computed(() => poseSources[petPose.value]);
+/** Interaction poses win over listening; the blink is only a frame of the base. */
+const displayPose = computed<PetPose>(() => {
+  if (petPose.value === "lifted" || petPose.value === "ponder")
+    return petPose.value;
+  if (state.value?.music.playing) return "music";
+  return petPose.value;
+});
+const poseSrc = computed(() => poseSources[displayPose.value]);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
 let unsubscribe: (() => void) | undefined;
@@ -430,6 +439,10 @@ watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
   await nextTick();
   await updateMask();
 });
+watch(displayPose, async () => {
+  await nextTick();
+  await updateMask();
+});
 watch(
   () => state.value?.wheelOpen,
   (open) => {
@@ -499,7 +512,11 @@ onUnmounted(() => {
           ref="marker"
           :src="poseSrc"
           class="marker"
-          :class="{ lifted: petPose === 'lifted', ponder: petPose === 'ponder' }"
+          :class="{
+            lifted: displayPose === 'lifted',
+            music: displayPose === 'music',
+            ponder: displayPose === 'ponder',
+          }"
           :style="{
             width: `${petSprite.width * markerScale}px`,
             height: `${petSprite.height * markerScale}px`,
@@ -520,7 +537,7 @@ onUnmounted(() => {
         />
         <span
           class="marker-caption"
-          :class="{ hidden: donutOpen || petPose === 'lifted' }"
+          :class="{ hidden: donutOpen || displayPose === 'lifted' }"
           :style="{ fontSize: `${10 * markerScale}px` }"
           >{{ petName }}</span
         >

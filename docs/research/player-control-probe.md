@@ -52,7 +52,7 @@ macOS 上四款播放器的能力并不对等：
 
 ## 正式方案与探针脚本
 
-macOS 不依赖第三方 CLI，改为自带的 MediaRemote helper：
+macOS 不依赖第三方 CLI，改为自带的 MediaRemote helper（已编译为通用二进制 `resources/helpers/mqmz-nowplaying`，随应用打包；主进程每 2.5 秒轮询一次）：
 
 - `scripts/probe-media-macos.swift`
   - `info`：输出 title/artist/album/duration/elapsed/rate 的 JSON

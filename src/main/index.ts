@@ -27,6 +27,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
@@ -38,6 +39,7 @@ import type {
   HitMask,
   LabEvent,
   LocalFile,
+  MusicState,
   Rect,
   Result,
   Snapshot,
@@ -103,6 +105,8 @@ let drag:
   | undefined
 let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
+let musicTimer: ReturnType<typeof setInterval> | undefined
+let music: MusicState = { playing: false }
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
 const files = new Map<
@@ -179,6 +183,7 @@ function snapshot(): Snapshot {
     })),
     events: [...events],
     blockedRequests,
+    music,
   }
 }
 function broadcast(): void {
@@ -396,6 +401,42 @@ function setPassthrough(enabled: boolean): void {
   passthrough = enabled
   pet.setIgnoreMouseEvents(enabled, { forward: true })
   broadcast()
+}
+/** macOS 上读系统“正在播放”，用于切到听歌姿态；其它平台先保持关闭。 */
+function musicHelperPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'helpers/mqmz-nowplaying')
+    : join(app.getAppPath(), 'resources/helpers/mqmz-nowplaying')
+}
+function pollMusic(): void {
+  if (process.platform !== 'darwin') return
+  execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
+    let next: MusicState = { playing: false }
+    if (!error) {
+      try {
+        const parsed = JSON.parse(stdout.trim() || '{}') as {
+          title?: string
+          artist?: string
+          rate?: number
+        }
+        next = {
+          playing: parsed.rate === 1,
+          title: parsed.title,
+          artist: parsed.artist,
+        }
+      } catch {
+        /* 没有会话或输出不完整时按未播放处理 */
+      }
+    }
+    if (
+      music.playing === next.playing &&
+      music.title === next.title &&
+      music.artist === next.artist
+    )
+      return
+    music = next
+    broadcast()
+  })
 }
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)
@@ -1118,6 +1159,8 @@ async function createWindows(): Promise<void> {
   })
   // ~60fps while dragging: the window follows the cursor from this loop, so a
   // slower tick reads as a low frame rate.
+  pollMusic()
+  musicTimer = setInterval(pollMusic, 2500)
   pointerTimer = setInterval(() => {
     if (pet.isDestroyed() || shuttingDown) return
     const cursor = screen.getCursorScreenPoint()
@@ -1193,6 +1236,7 @@ else {
   app.on('before-quit', () => {
     shuttingDown = true
     if (pointerTimer) clearInterval(pointerTimer)
+    if (musicTimer) clearInterval(musicTimer)
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

@@ -41,6 +41,11 @@ export type BellyEntry = {
   expiresAt: number
 }
 export type LabEvent = { time: string; message: string }
+export type MusicState = {
+  playing: boolean
+  title?: string
+  artist?: string
+}
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
   petBounds: Rect
@@ -57,6 +62,7 @@ export type Snapshot = {
   belly: BellyEntry[]
   events: LabEvent[]
   blockedRequests: number
+  music: MusicState
 }
 export type Command =
   | { type: 'recover' }

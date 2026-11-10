@@ -11,6 +11,8 @@ extraResources:
     to: icons
   - from: resources/licenses
     to: licenses
+  - from: resources/helpers
+    to: helpers
 mac:
   target:
     - target: dmg

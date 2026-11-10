@@ -492,6 +492,20 @@ footer button {
     transform: translateY(0) rotate(-1.5deg) scaleY(1);
   }
 }
+/* Listening: a slow sway, eyes closed. */
+.marker.music {
+  transform-origin: 50% 92%;
+  animation: pet-music 2.2s ease-in-out infinite;
+}
+@keyframes pet-music {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg) scaleY(1);
+  }
+  50% {
+    transform: translateY(-2px) rotate(1deg) scaleY(1.012);
+  }
+}
 /* Held by the scruff: swings from the top. */
 .marker.lifted {
   transform-origin: 50% 14%;
@@ -523,6 +537,7 @@ footer button {
 @media (prefers-reduced-motion: reduce) {
   .marker,
   .marker.lifted,
+  .marker.music,
   .marker.ponder {
     animation: none;
   }
