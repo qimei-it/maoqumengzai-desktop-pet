@@ -30,6 +30,7 @@ const notesView =
   new URLSearchParams(location.search).get("view") === "notes";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
+document.body.classList.toggle("notes-view", notesView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";

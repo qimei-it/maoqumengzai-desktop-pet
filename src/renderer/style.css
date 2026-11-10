@@ -419,7 +419,9 @@ footer button {
 .pocket-view,
 .pocket-view #app,
 .pet-view,
-.pet-view #app {
+.pet-view #app,
+.notes-view,
+.notes-view #app {
   background: transparent;
   width: 100vw;
   height: 100vh;
