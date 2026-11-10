@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { petScales, themeIds } from '../shared/settings'
 
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const rect = z
@@ -148,6 +149,26 @@ export const commandSchema = z.discriminatedUnion('type', [
       fileIds: z.array(z.string().uuid()).min(1).max(32),
     })
     .strict(),
+  z.object({ type: z.literal('settings-open') }).strict(),
+  z.object({ type: z.literal('settings-close') }).strict(),
+  z
+    .object({
+      type: z.literal('settings-update'),
+      patch: z
+        .object({
+          theme: z.enum(themeIds).optional(),
+          scale: z.union(petScales.map((value) => z.literal(value))).optional(),
+          launchAtLogin: z.boolean().optional(),
+          statusBubbles: z.boolean().optional(),
+          musicBubbles: z.boolean().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ type: z.literal('settings-open-data') }).strict(),
+  z.object({ type: z.literal('settings-clear-cache') }).strict(),
+  z.object({ type: z.literal('settings-clear-belly') }).strict(),
+  z.object({ type: z.literal('settings-open-licenses') }).strict(),
   z
     .object({
       type: z.literal('panel-control'),

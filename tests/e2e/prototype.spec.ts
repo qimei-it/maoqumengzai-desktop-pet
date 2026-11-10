@@ -23,6 +23,7 @@ let pocket: Page;
 let ask: Page;
 let convert: Page;
 let rename: Page;
+let settings: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
 let startupVisibility: { title: string; visible: boolean }[];
@@ -42,7 +43,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(13);
+  await expect.poll(() => application.windows().length).toBe(14);
   const windows = await Promise.all(
     application
       .windows()
@@ -54,6 +55,7 @@ test.beforeAll(async () => {
   ask = windows.find((item) => item.title.includes("智能问答"))!.page;
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
+  settings = windows.find((item) => item.title.includes("设置"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -61,7 +63,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -115,23 +117,25 @@ test("clicking the pet toggles the pocket and focus elsewhere closes it", async 
 
 test("macOS panels use native traffic lights and stay fixed-size", async () => {
   test.skip(process.platform !== "darwin", "macOS-only window chrome");
-  const chrome = await application.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()
-      .filter((window) =>
-        ["文件置物架", "智能问答", "文件转换", "批量重命名"].some((name) =>
-          window.getTitle().includes(name),
-        ),
-      )
-      .map((window) => ({
-        title: window.getTitle(),
-        position: window.getWindowButtonPosition(),
-        maximizable: window.isMaximizable(),
-        fullScreenable: window.isFullScreenable(),
-        closable: window.isClosable(),
-        minimizable: window.isMinimizable(),
-      })),
-  );
-  expect(chrome).toHaveLength(4);
+  const readChrome = () =>
+    application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .filter((window) =>
+          ["文件置物架", "智能问答", "文件转换", "批量重命名", "设置"].some(
+            (name) => window.getTitle().includes(name),
+          ),
+        )
+        .map((window) => ({
+          title: window.getTitle(),
+          position: window.getWindowButtonPosition(),
+          maximizable: window.isMaximizable(),
+          fullScreenable: window.isFullScreenable(),
+          closable: window.isClosable(),
+          minimizable: window.isMinimizable(),
+        })),
+    );
+  await expect.poll(async () => (await readChrome()).length).toBe(5);
+  const chrome = await readChrome();
   for (const panel of chrome) {
     expect(panel.position).toMatchObject({ x: 14, y: 17 });
     expect(panel.maximizable).toBe(false);
@@ -152,6 +156,124 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
   await expect.poll(async () => (await pocketState()).visible).toBe(false);
+});
+
+test("settings panel updates theme, scale, and bubbles", async () => {
+  const settingsVisible = () =>
+    application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle().includes("设置"))!
+        .isVisible(),
+    );
+  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
+  await expect.poll(async () => (await settingsVisible())).toBe(false);
+  await pocket.getByRole("button", { name: "设置", exact: true }).click();
+  await expect.poll(settingsVisible).toBe(true);
+  await expect(
+    settings.getByRole("heading", { name: "设置", exact: true }),
+  ).toBeVisible();
+  if (process.platform === "darwin") {
+    const menu = await application.evaluate(({ Menu }) =>
+      Menu.getApplicationMenu()?.items[0]?.submenu?.items.map((item) => item.label),
+    );
+    expect(menu).toContain("设置…");
+  }
+
+  await settings.getByRole("button", { name: "万圣节", exact: true }).click();
+  await expect
+    .poll(() =>
+      pet.evaluate(() =>
+        document.documentElement.classList.contains("theme-halloween"),
+      ),
+    )
+    .toBe(true);
+  await settings.getByRole("button", { name: "0.75×", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(99);
+
+  await settings.getByRole("button", { name: "桌面", exact: true }).click();
+  await settings.getByRole("switch", { name: "状态提示气泡" }).click();
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "notify", text: "不应出现" }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  expect(
+    await lab.evaluate(async () => {
+      const snapshot = await window.mqmz!.snapshot();
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    }),
+  ).toBe("");
+  await settings.getByRole("switch", { name: "状态提示气泡" }).click();
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "notify", text: "设置已生效" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("设置已生效");
+
+  await settings.getByRole("button", { name: "智能问答", exact: true }).click();
+  await settings.getByLabel("DeepSeek API Key").fill("sk-settings-test");
+  await settings.getByRole("button", { name: "保存", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.ai.configured : false;
+    })
+    .toBe(true);
+  await settings.getByRole("button", { name: "删除", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.ai.configured : true;
+    })
+    .toBe(false);
+
+  await settings.getByRole("button", { name: "数据", exact: true }).click();
+  await settings.getByRole("button", { name: "清理", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("缓存已清理");
+  await settings.getByRole("button", { name: "清空", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("回收区已经是空的");
+
+  const stored = JSON.parse(
+    await readFile(join(directory, "data", "mqmz.settings.json"), "utf8"),
+  );
+  expect(stored).toMatchObject({
+    theme: "halloween",
+    scale: 0.75,
+    statusBubbles: true,
+    musicBubbles: true,
+  });
+
+  await settings.getByRole("button", { name: "外观", exact: true }).click();
+  await settings.getByRole("button", { name: "默认", exact: true }).click();
+  await settings.getByRole("button", { name: "1×", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(132);
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
+  await expect.poll(settingsVisible).toBe(false);
 });
 
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {
@@ -1438,7 +1560,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(13);
+  await expect.poll(() => application.windows().length).toBe(14);
   pocket = (
     await Promise.all(
       application
@@ -1464,4 +1586,55 @@ test("receiving persists a local index across restart and removing the card pres
     path: "/tmp/mqmz-file-pocket-empty.png",
     omitBackground: true,
   });
+});
+
+test("settings persist across restart", async () => {
+  const windows = await Promise.all(
+    application
+      .windows()
+      .map(async (page) => ({ page, title: await page.title() })),
+  );
+  const currentPet = windows.find((item) => item.title.includes("交互标记"))!.page;
+  await currentPet.evaluate(() =>
+    window.mqmz!.command({
+      type: "settings-update",
+      patch: { theme: "christmas", scale: 1.5 },
+    }),
+  );
+  await application.close();
+  application = await electron.launch({
+    args: [resolve(".")],
+    env: launchEnvironment,
+  });
+  await expect.poll(() => application.windows().length).toBe(14);
+  const restarted = await Promise.all(
+    application
+      .windows()
+      .map(async (page) => ({ page, title: await page.title() })),
+  );
+  const petPage = restarted.find((item) => item.title.includes("交互标记"))!.page;
+  const settingsPage = restarted.find((item) => item.title.includes("设置"))!.page;
+  await petPage.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
+  await expect(
+    settingsPage.getByRole("heading", { name: "设置", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      petPage.evaluate(() =>
+        document.documentElement.classList.contains("theme-christmas"),
+      ),
+    )
+    .toBe(true);
+  await expect
+    .poll(async () => {
+      const snapshot = await petPage.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(198);
+  await settingsPage.evaluate(() =>
+    window.mqmz!.command({
+      type: "settings-update",
+      patch: { theme: "default", scale: 1 },
+    }),
+  );
 });

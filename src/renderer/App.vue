@@ -39,6 +39,7 @@ import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
+import SettingsPanel from "./SettingsPanel.vue";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
 const pocketView =
@@ -59,6 +60,8 @@ const convertView =
 const toastView = new URLSearchParams(location.search).get("view") === "toast";
 const renameView =
   new URLSearchParams(location.search).get("view") === "rename";
+const settingsView =
+  new URLSearchParams(location.search).get("view") === "settings";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -71,6 +74,7 @@ document.body.classList.toggle("ask-view", askView);
 document.body.classList.toggle("convert-view", convertView);
 document.body.classList.toggle("toast-view", toastView);
 document.body.classList.toggle("rename-view", renameView);
+document.body.classList.toggle("settings-view", settingsView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -83,8 +87,18 @@ if (askView) document.title = "毛趣萌仔 · 智能问答";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
+if (settingsView) document.title = "毛趣萌仔 · 设置";
 const api = window.mqmz;
 const state = ref<Snapshot>();
+function applyTheme(theme: string | undefined): void {
+  document.documentElement.classList.remove(
+    "theme-halloween",
+    "theme-christmas",
+  );
+  if (theme === "halloween" || theme === "christmas")
+    document.documentElement.classList.add(`theme-${theme}`);
+}
+watch(() => state.value?.settings.theme, applyTheme, { immediate: true });
 const error = ref("");
 const notice = ref("");
 const previews = ref<CapturePreview[]>([]);
@@ -1121,6 +1135,13 @@ onUnmounted(() => {
 
   <BatchRenamePanel
     v-else-if="renameView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <SettingsPanel
+    v-else-if="settingsView"
     :state="state"
     :error="error"
     @command="command"

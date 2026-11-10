@@ -16,6 +16,7 @@
 | 开发诊断中的文件空态 | Inbox |
 | 继续选择文件 | Plus |
 | 智能问答面板标题 | DeepSeek 鲸鱼标志（品牌素材，非 Lucide） |
+| 设置面板标题与左侧导航 | Settings / Palette / Monitor / Database / Sparkles / Info |
 | 系统托盘 | 毛趣映画猫脸（品牌素材，非 Lucide） |
 
 原有手绘路径、字符代图标以及托盘像素方块已替换。桌宠本体已是独立管理的布偶猫插画素材（见 `src/renderer/assets/pet/` 与 `resources/pet/ragdoll/source/`），不再用 Lucide 图标代替宠物动画。
@@ -63,4 +64,4 @@ Firefox Emoji 用于后续适合的情绪、活动或业务插画型图标，沿
 - Lucide 来源与许可：[Lucide](https://lucide.dev/license)。完整上游许可证已保留在 [lucide-ISC.txt](../../resources/licenses/lucide-ISC.txt)，包括源文件中的 ISC 与 Feather 派生图标 MIT 声明，并随安装包分发。
 - Firefox Emoji 来源：[Mozilla FxEmoji](https://mozilla.github.io/fxemoji/)。首次新增素材时继续逐项核实许可与修改记录，不把整个素材库的使用范围推定为已核验。
 - 本轮验证包含 SVG 来源/属性、图标随三套主题着色、原生图标资源、透明命中、文件卡片拖动事件及原有文件功能回归。原生拖出落地与 Windows/Intel/最低系统仍按 P0 原记录待验收。
-- 实测结果：构建、图标/主题检查、74 项单元测试与 27 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。
+- 实测结果：构建、图标/主题检查、77 项单元测试与 29 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。

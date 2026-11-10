@@ -996,6 +996,8 @@ footer button {
   overflow: hidden;
 }
 
+.settings-view,
+.settings-view #app,
 .rename-view,
 .rename-view #app {
   background: transparent;

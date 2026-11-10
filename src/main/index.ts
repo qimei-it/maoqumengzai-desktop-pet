@@ -35,6 +35,7 @@ import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
+import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   bubbleCategories,
   detectMood,
@@ -82,6 +83,12 @@ import {
   type ConvertAction,
 } from '../shared/convert'
 import { isZipFile } from '../shared/archive'
+import {
+  defaultSettings,
+  type PetScale,
+  type Settings,
+  type SettingsState,
+} from '../shared/settings'
 import { createArchive, extractArchive } from './archive-zip'
 import { shrinkImage } from './compress-images'
 import { convertImage } from './convert-images'
@@ -140,6 +147,8 @@ let volumeHideTimer: ReturnType<typeof setTimeout> | undefined
 let lab: BrowserWindow | undefined
 let tray: Tray | undefined
 let scale = 1
+let settings: Settings = { ...defaultSettings }
+let settingsExisted = false
 let dropMode = false
 let wheelOpen = false
 let baseBounds: Rect | undefined
@@ -171,6 +180,7 @@ let lyricsAvailable: boolean | undefined
 let askWindow: BrowserWindow | undefined
 let convertWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
+let settingsWindow: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
@@ -215,6 +225,7 @@ const previews = new Map<string, CapturePreview>()
 const statePath = join(dataRoot, 'mqmz.window-state.json')
 const shelfPath = join(dataRoot, 'mqmz.file-shelf.json')
 const bellyPath = join(dataRoot, 'mqmz.belly.json')
+const settingsPath = join(dataRoot, 'mqmz.settings.json')
 const bellyDirectory = join(dataRoot, 'belly')
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
@@ -296,6 +307,8 @@ function snapshot(): Snapshot {
     convert: convertState(),
     renameOpen: windowVisible(renameWindow),
     rename: renameState(),
+    settingsOpen: windowVisible(settingsWindow),
+    settings: settingsState(),
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
     ...(toastText ? { toast: toastText } : {}),
   }
@@ -320,6 +333,7 @@ function broadcast(): void {
       askWindow,
       convertWindow,
       renameWindow,
+      settingsWindow,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -789,6 +803,110 @@ function closeRename(): void {
   renameWindow?.hide()
   broadcast()
 }
+function settingsState(): SettingsState {
+  return {
+    theme: settings.theme,
+    scale: settings.scale,
+    launchAtLogin: settings.launchAtLogin,
+    statusBubbles: settings.statusBubbles,
+    musicBubbles: settings.musicBubbles,
+  }
+}
+function positionSettings(): void {
+  if (!settingsWindow || settingsWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 640
+  const height = 540
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openSettings(): void {
+  if (pocket?.isVisible()) pocket.hide()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    positionSettings()
+    if (process.platform === 'darwin' || settingsWindow.isMinimized())
+      settingsWindow.restore()
+    settingsWindow.show()
+    settingsWindow.moveTop()
+    settingsWindow.focus()
+  }
+  broadcast()
+}
+function closeSettings(): void {
+  settingsWindow?.hide()
+  broadcast()
+}
+async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
+  const previous = { ...settings }
+  const scaleChanged = patch.scale !== undefined && patch.scale !== settings.scale
+  if (scaleChanged) setPetScale(patch.scale!)
+  settings = { ...settings, ...patch }
+  try {
+    await saveSettingsFile(settingsPath, settings)
+  } catch (error) {
+    settings = previous
+    if (scaleChanged) setPetScale(previous.scale)
+    throw error
+  }
+  if (!settings.statusBubbles) hideToast()
+  if (!settings.musicBubbles) hideBubble()
+  if (
+    app.isPackaged &&
+    patch.launchAtLogin !== undefined &&
+    patch.launchAtLogin !== previous.launchAtLogin
+  )
+    app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
+  broadcast()
+}
+async function clearAppCache(): Promise<void> {
+  await session.defaultSession.clearCache()
+  addEvent('应用缓存已清理。')
+  showToast('缓存已清理')
+}
+async function clearBellyContents(): Promise<void> {
+  if (!belly.length) {
+    showToast('回收区已经是空的')
+    return
+  }
+  const options = {
+    type: 'warning' as const,
+    buttons: ['取消', '清空'],
+    defaultId: 0,
+    cancelId: 0,
+    message: '清空回收区？',
+    detail: '回收区里的文件会被永久删除，无法恢复。',
+  }
+  const result = settingsWindow
+    ? await dialog.showMessageBox(settingsWindow, options)
+    : await dialog.showMessageBox(options)
+  if (result.response !== 1) return
+  for (const entry of belly)
+    await rm(dirname(entry.storedPath), { recursive: true, force: true }).catch(
+      () => {},
+    )
+  belly = []
+  await saveBelly()
+  refreshPocketLayout()
+  addEvent('回收区已清空。')
+  showToast('回收区已清空')
+}
+async function openLicenses(): Promise<void> {
+  const path = app.isPackaged
+    ? join(process.resourcesPath, 'licenses')
+    : join(app.getAppPath(), 'resources/licenses')
+  const error = await shell.openPath(path)
+  if (error) throw new Error('无法打开第三方许可目录。')
+}
 async function pathExists(path: string): Promise<boolean> {
   try {
     await lstat(path)
@@ -999,6 +1117,7 @@ function updateToastWindow(): void {
   }
 }
 function showToast(text: string): void {
+  if (!settings.statusBubbles) return
   toastText = text
   if (toastHideTimer) clearTimeout(toastHideTimer)
   toastHideTimer = setTimeout(hideToast, 3200)
@@ -1588,7 +1707,7 @@ function hideBubble(): void {
   broadcast()
 }
 function showBubble(): void {
-  if (!music.title || bubbleText) return
+  if (!settings.musicBubbles || !music.title || bubbleText) return
   const lyricText = bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined
   const track: BubbleTrack = {
     title: localizeName(music.title, lyricText, lyricsMeta()) ?? music.title,
@@ -1859,6 +1978,30 @@ function areas(): Rect[] {
 function placePet(bounds: Rect): void {
   if (!pet.isDestroyed()) pet.setBounds(bounds)
 }
+function setPetScale(next: PetScale): void {
+  if (next === scale || pet.isDestroyed()) return
+  scale = next
+  mask = undefined
+  setPassthrough(false)
+  wheelOpen = false
+  baseBounds = undefined
+  const old = pet.getBounds()
+  const width = Math.round(basePetSize.width * scale)
+  const height = Math.round(basePetSize.height * scale)
+  placePet(
+    fitToDisplays(
+      {
+        x: old.x + Math.round((old.width - width) / 2),
+        y: old.y + Math.round((old.height - height) / 2),
+        width,
+        height,
+      },
+      areas(),
+    ),
+  )
+  persist()
+  addEvent(`显示比例切换为 ${scale} 倍。`)
+}
 function persist(bounds = wheelOpen && baseBounds ? baseBounds : pet.getBounds()): void {
   const value = JSON.stringify({ version: 1, scale, bounds })
   persistQueue = persistQueue
@@ -1937,6 +2080,7 @@ function authorized(
       window !== askWindow &&
       window !== convertWindow &&
       window !== renameWindow &&
+      window !== settingsWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
@@ -2190,6 +2334,13 @@ function setupIpc(): void {
       'archive-files',
       'extract-archives',
       'shrink-files',
+      'settings-open',
+      'settings-close',
+      'settings-update',
+      'settings-open-data',
+      'settings-clear-cache',
+      'settings-clear-belly',
+      'settings-open-licenses',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2224,27 +2375,11 @@ function setupIpc(): void {
         )
         break
       case 'scale': {
-        scale = command.scale
-        mask = undefined
-        setPassthrough(false)
-        wheelOpen = false
-        baseBounds = undefined
-        const old = pet.getBounds()
-        const width = Math.round(basePetSize.width * scale)
-        const height = Math.round(basePetSize.height * scale)
-        placePet(
-          fitToDisplays(
-            {
-              x: old.x + Math.round((old.width - width) / 2),
-              y: old.y + Math.round((old.height - height) / 2),
-              width,
-              height,
-            },
-            areas(),
-          ),
-        )
-        persist()
-        addEvent(`显示比例切换为 ${scale} 倍。`)
+        setPetScale(command.scale)
+        if (settings.scale !== scale) {
+          settings = { ...settings, scale: command.scale }
+          await saveSettingsFile(settingsPath, settings)
+        }
         break
       }
       case 'move-display': {
@@ -2376,6 +2511,29 @@ function setupIpc(): void {
       case 'shrink-files':
         await shrinkSelected(command.fileIds)
         break
+      case 'settings-open':
+        openSettings()
+        break
+      case 'settings-close':
+        closeSettings()
+        break
+      case 'settings-update':
+        await updateSettings(command.patch)
+        break
+      case 'settings-open-data': {
+        const error = await shell.openPath(dataRoot)
+        if (error) throw new Error('无法打开数据目录。')
+        break
+      }
+      case 'settings-clear-cache':
+        await clearAppCache()
+        break
+      case 'settings-clear-belly':
+        await clearBellyContents()
+        break
+      case 'settings-open-licenses':
+        await openLicenses()
+        break
       case 'notify':
         showToast(command.text)
         break
@@ -2391,6 +2549,7 @@ function setupIpc(): void {
           else if (owner === askWindow) closeAsk()
           else if (owner === convertWindow) closeConvert()
           else if (owner === renameWindow) closeRename()
+          else if (owner === settingsWindow) closeSettings()
           else owner.hide()
         }
         break
@@ -2595,13 +2754,38 @@ function configurePanelChrome(window: BrowserWindow): void {
   window.setFullScreenable(false)
 }
 
+function installApplicationMenu(): void {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+    return
+  }
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: '毛趣萌仔',
+        submenu: [
+          { label: '设置…', accelerator: 'Command+,', click: openSettings },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { label: '退出毛趣萌仔', role: 'quit' },
+        ],
+      },
+      { role: 'editMenu' },
+      { role: 'windowMenu' },
+    ]),
+  )
+}
+
 async function createWindows(): Promise<void> {
   const primary = screen.getPrimaryDisplay().workArea
   let bounds: Rect = {
     x: primary.x + primary.width - 280,
     y: primary.y + primary.height - 280,
-    width: basePetSize.width,
-    height: basePetSize.height,
+    width: Math.round(basePetSize.width * scale),
+    height: Math.round(basePetSize.height * scale),
   }
   try {
     const saved = z
@@ -2621,7 +2805,12 @@ async function createWindows(): Promise<void> {
         }),
       })
       .parse(JSON.parse(await readFile(statePath, 'utf8')))
-    scale = saved.scale
+    if (!settingsExisted) {
+      settings = { ...settings, scale: saved.scale }
+      scale = saved.scale
+      settingsExisted = true
+      await saveSettingsFile(settingsPath, settings)
+    }
     bounds = {
       ...saved.bounds,
       width: Math.round(basePetSize.width * scale),
@@ -2920,7 +3109,29 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     renameWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  for (const panel of [pocket, askWindow, convertWindow, renameWindow])
+  settingsWindow = new BrowserWindow({
+    width: 640,
+    height: 540,
+    title: '毛趣萌仔 · 设置',
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    settingsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  for (const panel of [pocket, askWindow, convertWindow, renameWindow, settingsWindow])
     configurePanelChrome(panel)
   lab = !app.isPackaged
     ? new BrowserWindow({
@@ -2940,7 +3151,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2975,6 +3186,12 @@ async function createWindows(): Promise<void> {
       closeRename()
     }
   })
+  settingsWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeSettings()
+    }
+  })
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2994,6 +3211,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
+    if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(toastWindow)) positionToast()
   })
   pet.on('resize', () => {
@@ -3007,6 +3225,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
+    if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(toastWindow)) positionToast()
   })
   await restoreShelf()
@@ -3026,6 +3245,7 @@ async function createWindows(): Promise<void> {
     load(askWindow, 'ask'),
     load(convertWindow, 'convert'),
     load(renameWindow, 'rename'),
+    load(settingsWindow, 'settings'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -3043,6 +3263,7 @@ async function createWindows(): Promise<void> {
         },
       },
       { label: '智能问答', click: () => openAsk([]) },
+      { label: '设置…', click: openSettings },
       { label: '恢复标记位置', click: recover },
       ...(!app.isPackaged
         ? [{ label: '开发诊断（非正式版页面）', click: showLab }]
@@ -3115,7 +3336,7 @@ else {
   app
     .whenReady()
     .then(async () => {
-      Menu.setApplicationMenu(null)
+      installApplicationMenu()
       session.defaultSession.setPermissionRequestHandler(
         (_contents, _permission, callback) => callback(false),
       )
@@ -3136,6 +3357,12 @@ else {
         },
       )
       await mkdir(dataRoot, { recursive: true })
+      const loadedSettings = await loadSettingsFile(settingsPath)
+      settings = loadedSettings.settings
+      settingsExisted = loadedSettings.existed
+      scale = settings.scale
+      if (app.isPackaged)
+        app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
       aiKey = await loadStoredKey()
       await createWindows()
     })
@@ -3176,6 +3403,7 @@ else {
     bubbleWindow?.destroy()
     toastWindow?.destroy()
     renameWindow?.destroy()
+    settingsWindow?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
     globalShortcut.unregisterAll()

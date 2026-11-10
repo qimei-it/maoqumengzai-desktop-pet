@@ -1,4 +1,5 @@
 import type { RenameConfig } from './rename'
+import type { SettingsState } from './settings'
 
 export const channels = {
   snapshot: 'mqmz:prototype:snapshot',
@@ -139,6 +140,8 @@ export type Snapshot = {
   convert: ConvertState
   renameOpen: boolean
   rename: RenameState
+  settingsOpen: boolean
+  settings: SettingsState
 }
 export type Command =
   | { type: 'recover' }
@@ -178,6 +181,16 @@ export type Command =
   | { type: 'archive-files'; fileIds: string[] }
   | { type: 'extract-archives'; fileIds: string[] }
   | { type: 'shrink-files'; fileIds: string[] }
+  | { type: 'settings-open' }
+  | { type: 'settings-close' }
+  | {
+      type: 'settings-update'
+      patch: Partial<SettingsState>
+    }
+  | { type: 'settings-open-data' }
+  | { type: 'settings-clear-cache' }
+  | { type: 'settings-clear-belly' }
+  | { type: 'settings-open-licenses' }
   | {
       type: 'panel-control'
       action: 'minimize' | 'maximize' | 'close'

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FilePlusCorner, GripVertical } from '@lucide/vue'
+import { FilePlusCorner, GripVertical, Settings } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
 import PanelHeader from './PanelHeader.vue'
@@ -70,7 +70,24 @@ function commandForSelected(
         :platform="state?.runtime.platform"
         @minimize="emit('command', { type: 'panel-control', action: 'minimize' })"
         @close="emit('command', { type: 'panel-control', action: 'close' })"
-      />
+      >
+        <template #actions>
+          <button
+            type="button"
+            class="pocket-settings"
+            aria-label="设置"
+            title="设置"
+            @click="emit('command', { type: 'settings-open' })"
+          >
+            <Settings
+              :size="16"
+              :stroke-width="2"
+              aria-hidden="true"
+              focusable="false"
+            />
+          </button>
+        </template>
+      </PanelHeader>
 
       <div v-if="!state?.files.length" class="pocket-empty">
         <FilePlusCorner
@@ -196,6 +213,26 @@ function commandForSelected(
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
+}
+.pocket-settings {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+}
+.pocket-settings:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.pocket-settings:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
 }
 .pocket-file {
   display: flex;
