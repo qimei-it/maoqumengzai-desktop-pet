@@ -132,6 +132,7 @@ let volumeBeforeMute = 50
 let lyricsOpen = false
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
+let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
 let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
@@ -306,10 +307,10 @@ function syncOverlays(): void {
 function positionLyrics(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
   const b = pet.getBounds()
-  const width = 240
+  const width = lyricsWidth
   const height = 88
   const x = Math.round(b.x + b.width / 2 - width / 2)
-  const y = b.y - height - 10
+  const y = b.y + Math.round(9 * scale) - 8 - height
   lyricsWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateLyricsWindow(): void {
@@ -1147,7 +1148,8 @@ function authorized(
       window !== pocket &&
       window !== pill &&
       window !== volumePopup &&
-      window !== eye) ||
+      window !== eye &&
+      window !== lyricsWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -1366,6 +1368,7 @@ function setupIpc(): void {
       'volume',
       'bar-toggle',
       'lyrics',
+      'lyrics-width',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -1494,6 +1497,15 @@ function setupIpc(): void {
       case 'lyrics':
         void toggleLyrics()
         break
+      case 'lyrics-width': {
+        const area = screen.getDisplayMatching(pet.getBounds()).workArea
+        lyricsWidth = Math.min(
+          Math.max(Math.round(command.width), 180),
+          Math.min(520, area.width - 24),
+        )
+        if (lyricsOpen) positionLyrics()
+        break
+      }
       case 'bar-toggle':
         barVisible = !barVisible
         syncOverlays()

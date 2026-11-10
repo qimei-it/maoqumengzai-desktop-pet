@@ -109,6 +109,7 @@ export type Command =
     }
   | { type: 'bar-toggle' }
   | { type: 'lyrics' }
+  | { type: 'lyrics-width'; width: number }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

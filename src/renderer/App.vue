@@ -523,17 +523,62 @@ const currentLyric = computed(() => {
     if (lines[i].time <= elapsed) index = i;
   }
   return {
+    index,
     prev: lines[index - 1]?.text ?? "",
     current: lines[index]?.text ?? "",
     next: lines[index + 1]?.text ?? "",
   };
 });
-const plainPreview = computed(() =>
+const plainLines = computed(() =>
   (state.value?.lyrics?.plain ?? "")
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, 3),
+    .filter(Boolean),
+);
+const plainPreview = computed(() => plainLines.value.slice(0, 3));
+const plainCurrent = computed(() =>
+  Math.floor((plainPreview.value.length - 1) / 2),
+);
+const widthLines = computed(() => {
+  if (state.value?.lyrics?.instrumental) return ["纯音乐"];
+  if (lyricLines.value.length) return lyricLines.value.map((line) => line.text);
+  if (plainLines.value.length) return plainLines.value;
+  return state.value?.lyrics?.missing ? ["暂无歌词"] : [];
+});
+let measureSpan: HTMLSpanElement | undefined;
+let reportedWidth = 0;
+function lyricWidth(lines: string[]): number {
+  if (!lines.length) return 240;
+  if (!measureSpan) {
+    measureSpan = document.createElement("span");
+    measureSpan.className = "lyrics-measure";
+    document.body.append(measureSpan);
+  }
+  let widest = 0;
+  for (const line of lines) {
+    measureSpan.textContent = line;
+    widest = Math.max(widest, measureSpan.getBoundingClientRect().width);
+  }
+  const maxWidth = Math.min(480, window.screen.availWidth - 64);
+  return Math.min(Math.max(Math.ceil(widest) + 40, 200), maxWidth);
+}
+function reportLyricsWidth(): void {
+  if (!lyricsView || !state.value?.lyrics) return;
+  const width = lyricWidth(widthLines.value);
+  if (Math.abs(width - reportedWidth) < 2) return;
+  reportedWidth = width;
+  void command({ type: "lyrics-width", width });
+}
+watch(
+  () => [
+    state.value?.lyrics?.key ?? "",
+    state.value?.music.title ?? "",
+    state.value?.lyrics?.instrumental ? "1" : "0",
+    state.value?.lyrics?.missing ? "1" : "0",
+  ].join("|"),
+  () => {
+    if (lyricsView) void nextTick(reportLyricsWidth);
+  },
 );
 function onLyrics() {
   return command({ type: "lyrics" });
@@ -574,6 +619,7 @@ onMounted(() => {
   lyricTimer = setInterval(() => {
     lyricNow.value = performance.now();
   }, 400);
+  void nextTick(reportLyricsWidth);
 });
 onUnmounted(() => {
   if (lyricTimer) clearInterval(lyricTimer);
@@ -786,19 +832,46 @@ onUnmounted(() => {
 
   <main v-else-if="lyricsView" class="lyrics-surface">
     <template v-if="state?.lyrics?.instrumental">
-      <span class="lyrics-line current">纯音乐</span>
+      <span class="lyrics-state">纯音乐</span>
     </template>
     <template v-else-if="currentLyric">
-      <span class="lyrics-line">{{ currentLyric.prev }}</span>
-      <span class="lyrics-line current">{{ currentLyric.current }}</span>
-      <span class="lyrics-line">{{ currentLyric.next }}</span>
+      <div :key="state?.lyrics?.key" class="lyrics-viewport">
+        <div
+          class="lyrics-track"
+          :style="{
+            transform: `translateY(${(1 - currentLyric.index) * 24}px)`,
+          }"
+        >
+          <span
+            v-for="(line, index) in lyricLines"
+            :key="`${line.time}-${index}`"
+            class="lyrics-row"
+            :class="{
+              current: index === currentLyric.index,
+              past: index < currentLyric.index,
+              future: index > currentLyric.index,
+            }"
+            >{{ line.text }}</span
+          >
+        </div>
+      </div>
     </template>
     <template v-else-if="plainPreview.length">
-      <span v-for="line in plainPreview" :key="line" class="lyrics-line">
-        {{ line }}
-      </span>
+      <div :key="state?.lyrics?.key" class="lyrics-viewport plain">
+        <span
+          v-for="(line, index) in plainPreview"
+          :key="line"
+          class="lyrics-row"
+          :class="{
+            current: index === plainCurrent,
+            past: index < plainCurrent,
+            future: index > plainCurrent,
+          }"
+          >{{ line }}</span
+        >
+      </div>
     </template>
-    <span v-else class="lyrics-line current">暂无歌词</span>
+    <span v-else class="lyrics-state">暂无歌词</span>
   </main>
 
   <main v-else-if="eyeView" class="eye-surface">

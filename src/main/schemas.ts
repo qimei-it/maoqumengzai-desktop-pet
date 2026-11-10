@@ -61,6 +61,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('bar-toggle') }).strict(),
   z.object({ type: z.literal('lyrics') }).strict(),
+  z
+    .object({
+      type: z.literal('lyrics-width'),
+      width: z.number().min(160).max(520),
+    })
+    .strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),
   z
     .object({ type: z.literal('volume'), value: z.number().int().min(0).max(100) })
