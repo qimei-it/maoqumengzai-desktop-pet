@@ -10,7 +10,24 @@ macOS 上四款播放器的能力并不对等：
 | --- | --- | --- | --- | --- |
 | Apple Music | AppleScript：`playpause`、`play`、`pause`、`next track`、`previous track` | `player state`、`player position`（可读可写）、`current track` 的 `name`/`artist`/`duration` | 曲目对象自带 `lyrics` 属性 | 可完整实现，优先支持 |
 | 网易云音乐 3.1.9 | 未提供 AppleScript 字典 | 无法通过公开接口读取 | 不能从系统接口取得 | 只能考虑媒体键，且信息/歌词缺失 |
-| QQ 音乐 / 酷狗 | 未安装，待验证 | 待验证 | 待验证 | 装机后再测 |
+| QQ 音乐 11.11.0 | 系统 MediaRemote：播放/暂停、上一首/下一首均可用 | 歌名、歌手、专辑、时长可读；**进度恒为 0** | 无系统接口 | 可控制与显示歌曲信息，进度需另寻路径 |
+| 酷狗 20.3.8 | 系统 MediaRemote：播放/暂停、上一首/下一首均可用 | 歌名、歌手、专辑、时长可读；**进度恒为 0** | 无系统接口 | 与 QQ 音乐能力一致 |
+
+## 2026-11-10 QQ 音乐实测记录
+
+- 环境：macOS 27.0.1（arm64）、QQ 音乐 11.11.0、酷狗 20.3.8、`nowplaying-cli` 2.1.0（开发期探针，走系统 MediaRemote）。
+- 播放中读取：`title=好想我回来啊 (Live)`、`artist=华晨宇`、`album=声音避风港`、`duration=289`、`playbackRate=1`；`ClientBundleIdentifier=com.tencent.QQMusicMac`。
+- 控制：`togglePlayPause` 生效（`playbackRate` 1 → 空 → 1）；`next` / `previous` 生效，切歌后标题与时长随之更新（响应有 2–4 秒延迟）。
+- 进度：`elapsedTime` 连续查询始终为 0，QQ 音乐没有把播放位置交给系统。
+- 探针命令：`nowplaying-cli get title artist album duration elapsedTime playbackRate`、`nowplaying-cli togglePlayPause|next|previous`。
+- 限制：`nowplaying-cli` 直接调用私有 `MediaRemote`；正式版是否内置自研 Swift helper、还是退回媒体键 + 辅助功能授权，待其余播放器验证后统一决定。
+
+### 2026-11-10 酷狗实测记录
+
+- 播放中读取：`title=雨爱`、`artist=杨丞琳`、`album=雨爱`、`duration=260.48`、`playbackRate=1`；`ClientBundleIdentifier=com.kugou.mac.Music`。
+- 控制：`togglePlayPause` 生效（1 → 0 → 1）；`next` / `previous` 生效，切歌后标题与歌手更新（响应约 2–4 秒）。
+- 进度：`elapsedTime` 首次读到 0.14，之后连续查询为 0，不提供可用播放位置。
+- 结论：酷狗与 QQ 音乐能力一致——可控制、可读歌曲信息、无进度。
 
 ## 依据
 
