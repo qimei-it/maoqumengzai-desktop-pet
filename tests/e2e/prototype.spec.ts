@@ -40,7 +40,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(11);
+  await expect.poll(() => application.windows().length).toBe(12);
   const windows = await Promise.all(
     application
       .windows()
@@ -90,15 +90,15 @@ test("clicking the pet toggles the pocket and focus elsewhere closes it", async 
   if (!box) throw new Error("Marker is not rendered");
   const clickPet = async (): Promise<void> => {
     await pet.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    await new Promise((resolve) => setTimeout(resolve, 250));
   };
   await clickPet();
-  expect(await pocketVisible()).toBe(true);
+  await expect.poll(pocketVisible).toBe(true);
   await clickPet();
-  expect(await pocketVisible()).toBe(false);
-  await new Promise((resolve) => setTimeout(resolve, 450));
+  await expect.poll(pocketVisible).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 400));
   await clickPet();
-  expect(await pocketVisible()).toBe(true);
+  await expect.poll(pocketVisible).toBe(true);
   await application.evaluate(({ BrowserWindow }) => {
     const labWindow = BrowserWindow.getAllWindows().find((window) =>
       window.getTitle().includes("验证台"),
@@ -650,7 +650,7 @@ async function hoverSlice(action: DropAction): Promise<void> {
   await expect(pet.locator(`[data-region="${action}"]`)).toHaveClass(/active/);
 }
 
-test("dragging over the pet opens six equal slices and Esc closes them", async () => {
+test("dragging over the pet opens ten equal slices and Esc closes them", async () => {
   const fixture = join(directory, "拖拽预览.txt");
   await writeFile(fixture, "donut preview");
   await pet.evaluate(() => {
@@ -906,7 +906,12 @@ test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   const fixture = join(directory, "被吃掉.txt");
   await writeFile(fixture, "eaten-bytes");
   await dropOnPet(fixture, "eat");
-  await expect(pet.getByRole("status")).toContainText("7 天内");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("7 天内");
   await expect
     .poll(async () => {
       try {
@@ -938,11 +943,16 @@ test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
 });
 
-test("dropping on 压缩 states that compression is not wired yet", async () => {
+test("dropping on 打包归档 states that archiving is not wired yet", async () => {
   const fixture = join(directory, "待压缩.txt");
   await writeFile(fixture, "not-a-zip");
-  await dropOnPet(fixture, "compress");
-  await expect(pet.getByRole("status")).toContainText("压缩引擎尚未接入");
+  await dropOnPet(fixture, "archive");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("打包归档引擎尚未接入");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(0);
   expect(state.ok && state.value.belly.length).toBe(0);
@@ -1202,7 +1212,7 @@ test("stashing persists a local index across restart and removing the card prese
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(11);
+  await expect.poll(() => application.windows().length).toBe(12);
   pocket = (
     await Promise.all(
       application

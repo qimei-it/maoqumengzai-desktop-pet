@@ -55,32 +55,36 @@ const wedges = computed(() => {
   const step = span(sliceCount)
   const gap = sliceGap * props.scale
   const corner = sliceCornerRadius * props.scale
-  const fontSize = 14 * props.scale
+  const fontSize = 11 * props.scale
   return sliceActions.map((action, index) => {
     const mid = midAngle(index, sliceCount)
     const label = sliceLabels[action]
     const chars = Array.from(label)
-    // Horizontal labels read fine at 1.16; stacked ones need more air between
-    // the glyphs or they look cramped.
-    const horizontal = Math.abs(Math.sin(mid)) < 0.5
-    const spacing = fontSize * (horizontal ? 1.16 : 1.46)
-    const arcStep = Math.min(
-      spacing / m.mid,
-      (step * 0.82) / Math.max(1, chars.length),
-    )
-    const offsetOf = (position: number) =>
-      (position - (chars.length - 1) / 2) * arcStep
-    // Characters stay upright and stack top-to-bottom; the column follows the
-    // ring by walking the glyph anchors along the slice's arc.
-    const first = pointAt(m.mid, mid + offsetOf(0))
-    const last = pointAt(m.mid, mid + offsetOf(chars.length - 1))
-    // Horizontal labels read left-to-right; vertical labels read top-to-bottom.
-    const reversed = horizontal ? first.x > last.x : first.y > last.y
-    const glyphs = chars.map((char, position) => {
-      const angle = mid + (reversed ? -offsetOf(position) : offsetOf(position))
-      const point = pointAt(m.mid, angle)
-      return { char, x: point.x, y: point.y }
+    // Ten slices leave too little arc for five glyphs. Stack the glyphs along
+    // the slice's radius instead, then order them for natural reading:
+    // left-to-right on the sides, top-to-bottom at the top and bottom.
+    const radialStep =
+      chars.length <= 1
+        ? 0
+        : Math.min(
+            fontSize * 1.35,
+            (m.thickness - 12) / (chars.length - 1),
+          )
+    const points = chars.map((_, position) => {
+      const radius =
+        m.mid + (position - (chars.length - 1) / 2) * radialStep
+      const point = pointAt(radius, mid)
+      return { x: point.x, y: point.y }
     })
+    const horizontalReading = Math.abs(Math.cos(mid)) < 0.5
+    points.sort((a, b) =>
+      horizontalReading ? a.x - b.x : a.y - b.y,
+    )
+    const glyphs = points.map((point, position) => ({
+      char: chars[position],
+      x: point.x,
+      y: point.y,
+    }))
     return {
       action,
       label,
@@ -285,7 +289,7 @@ onUnmounted(() => {
           :class="{ hot: isHot(index) }"
           :x="glyph.x"
           :y="glyph.y"
-          :style="{ fontSize: `${14 * scale}px` }"
+          :style="{ fontSize: `${11 * scale}px` }"
           text-anchor="middle"
           dominant-baseline="central"
         >

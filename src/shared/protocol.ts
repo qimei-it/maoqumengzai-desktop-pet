@@ -125,6 +125,7 @@ export type Snapshot = {
   lyrics?: LyricsState
   lyricsAvailable?: boolean
   bubble?: BubbleState
+  toast?: string
   aiOpen: boolean
   ai: AiState
   convertOpen: boolean
@@ -162,6 +163,7 @@ export type Command =
   | { type: 'convert-start'; action: ConvertAction }
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
+  | { type: 'notify'; text: string }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

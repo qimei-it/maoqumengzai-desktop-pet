@@ -17,8 +17,8 @@ export type DonutHit =
 
 export const TAU = Math.PI * 2
 
-/** Six equal slices; the pet stands in the hole and is never a drop target. */
-export const sliceCount = 6
+/** Ten equal slices; the pet stands in the hole and is never a drop target. */
+export const sliceCount = 10
 /** Filee's GapPixels: the gap is measured along the slice edge, not in degrees. */
 export const sliceGap = 3
 /** Filee's SliceCornerRadius for the default softness. */
@@ -29,9 +29,13 @@ export const popOut = 7
 export const sliceActions = [
   'stash',
   'convert',
-  'compress',
-  'copy',
+  'archive',
+  'extract',
+  'shrink',
   'eat',
+  'copy',
+  'preview',
+  'rename',
   'ask',
 ] as const
 export type DropAction = (typeof sliceActions)[number]
@@ -39,9 +43,13 @@ export type DropAction = (typeof sliceActions)[number]
 export const sliceLabels: Record<DropAction, string> = {
   stash: '置物架',
   convert: '格式转换',
-  compress: '压缩',
+  archive: '打包归档',
+  extract: '解压缩',
+  shrink: '压缩大小',
   eat: '吃掉',
   copy: '另存副本',
+  preview: '预览',
+  rename: '批量重命名',
   ask: '智能问答',
 }
 

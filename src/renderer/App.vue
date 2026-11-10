@@ -55,6 +55,7 @@ const bubbleView =
 const askView = new URLSearchParams(location.search).get("view") === "ask";
 const convertView =
   new URLSearchParams(location.search).get("view") === "convert";
+const toastView = new URLSearchParams(location.search).get("view") === "toast";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -65,6 +66,7 @@ document.body.classList.toggle("lyrics-view", lyricsView);
 document.body.classList.toggle("bubble-view", bubbleView);
 document.body.classList.toggle("ask-view", askView);
 document.body.classList.toggle("convert-view", convertView);
+document.body.classList.toggle("toast-view", toastView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -75,6 +77,7 @@ if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 if (bubbleView) document.title = "毛趣萌仔 · 气泡";
 if (askView) document.title = "毛趣萌仔 · 智能问答";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
+if (toastView) document.title = "毛趣萌仔 · 提示";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -144,6 +147,10 @@ async function selectFiles(): Promise<void> {
   });
 }
 function flash(message: string): void {
+  if (api) {
+    void command({ type: "notify", text: message });
+    return;
+  }
   toast.value = message;
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
@@ -328,8 +335,28 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     });
     return;
   }
-  if (action === "compress") {
-    flash("压缩引擎尚未接入；当前可用暂存、另存副本和吃掉。");
+  if (action === "archive") {
+    flash("打包归档引擎尚未接入。");
+    return;
+  }
+  if (action === "extract") {
+    flash("解压缩引擎尚未接入。");
+    return;
+  }
+  if (action === "shrink") {
+    flash("压缩大小引擎尚未接入。");
+    return;
+  }
+  if (action === "preview") {
+    flash("预览功能即将接入。");
+    return;
+  }
+  if (action === "rename") {
+    flash(
+      files.length >= 2
+        ? "批量重命名面板即将接入。"
+        : "至少选择两个文件才能批量重命名。",
+    );
     return;
   }
   await attempt(async () => {
@@ -944,6 +971,12 @@ onUnmounted(() => {
   >
     <div class="bubble-body">
       <span class="bubble-text">{{ state?.bubble?.text }}</span>
+    </div>
+  </main>
+
+  <main v-else-if="toastView" class="bubble-surface toast-surface">
+    <div class="bubble-body toast-body">
+      <span class="bubble-text">{{ state?.toast }}</span>
     </div>
   </main>
 

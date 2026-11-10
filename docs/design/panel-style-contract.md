@@ -44,7 +44,7 @@
 - [tokens.css](../../src/renderer/styles/tokens.css)：由小程序的视觉事实源生成，包含三套主题。
 - [patterns.css](../../src/renderer/styles/patterns.css)：桌面按钮和交互适配。
 - [FilePocket.vue](../../src/renderer/FilePocket.vue)：置物架卡片与回收区列表，使用语义变量与统一按钮模式。
-- [DonutMenu.vue](../../src/renderer/DonutMenu.vue)：Filee 式六等分轮盘（等宽间隙、圆角、悬停弹出），几何由 `src/shared/donut.ts` 计算，样式只消费语义变量。
+- [DonutMenu.vue](../../src/renderer/DonutMenu.vue)：Filee 式十等分轮盘（等宽间隙、圆角、悬停弹出），几何由 `src/shared/donut.ts` 计算，样式只消费语义变量。
 
 更新方式：
 

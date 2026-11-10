@@ -102,6 +102,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('convert-close') }).strict(),
   z.object({ type: z.literal('convert-reveal') }).strict(),
+  z
+    .object({
+      type: z.literal('notify'),
+      text: z.string().min(1).max(500),
+    })
+    .strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),
   z
     .object({ type: z.literal('volume'), value: z.number().int().min(0).max(100) })

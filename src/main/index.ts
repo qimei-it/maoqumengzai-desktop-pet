@@ -171,6 +171,9 @@ let convertFolders = new Set<string>()
 let convertToken = 0
 let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
+let toastWindow: BrowserWindow | undefined
+let toastText: string | undefined
+let toastHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
 let bubbleHideTimer: ReturnType<typeof setTimeout> | undefined
@@ -275,6 +278,7 @@ function snapshot(): Snapshot {
     convertOpen: windowVisible(convertWindow),
     convert: convertState(),
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
+    ...(toastText ? { toast: toastText } : {}),
   }
 }
 function broadcast(): void {
@@ -293,6 +297,7 @@ function broadcast(): void {
       eye,
       lyricsWindow,
       bubbleWindow,
+      toastWindow,
       askWindow,
       convertWindow,
     ])
@@ -348,6 +353,7 @@ function updateEyeWindow(): void {
 }
 function syncOverlays(): void {
   if (!pet || pet.isDestroyed()) return
+  updateToastWindow()
   updateNotesWindow()
   updatePillWindow()
   updateEyeWindow()
@@ -365,7 +371,14 @@ function positionLyrics(): void {
 }
 function updateLyricsWindow(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
-  if (lyricsOpen && lyrics && music.title && !dropMode && !bubbleText) {
+  if (
+    lyricsOpen &&
+    lyrics &&
+    music.title &&
+    !dropMode &&
+    !bubbleText &&
+    !toastText
+  ) {
     positionLyrics()
     lyricsWindow.showInactive()
     lyricsWindow.moveTop()
@@ -707,21 +720,57 @@ async function revealConvert(): Promise<void> {
 function positionBubble(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
   const b = pet.getBounds()
-  const width = 248
-  const height = 104
+  const width = 216
+  const height = 84
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + Math.round(9 * scale) - 6 - height
   bubbleWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateBubbleWindow(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
-  if (bubbleText && !dropMode && barVisible) {
+  if (bubbleText && !dropMode && barVisible && !toastText) {
     positionBubble()
     bubbleWindow.showInactive()
     bubbleWindow.moveTop()
   } else if (bubbleWindow.isVisible()) {
     bubbleWindow.hide()
   }
+}
+function positionToast(): void {
+  if (!toastWindow || toastWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const width = 190
+  const height = 64
+  const x = Math.round(b.x + b.width / 2 - width / 2)
+  const y = b.y + Math.round(9 * scale) - 6 - height
+  toastWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+}
+function updateToastWindow(): void {
+  if (!toastWindow || toastWindow.isDestroyed()) return
+  if (toastText && !dropMode) {
+    positionToast()
+    toastWindow.showInactive()
+    toastWindow.moveTop()
+  } else if (toastWindow.isVisible()) {
+    toastWindow.hide()
+  }
+}
+function showToast(text: string): void {
+  toastText = text
+  if (toastHideTimer) clearTimeout(toastHideTimer)
+  toastHideTimer = setTimeout(hideToast, 3200)
+  syncOverlays()
+  broadcast()
+}
+function hideToast(): void {
+  if (toastHideTimer) {
+    clearTimeout(toastHideTimer)
+    toastHideTimer = undefined
+  }
+  if (!toastText) return
+  toastText = undefined
+  syncOverlays()
+  broadcast()
 }
 function positionNotes(): void {
   if (!notes || notes.isDestroyed()) return
@@ -752,7 +801,13 @@ function updatePillWindow(): void {
 }
 function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
-  if (music.playing && !dropMode && !lyricsOpen && !bubbleText) {
+  if (
+    music.playing &&
+    !dropMode &&
+    !lyricsOpen &&
+    !bubbleText &&
+    !toastText
+  ) {
     positionNotes()
     notes.showInactive()
     notes.moveTop()
@@ -1598,7 +1653,8 @@ function authorized(
       window !== eye &&
       window !== lyricsWindow &&
       window !== askWindow &&
-      window !== convertWindow) ||
+      window !== convertWindow &&
+      window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -1836,6 +1892,7 @@ function setupIpc(): void {
       'convert-start',
       'convert-close',
       'convert-reveal',
+      'notify',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2006,6 +2063,9 @@ function setupIpc(): void {
         break
       case 'convert-reveal':
         await revealConvert()
+        break
+      case 'notify':
+        showToast(command.text)
         break
       case 'lyrics-width': {
         const area = screen.getDisplayMatching(pet.getBounds()).workArea
@@ -2393,8 +2453,8 @@ async function createWindows(): Promise<void> {
     lyricsWindow.setHiddenInMissionControl(true)
   }
   bubbleWindow = new BrowserWindow({
-    width: 248,
-    height: 104,
+    width: 216,
+    height: 84,
     title: '毛趣萌仔 · 气泡',
     show: false,
     frame: false,
@@ -2417,6 +2477,32 @@ async function createWindows(): Promise<void> {
   if (process.platform === 'darwin') {
     bubbleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     bubbleWindow.setHiddenInMissionControl(true)
+  }
+  toastWindow = new BrowserWindow({
+    width: 190,
+    height: 64,
+    title: '毛趣萌仔 · 提示',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  toastWindow.setIgnoreMouseEvents(true)
+  if (process.platform === 'darwin') {
+    toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    toastWindow.setHiddenInMissionControl(true)
   }
   askWindow = new BrowserWindow({
     width: 400,
@@ -2478,7 +2564,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2523,6 +2609,7 @@ async function createWindows(): Promise<void> {
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
     if (convertWindow?.isVisible()) positionConvert()
+    if (toastWindow?.isVisible()) positionToast()
   })
   pet.on('resize', () => {
     if (notes?.isVisible()) positionNotes()
@@ -2533,6 +2620,7 @@ async function createWindows(): Promise<void> {
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
     if (convertWindow?.isVisible()) positionConvert()
+    if (toastWindow?.isVisible()) positionToast()
   })
   await restoreShelf()
   await restoreBelly()
@@ -2547,6 +2635,7 @@ async function createWindows(): Promise<void> {
     load(eye, 'eye'),
     load(lyricsWindow, 'lyrics'),
     load(bubbleWindow, 'bubble'),
+    load(toastWindow, 'toast'),
     load(askWindow, 'ask'),
     load(convertWindow, 'convert'),
     ...(lab ? [load(lab, 'lab')] : []),
@@ -2683,6 +2772,10 @@ else {
       clearTimeout(bubbleHideTimer)
       bubbleHideTimer = undefined
     }
+    if (toastHideTimer) {
+      clearTimeout(toastHideTimer)
+      toastHideTimer = undefined
+    }
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
     if (bubbleTickTimer) clearInterval(bubbleTickTimer)
@@ -2692,6 +2785,7 @@ else {
     eye?.destroy()
     lyricsWindow?.destroy()
     bubbleWindow?.destroy()
+    toastWindow?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
     globalShortcut.unregisterAll()

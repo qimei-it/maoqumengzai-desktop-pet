@@ -11,6 +11,7 @@ import {
   midAngle,
   outlinePath,
   pointAt,
+  sliceActions,
   sliceCount,
   sliceGap,
   span,
@@ -71,20 +72,11 @@ describe('donut geometry (ported Filee cases)', () => {
   test('actions follow the ring order and the centre cancels', () => {
     const { mid } = donutMetrics(1)
     expect(actionAt(0, 0, 1)).toBeNull()
-    expect(actionAt(0, -mid, 1)).toBe('stash')
-    expect(actionAt(0, mid, 1)).toBe('copy')
-    expect(actionAt(mid, 0, 1)).toBe('compress')
-    expect(actionAt(-mid, 0, 1)).toBe('ask')
-    expect(actionAt(mid * Math.sin(Math.PI / 3), -mid * Math.cos(Math.PI / 3), 1)).toBe(
-      'convert',
-    )
-    expect(
-      actionAt(-mid * Math.sin(Math.PI / 3), mid * Math.cos(Math.PI / 3), 1),
-    ).toBe('eat')
-    expect(
-      actionAt(mid * Math.sin(Math.PI / 3), mid * Math.cos(Math.PI / 3), 1),
-    ).toBe('compress')
     expect(actionAt(0, -400, 1)).toBeNull()
+    for (let index = 0; index < sliceCount; index += 1) {
+      const point = pointAt(mid, midAngle(index, sliceCount))
+      expect(actionAt(point.x, point.y, 1)).toBe(sliceActions[index])
+    }
   })
 })
 
