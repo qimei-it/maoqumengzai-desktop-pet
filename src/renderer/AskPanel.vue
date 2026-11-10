@@ -5,10 +5,10 @@ import {
   Send,
   Sparkles,
   Trash2,
-  X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
+import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -73,17 +73,21 @@ function clearKey(): void {
 <template>
   <main class="ask-shell" @keydown.esc="close">
     <section class="ask-surface" aria-label="智能问答">
-      <header class="ask-header">
-        <div class="ask-title">
+      <PanelHeader
+        title="智能问答"
+        :platform="state?.runtime.platform"
+        @minimize="emit('command', { type: 'panel-control', action: 'minimize' })"
+        @close="emit('command', { type: 'panel-control', action: 'close' })"
+      >
+        <template #icon>
           <Sparkles
             :size="17"
             :stroke-width="2"
             aria-hidden="true"
             focusable="false"
           />
-          <h1>智能问答</h1>
-        </div>
-        <div class="ask-header-actions">
+        </template>
+        <template #actions>
           <button
             v-if="ai?.configured"
             type="button"
@@ -99,22 +103,8 @@ function clearKey(): void {
               focusable="false"
             />
           </button>
-          <button
-            type="button"
-            class="ask-icon-button"
-            aria-label="关闭智能问答"
-            title="关闭"
-            @click="close"
-          >
-            <X
-              :size="16"
-              :stroke-width="2"
-              aria-hidden="true"
-              focusable="false"
-            />
-          </button>
-        </div>
-      </header>
+        </template>
+      </PanelHeader>
 
       <form v-if="showSetup" class="ask-setup" @submit.prevent="saveKey">
         <h2>{{ ai?.configured ? '更换 API Key' : '连接 DeepSeek' }}</h2>
@@ -238,29 +228,6 @@ function clearKey(): void {
   background: var(--color-canvas);
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
-}
-.ask-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.ask-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-brand-ink);
-}
-.ask-title h1 {
-  margin: 0;
-  font-size: var(--font-size-section);
-  line-height: 1.5;
-  font-weight: 650;
-  color: var(--color-ink);
-}
-.ask-header-actions {
-  display: flex;
-  gap: 4px;
 }
 .ask-icon-button {
   display: grid;

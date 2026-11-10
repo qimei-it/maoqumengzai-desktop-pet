@@ -108,6 +108,35 @@ export const commandSchema = z.discriminatedUnion('type', [
       text: z.string().min(1).max(500),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('rename-open'),
+      fileIds: z.array(z.string().uuid()).max(32),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('rename-apply'),
+      config: z
+        .object({
+          mode: z.enum(['replace', 'add', 'format']),
+          find: z.string().max(200),
+          replace: z.string().max(200),
+          text: z.string().max(200),
+          position: z.enum(['before', 'after']),
+          format: z.enum(['index', 'counter', 'date']),
+          start: z.number().int().min(0).max(999999),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ type: z.literal('rename-close') }).strict(),
+  z
+    .object({
+      type: z.literal('panel-control'),
+      action: z.enum(['minimize', 'maximize', 'close']),
+    })
+    .strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),
   z
     .object({ type: z.literal('volume'), value: z.number().int().min(0).max(100) })

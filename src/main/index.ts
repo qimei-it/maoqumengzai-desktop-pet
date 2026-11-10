@@ -28,7 +28,7 @@ import {
 } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
-import { basename, dirname, isAbsolute, join } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -63,6 +63,8 @@ import type {
   LocalFile,
   LyricsState,
   MusicState,
+  RenameFile,
+  RenameState,
   Rect,
   Result,
   Snapshot,
@@ -80,6 +82,10 @@ import {
   type ConvertAction,
 } from '../shared/convert'
 import { convertImage } from './convert-images'
+import {
+  previewRename,
+  type RenameConfig,
+} from '../shared/rename'
 import { imageToPdf, mergePdfs, splitPdf } from './convert-pdf'
 import {
   captureIdSchema,
@@ -156,6 +162,7 @@ let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
 let askWindow: BrowserWindow | undefined
 let convertWindow: BrowserWindow | undefined
+let renameWindow: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
@@ -169,6 +176,8 @@ let convertOutcome: ConvertOutcome | undefined
 let convertNotice: string | undefined
 let convertFolders = new Set<string>()
 let convertToken = 0
+let renameFiles: RenameFile[] = []
+let renameBusy = false
 let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
 let toastWindow: BrowserWindow | undefined
@@ -277,6 +286,8 @@ function snapshot(): Snapshot {
     ai: aiState(),
     convertOpen: windowVisible(convertWindow),
     convert: convertState(),
+    renameOpen: windowVisible(renameWindow),
+    rename: renameState(),
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
     ...(toastText ? { toast: toastText } : {}),
   }
@@ -300,6 +311,7 @@ function broadcast(): void {
       toastWindow,
       askWindow,
       convertWindow,
+      renameWindow,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -536,8 +548,10 @@ function openAsk(fileIds: string[]): void {
   aiBusy = false
   greetAi()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
     positionAsk()
+    if (askWindow.isMinimized()) askWindow.restore()
     askWindow.show()
     askWindow.moveTop()
     askWindow.focus()
@@ -616,8 +630,10 @@ function openConvert(fileIds: string[]): void {
         ? `已跳过 ${skipped} 个不支持的文件。`
         : undefined
   if (askWindow?.isVisible()) askWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
   if (convertWindow && !convertWindow.isDestroyed()) {
     positionConvert()
+    if (convertWindow.isMinimized()) convertWindow.restore()
     convertWindow.show()
     convertWindow.moveTop()
     convertWindow.focus()
@@ -716,6 +732,151 @@ async function revealConvert(): Promise<void> {
   if (!folder) throw new Error('还没有可打开的输出目录。')
   const error = await shell.openPath(folder)
   if (error) throw new Error('无法打开输出目录。')
+}
+function renameState(): RenameState {
+  return { busy: renameBusy, files: [...renameFiles] }
+}
+function positionRename(): void {
+  if (!renameWindow || renameWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 560
+  const height = 480
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  renameWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openRename(fileIds: string[]): void {
+  const selected = fileIds
+    .map((id) => files.get(id))
+    .filter((file): file is NonNullable<typeof file> => Boolean(file))
+  if (selected.length < 2) {
+    showToast('至少选择两个文件才能批量重命名')
+    return
+  }
+  renameFiles = selected.slice(0, 32).map(({ id, name }) => ({ id, name }))
+  renameBusy = false
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow && !renameWindow.isDestroyed()) {
+    positionRename()
+    if (renameWindow.isMinimized()) renameWindow.restore()
+    renameWindow.show()
+    renameWindow.moveTop()
+    renameWindow.focus()
+  }
+  broadcast()
+}
+function closeRename(): void {
+  renameWindow?.hide()
+  broadcast()
+}
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await lstat(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+async function applyRename(config: RenameConfig): Promise<number> {
+  if (renameFiles.length < 2) throw new Error('至少选择两个文件。')
+  const sources: { id: string; path: string; name: string; dir: string }[] = []
+  for (const file of renameFiles) {
+    const path = await registeredFile(file.id)
+    sources.push({ id: file.id, path, name: file.name, dir: dirname(path) })
+  }
+  const preview = previewRename(
+    sources.map((source) => source.name),
+    config,
+  )
+  const sourcePaths = new Set(sources.map((source) => source.path))
+  const planned: { source: (typeof sources)[number]; destination: string }[] = []
+  for (let index = 0; index < sources.length; index += 1) {
+    const source = sources[index]
+    const name = preview[index]
+    const extension = extname(name)
+    const stem = extension ? name.slice(0, -extension.length) : name
+    let attempt = 1
+    let destination = join(source.dir, name)
+    while (
+      planned.some(
+        (entry) =>
+          entry.destination.toLocaleLowerCase() ===
+          destination.toLocaleLowerCase(),
+      ) ||
+      (!sourcePaths.has(destination) &&
+        (await pathExists(destination)) &&
+        destination !== source.path)
+    ) {
+      attempt += 1
+      destination = join(source.dir, `${stem} (${attempt})${extension}`)
+    }
+    planned.push({ source, destination })
+  }
+
+  const changes = planned.filter(
+    (entry) => entry.destination !== entry.source.path,
+  )
+  if (!changes.length) return 0
+
+  // Move every source aside first. This makes swaps and chains safe: no
+  // destination can overwrite a file that has not moved yet.
+  const temps: { entry: (typeof planned)[number]; temp: string }[] = []
+  const completed: typeof planned = []
+  try {
+    for (const entry of planned) {
+      const temp = join(entry.source.dir, `.mqmz-rename-${randomUUID()}`)
+      await rename(entry.source.path, temp)
+      temps.push({ entry, temp })
+    }
+    for (const item of temps) {
+      await rename(item.temp, item.entry.destination)
+      completed.push(item.entry)
+    }
+  } catch {
+    for (const entry of [...completed].reverse()) {
+      try {
+        await rename(entry.destination, entry.source.path)
+      } catch {
+        /* best-effort rollback */
+      }
+    }
+    for (const item of temps) {
+      try {
+        await rename(item.temp, item.entry.source.path)
+      } catch {
+        /* best-effort rollback */
+      }
+    }
+    throw new Error('批量重命名失败，已尽量回滚；请检查文件是否被占用。')
+  }
+
+  let shelved = false
+  for (const entry of planned) {
+    const file = files.get(entry.source.id)
+    if (!file) continue
+    file.path = entry.destination
+    file.name = basename(entry.destination)
+    try {
+      const info = await lstat(entry.destination)
+      file.modifiedAt = info.mtimeMs
+      file.device = info.dev
+      file.inode = info.ino
+    } catch {
+      /* keep the old metadata if the file vanished right after rename */
+    }
+    if (file.status === 'shelved') shelved = true
+  }
+  if (shelved) await saveShelf()
+  addEvent(`已重命名 ${changes.length} 个文件。`)
+  return changes.length
 }
 function positionBubble(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
@@ -817,6 +978,7 @@ function updateNotesWindow(): void {
 }
 function showPocket(): void {
   positionPocket()
+  if (pocket.isMinimized()) pocket.restore()
   pocket.show()
   pocket.focus()
   broadcast()
@@ -1654,6 +1816,7 @@ function authorized(
       window !== lyricsWindow &&
       window !== askWindow &&
       window !== convertWindow &&
+      window !== renameWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
@@ -1893,6 +2056,10 @@ function setupIpc(): void {
       'convert-close',
       'convert-reveal',
       'notify',
+      'panel-control',
+      'rename-open',
+      'rename-apply',
+      'rename-close',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2064,9 +2231,44 @@ function setupIpc(): void {
       case 'convert-reveal':
         await revealConvert()
         break
+      case 'rename-open':
+        openRename(command.fileIds)
+        break
+      case 'rename-apply':
+        if (renameBusy) throw new Error('正在重命名，请稍候。')
+        renameBusy = true
+        broadcast()
+        try {
+          const count = await applyRename(command.config)
+          closeRename()
+          if (count > 0) showToast(`已重命名 ${count} 个文件`)
+        } finally {
+          renameBusy = false
+          broadcast()
+        }
+        break
+      case 'rename-close':
+        closeRename()
+        break
       case 'notify':
         showToast(command.text)
         break
+      case 'panel-control': {
+        const owner = BrowserWindow.fromWebContents(event.sender)
+        if (!owner || owner.isDestroyed()) break
+        if (command.action === 'minimize') owner.minimize()
+        else if (command.action === 'maximize' && owner.isResizable()) {
+          if (owner.isMaximized()) owner.unmaximize()
+          else owner.maximize()
+        } else if (command.action === 'close') {
+          if (owner === pocket) hidePocket()
+          else if (owner === askWindow) closeAsk()
+          else if (owner === convertWindow) closeConvert()
+          else if (owner === renameWindow) closeRename()
+          else owner.hide()
+        }
+        break
+      }
       case 'lyrics-width': {
         const area = screen.getDisplayMatching(pet.getBounds()).workArea
         lyricsWidth = Math.min(
@@ -2546,6 +2748,27 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     convertWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  renameWindow = new BrowserWindow({
+    width: 560,
+    height: 480,
+    title: '毛趣萌仔 · 批量重命名',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    renameWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -2564,7 +2787,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2592,6 +2815,12 @@ async function createWindows(): Promise<void> {
       closeConvert()
     }
   })
+  renameWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeRename()
+    }
+  })
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2609,6 +2838,7 @@ async function createWindows(): Promise<void> {
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
     if (convertWindow?.isVisible()) positionConvert()
+    if (renameWindow?.isVisible()) positionRename()
     if (toastWindow?.isVisible()) positionToast()
   })
   pet.on('resize', () => {
@@ -2620,6 +2850,7 @@ async function createWindows(): Promise<void> {
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
     if (convertWindow?.isVisible()) positionConvert()
+    if (renameWindow?.isVisible()) positionRename()
     if (toastWindow?.isVisible()) positionToast()
   })
   await restoreShelf()
@@ -2638,6 +2869,7 @@ async function createWindows(): Promise<void> {
     load(toastWindow, 'toast'),
     load(askWindow, 'ask'),
     load(convertWindow, 'convert'),
+    load(renameWindow, 'rename'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -2786,6 +3018,7 @@ else {
     lyricsWindow?.destroy()
     bubbleWindow?.destroy()
     toastWindow?.destroy()
+    renameWindow?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
     globalShortcut.unregisterAll()

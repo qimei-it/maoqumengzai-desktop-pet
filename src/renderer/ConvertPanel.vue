@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Files, FolderOpen, X } from '@lucide/vue'
+import { Files, FolderOpen } from '@lucide/vue'
 import type { Command, ConvertAction, Snapshot } from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
+import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -188,41 +189,6 @@ function reveal(): void {
   background: var(--color-canvas);
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
-}
-.convert-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.convert-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-brand-ink);
-}
-.convert-title h1 {
-  margin: 0;
-  font-size: var(--font-size-section);
-  line-height: 1.5;
-  font-weight: 650;
-  color: var(--color-ink);
-}
-.convert-icon-button {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-}
-.convert-icon-button:hover {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
 }
 .convert-files {
   display: flex;

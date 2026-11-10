@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
-import { mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -21,6 +21,7 @@ let pet: Page;
 let pocket: Page;
 let ask: Page;
 let convert: Page;
+let rename: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
 let startupVisibility: { title: string; visible: boolean }[];
@@ -40,7 +41,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(12);
+  await expect.poll(() => application.windows().length).toBe(13);
   const windows = await Promise.all(
     application
       .windows()
@@ -51,6 +52,7 @@ test.beforeAll(async () => {
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
   ask = windows.find((item) => item.title.includes("智能问答"))!.page;
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
+  rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -58,7 +60,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -109,6 +111,27 @@ test("clicking the pet toggles the pocket and focus elsewhere closes it", async 
   await expect.poll(pocketVisible).toBe(false);
 });
 
+test("macOS panel controls close and minimize the pocket", async () => {
+  const pocketState = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes("文件置物架"),
+      )!
+      return { visible: window.isVisible(), minimized: window.isMinimized() }
+    });
+  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
+  await expect.poll(async () => (await pocketState()).visible).toBe(true);
+  await pocket.locator(".panel-mac-dot.close").click();
+  await expect.poll(async () => (await pocketState()).visible).toBe(false);
+  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
+  await expect.poll(async () => (await pocketState()).visible).toBe(true);
+  await pocket.locator(".panel-mac-dot.minimize").click();
+  await expect.poll(async () => (await pocketState()).minimized).toBe(true);
+  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
+  await expect.poll(async () => (await pocketState()).minimized).toBe(false);
+  await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
+});
+
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {
   expect(
     startupVisibility.find((window) => window.title.includes("验证台"))
@@ -134,8 +157,8 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   await expect(lab).toHaveTitle("毛趣萌仔 · P0 验证台");
   await expect(pet.locator(".marker")).toBeVisible();
   await expect(lab.locator(".file-outline")).toHaveClass(/lucide-inbox/);
-  await expect(pocket.locator(".pocket-icon-button svg")).toHaveClass(
-    /lucide-x/,
+  await expect(pocket.locator(".panel-mac-controls .panel-mac-dot")).toHaveCount(
+    3,
   );
   const version = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(version.ok && version.value.runtime.version).toBe("0.0.1");
@@ -742,7 +765,7 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
     ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
-  await ask.getByRole("button", { name: "关闭智能问答", exact: true }).click();
+  await ask.getByRole("button", { name: "关闭", exact: true }).first().click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -793,6 +816,93 @@ test("dropping on 格式转换 converts an image beside the source", async () =>
     ? registered.value.files.find((item) => item.name === "转换图片.png")
     : undefined;
   if (file)
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
+});
+
+test("dropping two files on 批量重命名 renames them with a format", async () => {
+  const first = join(directory, "甲文件.txt");
+  const second = join(directory, "乙文件.txt");
+  await writeFile(first, "alpha");
+  await writeFile(second, "beta");
+  await pet.evaluate(() => {
+    document.querySelector("#rename-input")?.remove();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = "rename-input";
+    input.multiple = true;
+    input.hidden = true;
+    document.body.append(input);
+  });
+  await pet.locator("#rename-input").setInputFiles([first, second]);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#rename-input")!;
+    const transfer = new DataTransfer();
+    for (const file of input.files!) transfer.items.add(file);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await expect(pet.locator(".donut-ring")).toBeVisible();
+  await pet.waitForTimeout(360);
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  const point = pointOnSlice(
+    "rename",
+    box.x + box.width / 2,
+    box.y + box.height / 2,
+  );
+  await pet.evaluate(({ x, y }) => {
+    const input = document.querySelector<HTMLInputElement>("#rename-input")!;
+    const transfer = new DataTransfer();
+    for (const file of input.files!) transfer.items.add(file);
+    const surface = document.querySelector(".pet-surface")!;
+    surface.dispatchEvent(
+      new DragEvent("dragover", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+    surface.dispatchEvent(
+      new DragEvent("drop", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      }),
+    );
+  }, point);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.renameOpen : false;
+    })
+    .toBe(true);
+  await expect(
+    rename.getByRole("heading", { name: "批量重命名", exact: true }),
+  ).toBeVisible();
+  await rename.getByRole("button", { name: "格式", exact: true }).click();
+  await rename.getByRole("button", { name: "重命名", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const files = await readdir(directory);
+      return files.includes("文件1.txt") && files.includes("文件2.txt");
+    })
+    .toBe(true);
+  const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+  for (const file of snapshot.ok ? snapshot.value.files : [])
     await lab.evaluate(
       (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
       file.id,
@@ -1212,7 +1322,7 @@ test("stashing persists a local index across restart and removing the card prese
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(12);
+  await expect.poll(() => application.windows().length).toBe(13);
   pocket = (
     await Promise.all(
       application

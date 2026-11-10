@@ -1,3 +1,5 @@
+import type { RenameConfig } from './rename'
+
 export const channels = {
   snapshot: 'mqmz:prototype:snapshot',
   updated: 'mqmz:prototype:updated',
@@ -88,6 +90,11 @@ export type ConvertOutcome = {
   failed: number
   messages: string[]
 }
+export type RenameFile = { id: string; name: string }
+export type RenameState = {
+  busy: boolean
+  files: RenameFile[]
+}
 export type ConvertState = {
   busy: boolean
   files: ConvertFile[]
@@ -130,6 +137,8 @@ export type Snapshot = {
   ai: AiState
   convertOpen: boolean
   convert: ConvertState
+  renameOpen: boolean
+  rename: RenameState
 }
 export type Command =
   | { type: 'recover' }
@@ -164,6 +173,13 @@ export type Command =
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
   | { type: 'notify'; text: string }
+  | { type: 'rename-open'; fileIds: string[] }
+  | { type: 'rename-apply'; config: RenameConfig }
+  | { type: 'rename-close' }
+  | {
+      type: 'panel-control'
+      action: 'minimize' | 'maximize' | 'close'
+    }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

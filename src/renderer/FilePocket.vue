@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FilePlusCorner, GripVertical, X } from '@lucide/vue'
+import { FilePlusCorner, GripVertical } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
+import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error: string }>()
 const emit = defineEmits<{
@@ -52,21 +53,12 @@ function receive(event: DragEvent): void {
     @keydown.esc="emit('command', { type: 'hide-pocket' })"
   >
     <section class="pocket-surface" aria-label="文件置物架">
-      <header class="pocket-header">
-        <h1>文件置物架</h1>
-        <button
-          class="pocket-icon-button"
-          aria-label="关闭文件卡片"
-          @click="emit('command', { type: 'hide-pocket' })"
-        >
-          <X
-            :size="16"
-            :stroke-width="2"
-            aria-hidden="true"
-            focusable="false"
-          />
-        </button>
-      </header>
+      <PanelHeader
+        title="文件置物架"
+        :platform="state?.runtime.platform"
+        @minimize="emit('command', { type: 'panel-control', action: 'minimize' })"
+        @close="emit('command', { type: 'panel-control', action: 'close' })"
+      />
 
       <div v-if="!state?.files.length" class="pocket-empty">
         <FilePlusCorner
@@ -227,33 +219,6 @@ function receive(event: DragEvent): void {
   background: var(--color-canvas);
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
-}
-.pocket-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 15px;
-}
-.pocket-header h1 {
-  font-size: var(--font-size-section);
-  line-height: 1.5;
-  letter-spacing: 0;
-  margin: 0;
-  font-weight: 650;
-}
-.pocket-icon-button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  border: 0;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  min-height: 30px;
-  padding: 0;
-  color: var(--color-brand-ink);
 }
 .pocket-drag-hint {
   font-size: var(--font-size-label);

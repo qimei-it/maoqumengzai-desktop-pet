@@ -35,6 +35,7 @@ import catMusic from "./assets/pet/ragdoll/music.png";
 import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
 import AskPanel from "./AskPanel.vue";
+import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
@@ -56,6 +57,8 @@ const askView = new URLSearchParams(location.search).get("view") === "ask";
 const convertView =
   new URLSearchParams(location.search).get("view") === "convert";
 const toastView = new URLSearchParams(location.search).get("view") === "toast";
+const renameView =
+  new URLSearchParams(location.search).get("view") === "rename";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -67,6 +70,7 @@ document.body.classList.toggle("bubble-view", bubbleView);
 document.body.classList.toggle("ask-view", askView);
 document.body.classList.toggle("convert-view", convertView);
 document.body.classList.toggle("toast-view", toastView);
+document.body.classList.toggle("rename-view", renameView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -78,6 +82,7 @@ if (bubbleView) document.title = "毛趣萌仔 · 气泡";
 if (askView) document.title = "毛趣萌仔 · 智能问答";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
+if (renameView) document.title = "毛趣萌仔 · 批量重命名";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -352,11 +357,19 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     return;
   }
   if (action === "rename") {
-    flash(
-      files.length >= 2
-        ? "批量重命名面板即将接入。"
-        : "至少选择两个文件才能批量重命名。",
-    );
+    if (files.length < 2) {
+      flash("至少选择两个文件才能批量重命名");
+      return;
+    }
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      state.value = unwrap(
+        await api.command({ type: "rename-open", fileIds: ids }),
+      );
+    });
     return;
   }
   await attempt(async () => {
@@ -1076,6 +1089,13 @@ onUnmounted(() => {
 
   <ConvertPanel
     v-else-if="convertView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <BatchRenamePanel
+    v-else-if="renameView"
     :state="state"
     :error="error"
     @command="command"

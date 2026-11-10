@@ -1,0 +1,10 @@
+/*
+ * Platform window chrome colours. macOS traffic lights are system-native
+ * colours; Windows uses the semantic danger token for close hover. Kept out
+ * of the generated Maoquyinghua token file on purpose.
+ */
+:root {
+  --mqmz-window-close: #ff5f57;
+  --mqmz-window-minimize: #febc2e;
+  --mqmz-window-zoom: #28c840;
+}
