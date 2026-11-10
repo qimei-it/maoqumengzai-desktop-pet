@@ -85,6 +85,7 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 let pet: BrowserWindow
 let pocket: BrowserWindow
 let notes: BrowserWindow | undefined
+let pill: BrowserWindow | undefined
 let lab: BrowserWindow | undefined
 let tray: Tray | undefined
 let scale = 1
@@ -108,6 +109,7 @@ let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
 let musicTimer: ReturnType<typeof setInterval> | undefined
 let music: MusicState = { playing: false }
+let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
 const files = new Map<
@@ -192,7 +194,7 @@ function broadcast(): void {
   broadcastTimer = setTimeout(() => {
     broadcastTimer = undefined
     const state = snapshot()
-    for (const window of [pet, pocket, lab])
+    for (const window of [pet, pocket, lab, notes, pill])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
   }, 40)
@@ -228,6 +230,25 @@ function positionNotes(): void {
   const x = Math.round(b.x + b.width / 2 - size / 2)
   const y = Math.round(b.y + 60 * scale - size)
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
+}
+function positionPill(): void {
+  if (!pill || pill.isDestroyed()) return
+  const b = pet.getBounds()
+  const width = 124
+  const height = 40
+  const x = Math.round(b.x + b.width / 2 - width / 2)
+  const y = b.y + b.height + 6
+  pill.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+}
+function updatePillWindow(): void {
+  if (!pill || pill.isDestroyed()) return
+  if (music.title) {
+    positionPill()
+    pill.showInactive()
+    pill.moveTop()
+  } else if (pill.isVisible()) {
+    pill.hide()
+  }
 }
 function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
@@ -427,8 +448,9 @@ function setPassthrough(enabled: boolean): void {
  */
 const musicScript = `if application "Music" is running then
   tell application "Music"
-    if player state is playing then
-      return "playing|" & (name of current track) & "|" & (artist of current track)
+    set state to player state as text
+    if state is "playing" or state is "paused" then
+      return state & "|" & (name of current track) & "|" & (artist of current track)
     end if
   end tell
 end if
@@ -448,6 +470,7 @@ function applyMusic(next: MusicState): void {
   music = next
   broadcast()
   updateNotesWindow()
+  updatePillWindow()
 }
 function pollMusic(): void {
   if (process.platform !== 'darwin') return
@@ -456,38 +479,76 @@ function pollMusic(): void {
     ['-e', musicScript],
     { timeout: 1500 },
     (error, stdout) => {
+      let apple = { state: 'idle', title: undefined as string | undefined, artist: undefined as string | undefined }
       if (!error) {
         const [state, title, artist] = stdout.trim().split('|')
-        if (state === 'playing') {
-          applyMusic({ playing: true, title, artist })
+        apple = { state, title, artist }
+      }
+      if (apple.state === 'playing') {
+        musicSource = 'apple'
+        applyMusic({ playing: true, title: apple.title, artist: apple.artist })
+        return
+      }
+      pollSystemMusic((system) => {
+        if (system) {
+          musicSource = 'system'
+          applyMusic(system)
           return
         }
-      }
-      pollThirdPartyMusic()
+        if (apple.state === 'paused' && apple.title) {
+          musicSource = 'apple'
+          applyMusic({ playing: false, title: apple.title, artist: apple.artist })
+          return
+        }
+        applyMusic({ playing: false })
+      })
     },
   )
 }
-function pollThirdPartyMusic(): void {
+function pollSystemMusic(done: (state: MusicState | null) => void): void {
   execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
-    let next: MusicState = { playing: false }
-    if (!error) {
-      try {
-        const parsed = JSON.parse(stdout.trim() || '{}') as {
-          title?: string
-          artist?: string
-          rate?: number
-        }
-        next = {
-          playing: parsed.rate === 1,
-          title: parsed.title,
-          artist: parsed.artist,
-        }
-      } catch {
-        /* 没有会话或输出不完整时按未播放处理 */
-      }
+    if (error) {
+      done(null)
+      return
     }
-    applyMusic(next)
+    try {
+      const parsed = JSON.parse(stdout.trim() || '{}') as {
+        title?: string
+        artist?: string
+        rate?: number
+      }
+      if (!parsed.title) {
+        done(null)
+        return
+      }
+      done({ playing: parsed.rate === 1, title: parsed.title, artist: parsed.artist })
+    } catch {
+      done(null)
+    }
   })
+}
+function controlMusic(action: 'previous' | 'toggle' | 'next'): void {
+  if (process.platform !== 'darwin') return
+  if (action === 'toggle') {
+    // Flip the pill icon right away; the next poll confirms the real state.
+    music = { ...music, playing: !music.playing }
+    broadcast()
+    updateNotesWindow()
+    updatePillWindow()
+  }
+  if (musicSource === 'apple') {
+    const script = {
+      previous: 'previous track',
+      toggle: 'playpause',
+      next: 'next track',
+    }[action]
+    execFile('/usr/bin/osascript', ['-e', `tell application "Music" to ${script}`], () =>
+      setTimeout(pollMusic, 300),
+    )
+    return
+  }
+  const command = { previous: 'previous', toggle: 'toggle', next: 'next' }[action]
+  execFile(musicHelperPath(), [command], () => setTimeout(pollMusic, 300))
 }
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)
@@ -564,7 +625,7 @@ function authorized(
   const window = BrowserWindow.fromWebContents(event.sender)
   if (
     !window ||
-    (window !== pet && window !== lab && window !== pocket) ||
+    (window !== pet && window !== lab && window !== pocket && window !== pill) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -778,6 +839,7 @@ function setupIpc(): void {
       'wheel',
       'eat-files',
       'restore-eaten',
+      'music-control',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -898,6 +960,9 @@ function setupIpc(): void {
         break
       case 'restore-eaten':
         await restoreEaten(command.entryId)
+        break
+      case 'music-control':
+        controlMusic(command.action)
         break
       case 'save-copy': {
         const original = await registeredFile(command.fileId)
@@ -1144,6 +1209,28 @@ async function createWindows(): Promise<void> {
   notes.setIgnoreMouseEvents(true)
   if (process.platform === 'darwin')
     notes.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  pill = new BrowserWindow({
+    width: 124,
+    height: 40,
+    title: '毛趣萌仔 · 音乐控制',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1161,7 +1248,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab, notes]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes, pill]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1184,9 +1271,11 @@ async function createWindows(): Promise<void> {
     broadcast()
     if (pocket.isVisible()) positionPocket()
     if (notes?.isVisible()) positionNotes()
+    if (pill?.isVisible()) positionPill()
   })
   pet.on('resize', () => {
     if (notes?.isVisible()) positionNotes()
+    if (pill?.isVisible()) positionPill()
   })
   await restoreShelf()
   await restoreBelly()
@@ -1196,6 +1285,7 @@ async function createWindows(): Promise<void> {
     load(pet, 'pet'),
     load(pocket, 'pocket'),
     load(notes, 'notes'),
+    load(pill, 'pill'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1317,6 +1407,7 @@ else {
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
     notes?.destroy()
+    pill?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

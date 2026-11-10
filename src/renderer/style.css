@@ -652,3 +652,44 @@ footer button {
   object-fit: contain;
   filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-ink) 40%, transparent));
 }
+
+/* Compact music controls that sit under the pet. */
+.pill-surface {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100vh;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-stage);
+}
+.pill-view,
+.pill-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+.pill-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.pill-button:hover {
+  background: var(--color-brand-soft);
+}
+.pill-button:active {
+  background: var(--color-brand-soft);
+  transform: scale(0.96);
+}

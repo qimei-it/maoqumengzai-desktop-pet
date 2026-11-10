@@ -53,6 +53,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({ type: z.literal('restore-eaten'), entryId: z.string().uuid() })
     .strict(),
+  z
+    .object({
+      type: z.literal('music-control'),
+      action: z.enum(['previous', 'toggle', 'next']),
+    })
+    .strict(),
   z.object({ type: z.literal('refresh') }).strict(),
   z.object({ type: z.literal('open-data') }).strict(),
   z.object({ type: z.literal('screen-settings') }).strict(),

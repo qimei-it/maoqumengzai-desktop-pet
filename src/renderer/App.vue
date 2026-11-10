@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import { Inbox, Plus } from "@lucide/vue";
+import {
+  Inbox,
+  Pause,
+  Play,
+  Plus,
+  SkipBack,
+  SkipForward,
+} from "@lucide/vue";
 import type {
   CapturePreview,
   Command,
@@ -28,12 +35,15 @@ const pocketView =
   new URLSearchParams(location.search).get("view") === "pocket";
 const notesView =
   new URLSearchParams(location.search).get("view") === "notes";
+const pillView = new URLSearchParams(location.search).get("view") === "pill";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
+document.body.classList.toggle("pill-view", pillView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
+if (pillView) document.title = "毛趣萌仔 · 音乐控制";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -418,6 +428,11 @@ async function saveCapture(id: string): Promise<void> {
     if (api) state.value = unwrap(await api.saveCapture(id));
   });
 }
+async function musicControl(
+  action: "previous" | "toggle" | "next",
+): Promise<void> {
+  await command({ type: "music-control", action });
+}
 function startDrag(event: DragEvent, id: string): void {
   event.preventDefault();
   api?.startDrag(id);
@@ -550,6 +565,42 @@ onUnmounted(() => {
     </div>
     <span v-if="toast" class="pet-toast" role="status">{{ toast }}</span>
     <span v-if="error" class="pet-error" role="alert">{{ error }}</span>
+  </main>
+
+  <main v-else-if="pillView" class="pill-surface">
+    <button
+      type="button"
+      class="pill-button"
+      aria-label="上一首"
+      title="上一首"
+      @click="musicControl('previous')"
+    >
+      <SkipBack :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
+      type="button"
+      class="pill-button"
+      :aria-label="state?.music.playing ? '暂停' : '播放'"
+      :title="state?.music.playing ? '暂停' : '播放'"
+      @click="musicControl('toggle')"
+    >
+      <Pause
+        v-if="state?.music.playing"
+        :size="17"
+        :stroke-width="2"
+        aria-hidden="true"
+      />
+      <Play v-else :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
+      type="button"
+      class="pill-button"
+      aria-label="下一首"
+      title="下一首"
+      @click="musicControl('next')"
+    >
+      <SkipForward :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
   </main>
 
   <main v-else-if="notesView" class="notes-surface">

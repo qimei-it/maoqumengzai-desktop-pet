@@ -79,6 +79,7 @@ export type Command =
   | { type: 'wheel'; open: boolean }
   | { type: 'eat-files'; fileIds: string[] }
   | { type: 'restore-eaten'; entryId: string }
+  | { type: 'music-control'; action: 'previous' | 'toggle' | 'next' }
   | { type: 'refresh' }
   | { type: 'open-data' }
   | { type: 'screen-settings' }
