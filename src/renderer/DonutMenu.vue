@@ -60,8 +60,12 @@ const wedges = computed(() => {
     const mid = midAngle(index, sliceCount)
     const label = sliceLabels[action]
     const chars = Array.from(label)
+    // Horizontal labels read fine at 1.16; stacked ones need more air between
+    // the glyphs or they look cramped.
+    const horizontal = Math.abs(Math.sin(mid)) < 0.5
+    const spacing = fontSize * (horizontal ? 1.16 : 1.46)
     const arcStep = Math.min(
-      (fontSize * 1.16) / m.mid,
+      spacing / m.mid,
       (step * 0.82) / Math.max(1, chars.length),
     )
     const offsetOf = (position: number) =>
