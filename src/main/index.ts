@@ -132,6 +132,7 @@ let volumeBeforeMute = 50
 let lyricsOpen = false
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
+let lyricsAvailable: boolean | undefined
 let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
 let bubbleText: string | undefined
@@ -228,6 +229,7 @@ function snapshot(): Snapshot {
     barVisible,
     lyricsOpen,
     lyrics,
+    lyricsAvailable,
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
   }
 }
@@ -786,20 +788,25 @@ async function loadBubbleLyrics(key: string): Promise<void> {
   const meta = lyricsMeta()
   const cached = await readCachedLyrics(key)
   if (cached) {
-    if (bubbleLyricsKey === key)
+    if (bubbleLyricsKey === key) {
       bubbleLyrics = localizeLyrics(cached, meta)
+      setLyricsAvailable(lyricsHasContent(bubbleLyrics))
+    }
     return
   }
   try {
     const fetched = await fetchLyrics(key)
-    if (bubbleLyricsKey === key)
+    if (bubbleLyricsKey === key) {
       bubbleLyrics = localizeLyrics(fetched, meta)
+      setLyricsAvailable(lyricsHasContent(bubbleLyrics))
+    }
   } catch {
     /* bubbles fall back to title/artist copy */
   }
 }
 function resetBubbleTrack(): void {
   bubbleTrackKey = currentBubbleKey()
+  setLyricsAvailable(undefined)
   bubbleStep = 0
   bubbleUsed = new Set<string>()
   bubbleUsedCategories = new Set<BubbleCategory>()
@@ -952,6 +959,23 @@ async function fetchLyrics(key: string): Promise<LyricsState> {
 function lyricsMeta(): LyricsMeta {
   return { title: music.title, artist: music.artist, genre: music.genre }
 }
+function lyricsHasContent(state: LyricsState | undefined): boolean {
+  if (!state) return false
+  return Boolean(
+    state.instrumental ||
+      state.plain?.trim() ||
+      (state.synced && /\[\d{1,2}:\d{2}/.test(state.synced)),
+  )
+}
+function setLyricsAvailable(value: boolean | undefined): void {
+  if (lyricsAvailable === value) return
+  lyricsAvailable = value
+  if (value === false && lyricsOpen) {
+    lyricsOpen = false
+    syncOverlays()
+  }
+  broadcast()
+}
 async function loadLyricsFor(key: string): Promise<void> {
   lyricsKey = key
   const meta = lyricsMeta()
@@ -967,6 +991,8 @@ async function loadLyricsFor(key: string): Promise<void> {
       if (lyricsKey === key) lyrics = undefined
     }
   }
+  if (lyricsKey === key)
+    setLyricsAvailable(lyricsHasContent(lyrics))
   syncOverlays()
   broadcast()
 }

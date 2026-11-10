@@ -86,6 +86,7 @@ export type Snapshot = {
   barVisible: boolean
   lyricsOpen: boolean
   lyrics?: LyricsState
+  lyricsAvailable?: boolean
   bubble?: BubbleState
 }
 export type Command =

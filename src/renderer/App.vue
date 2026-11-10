@@ -482,9 +482,12 @@ function onVolumeInput(event: Event): void {
   void command({ type: "volume", value });
 }
 const lyricNow = ref(0);
-let lyricTimer: ReturnType<typeof setInterval> | undefined;
+let lyricFrame: number | undefined;
 let lyricBase = 0;
 let lyricBaseAt = 0;
+const reducedMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)",
+).matches;
 watch(
   () => state.value?.music.position,
   (position) => {
@@ -508,16 +511,20 @@ const lyricLines = computed(() => {
   }
   return lines;
 });
-const currentLyric = computed(() => {
-  const lines = lyricLines.value;
-  if (!lines.length) return null;
-  const position = state.value?.music.position;
-  if (typeof position !== "number") return null;
-  const elapsed =
+const lyricElapsed = computed(() => {
+  if (typeof state.value?.music.position !== "number") return null;
+  return (
     lyricBase +
     (state.value?.music.playing
       ? (lyricNow.value - lyricBaseAt) / 1000
-      : 0);
+      : 0)
+  );
+});
+const currentLyric = computed(() => {
+  const lines = lyricLines.value;
+  if (!lines.length) return null;
+  const elapsed = lyricElapsed.value;
+  if (elapsed === null) return null;
   let index = 0;
   for (let i = 0; i < lines.length; i += 1) {
     if (lines[i].time <= elapsed) index = i;
@@ -528,6 +535,24 @@ const currentLyric = computed(() => {
     current: lines[index]?.text ?? "",
     next: lines[index + 1]?.text ?? "",
   };
+});
+const lyricRow = 24;
+const lyricLead = 1.1;
+const scrollOffset = computed(() => {
+  const lyric = currentLyric.value;
+  const elapsed = lyricElapsed.value;
+  if (!lyric || elapsed === null) return lyricRow;
+  if (reducedMotion) return (1 - lyric.index) * lyricRow;
+  const next = lyricLines.value[lyric.index + 1];
+  if (!next) return (1 - lyric.index) * lyricRow;
+  const start = next.time - lyricLead;
+  if (elapsed <= start) return (1 - lyric.index) * lyricRow;
+  const progress = Math.min(Math.max((elapsed - start) / lyricLead, 0), 1);
+  const eased =
+    progress < 0.5
+      ? 4 * progress * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  return (1 - lyric.index - eased) * lyricRow;
 });
 const plainLines = computed(() =>
   (state.value?.lyrics?.plain ?? "")
@@ -613,16 +638,36 @@ watch(displayPose, async () => {
   await nextTick();
   await updateMask();
 });
+function tickLyrics(): void {
+  lyricNow.value = performance.now();
+  lyricFrame = requestAnimationFrame(tickLyrics);
+}
+function syncLyricTicker(): void {
+  if (!lyricsView) return;
+  const run = Boolean(state.value?.music.playing && state.value?.lyricsOpen);
+  if (run && lyricFrame === undefined) {
+    lyricBase = state.value?.music.position ?? lyricBase;
+    lyricBaseAt = performance.now();
+    lyricNow.value = lyricBaseAt;
+    lyricFrame = requestAnimationFrame(tickLyrics);
+  } else if (!run && lyricFrame !== undefined) {
+    cancelAnimationFrame(lyricFrame);
+    lyricFrame = undefined;
+    lyricNow.value = performance.now();
+  }
+}
+watch(
+  () => [state.value?.music.playing, state.value?.lyricsOpen].join("|"),
+  syncLyricTicker,
+);
 onMounted(() => {
   if (!lyricsView) return;
   lyricNow.value = performance.now();
-  lyricTimer = setInterval(() => {
-    lyricNow.value = performance.now();
-  }, 400);
+  syncLyricTicker();
   void nextTick(reportLyricsWidth);
 });
 onUnmounted(() => {
-  if (lyricTimer) clearInterval(lyricTimer);
+  if (lyricFrame !== undefined) cancelAnimationFrame(lyricFrame);
 });
 watch(
   () => state.value?.wheelOpen,
@@ -793,9 +838,24 @@ onUnmounted(() => {
     <button
       type="button"
       class="pill-button"
-      :class="{ active: state?.lyricsOpen }"
-      :aria-label="state?.lyricsOpen ? '隐藏歌词' : '显示歌词'"
-      :title="state?.lyricsOpen ? '隐藏歌词' : '显示歌词'"
+      :class="{
+        active: state?.lyricsOpen && state?.lyricsAvailable !== false,
+      }"
+      :disabled="state?.lyricsAvailable === false"
+      :aria-label="
+        state?.lyricsAvailable === false
+          ? '暂无歌词'
+          : state?.lyricsOpen
+            ? '隐藏歌词'
+            : '显示歌词'
+      "
+      :title="
+        state?.lyricsAvailable === false
+          ? '暂无歌词'
+          : state?.lyricsOpen
+            ? '隐藏歌词'
+            : '显示歌词'
+      "
       @click="onLyrics"
     >
       <MessageSquareQuote :size="17" :stroke-width="2" aria-hidden="true" />
@@ -838,9 +898,7 @@ onUnmounted(() => {
       <div :key="state?.lyrics?.key" class="lyrics-viewport">
         <div
           class="lyrics-track"
-          :style="{
-            transform: `translateY(${(1 - currentLyric.index) * 24}px)`,
-          }"
+          :style="{ transform: `translateY(${scrollOffset}px)` }"
         >
           <span
             v-for="(line, index) in lyricLines"
@@ -851,8 +909,12 @@ onUnmounted(() => {
               past: index < currentLyric.index,
               future: index > currentLyric.index,
             }"
-            >{{ line.text }}</span
           >
+            <span class="lyrics-copy sharp">{{ line.text }}</span>
+            <span class="lyrics-copy blurred" aria-hidden="true">{{
+              line.text
+            }}</span>
+          </span>
         </div>
       </div>
     </template>
@@ -867,8 +929,12 @@ onUnmounted(() => {
             past: index < plainCurrent,
             future: index > plainCurrent,
           }"
-          >{{ line }}</span
         >
+          <span class="lyrics-copy sharp">{{ line }}</span>
+          <span class="lyrics-copy blurred" aria-hidden="true">{{
+            line
+          }}</span>
+        </span>
       </div>
     </template>
     <span v-else class="lyrics-state">暂无歌词</span>
