@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import {
-  KeyRound,
-  Send,
-  Sparkles,
-  Trash2,
-} from '@lucide/vue'
+import { KeyRound, Send, Trash2 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
+import DeepSeekMark from './DeepSeekMark.vue'
 import FileTypeIcon from './FileTypeIcon.vue'
 import PanelHeader from './PanelHeader.vue'
 
@@ -80,12 +76,7 @@ function clearKey(): void {
         @close="emit('command', { type: 'panel-control', action: 'close' })"
       >
         <template #icon>
-          <Sparkles
-            :size="17"
-            :stroke-width="2"
-            aria-hidden="true"
-            focusable="false"
-          />
+          <DeepSeekMark aria-hidden="true" />
         </template>
         <template #actions>
           <button

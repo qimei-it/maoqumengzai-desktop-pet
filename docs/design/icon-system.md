@@ -15,9 +15,12 @@
 | 桌宠接收文件区域 | Folder Input |
 | 开发诊断中的文件空态 | Inbox |
 | 继续选择文件 | Plus |
+| 智能问答面板标题 | DeepSeek 鲸鱼标志（品牌素材，非 Lucide） |
 | 系统托盘 | 毛趣映画猫脸（品牌素材，非 Lucide） |
 
 原有手绘路径、字符代图标以及托盘像素方块已替换。桌宠本体已是独立管理的布偶猫插画素材（见 `src/renderer/assets/pet/` 与 `resources/pet/ragdoll/source/`），不再用 Lucide 图标代替宠物动画。
+
+智能问答面板标题使用用户提供的 DeepSeek 品牌鲸鱼标志，固定品牌蓝 `#4d6bfe`，不随主题改为 `currentColor`；标记为装饰性，标题文字仍提供可访问名称。组件保存在 `src/renderer/DeepSeekMark.vue`。
 
 系统托盘使用用户提供的品牌猫脸 `resources/icons/cat-face.svg`，属于品牌原生素材而非功能图标；导出时保留纯黑剪影与透明背景，作为 macOS 模板图像参与系统深浅色适配。
 
