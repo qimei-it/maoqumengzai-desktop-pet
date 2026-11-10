@@ -129,29 +129,47 @@ const mac = computed(() => {
 .panel-mac-controls {
   position: absolute;
   left: calc(-1 * var(--mqmz-panel-padding) + 7px);
+  top: 50%;
   display: flex;
   gap: 8px;
+  transform: translateY(-50%);
   -webkit-app-region: no-drag;
 }
 .panel-mac-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   min-height: 0;
   padding: 0;
   border: 0;
   border-radius: 999px;
+  box-shadow: var(--mqmz-window-dot-shadow);
 }
 .panel-mac-dot.close {
-  background: var(--mqmz-window-close);
+  background: radial-gradient(
+    circle at 35% 25%,
+    var(--mqmz-window-close-hi),
+    var(--mqmz-window-close) 46%,
+    var(--mqmz-window-close-lo) 100%
+  );
 }
 .panel-mac-dot.minimize {
-  background: var(--mqmz-window-minimize);
+  background: radial-gradient(
+    circle at 35% 25%,
+    var(--mqmz-window-minimize-hi),
+    var(--mqmz-window-minimize) 46%,
+    var(--mqmz-window-minimize-lo) 100%
+  );
 }
 .panel-mac-dot.zoom {
-  background: var(--mqmz-window-zoom);
+  background: radial-gradient(
+    circle at 35% 25%,
+    var(--mqmz-window-zoom-hi),
+    var(--mqmz-window-zoom) 46%,
+    var(--mqmz-window-zoom-lo) 100%
+  );
 }
 .panel-mac-dot:disabled {
-  opacity: 0.35;
+  opacity: 0.45;
   cursor: default;
 }
 .panel-mac-dot:hover:not(:disabled) {
