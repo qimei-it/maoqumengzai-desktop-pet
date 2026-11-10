@@ -152,3 +152,6 @@ vite.config.ts.timestamp-*
 .runtime/
 test-results/
 playwright-report/
+
+# Local image-generation output
+output

@@ -15,10 +15,9 @@
 | 桌宠接收文件区域 | Folder Input |
 | 开发诊断中的文件空态 | Inbox |
 | 继续选择文件 | Plus |
-| 临时交互标记 | Paw Print |
 | 系统托盘 | 毛趣映画猫脸（品牌素材，非 Lucide） |
 
-原有手绘路径、字符代图标以及托盘像素方块已替换。临时 Paw Print 是 P0 交互标记，正式布偶猫/柯基仍按已确认素材流程制作，不以图标替代宠物动画。
+原有手绘路径、字符代图标以及托盘像素方块已替换。桌宠本体已是独立管理的布偶猫插画素材（见 `src/renderer/assets/pet/` 与 `resources/pet/ragdoll/source/`），不再用 Lucide 图标代替宠物动画。
 
 系统托盘使用用户提供的品牌猫脸 `resources/icons/cat-face.svg`，属于品牌原生素材而非功能图标；导出时保留纯黑剪影与透明背景，作为 macOS 模板图像参与系统深浅色适配。
 

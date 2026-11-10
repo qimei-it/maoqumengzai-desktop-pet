@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { _electron as electron } from '@playwright/test'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
-import { File as FileIcon, PawPrint } from '@lucide/vue'
+import { File as FileIcon } from '@lucide/vue'
 
 const directory = resolve('resources/icons')
 await mkdir(directory, { recursive: true })
@@ -18,10 +18,6 @@ const svg = (icon, size) =>
     }),
   )
 await writeFile(resolve(directory, 'file.svg'), await svg(FileIcon, 24))
-await writeFile(
-  resolve('src/renderer/assets/lucide-paw-print.svg'),
-  await svg(PawPrint, 96),
-)
 await writeFile(
   resolve('resources/licenses/lucide-ISC.txt'),
   await readFile(resolve('node_modules/@lucide/vue/LICENSE'), 'utf8'),

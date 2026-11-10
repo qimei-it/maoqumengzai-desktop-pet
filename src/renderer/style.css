@@ -464,7 +464,7 @@ footer button {
   background: transparent;
 }
 .marker {
-  image-rendering: pixelated;
+  animation: pet-breathe 4.2s ease-in-out infinite;
   touch-action: none;
   pointer-events: auto;
   cursor: grab;
@@ -473,6 +473,20 @@ footer button {
 }
 .marker:active {
   cursor: grabbing;
+}
+@keyframes pet-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(-1px) scaleY(1.006);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marker {
+    animation: none;
+  }
 }
 .marker-caption {
   color: var(--color-brand-ink);

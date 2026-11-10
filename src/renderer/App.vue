@@ -14,7 +14,10 @@ import {
   petSprite,
   type DropAction,
 } from "../shared/donut";
-import probeUrl from "./assets/lucide-paw-print.svg";
+import catBase from "./assets/pet/ragdoll/base.png";
+import catBlink from "./assets/pet/ragdoll/blink.png";
+import catLifted from "./assets/pet/ragdoll/lifted.png";
+import catPonder from "./assets/pet/ragdoll/ponder.png";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
 
@@ -37,12 +40,23 @@ const displayId = ref<number>();
 const donutOpen = ref(false);
 const donutClosing = ref(false);
 const donutActive = ref<DropAction | null>(null);
+type PetPose = "base" | "blink" | "lifted" | "ponder";
+const poseSources: Record<PetPose, string> = {
+  base: catBase,
+  blink: catBlink,
+  lifted: catLifted,
+  ponder: catPonder,
+};
+const petPose = ref<PetPose>("base");
+const poseSrc = computed(() => poseSources[petPose.value]);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
 let unsubscribe: (() => void) | undefined;
 let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
 let dropModeChain: Promise<void> = Promise.resolve();
+let blinkTimer: ReturnType<typeof setTimeout> | undefined;
+let blinkReset: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
 let acceptSlicesAfter = 0;
@@ -169,6 +183,7 @@ async function closeDonut(send = true): Promise<void> {
   if (token !== closeToken) return
   donutOpen.value = false;
   donutClosing.value = false;
+  petPose.value = "base";
   if (!send || !api) return;
   try {
     state.value = unwrap(await api.command({ type: "wheel", open: false }));
@@ -181,6 +196,7 @@ function enter(event: DragEvent): void {
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
   dragOver.value = true;
   if (!petView) return;
+  petPose.value = "ponder";
   armWatchdog();
   donutActive.value = null;
   // Enabling the receive region closes the wheel window; open only after that
@@ -337,6 +353,17 @@ async function updateMask(): Promise<void> {
     );
   });
 }
+function scheduleBlink(): void {
+  blinkTimer = setTimeout(() => {
+    if (petPose.value === "base") {
+      petPose.value = "blink";
+      blinkReset = setTimeout(() => {
+        if (petPose.value === "blink") petPose.value = "base";
+      }, 140);
+    }
+    scheduleBlink();
+  }, 3200 + Math.random() * 2800);
+}
 function onKeydown(event: KeyboardEvent): void {
   if (!donutOpen.value || event.key !== "Escape") return;
   event.preventDefault();
@@ -346,6 +373,7 @@ function onKeydown(event: KeyboardEvent): void {
 function pointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !api || pointerId !== undefined) return;
   event.preventDefault();
+  petPose.value = "lifted";
   pointerId = event.pointerId;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   void attempt(async () => {
@@ -355,6 +383,7 @@ function pointerDown(event: PointerEvent): void {
 function pointerUp(event: PointerEvent): void {
   if (pointerId !== event.pointerId || !api) return;
   pointerId = undefined;
+  petPose.value = "base";
   void attempt(async () => {
     unwrap(await api.pointer(event.type === "pointercancel" ? "cancel" : "up"));
   });
@@ -425,6 +454,11 @@ onMounted(async () => {
   });
   await nextTick();
   if (petView) {
+    for (const src of [catBlink, catLifted, catPonder]) {
+      const image = new Image();
+      image.src = src;
+    }
+    scheduleBlink();
     // Native window resize can reposition the marker after Vue has resized it.
     window.addEventListener("resize", updateMask);
     window.addEventListener("keydown", onKeydown);
@@ -439,6 +473,8 @@ onUnmounted(() => {
   window.removeEventListener("resize", updateMask);
   window.removeEventListener("keydown", onKeydown);
   disarmWatchdog();
+  if (blinkTimer) clearTimeout(blinkTimer);
+  if (blinkReset) clearTimeout(blinkReset);
   if (toastTimer) clearTimeout(toastTimer);
   unsubscribe?.();
   observer?.disconnect();
@@ -460,13 +496,13 @@ onUnmounted(() => {
       <div class="marker-anchor">
         <img
           ref="marker"
-          :src="probeUrl"
+          :src="poseSrc"
           class="marker"
           :style="{
             width: `${petSprite.width * markerScale}px`,
             height: `${petSprite.height * markerScale}px`,
           }"
-          alt="可拖动的像素交互测试标记"
+          alt="可拖动的布偶猫桌宠"
           draggable="false"
           @load="updateMask"
           @pointerdown="pointerDown"
@@ -482,9 +518,9 @@ onUnmounted(() => {
         />
         <span
           class="marker-caption"
-          :class="{ hidden: donutOpen }"
+          :class="{ hidden: donutOpen || petPose === 'lifted' }"
           :style="{ fontSize: `${10 * markerScale}px` }"
-          >交互测试标记</span
+          >毛趣萌仔</span
         >
       </div>
     </div>
