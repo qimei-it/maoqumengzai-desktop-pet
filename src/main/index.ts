@@ -214,7 +214,11 @@ function permission(): string {
     ? systemPreferences.getMediaAccessStatus('screen')
     : '需实际请求验证'
 }
+function windowVisible(window: BrowserWindow | undefined): boolean {
+  return Boolean(window && !window.isDestroyed() && window.isVisible())
+}
 function snapshot(): Snapshot {
+  if (!pet || pet.isDestroyed()) throw new Error('窗口已关闭。')
   return {
     runtime: {
       platform: process.platform,
@@ -261,17 +265,18 @@ function snapshot(): Snapshot {
     lyricsOpen,
     lyrics,
     lyricsAvailable,
-    aiOpen: Boolean(askWindow?.isVisible()),
+    aiOpen: windowVisible(askWindow),
     ai: aiState(),
-    convertOpen: Boolean(convertWindow?.isVisible()),
+    convertOpen: windowVisible(convertWindow),
     convert: convertState(),
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
   }
 }
 function broadcast(): void {
-  if (broadcastTimer || shuttingDown || !pet) return
+  if (broadcastTimer || shuttingDown || !pet || pet.isDestroyed()) return
   broadcastTimer = setTimeout(() => {
     broadcastTimer = undefined
+    if (shuttingDown || !pet || pet.isDestroyed()) return
     const state = snapshot()
     for (const window of [
       pet,
@@ -337,6 +342,7 @@ function updateEyeWindow(): void {
   }
 }
 function syncOverlays(): void {
+  if (!pet || pet.isDestroyed()) return
   updateNotesWindow()
   updatePillWindow()
   updateEyeWindow()
@@ -2586,6 +2592,18 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    if (broadcastTimer) {
+      clearTimeout(broadcastTimer)
+      broadcastTimer = undefined
+    }
+    if (volumeHideTimer) {
+      clearTimeout(volumeHideTimer)
+      volumeHideTimer = undefined
+    }
+    if (bubbleHideTimer) {
+      clearTimeout(bubbleHideTimer)
+      bubbleHideTimer = undefined
+    }
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
     if (bubbleTickTimer) clearInterval(bubbleTickTimer)
@@ -2597,7 +2615,6 @@ else {
     bubbleWindow?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
-    if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()
   })
