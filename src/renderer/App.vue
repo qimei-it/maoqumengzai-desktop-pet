@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
+  Eye,
+  EyeOff,
   Infinity as InfinityIcon,
   Inbox,
   MessageSquareQuote,
@@ -44,16 +46,19 @@ const notesView =
 const pillView = new URLSearchParams(location.search).get("view") === "pill";
 const volumeView =
   new URLSearchParams(location.search).get("view") === "volume";
+const eyeView = new URLSearchParams(location.search).get("view") === "eye";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
 document.body.classList.toggle("pill-view", pillView);
 document.body.classList.toggle("volume-view", volumeView);
+document.body.classList.toggle("eye-view", eyeView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
 if (pillView) document.title = "毛趣萌仔 · 音乐控制";
 if (volumeView) document.title = "毛趣萌仔 · 音量";
+if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -687,6 +692,24 @@ onUnmounted(() => {
         aria-hidden="true"
       />
       <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+  </main>
+
+  <main v-else-if="eyeView" class="eye-surface">
+    <button
+      type="button"
+      class="eye-button"
+      :aria-label="state?.barVisible ? '隐藏播放控制栏' : '显示播放控制栏'"
+      :title="state?.barVisible ? '隐藏播放控制栏' : '显示播放控制栏'"
+      @click="command({ type: 'bar-toggle' })"
+    >
+      <EyeOff
+        v-if="state?.barVisible"
+        :size="15"
+        :stroke-width="2"
+        aria-hidden="true"
+      />
+      <Eye v-else :size="15" :stroke-width="2" aria-hidden="true" />
     </button>
   </main>
 

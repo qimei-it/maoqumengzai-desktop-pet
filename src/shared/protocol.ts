@@ -68,6 +68,7 @@ export type Snapshot = {
   events: LabEvent[]
   blockedRequests: number
   music: MusicState
+  barVisible: boolean
 }
 export type Command =
   | { type: 'recover' }
@@ -88,6 +89,7 @@ export type Command =
       type: 'music-control'
       action: 'previous' | 'toggle' | 'next' | 'shuffle' | 'repeat' | 'mute'
     }
+  | { type: 'bar-toggle' }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

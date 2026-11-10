@@ -86,6 +86,7 @@ let pet: BrowserWindow
 let pocket: BrowserWindow
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
+let eye: BrowserWindow | undefined
 let volumePopup: BrowserWindow | undefined
 let volumeHideTimer: ReturnType<typeof setTimeout> | undefined
 let lab: BrowserWindow | undefined
@@ -111,6 +112,7 @@ let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
 let musicTimer: ReturnType<typeof setInterval> | undefined
 let music: MusicState = { playing: false }
+let barVisible = true
 let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
@@ -189,6 +191,7 @@ function snapshot(): Snapshot {
     events: [...events],
     blockedRequests,
     music,
+    barVisible,
   }
 }
 function broadcast(): void {
@@ -225,6 +228,29 @@ function positionPocket(): void {
     fitToDisplays({ x, y: b.y + b.height - height, width: 352, height }, [a]),
   )
 }
+function positionEye(): void {
+  if (!eye || eye.isDestroyed()) return
+  const b = pet.getBounds()
+  const size = 30
+  const x = b.x + b.width + 4
+  const y = b.y + b.height - Math.round(22 * scale) - 36
+  eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
+}
+function updateEyeWindow(): void {
+  if (!eye || eye.isDestroyed()) return
+  if (music.title && !dropMode) {
+    positionEye()
+    eye.showInactive()
+    eye.moveTop()
+  } else if (eye.isVisible()) {
+    eye.hide()
+  }
+}
+function syncOverlays(): void {
+  updateNotesWindow()
+  updatePillWindow()
+  updateEyeWindow()
+}
 function positionNotes(): void {
   if (!notes || notes.isDestroyed()) return
   const b = pet.getBounds()
@@ -239,12 +265,12 @@ function positionPill(): void {
   const width = music.source === 'apple' ? 256 : 184
   const height = 40
   const x = Math.round(b.x + b.width / 2 - width / 2)
-  const y = b.y + b.height + 6
+  const y = b.y + b.height - Math.round(22 * scale)
   pill.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updatePillWindow(): void {
   if (!pill || pill.isDestroyed()) return
-  if (music.title) {
+  if (music.title && barVisible && !dropMode) {
     positionPill()
     pill.showInactive()
     pill.moveTop()
@@ -254,7 +280,7 @@ function updatePillWindow(): void {
 }
 function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
-  if (music.playing) {
+  if (music.playing && !dropMode) {
     positionNotes()
     notes.showInactive()
     notes.moveTop()
@@ -476,8 +502,7 @@ function applyMusic(next: MusicState): void {
     return
   music = next
   broadcast()
-  updateNotesWindow()
-  updatePillWindow()
+  syncOverlays()
 }
 function readAudio(done: (audio: { muted: boolean; volume?: number }) => void): void {
   execFile(
@@ -621,8 +646,8 @@ function positionVolumePopup(): void {
   const b = pill.getBounds()
   const width = 44
   const height = 170
-  const x = Math.round(b.x + b.width - 24 - width / 2)
-  const y = b.y - height + 8
+  const x = Math.round(b.x + b.width - 20 - width / 2)
+  const y = b.y - height - 6
   volumePopup.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function controlMusic(action: MusicAction): void {
@@ -740,7 +765,8 @@ function authorized(
       window !== lab &&
       window !== pocket &&
       window !== pill &&
-      window !== volumePopup) ||
+      window !== volumePopup &&
+      window !== eye) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -957,6 +983,7 @@ function setupIpc(): void {
       'music-control',
       'volume-popup',
       'volume',
+      'bar-toggle',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -983,6 +1010,7 @@ function setupIpc(): void {
           closeWheelWindow()
         }
         setPassthrough(false)
+        syncOverlays()
         addEvent(
           dropMode
             ? '文件投递模式已开启，整块接收区域可投递。'
@@ -1080,6 +1108,11 @@ function setupIpc(): void {
         break
       case 'music-control':
         controlMusic(command.action)
+        break
+      case 'bar-toggle':
+        barVisible = !barVisible
+        syncOverlays()
+        broadcast()
         break
       case 'volume-popup':
         setVolumePopup(command.show)
@@ -1382,6 +1415,30 @@ async function createWindows(): Promise<void> {
     volumePopup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     volumePopup.setHiddenInMissionControl(true)
   }
+  eye = new BrowserWindow({
+    width: 30,
+    height: 30,
+    title: '毛趣萌仔 · 音乐开关',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin') {
+    eye.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    eye.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1399,7 +1456,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab, notes, pill, volumePopup]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes, pill, volumePopup, eye]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1423,10 +1480,12 @@ async function createWindows(): Promise<void> {
     if (pocket.isVisible()) positionPocket()
     if (notes?.isVisible()) positionNotes()
     if (pill?.isVisible()) positionPill()
+    if (eye?.isVisible()) positionEye()
   })
   pet.on('resize', () => {
     if (notes?.isVisible()) positionNotes()
     if (pill?.isVisible()) positionPill()
+    if (eye?.isVisible()) positionEye()
   })
   await restoreShelf()
   await restoreBelly()
@@ -1438,6 +1497,7 @@ async function createWindows(): Promise<void> {
     load(notes, 'notes'),
     load(pill, 'pill'),
     load(volumePopup, 'volume'),
+    load(eye, 'eye'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1561,6 +1621,7 @@ else {
     notes?.destroy()
     pill?.destroy()
     volumePopup?.destroy()
+    eye?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

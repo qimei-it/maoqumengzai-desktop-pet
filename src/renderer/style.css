@@ -730,3 +730,35 @@ footer button {
   height: 100vh;
   overflow: hidden;
 }
+
+/* Small eye toggle at the pet's bottom-right corner. */
+.eye-surface {
+  display: grid;
+  place-items: center;
+  width: 100vw;
+  height: 100vh;
+}
+.eye-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-control);
+  cursor: pointer;
+}
+.eye-button:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.eye-view,
+.eye-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
