@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  Database,
-  Info,
-  Monitor,
-  Palette,
-  Settings,
-  Sparkles,
-} from '@lucide/vue'
+import { Database, Info, Monitor, Palette, Settings } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   defaultSettings,
@@ -16,6 +9,7 @@ import {
   themeLabels,
   type SettingsState,
 } from '../shared/settings'
+import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
 import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
@@ -25,7 +19,7 @@ const nav = [
   { id: 'appearance', label: '外观', icon: Palette },
   { id: 'desktop', label: '桌面', icon: Monitor },
   { id: 'data', label: '数据', icon: Database },
-  { id: 'ai', label: '智能问答', icon: Sparkles },
+  { id: 'ai', label: '智能体', icon: DeepSeekAgentMark },
   { id: 'about', label: '关于', icon: Info },
 ] as const
 const section = ref<(typeof nav)[number]['id']>('appearance')
@@ -222,7 +216,7 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'ai'">
-            <h2>智能问答</h2>
+            <h2>智能体</h2>
             <div class="settings-row">
               <span class="settings-label">DeepSeek Key</span>
               <span class="settings-value">{{

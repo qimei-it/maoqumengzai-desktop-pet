@@ -220,7 +220,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toContain("设置已生效");
 
-  await settings.getByRole("button", { name: "智能问答", exact: true }).click();
+  await settings.getByRole("button", { name: "智能体", exact: true }).click();
   await settings.getByLabel("DeepSeek API Key").fill("sk-settings-test");
   await settings.getByRole("button", { name: "保存", exact: true }).click();
   await expect
