@@ -689,6 +689,10 @@ footer button {
 .pill-button:hover {
   background: var(--color-brand-soft);
 }
+.pill-button.active {
+  color: var(--color-brand-ink);
+  background: var(--color-brand-soft);
+}
 .pill-button:active {
   background: var(--color-brand-soft);
   transform: scale(0.96);

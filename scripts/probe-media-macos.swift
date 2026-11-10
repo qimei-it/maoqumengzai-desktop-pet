@@ -3,7 +3,7 @@
 //
 // 用法：
 //   swift scripts/probe-media-macos.swift info
-//   swift scripts/probe-media-macos.swift play|pause|toggle|next|previous
+//   swift scripts/probe-media-macos.swift play|pause|toggle|next|previous|shuffle|repeat
 //
 // 只读当前正在播放的会话；不修改播放器、不读取音频、不访问账号。
 
@@ -50,6 +50,8 @@ let commands: [String: Int] = [
     "toggle": 2,
     "next": 4,
     "previous": 5,
+    "shuffle": 6,
+    "repeat": 7,
 ]
 
 if command == "info" {

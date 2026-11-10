@@ -56,7 +56,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('music-control'),
-      action: z.enum(['previous', 'toggle', 'next']),
+      action: z.enum(['previous', 'toggle', 'next', 'shuffle', 'repeat', 'mute']),
     })
     .strict(),
   z.object({ type: z.literal('refresh') }).strict(),

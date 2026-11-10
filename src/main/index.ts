@@ -234,7 +234,7 @@ function positionNotes(): void {
 function positionPill(): void {
   if (!pill || pill.isDestroyed()) return
   const b = pet.getBounds()
-  const width = 124
+  const width = music.source === 'apple' ? 220 : 148
   const height = 40
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + b.height + 6
@@ -450,7 +450,7 @@ const musicScript = `if application "Music" is running then
   tell application "Music"
     set state to player state as text
     if state is "playing" or state is "paused" then
-      return state & "|" & (name of current track) & "|" & (artist of current track)
+      return state & linefeed & (name of current track) & linefeed & (artist of current track) & linefeed & (shuffle enabled as text) & linefeed & (song repeat as text)
     end if
   end tell
 end if
@@ -464,13 +464,25 @@ function applyMusic(next: MusicState): void {
   if (
     music.playing === next.playing &&
     music.title === next.title &&
-    music.artist === next.artist
+    music.artist === next.artist &&
+    music.source === next.source &&
+    music.shuffle === next.shuffle &&
+    music.repeat === next.repeat &&
+    music.muted === next.muted
   )
     return
   music = next
   broadcast()
   updateNotesWindow()
   updatePillWindow()
+}
+function readMuted(done: (muted: boolean) => void): void {
+  execFile(
+    '/usr/bin/osascript',
+    ['-e', 'get volume settings'],
+    { timeout: 1000 },
+    (error, stdout) => done(!error && /output muted:true/.test(stdout)),
+  )
 }
 function pollMusic(): void {
   if (process.platform !== 'darwin') return
@@ -479,28 +491,58 @@ function pollMusic(): void {
     ['-e', musicScript],
     { timeout: 1500 },
     (error, stdout) => {
-      let apple = { state: 'idle', title: undefined as string | undefined, artist: undefined as string | undefined }
+      let apple = {
+        state: 'idle',
+        title: undefined as string | undefined,
+        artist: undefined as string | undefined,
+        shuffle: false,
+        repeat: 'off' as 'off' | 'all' | 'one',
+      }
       if (!error) {
-        const [state, title, artist] = stdout.trim().split('|')
-        apple = { state, title, artist }
-      }
-      if (apple.state === 'playing') {
-        musicSource = 'apple'
-        applyMusic({ playing: true, title: apple.title, artist: apple.artist })
-        return
-      }
-      pollSystemMusic((system) => {
-        if (system) {
-          musicSource = 'system'
-          applyMusic(system)
-          return
+        const [state, title, artist, shuffle, repeat] = stdout.trim().split('\n')
+        apple = {
+          state,
+          title,
+          artist,
+          shuffle: shuffle === 'true',
+          repeat: repeat === 'all' || repeat === 'one' ? repeat : 'off',
         }
-        if (apple.state === 'paused' && apple.title) {
+      }
+      readMuted((muted) => {
+        if (apple.state === 'playing') {
           musicSource = 'apple'
-          applyMusic({ playing: false, title: apple.title, artist: apple.artist })
+          applyMusic({
+            playing: true,
+            title: apple.title,
+            artist: apple.artist,
+            source: 'apple',
+            shuffle: apple.shuffle,
+            repeat: apple.repeat,
+            muted,
+          })
           return
         }
-        applyMusic({ playing: false })
+        pollSystemMusic((system) => {
+          if (system) {
+            musicSource = 'system'
+            applyMusic({ ...system, source: 'system', muted })
+            return
+          }
+          if (apple.state === 'paused' && apple.title) {
+            musicSource = 'apple'
+            applyMusic({
+              playing: false,
+              title: apple.title,
+              artist: apple.artist,
+              source: 'apple',
+              shuffle: apple.shuffle,
+              repeat: apple.repeat,
+              muted,
+            })
+            return
+          }
+          applyMusic({ playing: false, muted })
+        })
       })
     },
   )
@@ -527,28 +569,48 @@ function pollSystemMusic(done: (state: MusicState | null) => void): void {
     }
   })
 }
-function controlMusic(action: 'previous' | 'toggle' | 'next'): void {
+type MusicAction =
+  | 'previous'
+  | 'toggle'
+  | 'next'
+  | 'shuffle'
+  | 'repeat'
+  | 'mute'
+function controlMusic(action: MusicAction): void {
   if (process.platform !== 'darwin') return
-  if (action === 'toggle') {
-    // Flip the pill icon right away; the next poll confirms the real state.
-    music = { ...music, playing: !music.playing }
-    broadcast()
-    updateNotesWindow()
-    updatePillWindow()
-  }
-  if (musicSource === 'apple') {
-    const script = {
-      previous: 'previous track',
-      toggle: 'playpause',
-      next: 'next track',
-    }[action]
-    execFile('/usr/bin/osascript', ['-e', `tell application "Music" to ${script}`], () =>
-      setTimeout(pollMusic, 300),
+  if (action === 'mute') {
+    applyMusic({ ...music, muted: !music.muted })
+    execFile(
+      '/usr/bin/osascript',
+      ['-e', 'set volume output muted not (output muted of (get volume settings))'],
+      () => setTimeout(pollMusic, 700),
     )
     return
   }
-  const command = { previous: 'previous', toggle: 'toggle', next: 'next' }[action]
-  execFile(musicHelperPath(), [command], () => setTimeout(pollMusic, 300))
+  if ((action === 'shuffle' || action === 'repeat') && music.source !== 'apple')
+    return
+  if (action === 'toggle') applyMusic({ ...music, playing: !music.playing })
+  if (action === 'shuffle') applyMusic({ ...music, shuffle: !music.shuffle })
+  if (action === 'repeat') {
+    const next = music.repeat === 'off' ? 'all' : music.repeat === 'all' ? 'one' : 'off'
+    applyMusic({ ...music, repeat: next })
+  }
+  if (musicSource === 'apple') {
+    const script =
+      action === 'shuffle'
+        ? 'tell application "Music" to set shuffle enabled to not (shuffle enabled)'
+        : action === 'repeat'
+          ? 'tell application "Music"\nset r to song repeat as text\nif r is "off" then\nset song repeat to all\nelse if r is "all" then\nset song repeat to one\nelse\nset song repeat to off\nend if\nend tell'
+          : action === 'previous'
+            ? 'tell application "Music" to previous track'
+            : action === 'toggle'
+              ? 'tell application "Music" to playpause'
+              : 'tell application "Music" to next track'
+    execFile('/usr/bin/osascript', ['-e', script], () => setTimeout(pollMusic, 700))
+    return
+  }
+  const command = action === 'previous' ? 'previous' : action === 'toggle' ? 'toggle' : 'next'
+  execFile(musicHelperPath(), [command], () => setTimeout(pollMusic, 700))
 }
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)
@@ -1210,7 +1272,7 @@ async function createWindows(): Promise<void> {
   if (process.platform === 'darwin')
     notes.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   pill = new BrowserWindow({
-    width: 124,
+    width: 220,
     height: 40,
     title: '毛趣萌仔 · 音乐控制',
     show: false,

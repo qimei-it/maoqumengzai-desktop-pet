@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
+  Infinity as InfinityIcon,
   Inbox,
   Pause,
   Play,
   Plus,
+  Repeat,
+  Shuffle,
   SkipBack,
   SkipForward,
+  Volume2,
+  VolumeX,
 } from "@lucide/vue";
 import type {
   CapturePreview,
@@ -429,7 +434,7 @@ async function saveCapture(id: string): Promise<void> {
   });
 }
 async function musicControl(
-  action: "previous" | "toggle" | "next",
+  action: "previous" | "toggle" | "next" | "shuffle" | "repeat" | "mute",
 ): Promise<void> {
   await command({ type: "music-control", action });
 }
@@ -569,6 +574,17 @@ onUnmounted(() => {
 
   <main v-else-if="pillView" class="pill-surface">
     <button
+      v-if="state?.music.source === 'apple'"
+      type="button"
+      class="pill-button"
+      :class="{ active: state?.music.shuffle }"
+      :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+      :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+      @click="musicControl('shuffle')"
+    >
+      <Shuffle :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
       type="button"
       class="pill-button"
       aria-label="上一首"
@@ -600,6 +616,39 @@ onUnmounted(() => {
       @click="musicControl('next')"
     >
       <SkipForward :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
+      v-if="state?.music.source === 'apple'"
+      type="button"
+      class="pill-button"
+      :class="{ active: state?.music.repeat !== 'off' }"
+      :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+      :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+      @click="musicControl('repeat')"
+    >
+      <InfinityIcon
+        v-if="state?.music.repeat === 'one'"
+        :size="17"
+        :stroke-width="2"
+        aria-hidden="true"
+      />
+      <Repeat v-else :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
+      type="button"
+      class="pill-button"
+      :class="{ active: state?.music.muted }"
+      :aria-label="state?.music.muted ? '取消静音' : '静音'"
+      :title="state?.music.muted ? '取消静音' : '静音'"
+      @click="musicControl('mute')"
+    >
+      <VolumeX
+        v-if="state?.music.muted"
+        :size="17"
+        :stroke-width="2"
+        aria-hidden="true"
+      />
+      <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
   </main>
 

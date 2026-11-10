@@ -45,6 +45,10 @@ export type MusicState = {
   playing: boolean
   title?: string
   artist?: string
+  source?: 'apple' | 'system'
+  shuffle?: boolean
+  repeat?: 'off' | 'all' | 'one'
+  muted?: boolean
 }
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
@@ -79,7 +83,10 @@ export type Command =
   | { type: 'wheel'; open: boolean }
   | { type: 'eat-files'; fileIds: string[] }
   | { type: 'restore-eaten'; entryId: string }
-  | { type: 'music-control'; action: 'previous' | 'toggle' | 'next' }
+  | {
+      type: 'music-control'
+      action: 'previous' | 'toggle' | 'next' | 'shuffle' | 'repeat' | 'mute'
+    }
   | { type: 'refresh' }
   | { type: 'open-data' }
   | { type: 'screen-settings' }
