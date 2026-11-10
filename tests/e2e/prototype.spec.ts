@@ -1,9 +1,10 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
+import sharp from "sharp";
 import { promisify } from "node:util";
 import {
   donutMetrics,
@@ -19,6 +20,7 @@ let lab: Page;
 let pet: Page;
 let pocket: Page;
 let ask: Page;
+let convert: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
 let startupVisibility: { title: string; visible: boolean }[];
@@ -38,7 +40,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(10);
+  await expect.poll(() => application.windows().length).toBe(11);
   const windows = await Promise.all(
     application
       .windows()
@@ -48,6 +50,7 @@ test.beforeAll(async () => {
   pet = windows.find((item) => item.title.includes("交互标记"))!.page;
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
   ask = windows.find((item) => item.title.includes("智能问答"))!.page;
+  convert = windows.find((item) => item.title.includes("图片转换"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -55,7 +58,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask]) {
+  for (const page of [lab, pet, pocket, ask, convert]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -91,6 +94,10 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   ).toBe(true);
   expect(
     startupVisibility.find((window) => window.title.includes("智能问答"))
+      ?.visible,
+  ).toBe(false);
+  expect(
+    startupVisibility.find((window) => window.title.includes("图片转换"))
       ?.visible,
   ).toBe(false);
   expect(lab.url()).toMatch(/^file:/);
@@ -719,6 +726,45 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
     );
 });
 
+test("dropping on 格式转换 converts an image beside the source", async () => {
+  const fixture = join(directory, "转换图片.png");
+  await sharp({
+    create: { width: 20, height: 20, channels: 3, background: "#336699" },
+  })
+    .png()
+    .toFile(fixture);
+  await dropOnPet(fixture, "convert");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convertOpen : false;
+    })
+    .toBe(true);
+  await expect(
+    convert.getByRole("heading", { name: "图片转换", exact: true }),
+  ).toBeVisible();
+  await convert.getByRole("button", { name: "WEBP", exact: true }).click();
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  const output = join(directory, "转换图片.webp");
+  expect((await stat(output)).size).toBeGreaterThan(0);
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+  const registered = await lab.evaluate(() => window.mqmz!.snapshot());
+  const file = registered.ok
+    ? registered.value.files.find((item) => item.name === "转换图片.png")
+    : undefined;
+  if (file)
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
+});
+
 test("the donut closes when a drag ends without a drop", async () => {
   await pet.evaluate(() => {
     document.querySelector("#mqmz-stuck-input")?.remove();
@@ -856,25 +902,6 @@ test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   const restored = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(restored.ok && restored.value.belly.length).toBe(0);
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
-});
-
-test("dropping on 格式转换 states that conversion is not wired yet", async () => {
-  const fixture = join(directory, "待转换.png");
-  await writeFile(fixture, "not-a-real-png");
-  await dropOnPet(fixture, "convert");
-  await expect(pet.getByRole("status")).toContainText("格式转换引擎尚未接入");
-  await expect(pet.getByRole("status")).toContainText("JPG");
-  const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.files.length).toBe(0);
-  expect(state.ok && state.value.belly.length).toBe(0);
-  await expect
-    .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok
-        ? `${snapshot.value.wheelOpen}:${snapshot.value.petBounds.width}`
-        : "";
-    })
-    .toBe("false:132");
 });
 
 test("dropping on 压缩 states that compression is not wired yet", async () => {
@@ -1141,7 +1168,7 @@ test("stashing persists a local index across restart and removing the card prese
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(10);
+  await expect.poll(() => application.windows().length).toBe(11);
   pocket = (
     await Promise.all(
       application

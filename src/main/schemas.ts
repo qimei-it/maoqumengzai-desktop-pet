@@ -88,6 +88,20 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('ai-keys') }).strict(),
+  z
+    .object({
+      type: z.literal('convert-open'),
+      fileIds: z.array(z.string().uuid()).max(32),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('convert-start'),
+      format: z.enum(['jpg', 'png', 'webp']),
+    })
+    .strict(),
+  z.object({ type: z.literal('convert-close') }).strict(),
+  z.object({ type: z.literal('convert-reveal') }).strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),
   z
     .object({ type: z.literal('volume'), value: z.number().int().min(0).max(100) })

@@ -963,3 +963,11 @@ footer button {
   height: 100vh;
   overflow: hidden;
 }
+
+.convert-view,
+.convert-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}

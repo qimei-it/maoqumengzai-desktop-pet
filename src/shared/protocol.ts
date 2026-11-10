@@ -74,6 +74,21 @@ export type AiMessage = {
   error?: boolean
 }
 export type AiFile = { id: string; name: string; size: number }
+export type ConvertFile = { id: string; name: string; size: number }
+export type ConvertOutcome = {
+  converted: number
+  failed: number
+  messages: string[]
+}
+export type ConvertState = {
+  busy: boolean
+  files: ConvertFile[]
+  targets: string[]
+  progress: { done: number; total: number }
+  outcome?: ConvertOutcome
+  notice?: string
+  canReveal: boolean
+}
 export type AiState = {
   configured: boolean
   busy: boolean
@@ -104,6 +119,8 @@ export type Snapshot = {
   bubble?: BubbleState
   aiOpen: boolean
   ai: AiState
+  convertOpen: boolean
+  convert: ConvertState
 }
 export type Command =
   | { type: 'recover' }
@@ -133,6 +150,10 @@ export type Command =
   | { type: 'ai-clear' }
   | { type: 'ai-send'; prompt: string }
   | { type: 'ai-keys' }
+  | { type: 'convert-open'; fileIds: string[] }
+  | { type: 'convert-start'; format: 'jpg' | 'png' | 'webp' }
+  | { type: 'convert-close' }
+  | { type: 'convert-reveal' }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

@@ -53,6 +53,9 @@ import type {
   AiMessage,
   AiState,
   BellyEntry,
+  ConvertFile,
+  ConvertOutcome,
+  ConvertState,
   CapturePreview,
   HitMask,
   LabEvent,
@@ -69,6 +72,12 @@ import {
   movedBeyondThreshold,
 } from '../shared/geometry'
 import { basePetSize, donutWindowSize } from '../shared/donut'
+import {
+  availableImageTargets,
+  isImageFile,
+  type ImageTarget,
+} from '../shared/convert'
+import { convertImage } from './convert-images'
 import {
   captureIdSchema,
   commandSchema,
@@ -141,11 +150,20 @@ let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
 let askWindow: BrowserWindow | undefined
+let convertWindow: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
 let aiFiles: AiFile[] = []
 let aiToken = 0
+let convertBusy = false
+let convertFiles: ConvertFile[] = []
+let convertTargets: ImageTarget[] = []
+let convertProgress = { done: 0, total: 0 }
+let convertOutcome: ConvertOutcome | undefined
+let convertNotice: string | undefined
+let convertFolders = new Set<string>()
+let convertToken = 0
 let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
 let bubbleText: string | undefined
@@ -245,6 +263,8 @@ function snapshot(): Snapshot {
     lyricsAvailable,
     aiOpen: Boolean(askWindow?.isVisible()),
     ai: aiState(),
+    convertOpen: Boolean(convertWindow?.isVisible()),
+    convert: convertState(),
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
   }
 }
@@ -264,6 +284,7 @@ function broadcast(): void {
       lyricsWindow,
       bubbleWindow,
       askWindow,
+      convertWindow,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -490,6 +511,7 @@ function openAsk(fileIds: string[]): void {
   aiMessages = []
   aiBusy = false
   greetAi()
+  if (convertWindow?.isVisible()) convertWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
     positionAsk()
     askWindow.show()
@@ -518,6 +540,112 @@ async function clearAi(): Promise<void> {
   aiBusy = false
   aiToken += 1
   broadcast()
+}
+function convertState(): ConvertState {
+  return {
+    busy: convertBusy,
+    files: [...convertFiles],
+    targets: [...convertTargets],
+    progress: { ...convertProgress },
+    ...(convertOutcome ? { outcome: convertOutcome } : {}),
+    ...(convertNotice ? { notice: convertNotice } : {}),
+    canReveal: convertFolders.size > 0,
+  }
+}
+function positionConvert(): void {
+  if (!convertWindow || convertWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 400
+  const height = 460
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  convertWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openConvert(fileIds: string[]): void {
+  const selected = fileIds
+    .map((id) => files.get(id))
+    .filter((file): file is NonNullable<typeof file> => Boolean(file))
+  const images = selected.filter((file) => isImageFile(file.name))
+  const skipped = selected.length - images.length
+  convertToken += 1
+  convertBusy = false
+  convertFiles = images.map(({ id, name, size }) => ({ id, name, size }))
+  convertTargets = availableImageTargets(images.map((file) => file.name))
+  convertProgress = { done: 0, total: images.length }
+  convertOutcome = undefined
+  convertFolders = new Set<string>()
+  convertNotice = !images.length
+    ? '目前只支持 JPG、PNG、WEBP 图片。'
+    : skipped
+      ? `已跳过 ${skipped} 个非图片文件。`
+      : undefined
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow && !convertWindow.isDestroyed()) {
+    positionConvert()
+    convertWindow.show()
+    convertWindow.moveTop()
+    convertWindow.focus()
+  }
+  broadcast()
+}
+function closeConvert(): void {
+  convertWindow?.hide()
+  broadcast()
+}
+function convertFailureMessage(error: unknown): string {
+  const text = error instanceof Error ? error.message : ''
+  if (/unsupported image format|not a valid|invalid image/i.test(text))
+    return '不是有效的图片'
+  if (/ENOENT|missing|no such file/i.test(text)) return '源文件不存在'
+  if (/EACCES|EPERM|permission/i.test(text)) return '没有写入权限'
+  if (/输出目录里没有可用的文件名/.test(text)) return text
+  return '转换失败'
+}
+async function startConvert(format: 'jpg' | 'png' | 'webp'): Promise<void> {
+  if (convertBusy) throw new Error('正在转换，请稍候。')
+  if (!convertFiles.length) throw new Error('没有可转换的图片。')
+  if (!convertTargets.includes(format.toUpperCase() as ImageTarget))
+    throw new Error('这个目标格式不可用。')
+  const token = ++convertToken
+  convertBusy = true
+  convertOutcome = undefined
+  convertFolders = new Set<string>()
+  convertProgress = { done: 0, total: convertFiles.length }
+  broadcast()
+  const batch = convertFiles.length > 1
+  const messages: string[] = []
+  let converted = 0
+  let failed = 0
+  for (const file of convertFiles) {
+    try {
+      const source = await registeredFile(file.id)
+      const output = await convertImage(source, format, batch)
+      convertFolders.add(dirname(output))
+      converted += 1
+    } catch (error) {
+      failed += 1
+      messages.push(`${file.name}：${convertFailureMessage(error)}`)
+    }
+    if (token !== convertToken) return
+    convertProgress = { done: converted + failed, total: convertFiles.length }
+    broadcast()
+  }
+  if (token !== convertToken) return
+  convertOutcome = { converted, failed, messages }
+  convertBusy = false
+  broadcast()
+}
+async function revealConvert(): Promise<void> {
+  const folder = [...convertFolders][0]
+  if (!folder) throw new Error('还没有可打开的输出目录。')
+  const error = await shell.openPath(folder)
+  if (error) throw new Error('无法打开输出目录。')
 }
 function positionBubble(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
@@ -1407,7 +1535,8 @@ function authorized(
       window !== volumePopup &&
       window !== eye &&
       window !== lyricsWindow &&
-      window !== askWindow) ||
+      window !== askWindow &&
+      window !== convertWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -1633,6 +1762,10 @@ function setupIpc(): void {
       'ai-clear',
       'ai-send',
       'ai-keys',
+      'convert-open',
+      'convert-start',
+      'convert-close',
+      'convert-reveal',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -1786,6 +1919,23 @@ function setupIpc(): void {
         break
       case 'ai-keys':
         await shell.openExternal('https://platform.deepseek.com/api_keys')
+        break
+      case 'convert-open':
+        openConvert(command.fileIds)
+        break
+      case 'convert-start':
+        void startConvert(command.format).catch((error) => {
+          convertBusy = false
+          convertNotice =
+            error instanceof Error ? error.message : '转换失败，请重试。'
+          broadcast()
+        })
+        break
+      case 'convert-close':
+        closeConvert()
+        break
+      case 'convert-reveal':
+        await revealConvert()
         break
       case 'lyrics-width': {
         const area = screen.getDisplayMatching(pet.getBounds()).workArea
@@ -2207,6 +2357,27 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     askWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  convertWindow = new BrowserWindow({
+    width: 400,
+    height: 460,
+    title: '毛趣萌仔 · 图片转换',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    convertWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -2225,7 +2396,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2244,6 +2415,12 @@ async function createWindows(): Promise<void> {
       closeAsk()
     }
   })
+  convertWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeConvert()
+    }
+  })
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2260,6 +2437,7 @@ async function createWindows(): Promise<void> {
     if (bubbleWindow?.isVisible()) positionBubble()
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
+    if (convertWindow?.isVisible()) positionConvert()
   })
   pet.on('resize', () => {
     if (notes?.isVisible()) positionNotes()
@@ -2269,6 +2447,7 @@ async function createWindows(): Promise<void> {
     if (bubbleWindow?.isVisible()) positionBubble()
     if (volumePopup?.isVisible()) positionVolumePopup()
     if (askWindow?.isVisible()) positionAsk()
+    if (convertWindow?.isVisible()) positionConvert()
   })
   await restoreShelf()
   await restoreBelly()
@@ -2284,6 +2463,7 @@ async function createWindows(): Promise<void> {
     load(lyricsWindow, 'lyrics'),
     load(bubbleWindow, 'bubble'),
     load(askWindow, 'ask'),
+    load(convertWindow, 'convert'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -2416,6 +2596,7 @@ else {
     lyricsWindow?.destroy()
     bubbleWindow?.destroy()
     askWindow?.destroy()
+    convertWindow?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

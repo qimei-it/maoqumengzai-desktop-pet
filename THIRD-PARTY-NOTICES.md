@@ -20,8 +20,10 @@
 | electron-builder | MIT | https://github.com/electron-userland/electron-builder |
 | Lucide | ISC（部分图标 MIT） | https://github.com/lucide-icons/lucide |
 | opencc-js | MIT（词典另含 Apache-2.0） | https://github.com/nk2028/opencc-js |
+| sharp | Apache-2.0 | https://github.com/lovell/sharp |
+| libvips（sharp 预编译包） | LGPL-3.0 及组件各自许可 | https://github.com/libvips/libvips |
 
-Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。
+Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。sharp 许可原文：`resources/licenses/sharp-Apache-2.0.txt`。libvips 为动态链接的预编译运行时，许可与组件清单见 `@img/sharp-libvips-*` 包内 README。
 
 ## Not included
 
