@@ -248,7 +248,11 @@ function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
   const b = pet.getBounds()
   const size = 32
-  const x = b.x - size - 4
+  const pillWidth = music.source === 'apple' ? 256 : 184
+  const pillX = b.x + Math.round(b.width / 2) - pillWidth / 2
+  const index = music.source === 'apple' ? 1 : 0
+  const center = pillX + 20 + index * 36
+  const x = Math.round(center - size / 2)
   const y = b.y + b.height - Math.round(22 * scale) - size - 6
   eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
