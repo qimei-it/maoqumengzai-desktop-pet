@@ -279,6 +279,38 @@ async function receiveFiles(files: File[]): Promise<void> {
     state.value = unwrap(await api.receiveFiles(files));
   });
 }
+/**
+ * The sprite has enclosed transparent areas (the pad of the paw, the gaps
+ * between toes). They read as part of the pet, so they must accept the drag;
+ * only the transparent area open to the window edge stays click-through.
+ */
+function fillEnclosed(alpha: number[], size: number): number[] {
+  const outside = new Uint8Array(size * size);
+  const stack: number[] = [];
+  const push = (index: number) => {
+    if (outside[index] || alpha[index] >= 32) return;
+    outside[index] = 1;
+    stack.push(index);
+  };
+  for (let i = 0; i < size; i += 1) {
+    push(i);
+    push((size - 1) * size + i);
+    push(i * size);
+    push(i * size + size - 1);
+  }
+  while (stack.length) {
+    const index = stack.pop()!;
+    const x = index % size;
+    const y = (index - x) / size;
+    if (x > 0) push(index - 1);
+    if (x < size - 1) push(index + 1);
+    if (y > 0) push(index - size);
+    if (y < size - 1) push(index + size);
+  }
+  return alpha.map((value, index) =>
+    value < 32 && !outside[index] ? 255 : value,
+  );
+}
 async function updateMask(): Promise<void> {
   if (!api || !marker.value || !marker.value.complete || state.value?.dropMode)
     return;
@@ -289,9 +321,9 @@ async function updateMask(): Promise<void> {
   if (!context) return;
   context.drawImage(marker.value, 0, 0, 96, 96);
   const rgba = context.getImageData(0, 0, 96, 96).data;
-  const alpha = Array.from(
-    { length: 96 * 96 },
-    (_, index) => rgba[index * 4 + 3],
+  const alpha = fillEnclosed(
+    Array.from({ length: 96 * 96 }, (_, index) => rgba[index * 4 + 3]),
+    96,
   );
   const rect = marker.value.getBoundingClientRect();
   await attempt(async () => {

@@ -198,7 +198,8 @@ test("real macOS cursor positions switch hit handling and drive the IPC drag con
     );
     if (!candidates.length)
       throw new Error("No stable opaque pixels in marker");
-    const transparent = { x: 48, y: 48 };
+    // Outside the silhouette: enclosed holes are intentionally draggable.
+    const transparent = { x: 4, y: 4 };
     // Use an interior empty region, clear of SVG antialiasing and DIP rounding.
     const clearPoints = [] as { x: number; y: number }[];
     for (let y = 3; y < 93; y++)
