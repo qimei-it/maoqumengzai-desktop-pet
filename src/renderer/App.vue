@@ -35,6 +35,7 @@ import catLifted from "./assets/pet/ragdoll/lifted.png";
 import catMusic from "./assets/pet/ragdoll/music.png";
 import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
+import AskPanel from "./AskPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
 
@@ -51,6 +52,7 @@ const lyricsView =
   new URLSearchParams(location.search).get("view") === "lyrics";
 const bubbleView =
   new URLSearchParams(location.search).get("view") === "bubble";
+const askView = new URLSearchParams(location.search).get("view") === "ask";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -59,6 +61,7 @@ document.body.classList.toggle("volume-view", volumeView);
 document.body.classList.toggle("eye-view", eyeView);
 document.body.classList.toggle("lyrics-view", lyricsView);
 document.body.classList.toggle("bubble-view", bubbleView);
+document.body.classList.toggle("ask-view", askView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -67,6 +70,7 @@ if (volumeView) document.title = "毛趣萌仔 · 音量";
 if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
 if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 if (bubbleView) document.title = "毛趣萌仔 · 气泡";
+if (askView) document.title = "毛趣萌仔 · 智能问答";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -296,6 +300,18 @@ async function receive(event: DragEvent): Promise<void> {
   await applyDrop(files, action);
 }
 async function applyDrop(files: File[], action: DropAction): Promise<void> {
+  if (action === "ask") {
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      state.value = unwrap(
+        await api.command({ type: "ai-open", fileIds: ids }),
+      );
+    });
+    return;
+  }
   if (action === "convert") {
     const targets = conversionTargets(files.map((file) => file.name));
     flash(
@@ -974,6 +990,13 @@ onUnmounted(() => {
   <main v-else-if="notesView" class="notes-surface">
     <img :src="musicNotes" class="notes-art" alt="" />
   </main>
+
+  <AskPanel
+    v-else-if="askView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
 
   <FilePocket
     v-else-if="pocketView"

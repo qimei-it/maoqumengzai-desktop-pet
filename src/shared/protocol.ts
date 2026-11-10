@@ -66,6 +66,19 @@ export type BubbleState = {
   text: string
   mood: string
 }
+export type AiMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  error?: boolean
+}
+export type AiFile = { id: string; name: string; size: number }
+export type AiState = {
+  configured: boolean
+  busy: boolean
+  files: AiFile[]
+  messages: AiMessage[]
+}
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
   petBounds: Rect
@@ -88,6 +101,8 @@ export type Snapshot = {
   lyrics?: LyricsState
   lyricsAvailable?: boolean
   bubble?: BubbleState
+  aiOpen: boolean
+  ai: AiState
 }
 export type Command =
   | { type: 'recover' }
@@ -111,6 +126,12 @@ export type Command =
   | { type: 'bar-toggle' }
   | { type: 'lyrics' }
   | { type: 'lyrics-width'; width: number }
+  | { type: 'ai-open'; fileIds: string[] }
+  | { type: 'ai-close' }
+  | { type: 'ai-config'; apiKey: string }
+  | { type: 'ai-clear' }
+  | { type: 'ai-send'; prompt: string }
+  | { type: 'ai-keys' }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

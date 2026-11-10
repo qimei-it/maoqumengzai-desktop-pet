@@ -18,6 +18,7 @@ let application: ElectronApplication;
 let lab: Page;
 let pet: Page;
 let pocket: Page;
+let ask: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
 let startupVisibility: { title: string; visible: boolean }[];
@@ -37,7 +38,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(9);
+  await expect.poll(() => application.windows().length).toBe(10);
   const windows = await Promise.all(
     application
       .windows()
@@ -46,6 +47,7 @@ test.beforeAll(async () => {
   lab = windows.find((item) => item.title.includes("验证台"))!.page;
   pet = windows.find((item) => item.title.includes("交互标记"))!.page;
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
+  ask = windows.find((item) => item.title.includes("智能问答"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -53,7 +55,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket]) {
+  for (const page of [lab, pet, pocket, ask]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -87,6 +89,10 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
     startupVisibility.find((window) => window.title.includes("交互标记"))
       ?.visible,
   ).toBe(true);
+  expect(
+    startupVisibility.find((window) => window.title.includes("智能问答"))
+      ?.visible,
+  ).toBe(false);
   expect(lab.url()).toMatch(/^file:/);
   await expect(lab).toHaveTitle("毛趣萌仔 · P0 验证台");
   await expect(pet.locator(".marker")).toBeVisible();
@@ -603,7 +609,7 @@ async function hoverSlice(action: DropAction): Promise<void> {
   await expect(pet.locator(`[data-region="${action}"]`)).toHaveClass(/active/);
 }
 
-test("dragging over the pet opens five equal slices and Esc closes them", async () => {
+test("dragging over the pet opens six equal slices and Esc closes them", async () => {
   const fixture = join(directory, "拖拽预览.txt");
   await writeFile(fixture, "donut preview");
   await pet.evaluate(() => {
@@ -679,6 +685,38 @@ test("dragging over the pet opens five equal slices and Esc closes them", async 
   await pet
     .locator("#mqmz-donut-input")
     .evaluate((element) => element.remove());
+});
+
+test("dropping on 智能问答 opens the DeepSeek setup", async () => {
+  const fixture = join(directory, "问答资料.txt");
+  await writeFile(fixture, "这是一份用来提问的资料。");
+  await dropOnPet(fixture, "ask");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.aiOpen : false;
+    })
+    .toBe(true);
+  await expect(
+    ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
+  ).toBeVisible();
+  await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
+  await ask.getByRole("button", { name: "关闭智能问答", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.aiOpen : true;
+    })
+    .toBe(false);
+  const registered = await lab.evaluate(() => window.mqmz!.snapshot());
+  const file = registered.ok
+    ? registered.value.files.find((item) => item.name === "问答资料.txt")
+    : undefined;
+  if (file)
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
 });
 
 test("the donut closes when a drag ends without a drop", async () => {
@@ -1103,7 +1141,7 @@ test("stashing persists a local index across restart and removing the card prese
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(9);
+  await expect.poll(() => application.windows().length).toBe(10);
   pocket = (
     await Promise.all(
       application

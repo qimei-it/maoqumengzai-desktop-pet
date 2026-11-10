@@ -17,8 +17,8 @@ export type DonutHit =
 
 export const TAU = Math.PI * 2
 
-/** Five equal slices; the pet stands in the hole and is never a drop target. */
-export const sliceCount = 5
+/** Six equal slices; the pet stands in the hole and is never a drop target. */
+export const sliceCount = 6
 /** Filee's GapPixels: the gap is measured along the slice edge, not in degrees. */
 export const sliceGap = 3
 /** Filee's SliceCornerRadius for the default softness. */
@@ -26,7 +26,14 @@ export const sliceCornerRadius = 6
 /** Filee's PopOut: how far a hovered slice slides outward. */
 export const popOut = 7
 
-export const sliceActions = ['stash', 'convert', 'compress', 'eat', 'copy'] as const
+export const sliceActions = [
+  'stash',
+  'convert',
+  'compress',
+  'eat',
+  'copy',
+  'ask',
+] as const
 export type DropAction = (typeof sliceActions)[number]
 
 export const sliceLabels: Record<DropAction, string> = {
@@ -35,6 +42,7 @@ export const sliceLabels: Record<DropAction, string> = {
   compress: '压缩',
   eat: '吃掉',
   copy: '另存副本',
+  ask: '智能问答',
 }
 
 /** The sprite box drawn inside the hole; the final full-body art replaces it. */

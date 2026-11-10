@@ -952,3 +952,11 @@ footer button {
   height: 100vh;
   overflow: hidden;
 }
+
+.ask-view,
+.ask-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}

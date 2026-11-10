@@ -67,6 +67,27 @@ export const commandSchema = z.discriminatedUnion('type', [
       width: z.number().min(160).max(520),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('ai-open'),
+      fileIds: z.array(z.string().uuid()).max(32),
+    })
+    .strict(),
+  z.object({ type: z.literal('ai-close') }).strict(),
+  z
+    .object({
+      type: z.literal('ai-config'),
+      apiKey: z.string().min(1).max(400),
+    })
+    .strict(),
+  z.object({ type: z.literal('ai-clear') }).strict(),
+  z
+    .object({
+      type: z.literal('ai-send'),
+      prompt: z.string().min(1).max(8000),
+    })
+    .strict(),
+  z.object({ type: z.literal('ai-keys') }).strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),
   z
     .object({ type: z.literal('volume'), value: z.number().int().min(0).max(100) })

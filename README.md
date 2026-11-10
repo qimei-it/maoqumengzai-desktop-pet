@@ -13,6 +13,7 @@
 - [Lucide 与 Firefox Emoji 图标规范](docs/design/icon-system.md)
 - [默认宠物参考图](docs/references/README.md)
 - [歌词 API 调研与样例实测](docs/research/lyrics-api-evaluation.md)
+- [DeepSeek 智能问答接入](docs/research/deepseek-chat.md)
 
 当前已实现 P0 第 3 项的 Electron + Vue 透明窗口验证原型，完整首版仍按验收清单推进。项目标识统一使用 `mqmz`。Git 提交与双远端推送规范见 [AGENTS.md](AGENTS.md)。
 
