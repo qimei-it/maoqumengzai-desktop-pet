@@ -27,4 +27,4 @@ node node_modules/electron/install.js
 npm run dev
 ```
 
-生产渲染入口使用 `npm run build` 后运行 `npm start`。默认只显示桌宠交互标记；单击或投递文件后，在标记旁显示文件卡片，按住文件本身拖出，可暂存到本地置物架或另存副本。图片转换已接入 JPG / PNG / WEBP，Office、PDF 与音视频仍待后续阶段；正式角色素材仍待制作。大型验证台仅为开发诊断入口，打包版本不会创建它。测试命令为 `npm test`、`npm run test:e2e`，具体实测范围和人工检查步骤见原型记录。
+生产渲染入口使用 `npm run build` 后运行 `npm start`。默认只显示桌宠交互标记；单击或投递文件后，在标记旁显示文件卡片，按住文件本身拖出，可暂存到本地置物架或另存副本。图片转换已接入 JPG / PNG / WEBP，并支持图片转 PDF、PDF 合并与拆分；Office 与音视频仍待后续阶段；正式角色素材仍待制作。大型验证台仅为开发诊断入口，打包版本不会创建它。测试命令为 `npm test`、`npm run test:e2e`，具体实测范围和人工检查步骤见原型记录。

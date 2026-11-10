@@ -50,7 +50,7 @@ test.beforeAll(async () => {
   pet = windows.find((item) => item.title.includes("交互标记"))!.page;
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
   ask = windows.find((item) => item.title.includes("智能问答"))!.page;
-  convert = windows.find((item) => item.title.includes("图片转换"))!.page;
+  convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -97,7 +97,7 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
       ?.visible,
   ).toBe(false);
   expect(
-    startupVisibility.find((window) => window.title.includes("图片转换"))
+    startupVisibility.find((window) => window.title.includes("文件转换"))
       ?.visible,
   ).toBe(false);
   expect(lab.url()).toMatch(/^file:/);
@@ -741,7 +741,7 @@ test("dropping on 格式转换 converts an image beside the source", async () =>
     })
     .toBe(true);
   await expect(
-    convert.getByRole("heading", { name: "图片转换", exact: true }),
+    convert.getByRole("heading", { name: "文件转换", exact: true }),
   ).toBeVisible();
   await convert.getByRole("button", { name: "WEBP", exact: true }).click();
   await convert.getByRole("button", { name: "开始转换", exact: true }).click();

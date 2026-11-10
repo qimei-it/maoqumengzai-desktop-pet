@@ -75,6 +75,14 @@ export type AiMessage = {
 }
 export type AiFile = { id: string; name: string; size: number }
 export type ConvertFile = { id: string; name: string; size: number }
+export type ConvertAction =
+  | 'jpg'
+  | 'png'
+  | 'webp'
+  | 'pdf'
+  | 'merge-pdf'
+  | 'split-pdf'
+export type ConvertTarget = { id: ConvertAction; label: string }
 export type ConvertOutcome = {
   converted: number
   failed: number
@@ -83,7 +91,7 @@ export type ConvertOutcome = {
 export type ConvertState = {
   busy: boolean
   files: ConvertFile[]
-  targets: string[]
+  targets: ConvertTarget[]
   progress: { done: number; total: number }
   outcome?: ConvertOutcome
   notice?: string
@@ -151,7 +159,7 @@ export type Command =
   | { type: 'ai-send'; prompt: string }
   | { type: 'ai-keys' }
   | { type: 'convert-open'; fileIds: string[] }
-  | { type: 'convert-start'; format: 'jpg' | 'png' | 'webp' }
+  | { type: 'convert-start'; action: ConvertAction }
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
   | { type: 'volume-popup'; show: boolean }

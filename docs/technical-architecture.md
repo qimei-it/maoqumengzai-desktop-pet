@@ -128,7 +128,7 @@ Windows x64、macOS x64、macOS arm64 各自构建独立安装包，使用 elect
 | LibreOffice | Office 转 PDF、旧格式转换候选 | [官方许可](https://www.libreoffice.org/licenses/)以 MPL 2.0 为基础并含其他许可组件；需检查具体制品 LICENSE、字体和附带组件，验证中文排版、无界面启动与最低系统 |
 | qpdf | PDF 合并、拆分等结构操作候选 | [官方许可](https://qpdf.readthedocs.io/en/stable/license.html)为 Apache 2.0；具体二进制及依赖仍需核验；它不覆盖所有 PDF 渲染、OCR 或文本提取能力 |
 | 7-Zip | 7Z/ZIP 打包及常见压缩包解压候选 | [官方许可](https://www.7-zip.org/license.txt)包含 LGPL、BSD 与部分 unRAR 限制；需按实际组件保留声明并核对三类制品 |
-| 图片/HEIC、PDF 渲染/文字、OFD、表格/文本 | 覆盖其余白名单方向 | 图片 JPG/PNG/WEBP 已用 sharp 接入；HEIC、PDF 渲染、OFD、OCR 与复杂文档仍待选型与验证 |
+| 图片/HEIC、PDF 渲染/文字、OFD、表格/文本 | 覆盖其余白名单方向 | 图片 JPG/PNG/WEBP 已用 sharp 接入，PDF 生成/合并/拆分用 pdf-lib；HEIC、PDF 渲染成图片、OFD、OCR 与复杂文档仍待选型与验证 |
 
 P5 的引擎安装任务改为全量内置与完整性管理。卸载本地历史不能删除安装目录内引擎而破坏全量离线能力；引擎更新通过校验后的应用更新交付，禁止生成内容或本地历史随更新上传。
 

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FileImage, FolderOpen, X } from '@lucide/vue'
-import type { Command, Snapshot } from '../shared/protocol'
+import { FileImage, Files, FolderOpen, X } from '@lucide/vue'
+import type { Command, ConvertAction, Snapshot } from '../shared/protocol'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
 const convert = computed(() => props.state?.convert)
-const target = ref('')
+const target = ref<ConvertAction | ''>('')
 const busy = computed(() => Boolean(convert.value?.busy))
 const files = computed(() => convert.value?.files ?? [])
 const targets = computed(() => convert.value?.targets ?? [])
@@ -27,18 +27,23 @@ const extraFiles = computed(() => Math.max(0, files.value.length - 3))
 watch(
   targets,
   (list) => {
-    if (!list.includes(target.value)) target.value = list[0] ?? ''
+    if (!list.some((item) => item.id === target.value))
+      target.value = list[0]?.id ?? ''
   },
   { immediate: true },
 )
+const outputHint = computed(() => {
+  if (target.value === 'merge-pdf') return '合并输出到 convert_output'
+  if (target.value === 'split-pdf') return '拆分到 convert_output/<文件名>'
+  return batch.value ? '批量输出到 convert_output' : '输出到原目录'
+})
 
 function close(): void {
   emit('command', { type: 'convert-close' })
 }
 function start(): void {
-  const format = target.value.toLowerCase()
-  if (format !== 'jpg' && format !== 'png' && format !== 'webp') return
-  emit('command', { type: 'convert-start', format })
+  if (!target.value) return
+  emit('command', { type: 'convert-start', action: target.value })
 }
 function reveal(): void {
   emit('command', { type: 'convert-reveal' })
@@ -47,16 +52,16 @@ function reveal(): void {
 
 <template>
   <main class="convert-shell" @keydown.esc="close">
-    <section class="convert-surface" aria-label="图片转换">
+    <section class="convert-surface" aria-label="文件转换">
       <header class="convert-header">
         <div class="convert-title">
-          <FileImage
+          <Files
             :size="17"
             :stroke-width="2"
             aria-hidden="true"
             focusable="false"
           />
-          <h1>图片转换</h1>
+          <h1>文件转换</h1>
         </div>
         <button
           type="button"
@@ -132,20 +137,18 @@ function reveal(): void {
         <div class="convert-targets" role="group" aria-label="目标格式">
           <button
             v-for="item in targets"
-            :key="item"
+            :key="item.id"
             type="button"
             class="convert-target"
-            :class="{ selected: target === item }"
-            :aria-pressed="target === item"
+            :class="{ selected: target === item.id }"
+            :aria-pressed="target === item.id"
             :disabled="busy"
-            @click="target = item"
+            @click="target = item.id"
           >
-            {{ item }}
+            {{ item.label }}
           </button>
         </div>
-        <p class="convert-output">
-          {{ batch ? "批量输出到 convert_output" : "输出到原目录" }}
-        </p>
+        <p class="convert-output">{{ outputHint }}</p>
         <div v-if="busy" class="convert-progress">
           <div class="convert-progress-track">
             <span :style="{ width: `${percent}%` }"></span>

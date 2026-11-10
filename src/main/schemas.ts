@@ -97,7 +97,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('convert-start'),
-      format: z.enum(['jpg', 'png', 'webp']),
+      action: z.enum(['jpg', 'png', 'webp', 'pdf', 'merge-pdf', 'split-pdf']),
     })
     .strict(),
   z.object({ type: z.literal('convert-close') }).strict(),

@@ -5,6 +5,13 @@ import { conversionTargets } from './donut'
 export const imageTargets = ['JPG', 'PNG', 'WEBP'] as const
 export type ImageTarget = (typeof imageTargets)[number]
 export type ImageTargetLower = 'jpg' | 'png' | 'webp'
+export type ConvertOutputExtension = ImageTargetLower | 'pdf'
+export type ConvertAction =
+  | ImageTargetLower
+  | 'pdf'
+  | 'merge-pdf'
+  | 'split-pdf'
+export type ConvertTarget = { id: ConvertAction; label: string }
 
 const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp'])
 /** Batch conversions land in this folder next to each source directory. */
@@ -39,7 +46,7 @@ export function availableImageTargets(names: readonly string[]): ImageTarget[] {
   )
 }
 
-export function targetExtension(target: ImageTargetLower): string {
+export function targetExtension(target: ConvertOutputExtension): string {
   return target
 }
 
@@ -50,7 +57,7 @@ export function outputDirectory(sourcePath: string, batch: boolean): string {
 
 export function outputName(
   sourcePath: string,
-  target: ImageTargetLower,
+  target: ConvertOutputExtension,
   attempt: number,
 ): string {
   const name = basename(sourcePath)
@@ -76,4 +83,48 @@ export function candidateOutputPath(
     if (!exists(path)) return path
   }
   throw new Error('输出目录里没有可用的文件名。')
+}
+
+export function isPdfFile(name: string): boolean {
+  return fileExtension(name) === 'pdf'
+}
+
+/** Targets offered by the panel for this batch. */
+export function availableConvertTargets(
+  names: readonly string[],
+): ConvertTarget[] {
+  if (!names.length) return []
+  if (names.every(isImageFile)) {
+    return [
+      ...availableImageTargets(names).map((id) => ({
+        id: id.toLowerCase() as ImageTargetLower,
+        label: id,
+      })),
+      { id: 'pdf', label: 'PDF' },
+    ]
+  }
+  if (names.every(isPdfFile)) {
+    return names.length > 1
+      ? [{ id: 'merge-pdf', label: '合并 PDF' }]
+      : [{ id: 'split-pdf', label: '拆分 PDF' }]
+  }
+  return []
+}
+
+export function splitOutputDirectory(sourcePath: string): string {
+  const name = basename(sourcePath)
+  const ext = extname(name)
+  const stem = ext ? name.slice(0, -ext.length) : name
+  return join(dirname(sourcePath), convertOutputFolder, stem)
+}
+
+export function mergedOutputName(sourcePath: string, attempt: number): string {
+  const name = basename(sourcePath)
+  const ext = extname(name)
+  const stem = ext ? name.slice(0, -ext.length) : name
+  return `${stem}-合并${attempt === 1 ? '' : ` (${attempt})`}.pdf`
+}
+
+export function splitPageName(page: number, attempt: number): string {
+  return `page-${page}${attempt === 1 ? '' : ` (${attempt})`}.pdf`
 }

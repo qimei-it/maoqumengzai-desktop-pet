@@ -56,6 +56,7 @@ import type {
   ConvertFile,
   ConvertOutcome,
   ConvertState,
+  ConvertTarget,
   CapturePreview,
   HitMask,
   LabEvent,
@@ -73,11 +74,13 @@ import {
 } from '../shared/geometry'
 import { basePetSize, donutWindowSize } from '../shared/donut'
 import {
-  availableImageTargets,
+  availableConvertTargets,
   isImageFile,
-  type ImageTarget,
+  isPdfFile,
+  type ConvertAction,
 } from '../shared/convert'
 import { convertImage } from './convert-images'
+import { imageToPdf, mergePdfs, splitPdf } from './convert-pdf'
 import {
   captureIdSchema,
   commandSchema,
@@ -158,7 +161,7 @@ let aiFiles: AiFile[] = []
 let aiToken = 0
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
-let convertTargets: ImageTarget[] = []
+let convertTargets: ConvertTarget[] = []
 let convertProgress = { done: 0, total: 0 }
 let convertOutcome: ConvertOutcome | undefined
 let convertNotice: string | undefined
@@ -577,20 +580,26 @@ function openConvert(fileIds: string[]): void {
   const selected = fileIds
     .map((id) => files.get(id))
     .filter((file): file is NonNullable<typeof file> => Boolean(file))
-  const images = selected.filter((file) => isImageFile(file.name))
-  const skipped = selected.length - images.length
+  const supported = selected.filter(
+    (file) => isImageFile(file.name) || isPdfFile(file.name),
+  )
+  const skipped = selected.length - supported.length
   convertToken += 1
   convertBusy = false
-  convertFiles = images.map(({ id, name, size }) => ({ id, name, size }))
-  convertTargets = availableImageTargets(images.map((file) => file.name))
-  convertProgress = { done: 0, total: images.length }
+  convertFiles = supported.map(({ id, name, size }) => ({ id, name, size }))
+  convertTargets = availableConvertTargets(
+    supported.map((file) => file.name),
+  )
+  convertProgress = { done: 0, total: supported.length }
   convertOutcome = undefined
   convertFolders = new Set<string>()
-  convertNotice = !images.length
-    ? '目前只支持 JPG、PNG、WEBP 图片。'
-    : skipped
-      ? `已跳过 ${skipped} 个非图片文件。`
-      : undefined
+  convertNotice = !supported.length
+    ? '目前支持 JPG、PNG、WEBP 图片和 PDF。'
+    : !convertTargets.length
+      ? '图片和 PDF 请分开转换。'
+      : skipped
+        ? `已跳过 ${skipped} 个不支持的文件。`
+        : undefined
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow && !convertWindow.isDestroyed()) {
     positionConvert()
@@ -608,40 +617,80 @@ function convertFailureMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : ''
   if (/unsupported image format|not a valid|invalid image/i.test(text))
     return '不是有效的图片'
+  if (/encrypt/i.test(text)) return 'PDF 已加密，暂不支持'
+  if (/failed to parse|invalid pdf|pdf.*corrupt/i.test(text))
+    return 'PDF 文件损坏'
   if (/ENOENT|missing|no such file/i.test(text)) return '源文件不存在'
   if (/EACCES|EPERM|permission/i.test(text)) return '没有写入权限'
   if (/输出目录里没有可用的文件名/.test(text)) return text
   return '转换失败'
 }
-async function startConvert(format: 'jpg' | 'png' | 'webp'): Promise<void> {
+async function startConvert(action: ConvertAction): Promise<void> {
   if (convertBusy) throw new Error('正在转换，请稍候。')
-  if (!convertFiles.length) throw new Error('没有可转换的图片。')
-  if (!convertTargets.includes(format.toUpperCase() as ImageTarget))
+  if (!convertFiles.length) throw new Error('没有可转换的文件。')
+  if (!convertTargets.some((target) => target.id === action))
     throw new Error('这个目标格式不可用。')
   const token = ++convertToken
   convertBusy = true
   convertOutcome = undefined
   convertFolders = new Set<string>()
-  convertProgress = { done: 0, total: convertFiles.length }
+  const singleOperation = action === 'merge-pdf' || action === 'split-pdf'
+  convertProgress = {
+    done: 0,
+    total: singleOperation ? 1 : convertFiles.length,
+  }
   broadcast()
   const batch = convertFiles.length > 1
   const messages: string[] = []
   let converted = 0
   let failed = 0
-  for (const file of convertFiles) {
+
+  if (action === 'merge-pdf') {
     try {
-      const source = await registeredFile(file.id)
-      const output = await convertImage(source, format, batch)
+      const paths: string[] = []
+      for (const file of convertFiles) paths.push(await registeredFile(file.id))
+      const output = await mergePdfs(paths)
       convertFolders.add(dirname(output))
-      converted += 1
+      converted = 1
     } catch (error) {
-      failed += 1
-      messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      failed = convertFiles.length
+      messages.push(`合并 PDF：${convertFailureMessage(error)}`)
     }
-    if (token !== convertToken) return
-    convertProgress = { done: converted + failed, total: convertFiles.length }
-    broadcast()
+    convertProgress = { done: 1, total: 1 }
+  } else if (action === 'split-pdf') {
+    try {
+      const source = await registeredFile(convertFiles[0].id)
+      const result = await splitPdf(source)
+      convertFolders.add(result.folder)
+      converted = result.pages
+    } catch (error) {
+      failed = 1
+      messages.push(`拆分 PDF：${convertFailureMessage(error)}`)
+    }
+    convertProgress = { done: 1, total: 1 }
+  } else {
+    for (const file of convertFiles) {
+      try {
+        const source = await registeredFile(file.id)
+        const output =
+          action === 'pdf'
+            ? await imageToPdf(source, batch)
+            : await convertImage(source, action, batch)
+        convertFolders.add(dirname(output))
+        converted += 1
+      } catch (error) {
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (token !== convertToken) return
+      convertProgress = {
+        done: converted + failed,
+        total: convertFiles.length,
+      }
+      broadcast()
+    }
   }
+
   if (token !== convertToken) return
   convertOutcome = { converted, failed, messages }
   convertBusy = false
@@ -1930,7 +1979,7 @@ function setupIpc(): void {
         openConvert(command.fileIds)
         break
       case 'convert-start':
-        void startConvert(command.format).catch((error) => {
+        void startConvert(command.action).catch((error) => {
           convertBusy = false
           convertNotice =
             error instanceof Error ? error.message : '转换失败，请重试。'
@@ -2366,7 +2415,7 @@ async function createWindows(): Promise<void> {
   convertWindow = new BrowserWindow({
     width: 400,
     height: 460,
-    title: '毛趣萌仔 · 图片转换',
+    title: '毛趣萌仔 · 文件转换',
     show: false,
     frame: false,
     transparent: true,
