@@ -44,13 +44,32 @@ const wedges = computed(() => {
   const step = span(sliceCount)
   const gap = sliceGap * props.scale
   const corner = sliceCornerRadius * props.scale
+  const fontSize = 14 * props.scale
   return sliceActions.map((action, index) => {
     const mid = midAngle(index, sliceCount)
+    const label = sliceLabels[action]
+    const chars = Array.from(label)
+    const arcStep = Math.min(
+      (fontSize * 1.16) / m.mid,
+      (step * 0.82) / Math.max(1, chars.length),
+    )
+    const offsetOf = (position: number) =>
+      (position - (chars.length - 1) / 2) * arcStep
+    // Characters stay upright and stack top-to-bottom; the column follows the
+    // ring by walking the glyph anchors along the slice's arc.
+    const first = pointAt(m.mid, mid + offsetOf(0))
+    const last = pointAt(m.mid, mid + offsetOf(chars.length - 1))
+    const reversed = first.y > last.y
+    const glyphs = chars.map((char, position) => {
+      const angle = mid + (reversed ? -offsetOf(position) : offsetOf(position))
+      const point = pointAt(m.mid, angle)
+      return { char, x: point.x, y: point.y }
+    })
     return {
       action,
-      label: sliceLabels[action],
+      label,
       d: outlinePath(wedge(m.inner, m.outer, mid, step, gap, corner)),
-      anchor: pointAt(m.mid, mid),
+      glyphs,
     }
   })
 })
@@ -217,15 +236,17 @@ onUnmounted(() => {
           :style="{ opacity: emphasis(index) }"
         />
         <text
-          :x="slice.anchor.x"
-          :y="slice.anchor.y"
+          v-for="(glyph, position) in slice.glyphs"
+          :key="`${slice.action}-${position}`"
           class="donut-label"
           :class="{ hot: isHot(index) }"
+          :x="glyph.x"
+          :y="glyph.y"
           :style="{ fontSize: `${14 * scale}px` }"
           text-anchor="middle"
           dominant-baseline="central"
         >
-          {{ slice.label }}
+          {{ glyph.char }}
         </text>
       </g>
     </svg>

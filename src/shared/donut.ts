@@ -30,7 +30,7 @@ export const sliceActions = ['stash', 'convert', 'compress', 'eat', 'copy'] as c
 export type DropAction = (typeof sliceActions)[number]
 
 export const sliceLabels: Record<DropAction, string> = {
-  stash: '暂存',
+  stash: '置物架',
   convert: '格式转换',
   compress: '压缩',
   eat: '吃掉',

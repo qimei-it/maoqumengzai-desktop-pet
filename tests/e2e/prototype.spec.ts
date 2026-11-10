@@ -741,7 +741,7 @@ test("releasing on the pet cancels instead of acting", async () => {
     .toBe(132);
 });
 
-test("dropping on 暂存 stashes without opening the shelf", async () => {
+test("dropping on 置物架 stashes without opening the shelf", async () => {
   const fixture = join(directory, "轮盘暂存.txt");
   await writeFile(fixture, "donut-stash");
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
