@@ -19,8 +19,9 @@
 | electron-vite / Vite | MIT | https://github.com/alex8088/electron-vite |
 | electron-builder | MIT | https://github.com/electron-userland/electron-builder |
 | Lucide | ISC（部分图标 MIT） | https://github.com/lucide-icons/lucide |
+| opencc-js | MIT（词典另含 Apache-2.0） | https://github.com/nk2028/opencc-js |
 
-Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。
+Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。
 
 ## Not included
 

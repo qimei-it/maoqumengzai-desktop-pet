@@ -41,6 +41,11 @@ import {
   type BubbleTrack,
   type MusicMood,
 } from '../shared/music-bubbles'
+import {
+  localizeLyrics,
+  localizeName,
+  type LyricsMeta,
+} from '../shared/lyrics-lang'
 import type {
   BellyEntry,
   CapturePreview,
@@ -777,14 +782,17 @@ function bubbleBlocked(): boolean {
 }
 async function loadBubbleLyrics(key: string): Promise<void> {
   bubbleLyricsKey = key
+  const meta = lyricsMeta()
   const cached = await readCachedLyrics(key)
   if (cached) {
-    if (bubbleLyricsKey === key) bubbleLyrics = cached
+    if (bubbleLyricsKey === key)
+      bubbleLyrics = localizeLyrics(cached, meta)
     return
   }
   try {
     const fetched = await fetchLyrics(key)
-    if (bubbleLyricsKey === key) bubbleLyrics = fetched
+    if (bubbleLyricsKey === key)
+      bubbleLyrics = localizeLyrics(fetched, meta)
   } catch {
     /* bubbles fall back to title/artist copy */
   }
@@ -818,12 +826,13 @@ function hideBubble(): void {
 }
 function showBubble(): void {
   if (!music.title || bubbleText) return
+  const lyricText = bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined
   const track: BubbleTrack = {
-    title: music.title,
-    artist: music.artist,
-    album: music.album,
+    title: localizeName(music.title, lyricText, lyricsMeta()) ?? music.title,
+    artist: localizeName(music.artist, lyricText, lyricsMeta()),
+    album: localizeName(music.album, lyricText, lyricsMeta()),
     genre: music.genre,
-    lyrics: bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined,
+    lyrics: lyricText,
     instrumental: bubbleLyrics?.instrumental,
   }
   const mood = detectMood(track)
@@ -939,16 +948,22 @@ async function fetchLyrics(key: string): Promise<LyricsState> {
   await writeCachedLyrics(result)
   return result
 }
+function lyricsMeta(): LyricsMeta {
+  return { title: music.title, artist: music.artist, genre: music.genre }
+}
 async function loadLyricsFor(key: string): Promise<void> {
   lyricsKey = key
+  const meta = lyricsMeta()
   const cached = await readCachedLyrics(key)
+  if (lyricsKey !== key) return
   if (cached) {
-    lyrics = cached
+    lyrics = localizeLyrics(cached, meta)
   } else {
     try {
-      lyrics = await fetchLyrics(key)
+      const fetched = await fetchLyrics(key)
+      if (lyricsKey === key) lyrics = localizeLyrics(fetched, meta)
     } catch {
-      lyrics = undefined
+      if (lyricsKey === key) lyrics = undefined
     }
   }
   syncOverlays()
