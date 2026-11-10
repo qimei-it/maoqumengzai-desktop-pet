@@ -333,7 +333,7 @@ function positionLyrics(): void {
 }
 function updateLyricsWindow(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
-  if (lyricsOpen && lyrics && music.title && !dropMode) {
+  if (lyricsOpen && lyrics && music.title && !dropMode && !bubbleText) {
     positionLyrics()
     lyricsWindow.showInactive()
     lyricsWindow.moveTop()
@@ -530,7 +530,7 @@ function positionBubble(): void {
 }
 function updateBubbleWindow(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
-  if (bubbleText && !dropMode && barVisible && !lyricsOpen) {
+  if (bubbleText && !dropMode && barVisible) {
     positionBubble()
     bubbleWindow.showInactive()
     bubbleWindow.moveTop()
@@ -1009,7 +1009,7 @@ function bubbleThresholds(): number[] {
   return [40, 120, 210]
 }
 function bubbleBlocked(): boolean {
-  return dropMode || lyricsOpen || !barVisible || Boolean(drag?.moving)
+  return dropMode || !barVisible || Boolean(drag?.moving)
 }
 async function loadBubbleLyrics(key: string): Promise<void> {
   bubbleLyricsKey = key
