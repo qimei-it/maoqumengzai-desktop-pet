@@ -79,6 +79,36 @@ test.afterAll(async () => {
   if (application) await application.close();
 });
 
+test("clicking the pet toggles the pocket and focus elsewhere closes it", async () => {
+  const pocketVisible = () =>
+    application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle().includes("文件置物架"))!
+        .isVisible(),
+    );
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  const clickPet = async (): Promise<void> => {
+    await pet.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  };
+  await clickPet();
+  expect(await pocketVisible()).toBe(true);
+  await clickPet();
+  expect(await pocketVisible()).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  await clickPet();
+  expect(await pocketVisible()).toBe(true);
+  await application.evaluate(({ BrowserWindow }) => {
+    const labWindow = BrowserWindow.getAllWindows().find((window) =>
+      window.getTitle().includes("验证台"),
+    )!;
+    labWindow.show();
+    labWindow.focus();
+  });
+  await expect.poll(pocketVisible).toBe(false);
+});
+
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {
   expect(
     startupVisibility.find((window) => window.title.includes("验证台"))
@@ -296,8 +326,10 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     "draggable",
     "true",
   );
-  await expect(pocket.locator(".pocket-file-symbol svg")).toHaveClass(
-    /lucide-file/,
+  await expect(pocket.locator(".pocket-file-symbol img")).toHaveCount(1);
+  await expect(pocket.locator(".pocket-file-symbol img")).toHaveAttribute(
+    "src",
+    /txt|data:image\/svg/,
   );
   await expect(pocket.locator(".pocket-drag-icon")).toHaveClass(
     /lucide-grip-vertical/,
@@ -364,9 +396,9 @@ test("OS-backed File objects reach the real local registry; removal preserves so
         canvas: getComputedStyle(document.querySelector(".pocket-surface")!)
           .backgroundColor,
         ink: getComputedStyle(action).backgroundColor,
-        iconInk: getComputedStyle(
-          document.querySelector(".pocket-file-symbol svg")!,
-        ).stroke,
+        primaryBorder: getComputedStyle(action).borderColor,
+        secondaryBorder: getComputedStyle(secondary).borderColor,
+        iconCount: document.querySelectorAll(".pocket-file-symbol img").length,
         color: getComputedStyle(
           document.querySelector(".pocket-file-description strong")!,
         ).color,
@@ -383,7 +415,9 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     expect(styles.brand).toBe(theme.brand);
     expect(styles.canvas).toBe(theme.canvas);
     expect(styles.ink).toBe(theme.ink);
-    expect(styles.iconInk).toBe(theme.ink);
+    expect(styles.primaryBorder).toBe("rgba(0, 0, 0, 0)");
+    expect(styles.secondaryBorder).toBe("rgba(0, 0, 0, 0)");
+    expect(styles.iconCount).toBe(1);
     expect(styles.color).toBe("rgb(26, 26, 26)");
     expect(styles.bodySize).toBe("14px");
     expect(styles.height).toBeGreaterThanOrEqual(44);

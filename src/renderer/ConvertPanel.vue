@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FileImage, Files, FolderOpen, X } from '@lucide/vue'
+import { Files, FolderOpen, X } from '@lucide/vue'
 import type { Command, ConvertAction, Snapshot } from '../shared/protocol'
+import FileTypeIcon from './FileTypeIcon.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -86,12 +87,7 @@ function reveal(): void {
           class="convert-file"
           :title="file.name"
         >
-          <FileImage
-            :size="13"
-            :stroke-width="2"
-            aria-hidden="true"
-            focusable="false"
-          />
+          <FileTypeIcon :name="file.name" :size="13" />
           {{ file.name }}
         </span>
         <span v-if="extraFiles" class="convert-file">+{{ extraFiles }}</span>

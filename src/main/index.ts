@@ -115,6 +115,8 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 
 let pet: BrowserWindow
 let pocket: BrowserWindow
+let pocketHideAt = 0
+let pocketDialogOpen = false
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
 let eye: BrowserWindow | undefined
@@ -759,9 +761,16 @@ function updateNotesWindow(): void {
   }
 }
 function showPocket(): void {
+  pocketHideAt = 0
   positionPocket()
   pocket.show()
   pocket.focus()
+  broadcast()
+}
+function hidePocket(): void {
+  if (!pocket || pocket.isDestroyed() || !pocket.isVisible()) return
+  pocket.hide()
+  pocketHideAt = Date.now()
   broadcast()
 }
 /**
@@ -1789,7 +1798,12 @@ function setupIpc(): void {
         addEvent('拖动结束，位置已保存。')
       }
       drag = undefined
-      if (click) showPocket()
+      if (click) {
+        // A click on the pet is a toggle: close the shelf that is open, but
+        // do not immediately reopen it when the pocket's own blur hid it.
+        if (pocket.isVisible()) hidePocket()
+        else if (Date.now() - pocketHideAt > 350) showPocket()
+      }
     }
   })
   handle(channels.command, 'either', async (event, payload) => {
@@ -1834,7 +1848,7 @@ function setupIpc(): void {
         showPocket()
         break
       case 'hide-pocket':
-        pocket.hide()
+        hidePocket()
         break
       case 'recover':
         recover()
@@ -2015,10 +2029,16 @@ function setupIpc(): void {
       case 'save-copy': {
         const original = await registeredFile(command.fileId)
         const owner = BrowserWindow.fromWebContents(event.sender)!
-        const destination = await dialog.showSaveDialog(owner, {
-          title: '另存文件副本',
-          defaultPath: basename(original),
-        })
+        if (owner === pocket) pocketDialogOpen = true
+        let destination: Electron.SaveDialogReturnValue
+        try {
+          destination = await dialog.showSaveDialog(owner, {
+            title: '另存文件副本',
+            defaultPath: basename(original),
+          })
+        } finally {
+          if (owner === pocket) pocketDialogOpen = false
+        }
         if (!destination.canceled && destination.filePath) {
           if (destination.filePath === original)
             throw new Error('请选择不同的保存位置，保留原文件。')
@@ -2071,10 +2091,16 @@ function setupIpc(): void {
   })
   handle(channels.selectFiles, 'either', async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender)
-    const selection = await dialog.showOpenDialog(owner!, {
-      title: '选择本地文件',
-      properties: ['openFile', 'multiSelections'],
-    })
+    if (owner === pocket) pocketDialogOpen = true
+    let selection: Electron.OpenDialogReturnValue
+    try {
+      selection = await dialog.showOpenDialog(owner!, {
+        title: '选择本地文件',
+        properties: ['openFile', 'multiSelections'],
+      })
+    } finally {
+      if (owner === pocket) pocketDialogOpen = false
+    }
     if (!selection.canceled) {
       await receivePaths(pathsSchema.parse(selection.filePaths))
       // The shelf stays a separate surface; a drag onto the pet uses the donut.
@@ -2455,8 +2481,11 @@ async function createWindows(): Promise<void> {
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
-      pocket.hide()
+      hidePocket()
     }
+  })
+  pocket.on('blur', () => {
+    if (!shuttingDown && !pocketDialogOpen) hidePocket()
   })
   lab?.on('close', (event) => {
     if (!shuttingDown) {

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
-  FileText,
   KeyRound,
   Send,
   Sparkles,
@@ -9,6 +8,7 @@ import {
   X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
+import FileTypeIcon from './FileTypeIcon.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -174,12 +174,7 @@ function clearKey(): void {
             class="ask-file"
             :title="file.name"
           >
-            <FileText
-              :size="13"
-              :stroke-width="2"
-              aria-hidden="true"
-              focusable="false"
-            />
+            <FileTypeIcon :name="file.name" :size="13" />
             {{ file.name }}
           </span>
           <span v-if="extraFiles" class="ask-file">+{{ extraFiles }}</span>

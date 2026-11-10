@@ -21,6 +21,21 @@
 
 系统托盘使用用户提供的品牌猫脸 `resources/icons/cat-face.svg`，属于品牌原生素材而非功能图标；导出时保留纯黑剪影与透明背景，作为 macOS 模板图像参与系统深浅色适配。
 
+## 文件类型图标
+
+文件卡片、转换面板和智能问答的文件名前使用用户提供的彩色文件类型图标，保存在 `src/renderer/assets/file-icons/`，按扩展名映射：
+
+| 类型 | 扩展名 | 图标 |
+| --- | --- | --- |
+| 文本 | txt / text / log | `txt.svg` |
+| PDF | pdf | `pdf.svg` |
+| 图片 | jpg / jpeg / png / webp / heic / gif 等 | `image.svg` |
+| 视频 | mp4 / mov / mkv / webm / avi 等 | `video.svg` |
+| Markdown | md / markdown | `markdown.svg` |
+| 其他文档 | doc / docx / xls / xlsx / ppt / pptx 等 | `document.svg` |
+
+这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–24px，标记为装饰性。
+
 ## 原生图标与离线分发
 
 Electron 系统托盘/拖出接口使用本地 SVG 导出的 PNG。文件图标取自官方 Vue 组件，托盘取自品牌猫脸，图形路径均保持原样；通过本地 Electron 渲染导出 20/40px 托盘与 32/64px 文件图标，校验尺寸和非透明像素，保存在 `resources/icons/`。构建配置将图标与许可证复制为离线资源；用户安装后无需下载图标或图标字体。
@@ -45,4 +60,4 @@ Firefox Emoji 用于后续适合的情绪、活动或业务插画型图标，沿
 - Lucide 来源与许可：[Lucide](https://lucide.dev/license)。完整上游许可证已保留在 [lucide-ISC.txt](../../resources/licenses/lucide-ISC.txt)，包括源文件中的 ISC 与 Feather 派生图标 MIT 声明，并随安装包分发。
 - Firefox Emoji 来源：[Mozilla FxEmoji](https://mozilla.github.io/fxemoji/)。首次新增素材时继续逐项核实许可与修改记录，不把整个素材库的使用范围推定为已核验。
 - 本轮验证包含 SVG 来源/属性、图标随三套主题着色、原生图标资源、透明命中、文件卡片拖动事件及原有文件功能回归。原生拖出落地与 Windows/Intel/最低系统仍按 P0 原记录待验收。
-- 实测结果：构建、图标/主题检查、9 项单元测试与 13 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。
+- 实测结果：构建、图标/主题检查、65 项单元测试与 23 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { File as FileIcon, FilePlusCorner, GripVertical, X } from '@lucide/vue'
+import { FilePlusCorner, GripVertical, X } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
+import FileTypeIcon from './FileTypeIcon.vue'
 
 const props = defineProps<{ state?: Snapshot; error: string }>()
 const emit = defineEmits<{
@@ -99,13 +100,9 @@ function receive(event: DragEvent): void {
             @keydown.space.prevent="selectedId = file.id"
             @dragstart="startDrag($event, file.id)"
           >
-            <span class="pocket-file-symbol"
-              ><FileIcon
-                :size="24"
-                :stroke-width="2"
-                aria-hidden="true"
-                focusable="false"
-            /></span>
+            <span class="pocket-file-symbol">
+              <FileTypeIcon :name="file.name" :size="24" />
+            </span>
             <div class="pocket-file-description">
               <strong :title="file.name">{{ file.name }}</strong
               ><span
@@ -320,6 +317,10 @@ function receive(event: DragEvent): void {
 }
 .pocket-primary-actions {
   gap: var(--space-4);
+}
+.pocket-primary-actions .button-glass,
+.pocket-primary-actions .button-soft {
+  border-color: transparent;
 }
 .pocket-convert {
   min-height: var(--tap-min);
