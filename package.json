@@ -7,7 +7,7 @@
   "main": "out/main/index.js",
   "description": "毛趣萌仔 P0 桌面交互原型",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/set-dev-app-name.mjs && electron-vite dev",
     "typecheck": "vue-tsc --noEmit",
     "build": "npm run check:design && npm run check:icons && npm run typecheck && electron-vite build",
     "check:icons": "node scripts/check-icons.mjs",
@@ -15,7 +15,7 @@
     "check:design": "node scripts/check-design-tokens.mjs",
     "generate:icons": "node scripts/generate-native-icons.mjs",
     "generate:app-icons": "node scripts/generate-app-icons.mjs",
-    "start": "electron .",
+    "start": "node scripts/set-dev-app-name.mjs && electron .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "pack:mac": "npm run build && electron-builder --mac dmg --x64 --arm64 --publish never",
