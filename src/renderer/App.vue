@@ -47,18 +47,22 @@ const pillView = new URLSearchParams(location.search).get("view") === "pill";
 const volumeView =
   new URLSearchParams(location.search).get("view") === "volume";
 const eyeView = new URLSearchParams(location.search).get("view") === "eye";
+const lyricsView =
+  new URLSearchParams(location.search).get("view") === "lyrics";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
 document.body.classList.toggle("pill-view", pillView);
 document.body.classList.toggle("volume-view", volumeView);
 document.body.classList.toggle("eye-view", eyeView);
+document.body.classList.toggle("lyrics-view", lyricsView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
 if (pillView) document.title = "毛趣萌仔 · 音乐控制";
 if (volumeView) document.title = "毛趣萌仔 · 音量";
 if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
+if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -470,6 +474,63 @@ function onVolumeInput(event: Event): void {
   volume.value = value;
   void command({ type: "volume", value });
 }
+const lyricNow = ref(0);
+let lyricTimer: ReturnType<typeof setInterval> | undefined;
+let lyricBase = 0;
+let lyricBaseAt = 0;
+watch(
+  () => state.value?.music.position,
+  (position) => {
+    lyricBase = position ?? 0;
+    lyricBaseAt = performance.now();
+  },
+);
+const lyricLines = computed(() => {
+  const synced = state.value?.lyrics?.synced;
+  if (!synced) return [];
+  const lines: { time: number; text: string }[] = [];
+  for (const raw of synced.split("\n")) {
+    const match = /^\[(\d{1,2}):(\d{2}(?:\.\d+)?)\]\s*(.*)$/.exec(raw.trim());
+    if (!match) continue;
+    const text = match[3].trim();
+    if (!text) continue;
+    lines.push({
+      time: Number(match[1]) * 60 + Number(match[2]),
+      text,
+    });
+  }
+  return lines;
+});
+const currentLyric = computed(() => {
+  const lines = lyricLines.value;
+  if (!lines.length) return null;
+  const position = state.value?.music.position;
+  if (typeof position !== "number") return null;
+  const elapsed =
+    lyricBase +
+    (state.value?.music.playing
+      ? (lyricNow.value - lyricBaseAt) / 1000
+      : 0);
+  let index = 0;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].time <= elapsed) index = i;
+  }
+  return {
+    prev: lines[index - 1]?.text ?? "",
+    current: lines[index]?.text ?? "",
+    next: lines[index + 1]?.text ?? "",
+  };
+});
+const plainPreview = computed(() =>
+  (state.value?.lyrics?.plain ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3),
+);
+function onLyrics() {
+  return command({ type: "lyrics" });
+}
 function startDrag(event: DragEvent, id: string): void {
   event.preventDefault();
   api?.startDrag(id);
@@ -499,6 +560,16 @@ watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
 watch(displayPose, async () => {
   await nextTick();
   await updateMask();
+});
+onMounted(() => {
+  if (!lyricsView) return;
+  lyricNow.value = performance.now();
+  lyricTimer = setInterval(() => {
+    lyricNow.value = performance.now();
+  }, 400);
+});
+onUnmounted(() => {
+  if (lyricTimer) clearInterval(lyricTimer);
 });
 watch(
   () => state.value?.wheelOpen,
@@ -669,9 +740,10 @@ onUnmounted(() => {
     <button
       type="button"
       class="pill-button"
-      aria-label="歌词"
-      title="歌词待接入"
-      disabled
+      :class="{ active: state?.lyricsOpen }"
+      :aria-label="state?.lyricsOpen ? '隐藏歌词' : '显示歌词'"
+      :title="state?.lyricsOpen ? '隐藏歌词' : '显示歌词'"
+      @click="onLyrics"
     >
       <MessageSquareQuote :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
@@ -693,6 +765,23 @@ onUnmounted(() => {
       />
       <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
+  </main>
+
+  <main v-else-if="lyricsView" class="lyrics-surface">
+    <template v-if="state?.lyrics?.instrumental">
+      <span class="lyrics-line current">纯音乐</span>
+    </template>
+    <template v-else-if="currentLyric">
+      <span class="lyrics-line">{{ currentLyric.prev }}</span>
+      <span class="lyrics-line current">{{ currentLyric.current }}</span>
+      <span class="lyrics-line">{{ currentLyric.next }}</span>
+    </template>
+    <template v-else-if="plainPreview.length">
+      <span v-for="line in plainPreview" :key="line" class="lyrics-line">
+        {{ line }}
+      </span>
+    </template>
+    <span v-else class="lyrics-line current">暂无歌词</span>
   </main>
 
   <main v-else-if="eyeView" class="eye-surface">

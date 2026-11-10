@@ -50,6 +50,15 @@ export type MusicState = {
   repeat?: 'off' | 'all' | 'one'
   muted?: boolean
   volume?: number
+  duration?: number
+  position?: number
+}
+export type LyricsState = {
+  key: string
+  synced: string | null
+  plain: string | null
+  instrumental: boolean
+  missing?: boolean
 }
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
@@ -69,6 +78,8 @@ export type Snapshot = {
   blockedRequests: number
   music: MusicState
   barVisible: boolean
+  lyricsOpen: boolean
+  lyrics?: LyricsState
 }
 export type Command =
   | { type: 'recover' }
@@ -90,6 +101,7 @@ export type Command =
       action: 'previous' | 'toggle' | 'next' | 'shuffle' | 'repeat' | 'mute'
     }
   | { type: 'bar-toggle' }
+  | { type: 'lyrics' }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
   | { type: 'refresh' }

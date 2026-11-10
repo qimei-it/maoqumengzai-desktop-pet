@@ -30,7 +30,7 @@ import { mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import type {
@@ -39,6 +39,7 @@ import type {
   HitMask,
   LabEvent,
   LocalFile,
+  LyricsState,
   MusicState,
   Rect,
   Result,
@@ -87,6 +88,7 @@ let pocket: BrowserWindow
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
 let eye: BrowserWindow | undefined
+let lyricsWindow: BrowserWindow | undefined
 let volumePopup: BrowserWindow | undefined
 let volumeHideTimer: ReturnType<typeof setTimeout> | undefined
 let lab: BrowserWindow | undefined
@@ -113,6 +115,9 @@ let pointerTimer: ReturnType<typeof setInterval> | undefined
 let musicTimer: ReturnType<typeof setInterval> | undefined
 let music: MusicState = { playing: false }
 let barVisible = true
+let lyricsOpen = false
+let lyrics: LyricsState | undefined
+let lyricsKey: string | undefined
 let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
@@ -192,6 +197,8 @@ function snapshot(): Snapshot {
     blockedRequests,
     music,
     barVisible,
+    lyricsOpen,
+    lyrics,
   }
 }
 function broadcast(): void {
@@ -199,7 +206,16 @@ function broadcast(): void {
   broadcastTimer = setTimeout(() => {
     broadcastTimer = undefined
     const state = snapshot()
-    for (const window of [pet, pocket, lab, notes, pill])
+    for (const window of [
+      pet,
+      pocket,
+      lab,
+      notes,
+      pill,
+      volumePopup,
+      eye,
+      lyricsWindow,
+    ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
   }, 40)
@@ -250,6 +266,26 @@ function syncOverlays(): void {
   updateNotesWindow()
   updatePillWindow()
   updateEyeWindow()
+  updateLyricsWindow()
+}
+function positionLyrics(): void {
+  if (!lyricsWindow || lyricsWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const width = 240
+  const height = 88
+  const x = Math.round(b.x + b.width / 2 - width / 2)
+  const y = b.y - height - 10
+  lyricsWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+}
+function updateLyricsWindow(): void {
+  if (!lyricsWindow || lyricsWindow.isDestroyed()) return
+  if (lyricsOpen && lyrics && music.title && !dropMode) {
+    positionLyrics()
+    lyricsWindow.showInactive()
+    lyricsWindow.moveTop()
+  } else if (lyricsWindow.isVisible()) {
+    lyricsWindow.hide()
+  }
 }
 function positionNotes(): void {
   if (!notes || notes.isDestroyed()) return
@@ -280,7 +316,7 @@ function updatePillWindow(): void {
 }
 function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
-  if (music.playing && !dropMode) {
+  if (music.playing && !dropMode && !lyricsOpen) {
     positionNotes()
     notes.showInactive()
     notes.moveTop()
@@ -478,7 +514,7 @@ const musicScript = `if application "Music" is running then
   tell application "Music"
     set state to player state as text
     if state is "playing" or state is "paused" then
-      return state & linefeed & (name of current track) & linefeed & (artist of current track) & linefeed & (shuffle enabled as text) & linefeed & (song repeat as text)
+      return state & linefeed & (name of current track) & linefeed & (artist of current track) & linefeed & (shuffle enabled as text) & linefeed & (song repeat as text) & linefeed & (duration of current track as text) & linefeed & (player position as text)
     end if
   end tell
 end if
@@ -497,10 +533,20 @@ function applyMusic(next: MusicState): void {
     music.shuffle === next.shuffle &&
     music.repeat === next.repeat &&
     music.muted === next.muted &&
-    music.volume === next.volume
+    music.volume === next.volume &&
+    music.duration === next.duration &&
+    music.position === next.position
   )
     return
   music = next
+  if (!next.title) {
+    lyricsOpen = false
+    lyrics = undefined
+    lyricsKey = undefined
+  } else if (lyricsOpen) {
+    const key = currentTrackKey()
+    if (key && key !== lyricsKey) void loadLyricsFor(key)
+  }
   broadcast()
   syncOverlays()
 }
@@ -535,15 +581,20 @@ function pollMusic(): void {
         artist: undefined as string | undefined,
         shuffle: false,
         repeat: 'off' as 'off' | 'all' | 'one',
+        duration: undefined as number | undefined,
+        position: undefined as number | undefined,
       }
       if (!error) {
-        const [state, title, artist, shuffle, repeat] = stdout.trim().split('\n')
+        const [state, title, artist, shuffle, repeat, duration, position] =
+          stdout.trim().split('\n')
         apple = {
           state,
           title,
           artist,
           shuffle: shuffle === 'true',
           repeat: repeat === 'all' || repeat === 'one' ? repeat : 'off',
+          duration: Number(duration) || undefined,
+          position: Number(position) || undefined,
         }
       }
       readAudio((audio) => {
@@ -559,6 +610,8 @@ function pollMusic(): void {
             repeat: apple.repeat,
             muted,
             volume,
+            duration: apple.duration,
+            position: apple.position,
           })
           return
         }
@@ -579,10 +632,12 @@ function pollMusic(): void {
               repeat: apple.repeat,
               muted,
               volume,
+              duration: apple.duration,
+              position: apple.position,
             })
             return
           }
-          applyMusic({ playing: false, muted, volume })
+          applyMusic({ playing: false, muted, volume, position: 0 })
         })
       })
     },
@@ -599,6 +654,8 @@ function pollSystemMusic(done: (state: MusicState | null) => void): void {
         title?: string
         artist?: string
         rate?: number
+        duration?: number
+        elapsed?: number
       }
       if (!parsed.title) {
         done(null)
@@ -617,6 +674,103 @@ type MusicAction =
   | 'shuffle'
   | 'repeat'
   | 'mute'
+function lyricsDirectory(): string {
+  return join(dataRoot, 'lyrics')
+}
+function currentTrackKey(): string | undefined {
+  if (!music.title) return undefined
+  return `${music.title}|${music.artist ?? ''}|${Math.round(music.duration ?? 0)}`
+}
+async function readCachedLyrics(key: string): Promise<LyricsState | undefined> {
+  try {
+    const file = join(
+      lyricsDirectory(),
+      `${createHash('sha1').update(key).digest('hex')}.json`,
+    )
+    const parsed = JSON.parse(await readFile(file, 'utf8')) as LyricsState
+    return parsed.key === key ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+async function writeCachedLyrics(state: LyricsState): Promise<void> {
+  await mkdir(lyricsDirectory(), { recursive: true })
+  const file = join(
+    lyricsDirectory(),
+    `${createHash('sha1').update(state.key).digest('hex')}.json`,
+  )
+  await writeFile(file, JSON.stringify(state), { mode: 0o600 })
+}
+async function fetchLyrics(key: string): Promise<LyricsState> {
+  const [title, artist, duration] = key.split('|')
+  const params = new URLSearchParams({
+    track_name: title,
+    artist_name: artist,
+  })
+  if (Number(duration) > 0) params.set('duration', duration)
+  const response = await fetch(`https://lrclib.net/api/get?${params}`, {
+    headers: {
+      'User-Agent':
+        'maoqumengzai-desktop/0.0.1 (https://github.com/qimei-it/maoqumengzai-desktop-pet)',
+    },
+    signal: AbortSignal.timeout(5000),
+  })
+  if (response.status === 404) {
+    const missing: LyricsState = {
+      key,
+      synced: null,
+      plain: null,
+      instrumental: false,
+      missing: true,
+    }
+    await writeCachedLyrics(missing)
+    return missing
+  }
+  if (!response.ok) throw new Error('歌词服务暂时不可用。')
+  const data = (await response.json()) as {
+    syncedLyrics?: string | null
+    plainLyrics?: string | null
+    instrumental?: boolean
+  }
+  const result: LyricsState = {
+    key,
+    synced: data.syncedLyrics ?? null,
+    plain: data.plainLyrics ?? null,
+    instrumental: Boolean(data.instrumental),
+  }
+  await writeCachedLyrics(result)
+  return result
+}
+async function loadLyricsFor(key: string): Promise<void> {
+  lyricsKey = key
+  const cached = await readCachedLyrics(key)
+  if (cached) {
+    lyrics = cached
+  } else {
+    try {
+      lyrics = await fetchLyrics(key)
+    } catch {
+      lyrics = undefined
+    }
+  }
+  syncOverlays()
+  broadcast()
+}
+async function toggleLyrics(): Promise<void> {
+  if (lyricsOpen) {
+    lyricsOpen = false
+    syncOverlays()
+    broadcast()
+    return
+  }
+  const key = currentTrackKey()
+  if (!key) return
+  lyricsOpen = true
+  syncOverlays()
+  broadcast()
+  if (lyricsKey === key && lyrics) return
+  await loadLyricsFor(key)
+}
 function setVolume(value: number): void {
   if (process.platform !== 'darwin') return
   const next = Math.min(100, Math.max(0, Math.round(value)))
@@ -984,6 +1138,7 @@ function setupIpc(): void {
       'volume-popup',
       'volume',
       'bar-toggle',
+      'lyrics',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -1108,6 +1263,9 @@ function setupIpc(): void {
         break
       case 'music-control':
         controlMusic(command.action)
+        break
+      case 'lyrics':
+        void toggleLyrics()
         break
       case 'bar-toggle':
         barVisible = !barVisible
@@ -1439,6 +1597,33 @@ async function createWindows(): Promise<void> {
     eye.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     eye.setHiddenInMissionControl(true)
   }
+  lyricsWindow = new BrowserWindow({
+    width: 240,
+    height: 88,
+    title: '毛趣萌仔 · 歌词',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  lyricsWindow.setIgnoreMouseEvents(true)
+  if (process.platform === 'darwin') {
+    lyricsWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+    })
+    lyricsWindow.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1456,7 +1641,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab, notes, pill, volumePopup, eye]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes, pill, volumePopup, eye, lyricsWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1498,6 +1683,7 @@ async function createWindows(): Promise<void> {
     load(pill, 'pill'),
     load(volumePopup, 'volume'),
     load(eye, 'eye'),
+    load(lyricsWindow, 'lyrics'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1622,6 +1808,7 @@ else {
     pill?.destroy()
     volumePopup?.destroy()
     eye?.destroy()
+    lyricsWindow?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()
