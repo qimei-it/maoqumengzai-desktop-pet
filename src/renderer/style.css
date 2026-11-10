@@ -701,3 +701,32 @@ footer button {
   background: var(--color-brand-soft);
   transform: scale(0.96);
 }
+
+/* Vertical volume slider that pops above the control bar. */
+.volume-surface {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-stage);
+}
+.volume-slider {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 132px;
+  height: 22px;
+  margin: 0;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  accent-color: var(--color-brand-ink);
+  cursor: pointer;
+}
+.volume-view,
+.volume-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}

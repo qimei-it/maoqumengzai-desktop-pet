@@ -49,6 +49,7 @@ export type MusicState = {
   shuffle?: boolean
   repeat?: 'off' | 'all' | 'one'
   muted?: boolean
+  volume?: number
 }
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
@@ -87,6 +88,8 @@ export type Command =
       type: 'music-control'
       action: 'previous' | 'toggle' | 'next' | 'shuffle' | 'repeat' | 'mute'
     }
+  | { type: 'volume-popup'; show: boolean }
+  | { type: 'volume'; value: number }
   | { type: 'refresh' }
   | { type: 'open-data' }
   | { type: 'screen-settings' }

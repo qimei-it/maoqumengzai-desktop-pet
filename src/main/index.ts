@@ -86,6 +86,8 @@ let pet: BrowserWindow
 let pocket: BrowserWindow
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
+let volumePopup: BrowserWindow | undefined
+let volumeHideTimer: ReturnType<typeof setTimeout> | undefined
 let lab: BrowserWindow | undefined
 let tray: Tray | undefined
 let scale = 1
@@ -468,7 +470,8 @@ function applyMusic(next: MusicState): void {
     music.source === next.source &&
     music.shuffle === next.shuffle &&
     music.repeat === next.repeat &&
-    music.muted === next.muted
+    music.muted === next.muted &&
+    music.volume === next.volume
   )
     return
   music = next
@@ -476,12 +479,22 @@ function applyMusic(next: MusicState): void {
   updateNotesWindow()
   updatePillWindow()
 }
-function readMuted(done: (muted: boolean) => void): void {
+function readAudio(done: (audio: { muted: boolean; volume?: number }) => void): void {
   execFile(
     '/usr/bin/osascript',
     ['-e', 'get volume settings'],
     { timeout: 1000 },
-    (error, stdout) => done(!error && /output muted:true/.test(stdout)),
+    (error, stdout) => {
+      if (error) {
+        done({ muted: false })
+        return
+      }
+      const volume = Number(/output volume:(\d+)/.exec(stdout)?.[1] ?? NaN)
+      done({
+        muted: /output muted:true/.test(stdout),
+        volume: Number.isFinite(volume) ? volume : undefined,
+      })
+    },
   )
 }
 function pollMusic(): void {
@@ -508,7 +521,8 @@ function pollMusic(): void {
           repeat: repeat === 'all' || repeat === 'one' ? repeat : 'off',
         }
       }
-      readMuted((muted) => {
+      readAudio((audio) => {
+        const { muted, volume } = audio
         if (apple.state === 'playing') {
           musicSource = 'apple'
           applyMusic({
@@ -519,13 +533,14 @@ function pollMusic(): void {
             shuffle: apple.shuffle,
             repeat: apple.repeat,
             muted,
+            volume,
           })
           return
         }
         pollSystemMusic((system) => {
           if (system) {
             musicSource = 'system'
-            applyMusic({ ...system, source: 'system', muted })
+            applyMusic({ ...system, source: 'system', muted, volume })
             return
           }
           if (apple.state === 'paused' && apple.title) {
@@ -538,10 +553,11 @@ function pollMusic(): void {
               shuffle: apple.shuffle,
               repeat: apple.repeat,
               muted,
+              volume,
             })
             return
           }
-          applyMusic({ playing: false, muted })
+          applyMusic({ playing: false, muted, volume })
         })
       })
     },
@@ -576,6 +592,39 @@ type MusicAction =
   | 'shuffle'
   | 'repeat'
   | 'mute'
+function setVolume(value: number): void {
+  if (process.platform !== 'darwin') return
+  const next = Math.min(100, Math.max(0, Math.round(value)))
+  applyMusic({ ...music, volume: next, muted: false })
+  execFile('/usr/bin/osascript', ['-e', `set volume output volume ${next}`], () =>
+    setTimeout(pollMusic, 400),
+  )
+}
+function setVolumePopup(show: boolean): void {
+  if (!volumePopup || volumePopup.isDestroyed()) return
+  if (show) {
+    if (volumeHideTimer) clearTimeout(volumeHideTimer)
+    volumeHideTimer = undefined
+    positionVolumePopup()
+    volumePopup.showInactive()
+    volumePopup.moveTop()
+    return
+  }
+  if (volumeHideTimer) clearTimeout(volumeHideTimer)
+  volumeHideTimer = setTimeout(() => {
+    volumeHideTimer = undefined
+    volumePopup?.hide()
+  }, 320)
+}
+function positionVolumePopup(): void {
+  if (!volumePopup || volumePopup.isDestroyed() || !pill) return
+  const b = pill.getBounds()
+  const width = 44
+  const height = 170
+  const x = Math.round(b.x + b.width - 24 - width / 2)
+  const y = b.y - height + 8
+  volumePopup.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+}
 function controlMusic(action: MusicAction): void {
   if (process.platform !== 'darwin') return
   if (action === 'mute') {
@@ -687,7 +736,11 @@ function authorized(
   const window = BrowserWindow.fromWebContents(event.sender)
   if (
     !window ||
-    (window !== pet && window !== lab && window !== pocket && window !== pill) ||
+    (window !== pet &&
+      window !== lab &&
+      window !== pocket &&
+      window !== pill &&
+      window !== volumePopup) ||
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
@@ -902,6 +955,8 @@ function setupIpc(): void {
       'eat-files',
       'restore-eaten',
       'music-control',
+      'volume-popup',
+      'volume',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -1025,6 +1080,12 @@ function setupIpc(): void {
         break
       case 'music-control':
         controlMusic(command.action)
+        break
+      case 'volume-popup':
+        setVolumePopup(command.show)
+        break
+      case 'volume':
+        setVolume(command.value)
         break
       case 'save-copy': {
         const original = await registeredFile(command.fileId)
@@ -1297,6 +1358,30 @@ async function createWindows(): Promise<void> {
     pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
     pill.setHiddenInMissionControl(true)
   }
+  volumePopup = new BrowserWindow({
+    width: 44,
+    height: 170,
+    title: '毛趣萌仔 · 音量',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin') {
+    volumePopup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    volumePopup.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1314,7 +1399,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab, notes, pill]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes, pill, volumePopup]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1352,6 +1437,7 @@ async function createWindows(): Promise<void> {
     load(pocket, 'pocket'),
     load(notes, 'notes'),
     load(pill, 'pill'),
+    load(volumePopup, 'volume'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1474,6 +1560,7 @@ else {
     if (musicTimer) clearInterval(musicTimer)
     notes?.destroy()
     pill?.destroy()
+    volumePopup?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

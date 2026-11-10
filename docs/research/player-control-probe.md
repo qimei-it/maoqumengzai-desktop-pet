@@ -74,7 +74,7 @@ Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
 
 - Apple Music：AppleScript 可读/写随机播放、列表/单曲循环、系统静音；控制条显示六个按钮
 - QQ 音乐、酷狗、网易云：通过 MediaRemote 只验证了播放/暂停、上一首/下一首和歌曲信息；随机与循环状态不可读，控制条隐藏这两个按钮
-- 音量采用系统静音（`set volume output muted`），与播放器无关，对所有播放器生效
+- 音量采用系统音量与静音（`set volume output volume N` / `set volume output muted`），与播放器无关，对所有播放器生效；控制条上悬停静音按钮弹出竖向滑块
 - 循环按钮按 关闭 → 列表循环 → 单曲循环 循环，单曲时使用 infinity 图标
 
 ## 待验证

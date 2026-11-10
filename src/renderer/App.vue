@@ -42,14 +42,18 @@ const pocketView =
 const notesView =
   new URLSearchParams(location.search).get("view") === "notes";
 const pillView = new URLSearchParams(location.search).get("view") === "pill";
+const volumeView =
+  new URLSearchParams(location.search).get("view") === "volume";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
 document.body.classList.toggle("pill-view", pillView);
+document.body.classList.toggle("volume-view", volumeView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
 if (pillView) document.title = "毛趣萌仔 · 音乐控制";
+if (volumeView) document.title = "毛趣萌仔 · 音量";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -439,6 +443,28 @@ async function musicControl(
 ): Promise<void> {
   await command({ type: "music-control", action });
 }
+function showVolumePopup(show: boolean): void {
+  void command({ type: "volume-popup", show });
+}
+const volume = ref(50);
+let volumeDragging: boolean = false;
+watch(
+  () => state.value?.music.volume,
+  (value) => {
+    if (!volumeDragging && typeof value === "number") volume.value = value;
+  },
+);
+function beginVolumeDrag(): void {
+  volumeDragging = true;
+}
+function endVolumeDrag(): void {
+  volumeDragging = false;
+}
+function onVolumeInput(event: Event): void {
+  const value = Number((event.target as HTMLInputElement).value);
+  volume.value = value;
+  void command({ type: "volume", value });
+}
 function startDrag(event: DragEvent, id: string): void {
   event.preventDefault();
   api?.startDrag(id);
@@ -650,6 +676,8 @@ onUnmounted(() => {
       :class="{ active: state?.music.muted }"
       :aria-label="state?.music.muted ? '取消静音' : '静音'"
       :title="state?.music.muted ? '取消静音' : '静音'"
+      @mouseenter="showVolumePopup(true)"
+      @mouseleave="showVolumePopup(false)"
       @click="musicControl('mute')"
     >
       <VolumeX
@@ -660,6 +688,27 @@ onUnmounted(() => {
       />
       <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
+  </main>
+
+  <main
+    v-else-if="volumeView"
+    class="volume-surface"
+    @mouseenter="showVolumePopup(true)"
+    @mouseleave="showVolumePopup(false)"
+  >
+    <input
+      class="volume-slider"
+      type="range"
+      min="0"
+      max="100"
+      step="1"
+      :value="volume"
+      aria-label="音量"
+      @pointerdown="beginVolumeDrag"
+      @pointerup="endVolumeDrag"
+      @pointercancel="endVolumeDrag"
+      @input="onVolumeInput"
+    />
   </main>
 
   <main v-else-if="notesView" class="notes-surface">
