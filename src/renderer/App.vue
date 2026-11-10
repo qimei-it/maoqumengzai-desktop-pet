@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   Infinity as InfinityIcon,
   Inbox,
+  MessageSquareQuote,
   Pause,
   Play,
   Plus,
@@ -562,7 +563,7 @@ onUnmounted(() => {
         />
         <span
           class="marker-caption"
-          :class="{ hidden: donutOpen || displayPose === 'lifted' }"
+          :class="{ hidden: donutOpen || displayPose === 'lifted' || displayPose === 'music' }"
           :style="{ fontSize: `${10 * markerScale}px` }"
           >{{ petName }}</span
         >
@@ -583,6 +584,23 @@ onUnmounted(() => {
       @click="musicControl('shuffle')"
     >
       <Shuffle :size="17" :stroke-width="2" aria-hidden="true" />
+    </button>
+    <button
+      v-if="state?.music.source === 'apple'"
+      type="button"
+      class="pill-button"
+      :class="{ active: state?.music.repeat !== 'off' }"
+      :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+      :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+      @click="musicControl('repeat')"
+    >
+      <InfinityIcon
+        v-if="state?.music.repeat === 'one'"
+        :size="17"
+        :stroke-width="2"
+        aria-hidden="true"
+      />
+      <Repeat v-else :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
     <button
       type="button"
@@ -618,21 +636,13 @@ onUnmounted(() => {
       <SkipForward :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
     <button
-      v-if="state?.music.source === 'apple'"
       type="button"
       class="pill-button"
-      :class="{ active: state?.music.repeat !== 'off' }"
-      :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-      :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-      @click="musicControl('repeat')"
+      aria-label="歌词"
+      title="歌词待接入"
+      disabled
     >
-      <InfinityIcon
-        v-if="state?.music.repeat === 'one'"
-        :size="17"
-        :stroke-width="2"
-        aria-hidden="true"
-      />
-      <Repeat v-else :size="17" :stroke-width="2" aria-hidden="true" />
+      <MessageSquareQuote :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
     <button
       type="button"

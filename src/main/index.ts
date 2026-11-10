@@ -234,7 +234,7 @@ function positionNotes(): void {
 function positionPill(): void {
   if (!pill || pill.isDestroyed()) return
   const b = pet.getBounds()
-  const width = music.source === 'apple' ? 220 : 148
+  const width = music.source === 'apple' ? 256 : 184
   const height = 40
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + b.height + 6
@@ -1269,10 +1269,12 @@ async function createWindows(): Promise<void> {
     },
   })
   notes.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin')
+  if (process.platform === 'darwin') {
     notes.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    notes.setHiddenInMissionControl(true)
+  }
   pill = new BrowserWindow({
-    width: 220,
+    width: 256,
     height: 40,
     title: '毛趣萌仔 · 音乐控制',
     show: false,
@@ -1291,8 +1293,10 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
+  if (process.platform === 'darwin') {
     pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    pill.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,

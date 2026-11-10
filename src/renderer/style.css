@@ -693,6 +693,10 @@ footer button {
   color: var(--color-brand-ink);
   background: var(--color-brand-soft);
 }
+.pill-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .pill-button:active {
   background: var(--color-brand-soft);
   transform: scale(0.96);
