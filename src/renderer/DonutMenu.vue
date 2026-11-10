@@ -10,7 +10,7 @@ import {
   sliceCornerRadius,
   sliceCount,
   sliceGap,
-  sliceLabels,
+  sliceLabelColumns,
   span,
   wedge,
   type DropAction,
@@ -58,36 +58,33 @@ const wedges = computed(() => {
   const fontSize = 11 * props.scale
   return sliceActions.map((action, index) => {
     const mid = midAngle(index, sliceCount)
-    const label = sliceLabels[action]
-    const chars = Array.from(label)
-    // Ten slices leave too little arc for five glyphs. Stack the glyphs along
-    // the slice's radius instead, then order them for natural reading:
-    // left-to-right on the sides, top-to-bottom at the top and bottom.
-    const radialStep =
-      chars.length <= 1
-        ? 0
-        : Math.min(
-            fontSize * 1.35,
-            (m.thickness - 12) / (chars.length - 1),
-          )
-    const points = chars.map((_, position) => {
-      const radius =
-        m.mid + (position - (chars.length - 1) / 2) * radialStep
-      const point = pointAt(radius, mid)
-      return { x: point.x, y: point.y }
-    })
-    const horizontalReading = Math.abs(Math.cos(mid)) < 0.5
-    points.sort((a, b) =>
-      horizontalReading ? a.x - b.x : a.y - b.y,
-    )
-    const glyphs = points.map((point, position) => ({
-      char: chars[position],
-      x: point.x,
-      y: point.y,
-    }))
+    // Short labels stay in one vertical column. Longer labels use two
+    // horizontal rows split by word (格式 / 转换, 批量 / 重命名).
+    const columns = sliceLabelColumns[action]
+    const lineHeight = fontSize * 1.25
+    const charWidth = fontSize * 1.08
+    const center = pointAt(m.mid, mid)
+    const glyphs =
+      columns.length === 1
+        ? Array.from(columns[0]).map((char, charIndex) => ({
+            char,
+            x: center.x,
+            y:
+              center.y +
+              (charIndex - (columns[0].length - 1) / 2) * lineHeight,
+          }))
+        : columns.flatMap((row, rowIndex) => {
+            const chars = Array.from(row)
+            const width = (chars.length - 1) * charWidth
+            return chars.map((char, charIndex) => ({
+              char,
+              x: center.x - width / 2 + charIndex * charWidth,
+              y: center.y + (rowIndex - (columns.length - 1) / 2) * lineHeight,
+            }))
+          })
     return {
       action,
-      label,
+      label: columns.join(''),
       d: outlinePath(wedge(m.inner, m.outer, mid, step, gap, corner)),
       glyphs,
     }

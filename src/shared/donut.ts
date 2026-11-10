@@ -34,11 +34,28 @@ export const sliceActions = [
   'shrink',
   'eat',
   'copy',
-  'preview',
+  'audio',
   'rename',
   'ask',
 ] as const
 export type DropAction = (typeof sliceActions)[number]
+
+/**
+ * Labels longer than three characters are split into two vertical columns;
+ * short labels stay in one column. The split follows words, not just length.
+ */
+export const sliceLabelColumns: Record<DropAction, string[]> = {
+  stash: ['置物架'],
+  convert: ['格式', '转换'],
+  archive: ['打包', '归档'],
+  extract: ['解压缩'],
+  shrink: ['压缩', '大小'],
+  eat: ['吃掉'],
+  copy: ['另存', '副本'],
+  audio: ['提取', '音频'],
+  rename: ['批量', '重命名'],
+  ask: ['智能', '问答'],
+}
 
 export const sliceLabels: Record<DropAction, string> = {
   stash: '置物架',
@@ -48,7 +65,7 @@ export const sliceLabels: Record<DropAction, string> = {
   shrink: '压缩大小',
   eat: '吃掉',
   copy: '另存副本',
-  preview: '预览',
+  audio: '提取音频',
   rename: '批量重命名',
   ask: '智能问答',
 }

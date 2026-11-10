@@ -347,8 +347,8 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     flash("压缩大小引擎尚未接入。");
     return;
   }
-  if (action === "preview") {
-    flash("预览功能即将接入。");
+  if (action === "audio") {
+    flash("提取音频需要 FFmpeg 引擎，待接入。");
     return;
   }
   if (action === "rename") {
