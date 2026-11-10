@@ -402,14 +402,52 @@ function setPassthrough(enabled: boolean): void {
   pet.setIgnoreMouseEvents(enabled, { forward: true })
   broadcast()
 }
-/** macOS 上读系统“正在播放”，用于切到听歌姿态；其它平台先保持关闭。 */
+/**
+ * macOS 播放状态：Apple Music 走 AppleScript（旧 MediaRemote 读不到它的新接口），
+ * 其它播放器走自带 helper。任何一款在放就切听歌姿态。
+ */
+const musicScript = `if application "Music" is running then
+  tell application "Music"
+    if player state is playing then
+      return "playing|" & (name of current track) & "|" & (artist of current track)
+    end if
+  end tell
+end if
+return "idle"`
 function musicHelperPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'helpers/mqmz-nowplaying')
     : join(app.getAppPath(), 'resources/helpers/mqmz-nowplaying')
 }
+function applyMusic(next: MusicState): void {
+  if (
+    music.playing === next.playing &&
+    music.title === next.title &&
+    music.artist === next.artist
+  )
+    return
+  music = next
+  broadcast()
+}
 function pollMusic(): void {
   if (process.platform !== 'darwin') return
+  execFile(
+    '/usr/bin/osascript',
+    ['-e', musicScript],
+    { timeout: 1500 },
+    (error, stdout) => {
+      if (!error) {
+        const [state, title, artist] = stdout.trim().split('|')
+        if (state === 'playing') {
+          applyMusic({ playing: true, title, artist })
+          return
+        }
+      }
+      pollThirdPartyMusic()
+    },
+  )
+}
+function pollThirdPartyMusic(): void {
   execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
     let next: MusicState = { playing: false }
     if (!error) {
@@ -428,14 +466,7 @@ function pollMusic(): void {
         /* 没有会话或输出不完整时按未播放处理 */
       }
     }
-    if (
-      music.playing === next.playing &&
-      music.title === next.title &&
-      music.artist === next.artist
-    )
-      return
-    music = next
-    broadcast()
+    applyMusic(next)
   })
 }
 function areas(): Rect[] {
