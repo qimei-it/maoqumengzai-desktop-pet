@@ -822,100 +822,44 @@ footer button {
   display: block;
   width: 100%;
   height: 24px;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
-  line-height: 24px;
-  text-align: center;
-}
-.lyrics-copy {
-  position: absolute;
-  inset: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 380ms ease;
+  text-align: center;
+  font-size: var(--font-size-label);
+  line-height: 24px;
+  color: var(--color-muted);
+  transition: color 380ms ease;
 }
-.lyrics-copy.blurred {
-  opacity: 0;
-  filter: blur(3px);
+/* The two side rows fade into the card surface: no dark blur shadow. */
+.lyrics-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lyrics-row.past::after {
+  background: linear-gradient(
+    180deg,
+    var(--color-surface) 0%,
+    var(--color-surface) 38%,
+    transparent 78%,
+    transparent 100%
+  );
+}
+.lyrics-row.future::after {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 22%,
+    var(--color-surface) 62%,
+    var(--color-surface) 100%
+  );
 }
 .lyrics-row.current {
   color: var(--color-brand-ink);
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
-}
-.lyrics-row.current .lyrics-copy.sharp {
-  opacity: 1;
-}
-/* Leaving line: upper half blurs out first, lower half stays readable. */
-.lyrics-row.past .lyrics-copy.sharp {
-  opacity: 0.8;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 28%,
-    var(--color-ink) 55%,
-    var(--color-ink) 100%
-  );
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 28%,
-    var(--color-ink) 55%,
-    var(--color-ink) 100%
-  );
-}
-.lyrics-row.past .lyrics-copy.blurred {
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    var(--color-ink) 0%,
-    var(--color-ink) 45%,
-    transparent 72%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    180deg,
-    var(--color-ink) 0%,
-    var(--color-ink) 45%,
-    transparent 72%,
-    transparent 100%
-  );
-}
-/* Incoming line: upper half is already readable, lower half still blurs in. */
-.lyrics-row.future .lyrics-copy.sharp {
-  opacity: 0.8;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    var(--color-ink) 0%,
-    var(--color-ink) 45%,
-    transparent 72%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    180deg,
-    var(--color-ink) 0%,
-    var(--color-ink) 45%,
-    transparent 72%,
-    transparent 100%
-  );
-}
-.lyrics-row.future .lyrics-copy.blurred {
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 28%,
-    var(--color-ink) 55%,
-    var(--color-ink) 100%
-  );
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 28%,
-    var(--color-ink) 55%,
-    var(--color-ink) 100%
-  );
 }
 .lyrics-measure {
   position: fixed;
@@ -928,7 +872,7 @@ footer button {
   font-weight: var(--font-weight-bold);
 }
 @media (prefers-reduced-motion: reduce) {
-  .lyrics-copy {
+  .lyrics-row {
     transition: none;
   }
 }

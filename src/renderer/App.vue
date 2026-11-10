@@ -909,12 +909,8 @@ onUnmounted(() => {
               past: index < currentLyric.index,
               future: index > currentLyric.index,
             }"
+            >{{ line.text }}</span
           >
-            <span class="lyrics-copy sharp">{{ line.text }}</span>
-            <span class="lyrics-copy blurred" aria-hidden="true">{{
-              line.text
-            }}</span>
-          </span>
         </div>
       </div>
     </template>
@@ -929,12 +925,8 @@ onUnmounted(() => {
             past: index < plainCurrent,
             future: index > plainCurrent,
           }"
+          >{{ line }}</span
         >
-          <span class="lyrics-copy sharp">{{ line }}</span>
-          <span class="lyrics-copy blurred" aria-hidden="true">{{
-            line
-          }}</span>
-        </span>
       </div>
     </template>
     <span v-else class="lyrics-state">暂无歌词</span>
