@@ -17,11 +17,13 @@ extraResources:
   - from: resources/helpers
     to: helpers
 mac:
+  icon: build/icon.icns
   target:
     - target: dmg
       arch: [x64, arm64]
   minimumSystemVersion: '13.0'
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]

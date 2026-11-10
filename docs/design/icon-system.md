@@ -40,6 +40,15 @@
 
 这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–24px，标记为装饰性。
 
+## 应用图标
+
+- 主图保存在 `build/icon-source.png`，为 1024×1024 PNG
+- `npm run generate:app-icons` 生成 `build/icon.icns`、`build/icon.ico` 与运行时 PNG
+- macOS：可见主体缩放到 824×824，居中放在 1024 透明画布，符合 Dock 图标网格
+- Windows：可见主体缩放到 236×236，居中放在 256 画布；ICO 内含 16–256 多尺寸
+- 开发模式在 macOS 激活策略切到 `regular` 后重新调用 `app.dock.setIcon`，避免显示 Electron 默认图标
+- Windows 设置窗口使用 `resources/icons/app-icon-win.png`，打包后的任务栏图标来自 `build/icon.ico`
+
 ## 原生图标与离线分发
 
 Electron 系统托盘/拖出接口使用本地 SVG 导出的 PNG。文件图标取自官方 Vue 组件，托盘取自品牌猫脸，图形路径均保持原样；通过本地 Electron 渲染导出 20/40px 托盘与 32/64px 文件图标，校验尺寸和非透明像素，保存在 `resources/icons/`。构建配置将图标与许可证复制为离线资源；用户安装后无需下载图标或图标字体。

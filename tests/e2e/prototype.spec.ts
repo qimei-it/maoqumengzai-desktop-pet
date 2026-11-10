@@ -154,9 +154,10 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
     });
   await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
   await expect.poll(async () => (await pocketState()).visible).toBe(true);
-  await pocket.evaluate(() =>
+  const closeResult = await pocket.evaluate(() =>
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
+  expect(closeResult.ok, closeResult.ok ? "" : closeResult.error).toBe(true);
   await expect.poll(async () => (await pocketState()).visible).toBe(false);
 });
 

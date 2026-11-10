@@ -136,6 +136,7 @@ let pocketOpenAtPointerDown = false
 // before the pointer-down IPC arrives. Remember the recent hide so the same
 // click does not immediately reopen the panel.
 let pocketHiddenAt = 0
+let pocketRequestedVisible = false
 let pocketBlurTimer: NodeJS.Timeout | undefined
 let pocketDialogOpen = false
 let notes: BrowserWindow | undefined
@@ -655,7 +656,7 @@ function openConvert(fileIds: string[]): void {
         : undefined
   if (askWindow?.isVisible()) askWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
-  if (pocket.isVisible()) pocket.hide()
+  hidePocket()
   if (convertWindow && !convertWindow.isDestroyed()) {
     positionConvert()
     if (process.platform === 'darwin' || convertWindow.isMinimized())
@@ -827,19 +828,27 @@ function positionSettings(): void {
   )
   settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function applyDockIcon(): void {
+  if (process.platform !== 'darwin' || !app.dock) return
+  const icon = nativeImage.createFromPath(iconPath('app-icon.png'))
+  if (!icon.isEmpty()) app.dock.setIcon(icon)
+}
 let settingsDockWasVisible = true
 function setSettingsDock(open: boolean): void {
   if (process.platform !== 'darwin') return
   if (open) {
     settingsDockWasVisible = app.dock?.isVisible() ?? true
     app.setActivationPolicy('regular')
+    // Switching from accessory to regular resets the Dock image, so apply
+    // the runtime icon again after the policy change.
+    applyDockIcon()
   } else if (!settingsDockWasVisible) {
     app.setActivationPolicy('accessory')
   }
 }
 function openSettings(): void {
   setSettingsDock(true)
-  if (pocket?.isVisible()) pocket.hide()
+  hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
@@ -1196,6 +1205,7 @@ function clearPocketBlurTimer(): void {
 }
 function showPocket(): void {
   clearPocketBlurTimer()
+  pocketRequestedVisible = true
   positionPocket()
   if (process.platform === 'darwin' || pocket.isMinimized())
     pocket.restore()
@@ -1206,9 +1216,22 @@ function showPocket(): void {
 }
 function hidePocket(): void {
   clearPocketBlurTimer()
+  pocketRequestedVisible = false
   if (!pocket || pocket.isDestroyed() || !pocket.isVisible()) return
   pocket.hide()
   pocketHiddenAt = Date.now()
+  // macOS can finish a pending show after hide() and make the panel visible
+  // again. Enforce the requested state once the show transition settles.
+  setTimeout(() => {
+    if (
+      !shuttingDown &&
+      !pocketRequestedVisible &&
+      pocket &&
+      !pocket.isDestroyed() &&
+      pocket.isVisible()
+    )
+      pocket.hide()
+  }, 120)
   broadcast()
 }
 /**
@@ -3125,6 +3148,7 @@ async function createWindows(): Promise<void> {
     width: 640,
     height: 540,
     title: '毛趣萌仔 · 设置',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
     show: false,
     frame: false,
@@ -3373,6 +3397,7 @@ else {
       scale = settings.scale
       if (app.isPackaged)
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
+      applyDockIcon()
       aiKey = await loadStoredKey()
       await createWindows()
     })
