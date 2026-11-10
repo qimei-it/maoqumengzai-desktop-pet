@@ -10,6 +10,7 @@ import type {
 import {
   actionAt,
   conversionTargets,
+  donutWindowSize,
   petSprite,
   type DropAction,
 } from "../shared/donut";
@@ -46,6 +47,7 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
 let acceptSlicesAfter = 0;
 let closeToken = 0;
+let donutOpening = false;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -119,15 +121,43 @@ function trackHover(event: DragEvent): void {
   armWatchdog();
   donutActive.value = regionAt(dragPoint.x, dragPoint.y);
 }
+/** Wait until the viewport has the wheel-sized window, so the ring is never clipped. */
+function viewportReady(width: number): Promise<void> {
+  return new Promise((resolve) => {
+    const startedAt = performance.now();
+    const check = () => {
+      if (window.innerWidth >= width - 1 || performance.now() - startedAt > 160)
+        resolve();
+      else requestAnimationFrame(check);
+    };
+    check();
+  });
+}
 async function openDonut(): Promise<void> {
   // A new drag may arrive while the previous wheel is fading out.
   closeToken += 1;
+  if (donutOpening) return;
   if (donutOpen.value && !donutClosing.value) return;
+  donutOpening = true;
+  try {
+    await openDonutSurface();
+  } finally {
+    donutOpening = false;
+  }
+}
+async function openDonutSurface(): Promise<void> {
+  // The window is invisible: resize it first, then mount the ring so no slice
+  // is ever drawn outside the window while it changes size.
+  await command({ type: "wheel", open: true });
+  await viewportReady(donutWindowSize(markerScale.value).width);
+  if (!dragOver.value) {
+    await command({ type: "wheel", open: false });
+    return;
+  }
   acceptSlicesAfter = performance.now() + 260;
   donutOpen.value = true;
   donutClosing.value = false;
   donutActive.value = null;
-  await command({ type: "wheel", open: true });
 }
 async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
@@ -135,7 +165,7 @@ async function closeDonut(send = true): Promise<void> {
   const token = ++closeToken;
   donutClosing.value = true;
   donutActive.value = null;
-  await new Promise((resolve) => setTimeout(resolve, 150));
+  await new Promise((resolve) => setTimeout(resolve, 200));
   if (token !== closeToken) return
   donutOpen.value = false;
   donutClosing.value = false;

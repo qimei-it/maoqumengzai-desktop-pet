@@ -1,7 +1,7 @@
 /**
- * Minimal damped-spring integrator shared by the window tween and the ring
- * motion. Values are integrated with semi-implicit Euler on sub-steps so a
- * dropped frame cannot make the animation explode.
+ * Minimal damped-spring integrator for the slice hover motion. Values are
+ * integrated with semi-implicit Euler on sub-steps so a dropped frame cannot
+ * make the animation explode.
  */
 export interface SpringConfig {
   /** Higher pulls faster toward the target. */
@@ -14,12 +14,6 @@ export interface SpringConfig {
 export interface SpringChannel {
   value: number
   velocity: number
-}
-
-export const windowSpring: SpringConfig = {
-  stiffness: 380,
-  damping: 39,
-  mass: 1,
 }
 
 export function createChannel(value = 0): SpringChannel {

@@ -49,12 +49,6 @@ import {
 } from '../shared/geometry'
 import { basePetSize, donutWindowSize } from '../shared/donut'
 import {
-  createChannel,
-  isSettled,
-  stepSpring,
-  windowSpring,
-} from '../shared/spring'
-import {
   captureIdSchema,
   commandSchema,
   fileIdSchema,
@@ -110,7 +104,6 @@ let drag:
 let broadcastTimer: ReturnType<typeof setTimeout> | undefined
 let pointerTimer: ReturnType<typeof setInterval> | undefined
 let persistQueue = Promise.resolve()
-let boundsTween: ReturnType<typeof setInterval> | undefined
 const events: LabEvent[] = []
 const files = new Map<
   string,
@@ -229,22 +222,18 @@ function showPocket(): void {
   broadcast()
 }
 /**
- * Grow the transparent window symmetrically around the pet so the wheel is
- * never clipped. The flex layout keeps the sprite on the same screen point
- * unless the window has to be clamped at a work-area edge.
+ * Grow the transparent window symmetrically around the pet before the ring is
+ * mounted. The window is invisible, so the swap is a single step: animating it
+ * while the ring is drawn would clip the slices at the window edge.
  */
 function openWheelWindow(): void {
   if (wheelOpen) return
-  // A close tween may still be shrinking the window; finish it so the pet
-  // bounds captured as the resting size stay exact instead of drifting a
-  // pixel per interrupted frame.
-  settleBounds()
   baseBounds = pet.getBounds()
   wheelOpen = true
   const size = donutWindowSize(scale)
   const width = Math.max(baseBounds.width, size.width)
   const height = Math.max(baseBounds.height, size.height)
-  animateBounds(
+  placePet(
     fitToDisplays(
       {
         x: baseBounds.x - Math.round((width - baseBounds.width) / 2),
@@ -265,7 +254,7 @@ function closeWheelWindow(): void {
   const target = baseBounds
     ? fitToDisplays(baseBounds, areas())
     : pet.getBounds()
-  animateBounds(target)
+  placePet(target)
   baseBounds = undefined
   mask = undefined
   setPassthrough(false)
@@ -411,67 +400,9 @@ function setPassthrough(enabled: boolean): void {
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)
 }
-let boundsTarget: Rect | undefined
-
-/** Place the pet at once; any in-flight spring would fight the new bounds. */
+/** Place the pet at once. */
 function placePet(bounds: Rect): void {
-  if (boundsTween) clearInterval(boundsTween)
-  boundsTween = undefined
-  boundsTarget = undefined
   if (!pet.isDestroyed()) pet.setBounds(bounds)
-}
-function settleBounds(): void {
-  if (boundsTween) clearInterval(boundsTween)
-  boundsTween = undefined
-  if (!boundsTarget) return
-  if (!pet.isDestroyed()) pet.setBounds(boundsTarget)
-  boundsTarget = undefined
-}
-function animateBounds(target: Rect): void {
-  if (boundsTween) clearInterval(boundsTween)
-  boundsTarget = target
-  const start = pet.getBounds()
-  const channels = {
-    x: createChannel(start.x),
-    y: createChannel(start.y),
-    width: createChannel(start.width),
-    height: createChannel(start.height),
-  }
-  let lastFrame = Date.now()
-  const stop = () => {
-    if (boundsTween) clearInterval(boundsTween)
-    boundsTween = undefined
-    boundsTarget = undefined
-  }
-  boundsTween = setInterval(() => {
-    if (pet.isDestroyed()) {
-      stop()
-      return
-    }
-    const now = Date.now()
-    const delta = (now - lastFrame) / 1000
-    lastFrame = now
-    channels.x = stepSpring(channels.x, target.x, windowSpring, delta)
-    channels.y = stepSpring(channels.y, target.y, windowSpring, delta)
-    channels.width = stepSpring(channels.width, target.width, windowSpring, delta)
-    channels.height = stepSpring(channels.height, target.height, windowSpring, delta)
-    const settled =
-      isSettled(channels.x, target.x) &&
-      isSettled(channels.y, target.y) &&
-      isSettled(channels.width, target.width) &&
-      isSettled(channels.height, target.height)
-    pet.setBounds(
-      settled
-        ? target
-        : {
-            x: Math.round(channels.x.value),
-            y: Math.round(channels.y.value),
-            width: Math.round(channels.width.value),
-            height: Math.round(channels.height.value),
-          },
-    )
-    if (settled) stop()
-  }, 16)
 }
 function persist(bounds = wheelOpen && baseBounds ? baseBounds : pet.getBounds()): void {
   const value = JSON.stringify({ version: 1, scale, bounds })
@@ -1259,7 +1190,6 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
-    if (boundsTween) clearInterval(boundsTween)
     if (pointerTimer) clearInterval(pointerTimer)
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()

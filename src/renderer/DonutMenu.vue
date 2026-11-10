@@ -27,10 +27,11 @@ const props = defineProps<{
 /** Filee's spring: 320/20 pops out with a small bounce, 36 settles without one. */
 const popSpring = { stiffness: 320, damping: 20, mass: 1 }
 const settleSpring = { stiffness: 320, damping: 36, mass: 1 }
-/** Filee's open wave: 300ms with a 12ms stagger per slice, capped at 72ms. */
-const openDuration = 0.3
-const openStagger = 0.012
-const closeDuration = 0.14
+/** Clockwise petal wave: each slice follows the previous one. */
+const openDuration = 0.26
+const openStagger = 0.016
+const closeDuration = 0.12
+const closeStagger = 0.016
 
 const reducedMotion =
   typeof window !== 'undefined' &&
@@ -84,10 +85,8 @@ let lastFrame = 0
 let closeStartedAt = 0
 const openAtClose = new Array(sliceCount).fill(1)
 
-function easeOutBack(t: number): number {
-  const c1 = 0.8
-  const c3 = c1 + 1
-  return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3
 }
 
 function easeInCubic(t: number): number {
@@ -106,15 +105,22 @@ function tick(now: number): void {
 
   let busy = false
   if (props.closing) {
-    const progress = clamp((clock - closeStartedAt) / closeDuration, 0, 1)
-    open.value = openAtClose.map((value) => value * (1 - easeInCubic(progress)))
-    busy = progress < 1
+    open.value = openAtClose.map((value, index) => {
+      const delay = index * closeStagger
+      const progress = clamp(
+        (clock - closeStartedAt - delay) / closeDuration,
+        0,
+        1,
+      )
+      if (progress < 1) busy = true
+      return value * (1 - easeInCubic(progress))
+    })
   } else {
     open.value = open.value.map((_, index) => {
-      const delay = Math.min(index * openStagger, 0.072)
+      const delay = Math.min(index * openStagger, 0.064)
       const progress = clamp((clock - delay) / openDuration, 0, 1)
       if (progress < 1) busy = true
-      return easeOutBack(progress)
+      return easeOutCubic(progress)
     })
   }
 
@@ -173,10 +179,8 @@ function sliceTransform(index: number): string {
   )
   const scale =
     (0.78 + 0.22 * open.value[index]) * (1 + hover.value[index] * 0.025)
-  const rotate = ((1 - Math.min(open.value[index], 1)) * -0.12 * 180) / Math.PI
   return [
     `translate(${offset.x.toFixed(2)} ${offset.y.toFixed(2)})`,
-    `rotate(${rotate.toFixed(3)})`,
     `scale(${scale.toFixed(4)})`,
   ].join(' ')
 }
