@@ -1114,7 +1114,7 @@ function schedulePocketBlurHide(): void {
  * while the ring is drawn would clip the slices at the window edge.
  */
 function openWheelWindow(): void {
-  if (wheelOpen) return
+  if (shuttingDown || wheelOpen || pet.isDestroyed()) return
   baseBounds = pet.getBounds()
   wheelOpen = true
   const size = donutWindowSize(scale)
@@ -1136,7 +1136,7 @@ function openWheelWindow(): void {
   broadcast()
 }
 function closeWheelWindow(): void {
-  if (!wheelOpen) return
+  if (shuttingDown || !wheelOpen || pet.isDestroyed()) return
   wheelOpen = false
   const target = baseBounds
     ? fitToDisplays(baseBounds, areas())
@@ -2155,6 +2155,7 @@ function setupIpc(): void {
   })
   handle(channels.command, 'either', async (event, payload) => {
     const command = commandSchema.parse(payload)
+    if (shuttingDown) return snapshot()
     const sharedActions = [
       'show-pocket',
       'hide-pocket',
@@ -2473,7 +2474,7 @@ function setupIpc(): void {
         app.quit()
         break
     }
-    if (pocket.isVisible()) positionPocket()
+    if (windowVisible(pocket)) positionPocket()
     broadcast()
     return snapshot()
   })
@@ -2981,30 +2982,32 @@ async function createWindows(): Promise<void> {
     }
   })
   pet.on('move', () => {
+    if (shuttingDown || pet.isDestroyed()) return
     broadcast()
-    if (pocket.isVisible()) positionPocket()
-    if (notes?.isVisible()) positionNotes()
-    if (pill?.isVisible()) positionPill()
-    if (eye?.isVisible()) positionEye()
-    if (lyricsWindow?.isVisible()) positionLyrics()
-    if (bubbleWindow?.isVisible()) positionBubble()
-    if (volumePopup?.isVisible()) positionVolumePopup()
-    if (askWindow?.isVisible()) positionAsk()
-    if (convertWindow?.isVisible()) positionConvert()
-    if (renameWindow?.isVisible()) positionRename()
-    if (toastWindow?.isVisible()) positionToast()
+    if (windowVisible(pocket)) positionPocket()
+    if (windowVisible(notes)) positionNotes()
+    if (windowVisible(pill)) positionPill()
+    if (windowVisible(eye)) positionEye()
+    if (windowVisible(lyricsWindow)) positionLyrics()
+    if (windowVisible(bubbleWindow)) positionBubble()
+    if (windowVisible(volumePopup)) positionVolumePopup()
+    if (windowVisible(askWindow)) positionAsk()
+    if (windowVisible(convertWindow)) positionConvert()
+    if (windowVisible(renameWindow)) positionRename()
+    if (windowVisible(toastWindow)) positionToast()
   })
   pet.on('resize', () => {
-    if (notes?.isVisible()) positionNotes()
-    if (pill?.isVisible()) positionPill()
-    if (eye?.isVisible()) positionEye()
-    if (lyricsWindow?.isVisible()) positionLyrics()
-    if (bubbleWindow?.isVisible()) positionBubble()
-    if (volumePopup?.isVisible()) positionVolumePopup()
-    if (askWindow?.isVisible()) positionAsk()
-    if (convertWindow?.isVisible()) positionConvert()
-    if (renameWindow?.isVisible()) positionRename()
-    if (toastWindow?.isVisible()) positionToast()
+    if (shuttingDown || pet.isDestroyed()) return
+    if (windowVisible(notes)) positionNotes()
+    if (windowVisible(pill)) positionPill()
+    if (windowVisible(eye)) positionEye()
+    if (windowVisible(lyricsWindow)) positionLyrics()
+    if (windowVisible(bubbleWindow)) positionBubble()
+    if (windowVisible(volumePopup)) positionVolumePopup()
+    if (windowVisible(askWindow)) positionAsk()
+    if (windowVisible(convertWindow)) positionConvert()
+    if (windowVisible(renameWindow)) positionRename()
+    if (windowVisible(toastWindow)) positionToast()
   })
   await restoreShelf()
   await restoreBelly()

@@ -1385,6 +1385,34 @@ test("an explicit preview request captures actual screens when permission is alr
   expect(runtimeErrors).toEqual([]);
 });
 
+test("closing the wheel after a helper window is destroyed does not throw", async () => {
+  await application.evaluate(() => {
+    const store = globalThis as unknown as { mqmzUncaught?: string[] };
+    store.mqmzUncaught = [];
+    process.on("uncaughtException", (error) => {
+      store.mqmzUncaught!.push(String(error));
+    });
+  });
+  await pet.evaluate(() => window.mqmz!.command({ type: "wheel", open: true }));
+  await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle().includes("文件转换"))!
+      .destroy(),
+  );
+  const result = await pet.evaluate(() =>
+    window.mqmz!.command({ type: "wheel", open: false }),
+  );
+  expect(result.ok).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const errors = await application.evaluate(
+    () =>
+      (
+        globalThis as unknown as { mqmzUncaught?: string[] }
+      ).mqmzUncaught ?? [],
+  );
+  expect(errors).toEqual([]);
+});
+
 test("receiving persists a local index across restart and removing the card preserves the original", async () => {
   const fixture = join(directory, "重启后仍保留.txt");
   await writeFile(fixture, "persistent-original");
