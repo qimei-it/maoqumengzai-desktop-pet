@@ -456,6 +456,9 @@ function showVolumePopup(show: boolean): void {
   void command({ type: "volume-popup", show });
 }
 const volume = ref(50);
+const volumeDisplay = computed(() =>
+  state.value?.music.muted && !volumeDragging ? 0 : volume.value,
+);
 let volumeDragging: boolean = false;
 watch(
   () => state.value?.music.volume,
@@ -814,7 +817,7 @@ onUnmounted(() => {
       min="0"
       max="100"
       step="1"
-      :value="volume"
+      :value="volumeDisplay"
       aria-label="音量"
       @pointerdown="beginVolumeDrag"
       @pointerup="endVolumeDrag"

@@ -115,6 +115,7 @@ let pointerTimer: ReturnType<typeof setInterval> | undefined
 let musicTimer: ReturnType<typeof setInterval> | undefined
 let music: MusicState = { playing: false }
 let barVisible = true
+let volumeBeforeMute = 50
 let lyricsOpen = false
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
@@ -778,9 +779,12 @@ async function toggleLyrics(): Promise<void> {
 function setVolume(value: number): void {
   if (process.platform !== 'darwin') return
   const next = Math.min(100, Math.max(0, Math.round(value)))
+  volumeBeforeMute = next > 0 ? next : volumeBeforeMute
   applyMusic({ ...music, volume: next, muted: false })
-  execFile('/usr/bin/osascript', ['-e', `set volume output volume ${next}`], () =>
-    setTimeout(pollMusic, 400),
+  execFile(
+    '/usr/bin/osascript',
+    ['-e', `set volume output volume ${next}\nset volume output muted false`],
+    () => setTimeout(pollMusic, 400),
   )
 }
 function setVolumePopup(show: boolean): void {
@@ -811,12 +815,23 @@ function positionVolumePopup(): void {
 function controlMusic(action: MusicAction): void {
   if (process.platform !== 'darwin') return
   if (action === 'mute') {
-    applyMusic({ ...music, muted: !music.muted })
-    execFile(
-      '/usr/bin/osascript',
-      ['-e', 'set volume output muted not (output muted of (get volume settings))'],
-      () => setTimeout(pollMusic, 700),
-    )
+    if (music.muted) {
+      const restore = volumeBeforeMute > 0 ? volumeBeforeMute : 50
+      applyMusic({ ...music, muted: false, volume: restore })
+      execFile(
+        '/usr/bin/osascript',
+        ['-e', `set volume output volume ${restore}\nset volume output muted false`],
+        () => setTimeout(pollMusic, 500),
+      )
+    } else {
+      if ((music.volume ?? 0) > 0) volumeBeforeMute = music.volume!
+      applyMusic({ ...music, muted: true, volume: 0 })
+      execFile(
+        '/usr/bin/osascript',
+        ['-e', 'set volume output muted true'],
+        () => setTimeout(pollMusic, 500),
+      )
+    }
     return
   }
   if ((action === 'shuffle' || action === 'repeat') && music.source !== 'apple')
