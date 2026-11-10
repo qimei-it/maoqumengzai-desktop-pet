@@ -49,6 +49,8 @@ const volumeView =
 const eyeView = new URLSearchParams(location.search).get("view") === "eye";
 const lyricsView =
   new URLSearchParams(location.search).get("view") === "lyrics";
+const bubbleView =
+  new URLSearchParams(location.search).get("view") === "bubble";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -56,6 +58,7 @@ document.body.classList.toggle("pill-view", pillView);
 document.body.classList.toggle("volume-view", volumeView);
 document.body.classList.toggle("eye-view", eyeView);
 document.body.classList.toggle("lyrics-view", lyricsView);
+document.body.classList.toggle("bubble-view", bubbleView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -63,6 +66,7 @@ if (pillView) document.title = "毛趣萌仔 · 音乐控制";
 if (volumeView) document.title = "毛趣萌仔 · 音量";
 if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
 if (lyricsView) document.title = "毛趣萌仔 · 歌词";
+if (bubbleView) document.title = "毛趣萌仔 · 气泡";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -768,6 +772,16 @@ onUnmounted(() => {
       />
       <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
     </button>
+  </main>
+
+  <main
+    v-else-if="bubbleView"
+    :key="state?.bubble?.text"
+    class="bubble-surface"
+  >
+    <div class="bubble-body">
+      <span class="bubble-text">{{ state?.bubble?.text }}</span>
+    </div>
   </main>
 
   <main v-else-if="lyricsView" class="lyrics-surface">

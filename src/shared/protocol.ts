@@ -52,6 +52,8 @@ export type MusicState = {
   volume?: number
   duration?: number
   position?: number
+  album?: string
+  genre?: string
 }
 export type LyricsState = {
   key: string
@@ -59,6 +61,10 @@ export type LyricsState = {
   plain: string | null
   instrumental: boolean
   missing?: boolean
+}
+export type BubbleState = {
+  text: string
+  mood: string
 }
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
@@ -80,6 +86,7 @@ export type Snapshot = {
   barVisible: boolean
   lyricsOpen: boolean
   lyrics?: LyricsState
+  bubble?: BubbleState
 }
 export type Command =
   | { type: 'recover' }

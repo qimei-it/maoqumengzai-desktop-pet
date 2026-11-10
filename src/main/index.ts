@@ -33,6 +33,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
+import {
+  bubbleCategories,
+  detectMood,
+  pickBubble,
+  type BubbleCategory,
+  type BubbleTrack,
+  type MusicMood,
+} from '../shared/music-bubbles'
 import type {
   BellyEntry,
   CapturePreview,
@@ -119,6 +127,20 @@ let volumeBeforeMute = 50
 let lyricsOpen = false
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
+let bubbleWindow: BrowserWindow | undefined
+let bubbleText: string | undefined
+let bubbleMood: MusicMood = 'generic'
+let bubbleHideTimer: ReturnType<typeof setTimeout> | undefined
+let bubbleTickTimer: ReturnType<typeof setInterval> | undefined
+let bubbleTrackKey: string | undefined
+let bubbleStep = 0
+let bubbleElapsed = 0
+let bubbleLastTick = 0
+let bubbleUsed = new Set<string>()
+let bubbleUsedCategories = new Set<BubbleCategory>()
+let bubbleRecent: string[] = []
+let bubbleLyrics: LyricsState | undefined
+let bubbleLyricsKey: string | undefined
 let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
@@ -200,6 +222,7 @@ function snapshot(): Snapshot {
     barVisible,
     lyricsOpen,
     lyrics,
+    ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
   }
 }
 function broadcast(): void {
@@ -216,6 +239,7 @@ function broadcast(): void {
       volumePopup,
       eye,
       lyricsWindow,
+      bubbleWindow,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -272,6 +296,7 @@ function syncOverlays(): void {
   updatePillWindow()
   updateEyeWindow()
   updateLyricsWindow()
+  updateBubbleWindow()
 }
 function positionLyrics(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
@@ -290,6 +315,25 @@ function updateLyricsWindow(): void {
     lyricsWindow.moveTop()
   } else if (lyricsWindow.isVisible()) {
     lyricsWindow.hide()
+  }
+}
+function positionBubble(): void {
+  if (!bubbleWindow || bubbleWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const width = 248
+  const height = 104
+  const x = Math.round(b.x + b.width / 2 - width / 2)
+  const y = b.y + Math.round(9 * scale) - 6 - height
+  bubbleWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+}
+function updateBubbleWindow(): void {
+  if (!bubbleWindow || bubbleWindow.isDestroyed()) return
+  if (bubbleText && !dropMode && barVisible && !lyricsOpen) {
+    positionBubble()
+    bubbleWindow.showInactive()
+    bubbleWindow.moveTop()
+  } else if (bubbleWindow.isVisible()) {
+    bubbleWindow.hide()
   }
 }
 function positionNotes(): void {
@@ -321,7 +365,7 @@ function updatePillWindow(): void {
 }
 function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
-  if (music.playing && !dropMode && !lyricsOpen) {
+  if (music.playing && !dropMode && !lyricsOpen && !bubbleText) {
     positionNotes()
     notes.showInactive()
     notes.moveTop()
@@ -519,7 +563,7 @@ const musicScript = `if application "Music" is running then
   tell application "Music"
     set state to player state as text
     if state is "playing" or state is "paused" then
-      return state & linefeed & (name of current track) & linefeed & (artist of current track) & linefeed & (shuffle enabled as text) & linefeed & (song repeat as text) & linefeed & (duration of current track as text) & linefeed & (player position as text)
+      return state & linefeed & (name of current track) & linefeed & (artist of current track) & linefeed & (shuffle enabled as text) & linefeed & (song repeat as text) & linefeed & (duration of current track as text) & linefeed & (player position as text) & linefeed & (genre of current track as text) & linefeed & (album of current track as text)
     end if
   end tell
 end if
@@ -540,10 +584,18 @@ function applyMusic(next: MusicState): void {
     music.muted === next.muted &&
     music.volume === next.volume &&
     music.duration === next.duration &&
-    music.position === next.position
+    music.position === next.position &&
+    music.album === next.album &&
+    music.genre === next.genre
   )
     return
+  const previousKey = currentBubbleKey()
   music = next
+  const nextKey = currentBubbleKey()
+  if (previousKey !== nextKey) {
+    hideBubble()
+    resetBubbleTrack()
+  }
   if (!next.title) {
     lyricsOpen = false
     lyrics = undefined
@@ -588,10 +640,23 @@ function pollMusic(): void {
         repeat: 'off' as 'off' | 'all' | 'one',
         duration: undefined as number | undefined,
         position: undefined as number | undefined,
+        genre: undefined as string | undefined,
+        album: undefined as string | undefined,
       }
       if (!error) {
-        const [state, title, artist, shuffle, repeat, duration, position] =
-          stdout.trim().split('\n')
+        const [
+          state,
+          title,
+          artist,
+          shuffle,
+          repeat,
+          duration,
+          position,
+          genre,
+          album,
+        ] = stdout.trim().split('\n')
+        const clean = (value: string | undefined) =>
+          !value || value === 'missing value' ? undefined : value
         apple = {
           state,
           title,
@@ -600,6 +665,8 @@ function pollMusic(): void {
           repeat: repeat === 'all' || repeat === 'one' ? repeat : 'off',
           duration: Number(duration) || undefined,
           position: Number(position) || undefined,
+          genre: clean(genre),
+          album: clean(album),
         }
       }
       readAudio((audio) => {
@@ -617,6 +684,8 @@ function pollMusic(): void {
             volume,
             duration: apple.duration,
             position: apple.position,
+            album: apple.album,
+            genre: apple.genre,
           })
           return
         }
@@ -639,6 +708,8 @@ function pollMusic(): void {
               volume,
               duration: apple.duration,
               position: apple.position,
+              album: apple.album,
+              genre: apple.genre,
             })
             return
           }
@@ -666,7 +737,13 @@ function pollSystemMusic(done: (state: MusicState | null) => void): void {
         done(null)
         return
       }
-      done({ playing: parsed.rate === 1, title: parsed.title, artist: parsed.artist })
+      done({
+        playing: parsed.rate === 1,
+        title: parsed.title,
+        artist: parsed.artist,
+        duration: parsed.duration,
+        position: parsed.elapsed,
+      })
     } catch {
       done(null)
     }
@@ -685,6 +762,122 @@ function lyricsDirectory(): string {
 function currentTrackKey(): string | undefined {
   if (!music.title) return undefined
   return `${music.title}|${music.artist ?? ''}|${Math.round(music.duration ?? 0)}`
+}
+function currentBubbleKey(): string | undefined {
+  if (!music.title) return undefined
+  return `${music.title}|${music.artist ?? ''}`
+}
+function bubbleThresholds(): number[] {
+  if (music.duration && music.duration > 0)
+    return [0.2, 0.55, 0.85].map((fraction) => music.duration! * fraction)
+  return [40, 120, 210]
+}
+function bubbleBlocked(): boolean {
+  return dropMode || lyricsOpen || !barVisible || Boolean(drag?.moving)
+}
+async function loadBubbleLyrics(key: string): Promise<void> {
+  bubbleLyricsKey = key
+  const cached = await readCachedLyrics(key)
+  if (cached) {
+    if (bubbleLyricsKey === key) bubbleLyrics = cached
+    return
+  }
+  try {
+    const fetched = await fetchLyrics(key)
+    if (bubbleLyricsKey === key) bubbleLyrics = fetched
+  } catch {
+    /* bubbles fall back to title/artist copy */
+  }
+}
+function resetBubbleTrack(): void {
+  bubbleTrackKey = currentBubbleKey()
+  bubbleStep = 0
+  bubbleUsed = new Set<string>()
+  bubbleUsedCategories = new Set<BubbleCategory>()
+  bubbleLyrics = undefined
+  bubbleLyricsKey = undefined
+  bubbleElapsed = Math.max(0, music.position ?? 0)
+  if (!bubbleTrackKey) {
+    bubbleElapsed = 0
+    return
+  }
+  const thresholds = bubbleThresholds()
+  bubbleStep = thresholds.filter((threshold) => bubbleElapsed >= threshold).length
+  const key = currentTrackKey()
+  if (key) void loadBubbleLyrics(key)
+}
+function hideBubble(): void {
+  if (bubbleHideTimer) {
+    clearTimeout(bubbleHideTimer)
+    bubbleHideTimer = undefined
+  }
+  if (!bubbleText) return
+  bubbleText = undefined
+  syncOverlays()
+  broadcast()
+}
+function showBubble(): void {
+  if (!music.title || bubbleText) return
+  const track: BubbleTrack = {
+    title: music.title,
+    artist: music.artist,
+    album: music.album,
+    genre: music.genre,
+    lyrics: bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined,
+    instrumental: bubbleLyrics?.instrumental,
+  }
+  const mood = detectMood(track)
+  const hasLyric = Boolean(track.lyrics) && !track.instrumental
+  const categories = bubbleCategories(track, hasLyric)
+  const unused = categories.filter(
+    (category) => !bubbleUsedCategories.has(category),
+  )
+  const draft = pickBubble(
+    track,
+    mood,
+    unused.length ? unused : categories,
+    bubbleUsed,
+    bubbleRecent,
+  )
+  if (!draft) return
+  bubbleStep += 1
+  bubbleUsedCategories.add(draft.category)
+  bubbleText = draft.text
+  bubbleMood = mood
+  bubbleRecent = [...bubbleRecent, draft.text].slice(-12)
+  if (bubbleHideTimer) clearTimeout(bubbleHideTimer)
+  bubbleHideTimer = setTimeout(hideBubble, 5200)
+  syncOverlays()
+  broadcast()
+}
+function bubbleTick(): void {
+  const now = Date.now()
+  const delta = bubbleLastTick
+    ? Math.min(Math.max((now - bubbleLastTick) / 1000, 0), 3)
+    : 0
+  bubbleLastTick = now
+  const key = currentBubbleKey()
+  if (!key) {
+    if (bubbleTrackKey) resetBubbleTrack()
+    return
+  }
+  if (key !== bubbleTrackKey) resetBubbleTrack()
+  if (!music.playing || bubbleText) return
+  if (
+    typeof music.position === 'number' &&
+    bubbleElapsed > 10 &&
+    music.position + 10 < bubbleElapsed
+  ) {
+    // Repeat-one or a manual restart: treat it as a fresh play of the song.
+    resetBubbleTrack()
+    return
+  }
+  if (typeof music.position === 'number' && music.position > bubbleElapsed)
+    bubbleElapsed = music.position
+  else bubbleElapsed += delta
+  if (bubbleBlocked()) return
+  const threshold = bubbleThresholds()[bubbleStep]
+  if (threshold !== undefined && bubbleElapsed >= threshold) showBubble()
 }
 async function readCachedLyrics(key: string): Promise<LyricsState | undefined> {
   try {
@@ -1643,6 +1836,31 @@ async function createWindows(): Promise<void> {
     })
     lyricsWindow.setHiddenInMissionControl(true)
   }
+  bubbleWindow = new BrowserWindow({
+    width: 248,
+    height: 104,
+    title: '毛趣萌仔 · 气泡',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  bubbleWindow.setIgnoreMouseEvents(true)
+  if (process.platform === 'darwin') {
+    bubbleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    bubbleWindow.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1660,7 +1878,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab, notes, pill, volumePopup, eye, lyricsWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1703,6 +1921,7 @@ async function createWindows(): Promise<void> {
     load(volumePopup, 'volume'),
     load(eye, 'eye'),
     load(lyricsWindow, 'lyrics'),
+    load(bubbleWindow, 'bubble'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1747,6 +1966,8 @@ async function createWindows(): Promise<void> {
   // slower tick reads as a low frame rate.
   pollMusic()
   musicTimer = setInterval(pollMusic, 2500)
+  bubbleLastTick = Date.now()
+  bubbleTickTimer = setInterval(bubbleTick, 1000)
   pointerTimer = setInterval(() => {
     if (pet.isDestroyed() || shuttingDown) return
     const cursor = screen.getCursorScreenPoint()
@@ -1823,11 +2044,13 @@ else {
     shuttingDown = true
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
+    if (bubbleTickTimer) clearInterval(bubbleTickTimer)
     notes?.destroy()
     pill?.destroy()
     volumePopup?.destroy()
     eye?.destroy()
     lyricsWindow?.destroy()
+    bubbleWindow?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()
