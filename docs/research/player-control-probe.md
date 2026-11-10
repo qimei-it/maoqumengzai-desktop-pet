@@ -9,7 +9,7 @@ macOS 上四款播放器的能力并不对等：
 | 播放器 | 播放控制 | 歌曲信息/进度 | 歌词 | 结论 |
 | --- | --- | --- | --- | --- |
 | Apple Music | AppleScript：`playpause`、`play`、`pause`、`next track`、`previous track` | `player state`、`player position`（可读可写）、`current track` 的 `name`/`artist`/`duration` | 曲目对象自带 `lyrics` 属性 | 可完整实现，优先支持 |
-| 网易云音乐 3.1.9 | 未提供 AppleScript 字典 | 无法通过公开接口读取 | 不能从系统接口取得 | 只能考虑媒体键，且信息/歌词缺失 |
+| 网易云音乐 3.1.9 | 系统 MediaRemote：播放/暂停、上一首/下一首均可用 | 歌名、歌手、专辑、时长可读；进度只有快照，不连续 | 无系统接口 | 可控制与显示歌曲信息，进度不可靠 |
 | QQ 音乐 11.11.0 | 系统 MediaRemote：播放/暂停、上一首/下一首均可用 | 歌名、歌手、专辑、时长可读；**进度恒为 0** | 无系统接口 | 可控制与显示歌曲信息，进度需另寻路径 |
 | 酷狗 20.3.8 | 系统 MediaRemote：播放/暂停、上一首/下一首均可用 | 歌名、歌手、专辑、时长可读；**进度恒为 0** | 无系统接口 | 与 QQ 音乐能力一致 |
 
@@ -28,6 +28,13 @@ macOS 上四款播放器的能力并不对等：
 - 控制：`togglePlayPause` 生效（1 → 0 → 1）；`next` / `previous` 生效，切歌后标题与歌手更新（响应约 2–4 秒）。
 - 进度：`elapsedTime` 首次读到 0.14，之后连续查询为 0，不提供可用播放位置。
 - 结论：酷狗与 QQ 音乐能力一致——可控制、可读歌曲信息、无进度。
+
+### 2026-11-10 网易云实测记录
+
+- 播放中读取：`title=好想爱这个世界啊`、`artist=华晨宇`、`album=新世界NEW WORLD`、`duration=258.88`、`playbackRate=1`；`ClientBundleIdentifier=com.netease.163music`。
+- 控制：`togglePlayPause` 生效（1 → 0 → 1）；`next` / `previous` 生效，切歌后信息更新。
+- 进度：原始字典曾出现 `ElapsedTime=143`，但随后连续查询固定为 0.085，不随时间推进；没有 `Timestamp` 字段可以外推。判断为“只在状态变化时发布快照”，不能用于实时进度条。
+- 结论：网易云可控制、可读歌曲信息，进度不可靠；与产品约定“无可靠进度时展示文本”一致。
 
 ## 依据
 
