@@ -289,6 +289,9 @@ onUnmounted(() => {
 }
 .donut-accent {
   fill: var(--color-brand-ink);
+  stroke: var(--color-brand-ink);
+  stroke-width: 1;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 .donut-label {

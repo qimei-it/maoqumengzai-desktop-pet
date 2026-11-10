@@ -451,7 +451,7 @@ onUnmounted(() => {
         <span
           class="marker-caption"
           :class="{ hidden: donutOpen }"
-          :style="{ fontSize: `${11 * markerScale}px` }"
+          :style="{ fontSize: `${10 * markerScale}px` }"
           >交互测试标记</span
         >
       </div>

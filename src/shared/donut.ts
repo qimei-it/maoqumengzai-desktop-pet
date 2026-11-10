@@ -39,8 +39,8 @@ export const sliceLabels: Record<DropAction, string> = {
 
 /** The sprite box drawn inside the hole; the final full-body art replaces it. */
 export const petSprite = { width: 112, height: 112 }
-/** Transparent window around the sprite: room for the shadow and idle motion. */
-export const basePetSize = { width: 132, height: 140 }
+/** Transparent window around the sprite: room for the caption and idle motion. */
+export const basePetSize = { width: 132, height: 172 }
 
 export type DonutMetrics = {
   inner: number
