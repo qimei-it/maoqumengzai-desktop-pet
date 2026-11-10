@@ -501,6 +501,7 @@ const lyricNow = ref(0);
 let lyricTimer: ReturnType<typeof setInterval> | undefined;
 let lyricBase = 0;
 let lyricBaseAt = 0;
+let lyricLastPosition = 0;
 const reducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
@@ -512,7 +513,20 @@ function syncLyricBase(): void {
     state.value?.music.playing && typeof sampledAt === "number"
       ? Math.max(0, (Date.now() - sampledAt) / 1000)
       : 0;
-  lyricBase = position + age;
+  const candidate = position + age;
+  const current = lyricElapsed.value;
+  const seekBack = position + 1 < lyricLastPosition;
+  lyricLastPosition = position;
+  // Position polling can land a few dozen milliseconds behind the
+  // interpolated clock; never let that tiny correction rewind a lyric line.
+  lyricBase =
+    state.value?.music.playing &&
+    !seekBack &&
+    current !== null &&
+    candidate < current &&
+    current - candidate < 0.25
+      ? current
+      : candidate;
   lyricBaseAt = performance.now();
 }
 watch(() => state.value?.music.position, syncLyricBase);
@@ -559,22 +573,33 @@ const currentLyric = computed(() => {
 });
 const lyricRow = 24;
 const lyricLead = 0.5;
-const scrollOffset = computed(() => {
+const lyricFadeRange = 40;
+const visualPosition = computed(() => {
   const lyric = currentLyric.value;
   const elapsed = lyricElapsed.value;
-  if (!lyric || elapsed === null) return lyricRow;
-  if (reducedMotion) return (1 - lyric.index) * lyricRow;
+  if (!lyric || elapsed === null) return 0;
+  if (reducedMotion) return lyric.index;
   const current = lyricLines.value[lyric.index];
   const next = lyricLines.value[lyric.index + 1];
-  if (!current || !next) return (1 - lyric.index) * lyricRow;
+  if (!current || !next) return lyric.index;
   const gap = Math.max(next.time - current.time, 0.05);
   const lead = Math.min(lyricLead, Math.max(0.12, gap * 0.5));
   const start = next.time - lead;
-  if (elapsed <= start) return (1 - lyric.index) * lyricRow;
+  if (elapsed <= start) return lyric.index;
   const progress = Math.min(Math.max((elapsed - start) / lead, 0), 1);
-  const eased = 1 - Math.pow(1 - progress, 3);
-  return (1 - lyric.index - eased) * lyricRow;
+  return lyric.index + (1 - Math.pow(1 - progress, 3));
 });
+const scrollOffset = computed(() => (1 - visualPosition.value) * lyricRow);
+function rowStyle(
+  index: number,
+  center = visualPosition.value,
+): Record<string, number> {
+  const distance = (index - center) * lyricRow;
+  return {
+    '--fade-top': Math.min(Math.max(-distance / lyricFadeRange, 0), 1),
+    '--fade-bottom': Math.min(Math.max(distance / lyricFadeRange, 0), 1),
+  };
+}
 const plainLines = computed(() =>
   (state.value?.lyrics?.plain ?? "")
     .split("\n")
@@ -668,7 +693,7 @@ function syncLyricTicker(): void {
   if (run && lyricTimer === undefined) {
     syncLyricBase();
     lyricNow.value = lyricBaseAt;
-    lyricTimer = setInterval(tickLyrics, 50);
+    lyricTimer = setInterval(tickLyrics, 16);
   } else if (!run && lyricTimer !== undefined) {
     clearInterval(lyricTimer);
     lyricTimer = undefined;
@@ -928,6 +953,7 @@ onUnmounted(() => {
               past: index < currentLyric.index,
               future: index > currentLyric.index,
             }"
+            :style="rowStyle(index)"
             >{{ line.text }}</span
           >
         </div>
@@ -944,6 +970,7 @@ onUnmounted(() => {
             past: index < plainCurrent,
             future: index > plainCurrent,
           }"
+          :style="rowStyle(index, plainCurrent)"
           >{{ line }}</span
         >
       </div>

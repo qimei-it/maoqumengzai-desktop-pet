@@ -818,6 +818,8 @@ footer button {
   will-change: transform;
 }
 .lyrics-row {
+  --fade-top: 0;
+  --fade-bottom: 0;
   position: relative;
   display: block;
   width: 100%;
@@ -831,30 +833,31 @@ footer button {
   color: var(--color-muted);
   transition: color 380ms ease;
 }
-/* The two side rows fade into the card surface: no dark blur shadow. */
+/* Fades follow each row's distance from the centre, not a discrete class. */
+.lyrics-row::before,
 .lyrics-row::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.lyrics-row.past::after {
+.lyrics-row::before {
   background: linear-gradient(
     180deg,
     var(--color-surface) 0%,
-    var(--color-surface) 38%,
-    transparent 78%,
+    var(--color-surface) 30%,
     transparent 100%
   );
+  opacity: var(--fade-top, 0);
 }
-.lyrics-row.future::after {
+.lyrics-row::after {
   background: linear-gradient(
     180deg,
     transparent 0%,
-    transparent 22%,
-    var(--color-surface) 62%,
+    var(--color-surface) 70%,
     var(--color-surface) 100%
   );
+  opacity: var(--fade-bottom, 0);
 }
 .lyrics-row.current {
   color: var(--color-brand-ink);
