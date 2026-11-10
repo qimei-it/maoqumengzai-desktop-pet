@@ -115,7 +115,7 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 
 let pet: BrowserWindow
 let pocket: BrowserWindow
-let pocketHideAt = 0
+let pocketOpenAtPointerDown = false
 let pocketDialogOpen = false
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
@@ -761,7 +761,6 @@ function updateNotesWindow(): void {
   }
 }
 function showPocket(): void {
-  pocketHideAt = 0
   positionPocket()
   pocket.show()
   pocket.focus()
@@ -770,7 +769,6 @@ function showPocket(): void {
 function hidePocket(): void {
   if (!pocket || pocket.isDestroyed() || !pocket.isVisible()) return
   pocket.hide()
-  pocketHideAt = Date.now()
   broadcast()
 }
 /**
@@ -1770,6 +1768,7 @@ function setupIpc(): void {
     const phase = pointerSchema.parse(payload)
     if (phase === 'down') {
       if (dropMode) return
+      pocketOpenAtPointerDown = pocket.isVisible()
       drag = {
         origin: screen.getCursorScreenPoint(),
         bounds: pet.getBounds(),
@@ -1799,11 +1798,13 @@ function setupIpc(): void {
       }
       drag = undefined
       if (click) {
-        // A click on the pet is a toggle: close the shelf that is open, but
-        // do not immediately reopen it when the pocket's own blur hid it.
+        // A click on the pet is a toggle. If the pocket was open when the
+        // pointer went down, ignore the click when focus already closed it.
+        const wasOpen = pocketOpenAtPointerDown
         if (pocket.isVisible()) hidePocket()
-        else if (Date.now() - pocketHideAt > 350) showPocket()
+        else if (!wasOpen) showPocket()
       }
+      pocketOpenAtPointerDown = false
     }
   })
   handle(channels.command, 'either', async (event, payload) => {

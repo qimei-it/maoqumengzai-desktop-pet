@@ -77,7 +77,10 @@ function receive(event: DragEvent): void {
         />
         <h2>拖到桌宠身上</h2>
         <span class="pocket-or">或</span>
-        <button class="button-glass" @click="emit('selectFiles')">
+        <button
+          class="button-glass pocket-select"
+          @click="emit('selectFiles')"
+        >
           选择本地文件
         </button>
       </div>
@@ -441,27 +444,47 @@ function receive(event: DragEvent): void {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   text-align: center;
   padding-bottom: 12px;
 }
 .pocket-empty > svg {
   color: var(--color-brand-ink);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 .pocket-empty h2 {
   font-size: var(--font-size-section);
+  line-height: 1.35;
   margin: 0;
 }
 .pocket-empty button {
   min-height: var(--tap-min);
-  margin-top: 0;
+  margin-top: 2px;
   padding-inline: var(--space-8);
   font-size: var(--font-size-body);
 }
 .pocket-or {
-  margin: 10px 0;
+  margin: 0;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+  line-height: 1.3;
+}
+.pocket-select {
+  border-color: transparent;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+button.pocket-select.button-glass:hover {
+  background-image: none;
+  background-color: var(--color-brand);
+}
+button.pocket-select.button-glass:active {
+  background-image: none;
+  background-color: var(--color-brand-ink);
+  box-shadow: var(--shadow-control-pressed);
+  transform: translateY(1px) scale(0.99);
 }
 .pocket-over .pocket-surface {
   outline: 2px solid var(--color-brand-ink);

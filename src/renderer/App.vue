@@ -343,7 +343,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
         state.value = unwrap(
           await api.command({ type: "stash-file", fileId: id }),
         );
-      flash("已暂存到置物架；按住卡片可以拖出。");
+      flash("已暂存到置物架");
       return;
     }
     if (action === "copy") {
@@ -351,7 +351,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
         state.value = unwrap(
           await api.command({ type: "save-copy", fileId: id }),
         );
-      flash("已另存副本；原件保留。");
+      flash("已保存副本");
       return;
     }
     state.value = unwrap(
@@ -814,7 +814,13 @@ onUnmounted(() => {
         />
         <span
           class="marker-caption"
-          :class="{ hidden: donutOpen || displayPose === 'lifted' || displayPose === 'music' }"
+          :class="{
+            hidden:
+              donutOpen ||
+              displayPose === 'lifted' ||
+              displayPose === 'music' ||
+              !!toast,
+          }"
           :style="{ fontSize: `${10 * markerScale}px` }"
           >{{ petName }}</span
         >
