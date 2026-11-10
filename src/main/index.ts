@@ -3119,8 +3119,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -3129,8 +3129,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    settingsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   for (const panel of [pocket, askWindow, convertWindow, renameWindow, settingsWindow])
     configurePanelChrome(panel)
   lab = !app.isPackaged

@@ -132,6 +132,7 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
           fullScreenable: window.isFullScreenable(),
           closable: window.isClosable(),
           minimizable: window.isMinimizable(),
+          alwaysOnTop: window.isAlwaysOnTop(),
         })),
     );
   await expect.poll(async () => (await readChrome()).length).toBe(5);
@@ -142,6 +143,7 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
     expect(panel.fullScreenable).toBe(false);
     expect(panel.closable).toBe(true);
     expect(panel.minimizable).toBe(true);
+    expect(panel.alwaysOnTop).toBe(!panel.title.includes("设置"));
   }
   const pocketState = () =>
     application.evaluate(({ BrowserWindow }) => {
