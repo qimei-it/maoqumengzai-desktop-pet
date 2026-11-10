@@ -132,6 +132,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('rename-close') }).strict(),
   z
     .object({
+      type: z.literal('archive-files'),
+      fileIds: z.array(z.string().uuid()).min(1).max(32),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('extract-archives'),
+      fileIds: z.array(z.string().uuid()).min(1).max(32),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('shrink-files'),
+      fileIds: z.array(z.string().uuid()).min(1).max(32),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('panel-control'),
       action: z.enum(['minimize', 'maximize', 'close']),
     })

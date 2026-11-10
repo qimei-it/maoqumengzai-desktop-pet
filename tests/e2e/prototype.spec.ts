@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import sharp from "sharp";
+import { unzipSync } from "fflate";
 import { promisify } from "node:util";
 import {
   donutMetrics,
@@ -579,23 +580,25 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
 });
 
 async function dropOnPet(
-  fixture: string,
+  fixture: string | string[],
   target: "center" | "outside" | DropAction,
 ): Promise<void> {
+  const fixtures = Array.isArray(fixture) ? fixture : [fixture];
   const metrics = donutMetrics(1);
   await pet.evaluate(() => {
     document.querySelector("#mqmz-drop-input")?.remove();
     const input = document.createElement("input");
     input.type = "file";
     input.id = "mqmz-drop-input";
+    input.multiple = true;
     input.hidden = true;
     document.body.append(input);
   });
-  await pet.locator("#mqmz-drop-input").setInputFiles(fixture);
+  await pet.locator("#mqmz-drop-input").setInputFiles(fixtures);
   await pet.evaluate(() => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
     const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
+    for (const file of input.files!) transfer.items.add(file);
     document.querySelector(".pet-surface")!.dispatchEvent(
       new DragEvent("dragenter", {
         dataTransfer: transfer,
@@ -633,7 +636,7 @@ async function dropOnPet(
     await pet.evaluate(({ x, y }) => {
       const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
       const transfer = new DataTransfer();
-      transfer.items.add(input.files![0]);
+      for (const file of input.files!) transfer.items.add(file);
       document.querySelector(".pet-surface")!.dispatchEvent(
         new DragEvent("dragover", {
           dataTransfer: transfer,
@@ -651,7 +654,7 @@ async function dropOnPet(
   await pet.evaluate(({ x, y }) => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
     const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
+    for (const file of input.files!) transfer.items.add(file);
     document.querySelector(".pet-surface")!.dispatchEvent(
       new DragEvent("drop", {
         dataTransfer: transfer,
@@ -687,7 +690,7 @@ async function hoverSlice(action: DropAction): Promise<void> {
   await pet.evaluate(({ x, y }) => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
     const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
+    for (const file of input.files!) transfer.items.add(file);
     document.querySelector(".pet-surface")!.dispatchEvent(
       new DragEvent("dragover", {
         dataTransfer: transfer,
@@ -716,7 +719,7 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
   await pet.evaluate(() => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
     const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
+    for (const file of input.files!) transfer.items.add(file);
     document.querySelector(".pet-surface")!.dispatchEvent(
       new DragEvent("dragenter", {
         dataTransfer: transfer,
@@ -852,6 +855,64 @@ test("dropping on 格式转换 converts an image beside the source", async () =>
     );
 });
 
+test("打包归档、解压缩与压缩大小 work on real files", async () => {
+  const first = join(directory, "归档甲.txt");
+  const second = join(directory, "归档乙.txt");
+  await writeFile(first, "alpha");
+  await writeFile(second, "beta");
+  await dropOnPet([first, second], "archive");
+  await expect
+    .poll(async () => (await readdir(directory)).find((name) => name.endsWith(".zip")))
+    .toBeTruthy();
+  const zipName = (await readdir(directory)).find((name) => name.endsWith(".zip"))!;
+  const zipPath = join(directory, zipName);
+  const entries = unzipSync(new Uint8Array(await readFile(zipPath)));
+  expect(Object.keys(entries).sort()).toEqual(["归档乙.txt", "归档甲.txt"]);
+  expect(new TextDecoder().decode(entries["归档甲.txt"])).toBe("alpha");
+
+  await dropOnPet(zipPath, "extract");
+  const folder = join(directory, zipName.replace(/\.zip$/i, ""));
+  await expect
+    .poll(async () => {
+      try {
+        return (await readdir(folder)).sort();
+      } catch {
+        return [];
+      }
+    })
+    .toEqual(["归档乙.txt", "归档甲.txt"]);
+  expect(await readFile(join(folder, "归档乙.txt"), "utf8")).toBe("beta");
+
+  const image = join(directory, "压缩样张.png");
+  await sharp({
+    create: {
+      width: 1200,
+      height: 900,
+      channels: 3,
+      background: { r: 120, g: 80, b: 60 },
+    },
+  })
+    .png({ compressionLevel: 0 })
+    .toFile(image);
+  await dropOnPet(image, "shrink");
+  await expect
+    .poll(async () => (await readdir(directory)).find((name) => name.includes("-压缩")))
+    .toBeTruthy();
+  const compressed = (await readdir(directory)).find((name) =>
+    name.includes("-压缩"),
+  )!;
+  const meta = await sharp(join(directory, compressed)).metadata();
+  expect(meta.width).toBe(1200);
+  expect(meta.height).toBe(900);
+
+  const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+  for (const file of snapshot.ok ? snapshot.value.files : [])
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
+});
+
 test("dropping two files on 批量重命名 renames them with a format", async () => {
   const first = join(directory, "甲文件.txt");
   const second = join(directory, "乙文件.txt");
@@ -954,7 +1015,7 @@ test("the donut closes when a drag ends without a drop", async () => {
   await pet.evaluate(() => {
     const input = document.querySelector<HTMLInputElement>("#mqmz-stuck-input")!;
     const transfer = new DataTransfer();
-    transfer.items.add(input.files![0]);
+    for (const file of input.files!) transfer.items.add(file);
     document.querySelector(".pet-surface")!.dispatchEvent(
       new DragEvent("dragenter", {
         dataTransfer: transfer,
@@ -1082,19 +1143,21 @@ test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
 });
 
-test("dropping on 打包归档 states that archiving is not wired yet", async () => {
-  const fixture = join(directory, "待压缩.txt");
+test("dropping a non-ZIP on 解压缩 reports a clear error", async () => {
+  const fixture = join(directory, "不是压缩包.txt");
   await writeFile(fixture, "not-a-zip");
-  await dropOnPet(fixture, "archive");
-  await expect
-    .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.toast ?? "" : "";
-    })
-    .toContain("打包归档引擎尚未接入");
+  await dropOnPet(fixture, "extract");
+  await expect(pet.locator(".pet-error")).toContainText(
+    "目前只支持 ZIP 压缩包",
+  );
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(state.ok && state.value.files.length).toBe(0);
-  expect(state.ok && state.value.belly.length).toBe(0);
+  expect(state.ok && state.value.files.length).toBe(1);
+  if (state.ok)
+    for (const file of state.value.files)
+      await lab.evaluate(
+        (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+        file.id,
+      );
   expect(await readFile(fixture, "utf8")).toBe("not-a-zip");
 });
 

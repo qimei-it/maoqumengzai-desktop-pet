@@ -341,15 +341,42 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     return;
   }
   if (action === "archive") {
-    flash("打包归档引擎尚未接入。");
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      if (!ids.length) return;
+      state.value = unwrap(
+        await api.command({ type: "archive-files", fileIds: ids }),
+      );
+    });
     return;
   }
   if (action === "extract") {
-    flash("解压缩引擎尚未接入。");
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      if (!ids.length) return;
+      state.value = unwrap(
+        await api.command({ type: "extract-archives", fileIds: ids }),
+      );
+    });
     return;
   }
   if (action === "shrink") {
-    flash("压缩大小引擎尚未接入。");
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      if (!ids.length) return;
+      state.value = unwrap(
+        await api.command({ type: "shrink-files", fileIds: ids }),
+      );
+    });
     return;
   }
   if (action === "audio") {

@@ -175,6 +175,9 @@ export type Command =
   | { type: 'rename-open'; fileIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
   | { type: 'rename-close' }
+  | { type: 'archive-files'; fileIds: string[] }
+  | { type: 'extract-archives'; fileIds: string[] }
+  | { type: 'shrink-files'; fileIds: string[] }
   | {
       type: 'panel-control'
       action: 'minimize' | 'maximize' | 'close'

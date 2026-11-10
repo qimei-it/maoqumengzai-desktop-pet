@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@lucide/vue": "1.70.0",
+    "fflate": "^0.8.2",
     "opencc-js": "^1.4.2",
     "pdf-lib": "^1.17.1",
     "sharp": "^0.35.5",

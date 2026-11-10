@@ -81,6 +81,9 @@ import {
   isPdfFile,
   type ConvertAction,
 } from '../shared/convert'
+import { isZipFile } from '../shared/archive'
+import { createArchive, extractArchive } from './archive-zip'
+import { shrinkImage } from './compress-images'
 import { convertImage } from './convert-images'
 import {
   previewRename,
@@ -887,6 +890,75 @@ async function applyRename(config: RenameConfig): Promise<number> {
   if (shelved) await saveShelf()
   addEvent(`已重命名 ${changes.length} 个文件。`)
   return changes.length
+}
+async function registerOutputs(paths: readonly string[]): Promise<void> {
+  const known = new Set([...files.values()].map((file) => file.path))
+  let added = false
+  for (const path of paths) {
+    if (files.size >= 100 || known.has(path)) continue
+    const item = await inspectFile(path)
+    if (known.has(item.path)) continue
+    const id = randomUUID()
+    files.set(id, {
+      ...item,
+      id,
+      name: basename(item.path),
+      status: 'shelved',
+    })
+    known.add(item.path)
+    added = true
+  }
+  if (added) await saveShelf()
+  refreshPocketLayout()
+}
+function shortSize(value: number): string {
+  return value >= 1024 ** 2
+    ? `${(value / 1024 ** 2).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(value / 1024))} KB`
+}
+async function archiveSelected(fileIds: string[]): Promise<void> {
+  const paths: string[] = []
+  for (const id of fileIds) paths.push(await registeredFile(id))
+  const destination = await createArchive(paths)
+  await registerOutputs([destination])
+  showToast(`已打包 ${paths.length} 个文件`)
+  addEvent(`已创建压缩包「${basename(destination)}」。`)
+}
+async function extractSelected(fileIds: string[]): Promise<void> {
+  let count = 0
+  const folders: string[] = []
+  for (const id of fileIds) {
+    const path = await registeredFile(id)
+    if (!isZipFile(path)) throw new Error('目前只支持 ZIP 压缩包。')
+    const result = await extractArchive(path)
+    count += result.count
+    folders.push(basename(result.folder))
+  }
+  showToast(`已解压 ${count} 个文件`)
+  addEvent(`已解压 ${count} 个文件到「${folders[0]}」。`)
+}
+async function shrinkSelected(fileIds: string[]): Promise<void> {
+  const paths: string[] = []
+  for (const id of fileIds) {
+    const path = await registeredFile(id)
+    if (isImageFile(path)) paths.push(path)
+  }
+  if (!paths.length)
+    throw new Error('压缩大小目前支持 JPG、PNG、WEBP 图片。')
+  const batch = paths.length > 1
+  const results = []
+  for (const path of paths) results.push(await shrinkImage(path, batch))
+  await registerOutputs(results.map((result) => result.path))
+  const saved = results.reduce(
+    (sum, result) => sum + Math.max(0, result.before - result.after),
+    0,
+  )
+  showToast(
+    saved > 0
+      ? `已压缩 ${results.length} 个文件，节省 ${shortSize(saved)}`
+      : `已压缩 ${results.length} 个文件`,
+  )
+  addEvent(`已压缩 ${results.length} 个图片。`)
 }
 function positionBubble(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
@@ -2114,6 +2186,9 @@ function setupIpc(): void {
       'rename-open',
       'rename-apply',
       'rename-close',
+      'archive-files',
+      'extract-archives',
+      'shrink-files',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2290,6 +2365,15 @@ function setupIpc(): void {
         break
       case 'rename-close':
         closeRename()
+        break
+      case 'archive-files':
+        await archiveSelected(command.fileIds)
+        break
+      case 'extract-archives':
+        await extractSelected(command.fileIds)
+        break
+      case 'shrink-files':
+        await shrinkSelected(command.fileIds)
         break
       case 'notify':
         showToast(command.text)
