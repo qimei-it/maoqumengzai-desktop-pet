@@ -47,6 +47,7 @@ const poseSources: Record<PetPose, string> = {
   lifted: catLifted,
   ponder: catPonder,
 };
+const petName = "麻薯";
 const petPose = ref<PetPose>("base");
 const poseSrc = computed(() => poseSources[petPose.value]);
 const toast = ref("");
@@ -520,7 +521,7 @@ onUnmounted(() => {
           class="marker-caption"
           :class="{ hidden: donutOpen || petPose === 'lifted' }"
           :style="{ fontSize: `${10 * markerScale}px` }"
-          >毛趣萌仔</span
+          >{{ petName }}</span
         >
       </div>
     </div>

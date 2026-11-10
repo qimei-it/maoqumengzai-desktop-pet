@@ -453,7 +453,7 @@ footer button {
 .marker-anchor .marker-caption {
   position: absolute;
   left: 50%;
-  top: calc(100% + 6px);
+  top: calc(100% + 2px);
   transform: translateX(-50%);
   line-height: 1.4;
 }
