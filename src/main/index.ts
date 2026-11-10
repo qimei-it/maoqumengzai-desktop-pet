@@ -247,9 +247,9 @@ function positionPocket(): void {
 function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
   const b = pet.getBounds()
-  const size = 30
-  const x = b.x + b.width + 4
-  const y = b.y + b.height - Math.round(22 * scale) - 36
+  const size = 32
+  const x = b.x + b.width - size
+  const y = b.y + b.height - Math.round(22 * scale) - size - 6
   eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function updateEyeWindow(): void {
@@ -1574,8 +1574,8 @@ async function createWindows(): Promise<void> {
     volumePopup.setHiddenInMissionControl(true)
   }
   eye = new BrowserWindow({
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     title: '毛趣萌仔 · 音乐开关',
     show: false,
     frame: false,
