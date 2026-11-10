@@ -1116,6 +1116,8 @@ async function createWindows(): Promise<void> {
     reconcileDisplays()
     addEvent('系统唤醒，已恢复交互。')
   })
+  // ~60fps while dragging: the window follows the cursor from this loop, so a
+  // slower tick reads as a low frame rate.
   pointerTimer = setInterval(() => {
     if (pet.isDestroyed() || shuttingDown) return
     const cursor = screen.getCursorScreenPoint()
@@ -1146,7 +1148,7 @@ async function createWindows(): Promise<void> {
           (!inside || !hitOpaquePixel(mask, cursor.x - b.x, cursor.y - b.y)),
       )
     }
-  }, 40)
+  }, 16)
   addEvent('真实 Electron 窗口已启动；交互标记不代表正式角色素材。')
 }
 
