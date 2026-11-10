@@ -39,11 +39,11 @@ const reducedMotion =
 
 const metrics = computed(() => donutMetrics(props.scale))
 const box = computed(() => metrics.value.outer + 30)
-/** Filee's soft halo: a radial gradient just outside the rim, never inside the hole. */
-const shadowRadius = computed(() => metrics.value.outer + 14)
+/** Soft halo: a radial gradient just outside the rim, never inside the hole. */
+const shadowRadius = computed(() => metrics.value.outer + 22)
 const shadowStops = computed(() => ({
-  inner: (metrics.value.outer - 18) / shadowRadius.value,
-  peak: (metrics.value.outer - 2) / shadowRadius.value,
+  inner: (metrics.value.outer - 16) / shadowRadius.value,
+  peak: (metrics.value.outer - 1) / shadowRadius.value,
 }))
 const shadowOpacity = computed(
   () =>
@@ -245,7 +245,7 @@ onUnmounted(() => {
           <stop
             :offset="shadowStops.peak"
             stop-color="rgb(39, 32, 28)"
-            stop-opacity="0.14"
+            stop-opacity="0.2"
           />
           <stop offset="1" stop-color="rgb(39, 32, 28)" stop-opacity="0" />
         </radialGradient>
