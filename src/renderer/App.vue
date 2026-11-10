@@ -360,10 +360,10 @@ function scheduleBlink(): void {
       petPose.value = "blink";
       blinkReset = setTimeout(() => {
         if (petPose.value === "blink") petPose.value = "base";
-      }, 140);
+      }, 170);
     }
     scheduleBlink();
-  }, 3200 + Math.random() * 2800);
+  }, 2600 + Math.random() * 1800);
 }
 function onKeydown(event: KeyboardEvent): void {
   if (!donutOpen.value || event.key !== "Escape") return;
@@ -499,6 +499,7 @@ onUnmounted(() => {
           ref="marker"
           :src="poseSrc"
           class="marker"
+          :class="{ lifted: petPose === 'lifted', ponder: petPose === 'ponder' }"
           :style="{
             width: `${petSprite.width * markerScale}px`,
             height: `${petSprite.height * markerScale}px`,

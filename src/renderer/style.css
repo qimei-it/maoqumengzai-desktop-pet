@@ -464,7 +464,8 @@ footer button {
   background: transparent;
 }
 .marker {
-  animation: pet-breathe 4.2s ease-in-out infinite;
+  transform-origin: 50% 92%;
+  animation: pet-idle 4.6s ease-in-out infinite;
   touch-action: none;
   pointer-events: auto;
   cursor: grab;
@@ -474,17 +475,55 @@ footer button {
 .marker:active {
   cursor: grabbing;
 }
-@keyframes pet-breathe {
-  0%,
-  100% {
-    transform: translateY(0) scaleY(1);
+@keyframes pet-idle {
+  0% {
+    transform: translateY(0) rotate(-1.5deg) scaleY(1);
+  }
+  25% {
+    transform: translateY(-3px) rotate(0deg) scaleY(1.02);
   }
   50% {
-    transform: translateY(-1px) scaleY(1.006);
+    transform: translateY(0) rotate(1.5deg) scaleY(1);
+  }
+  75% {
+    transform: translateY(-3px) rotate(0deg) scaleY(1.02);
+  }
+  100% {
+    transform: translateY(0) rotate(-1.5deg) scaleY(1);
+  }
+}
+/* Held by the scruff: swings from the top. */
+.marker.lifted {
+  transform-origin: 50% 14%;
+  animation: pet-sway 2.4s ease-in-out infinite;
+}
+@keyframes pet-sway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.6deg);
+  }
+}
+/* Thinking: a small, slower tilt while the wheel is open. */
+.marker.ponder {
+  transform-origin: 50% 70%;
+  animation: pet-ponder 2.8s ease-in-out infinite;
+}
+@keyframes pet-ponder {
+  0%,
+  100% {
+    transform: rotate(-0.7deg) translateY(0);
+  }
+  50% {
+    transform: rotate(0.7deg) translateY(-1px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .marker {
+  .marker,
+  .marker.lifted,
+  .marker.ponder {
     animation: none;
   }
 }
