@@ -122,6 +122,11 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 let pet: BrowserWindow
 let pocket: BrowserWindow
 let pocketOpenAtPointerDown = false
+// A click on the pet first steals focus, which blurs and hides the pocket
+// before the pointer-down IPC arrives. Remember the recent hide so the same
+// click does not immediately reopen the panel.
+let pocketHiddenAt = 0
+let pocketBlurTimer: NodeJS.Timeout | undefined
 let pocketDialogOpen = false
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
@@ -327,19 +332,20 @@ function positionPocket(): void {
   if (!pocket || pocket.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
+  // The list owns the spare space; the action bar stays pinned at the bottom.
+  // Show up to eight rows before scrolling and cap the panel at 620px.
+  const rows = Math.max(3, Math.min(files.size, 8))
   const height =
-    (files.size === 0
-      ? 280
-      : files.size === 1
-        ? [...files.values()][0].status === 'shelved'
-          ? 402
-          : 378
-        : 470) + Math.min(belly.length, 3) * 46
+    (files.size === 0 ? 300 : Math.min(620, 186 + rows * 50)) +
+    Math.min(belly.length, 3) * 46
   const left = b.x - 352 + 24
   const x = left >= a.x ? left : b.x + b.width - 24
   pocket.setBounds(
     fitToDisplays({ x, y: b.y + b.height - height, width: 352, height }, [a]),
   )
+}
+function refreshPocketLayout(): void {
+  if (pocket?.isVisible()) positionPocket()
 }
 function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
@@ -551,7 +557,8 @@ function openAsk(fileIds: string[]): void {
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
     positionAsk()
-    if (askWindow.isMinimized()) askWindow.restore()
+    if (process.platform === 'darwin' || askWindow.isMinimized())
+      askWindow.restore()
     askWindow.show()
     askWindow.moveTop()
     askWindow.focus()
@@ -631,9 +638,11 @@ function openConvert(fileIds: string[]): void {
         : undefined
   if (askWindow?.isVisible()) askWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
+  if (pocket.isVisible()) pocket.hide()
   if (convertWindow && !convertWindow.isDestroyed()) {
     positionConvert()
-    if (convertWindow.isMinimized()) convertWindow.restore()
+    if (process.platform === 'darwin' || convertWindow.isMinimized())
+      convertWindow.restore()
     convertWindow.show()
     convertWindow.moveTop()
     convertWindow.focus()
@@ -765,7 +774,8 @@ function openRename(fileIds: string[]): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow && !renameWindow.isDestroyed()) {
     positionRename()
-    if (renameWindow.isMinimized()) renameWindow.restore()
+    if (process.platform === 'darwin' || renameWindow.isMinimized())
+      renameWindow.restore()
     renameWindow.show()
     renameWindow.moveTop()
     renameWindow.focus()
@@ -976,17 +986,55 @@ function updateNotesWindow(): void {
     notes.hide()
   }
 }
+function clearPocketBlurTimer(): void {
+  if (!pocketBlurTimer) return
+  clearTimeout(pocketBlurTimer)
+  pocketBlurTimer = undefined
+}
 function showPocket(): void {
+  clearPocketBlurTimer()
   positionPocket()
-  if (pocket.isMinimized()) pocket.restore()
+  if (process.platform === 'darwin' || pocket.isMinimized())
+    pocket.restore()
   pocket.show()
   pocket.focus()
+  pocketHiddenAt = 0
   broadcast()
 }
 function hidePocket(): void {
+  clearPocketBlurTimer()
   if (!pocket || pocket.isDestroyed() || !pocket.isVisible()) return
   pocket.hide()
+  pocketHiddenAt = Date.now()
   broadcast()
+}
+/**
+ * Blur is also emitted when the yellow button starts minimizing. Delay the
+ * hide so the window can finish minimizing; otherwise hiding it cancels the
+ * minimization and the button appears broken.
+ */
+function schedulePocketBlurHide(): void {
+  clearPocketBlurTimer()
+  pocketBlurTimer = setTimeout(() => {
+    pocketBlurTimer = undefined
+    if (shuttingDown || pocketDialogOpen) return
+    if (pocket.isFocused() || pocket.isMinimized()) return
+    // macOS 27 + Electron can minimize the window without reporting
+    // isMinimized() or firing 'minimize'. A blur whose cursor is still on the
+    // traffic lights is that native action, so let AppKit finish it.
+    if (process.platform === 'darwin') {
+      const cursor = screen.getCursorScreenPoint()
+      const bounds = pocket.getBounds()
+      if (
+        cursor.x >= bounds.x &&
+        cursor.x <= bounds.x + 80 &&
+        cursor.y >= bounds.y &&
+        cursor.y <= bounds.y + 34
+      )
+        return
+    }
+    hidePocket()
+  }, 180)
 }
 /**
  * Grow the transparent window symmetrically around the pet before the ring is
@@ -1889,7 +1937,9 @@ async function receivePaths(paths: string[]): Promise<void> {
       ...item,
       id,
       name: basename(item.path),
-      status: 'received',
+      // Anything shown in the pocket is already on the shelf, so it is
+      // persisted immediately instead of waiting for a separate stash step.
+      status: 'shelved',
     })
   }
   dropMode = false
@@ -1906,6 +1956,8 @@ async function receivePaths(paths: string[]): Promise<void> {
   addEvent(
     `已接收 ${inspected.length} 个本地文件；只登记索引，不读取正文或上传。`,
   )
+  if (additions.length) await saveShelf()
+  refreshPocketLayout()
 }
 async function eatFiles(fileIds: string[]): Promise<void> {
   const targets: { file: LocalFile; path: string }[] = []
@@ -1946,6 +1998,7 @@ async function eatFiles(fileIds: string[]): Promise<void> {
   for (const target of targets) files.delete(target.file.id)
   await saveBelly()
   await saveShelf()
+  refreshPocketLayout()
   addEvent(`已吃掉 ${moved.length} 个文件；7 天内可在置物架取回。`)
 }
 async function restoreEaten(entryId: string): Promise<void> {
@@ -1956,6 +2009,7 @@ async function restoreEaten(entryId: string): Promise<void> {
   belly = belly.filter((candidate) => candidate.id !== entryId)
   await rm(dirname(entry.storedPath), { recursive: true, force: true })
   await saveBelly()
+  refreshPocketLayout()
   addEvent(`已取回「${entry.name}」；原文件已回到本地磁盘。`)
 }
 async function registeredFile(id: string): Promise<string> {
@@ -1987,7 +2041,8 @@ function setupIpc(): void {
     const phase = pointerSchema.parse(payload)
     if (phase === 'down') {
       if (dropMode) return
-      pocketOpenAtPointerDown = pocket.isVisible()
+      pocketOpenAtPointerDown =
+        pocket.isVisible() || Date.now() - pocketHiddenAt < 120
       drag = {
         origin: screen.getCursorScreenPoint(),
         bounds: pet.getBounds(),
@@ -2034,7 +2089,6 @@ function setupIpc(): void {
       'drop-mode',
       'remove-file',
       'reveal-file',
-      'stash-file',
       'save-copy',
       'wheel',
       'eat-files',
@@ -2150,26 +2204,13 @@ function setupIpc(): void {
           if (file) files.set(file.id, file)
           throw error
         }
+        refreshPocketLayout()
         addEvent('已移除文件索引；源文件保留。')
         break
       }
       case 'reveal-file':
         shell.showItemInFolder(await registeredFile(command.fileId))
         break
-      case 'stash-file': {
-        await registeredFile(command.fileId)
-        const file = files.get(command.fileId)!
-        const previous = file.status
-        file.status = 'shelved'
-        try {
-          await saveShelf()
-        } catch (error) {
-          file.status = previous
-          throw error
-        }
-        addEvent('已暂存到本地置物架；重启后可继续使用。')
-        break
-      }
       case 'wheel':
         if (command.open) openWheelWindow()
         else closeWheelWindow()
@@ -2448,6 +2489,27 @@ async function load(window: BrowserWindow, view: string): Promise<void> {
   if (devUrl) await window.loadURL(`${devUrl}/?view=${view}`)
   else await window.loadFile(rendererPath, { query: { view } })
 }
+/**
+ * Fixed-size panels use the real macOS traffic lights. The window stays
+ * frameless so the rounded transparent surface is unchanged, while
+ * `titleBarStyle: 'hidden'` lets AppKit draw red/yellow/green over it.
+ * Windows keeps the in-page controls because it has no equivalent.
+ */
+const panelChrome =
+  process.platform === 'darwin'
+    ? {
+        titleBarStyle: 'hidden' as const,
+        trafficLightPosition: { x: 14, y: 17 },
+      }
+    : {}
+
+function configurePanelChrome(window: BrowserWindow): void {
+  if (process.platform !== 'darwin') return
+  window.setWindowButtonVisibility(true)
+  window.setMaximizable(false)
+  window.setFullScreenable(false)
+}
+
 async function createWindows(): Promise<void> {
   const primary = screen.getPrimaryDisplay().workArea
   let bounds: Rect = {
@@ -2508,6 +2570,7 @@ async function createWindows(): Promise<void> {
     width: 352,
     height: 438,
     title: '毛趣萌仔 · 文件置物架',
+    ...panelChrome,
     show: false,
     frame: false,
     transparent: true,
@@ -2710,6 +2773,7 @@ async function createWindows(): Promise<void> {
     width: 400,
     height: 520,
     title: '毛趣萌仔 · 智能问答',
+    ...panelChrome,
     show: false,
     frame: false,
     transparent: true,
@@ -2731,6 +2795,7 @@ async function createWindows(): Promise<void> {
     width: 400,
     height: 460,
     title: '毛趣萌仔 · 文件转换',
+    ...panelChrome,
     show: false,
     frame: false,
     transparent: true,
@@ -2752,6 +2817,7 @@ async function createWindows(): Promise<void> {
     width: 560,
     height: 480,
     title: '毛趣萌仔 · 批量重命名',
+    ...panelChrome,
     show: false,
     frame: false,
     transparent: true,
@@ -2769,6 +2835,8 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     renameWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  for (const panel of [pocket, askWindow, convertWindow, renameWindow])
+    configurePanelChrome(panel)
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -2795,8 +2863,9 @@ async function createWindows(): Promise<void> {
     }
   })
   pocket.on('blur', () => {
-    if (!shuttingDown && !pocketDialogOpen) hidePocket()
+    if (!shuttingDown) schedulePocketBlurHide()
   })
+  pocket.on('focus', clearPocketBlurTimer)
   lab?.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -2992,6 +3061,7 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    clearPocketBlurTimer()
     if (broadcastTimer) {
       clearTimeout(broadcastTimer)
       broadcastTimer = undefined

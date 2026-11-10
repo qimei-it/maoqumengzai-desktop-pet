@@ -41,7 +41,6 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('remove-file'), fileId }).strict(),
   z.object({ type: z.literal('reveal-file'), fileId }).strict(),
-  z.object({ type: z.literal('stash-file'), fileId }).strict(),
   z.object({ type: z.literal('save-copy'), fileId }).strict(),
   z.object({ type: z.literal('wheel'), open: z.boolean() }).strict(),
   z

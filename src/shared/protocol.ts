@@ -150,7 +150,6 @@ export type Command =
   | { type: 'move-display'; displayId: number }
   | { type: 'remove-file'; fileId: string }
   | { type: 'reveal-file'; fileId: string }
-  | { type: 'stash-file'; fileId: string }
   | { type: 'save-copy'; fileId: string }
   | { type: 'wheel'; open: boolean }
   | { type: 'eat-files'; fileIds: string[] }

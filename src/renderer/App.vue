@@ -379,11 +379,9 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     const ids = snapshot.received?.fileIds ?? [];
     if (!ids.length) return;
     if (action === "stash") {
-      for (const id of ids)
-        state.value = unwrap(
-          await api.command({ type: "stash-file", fileId: id }),
-        );
-      flash("已暂存到置物架");
+      // Files are shelved as soon as they are received, so the wheel action
+      // just surfaces the pocket instead of asking for a second confirmation.
+      state.value = unwrap(await api.command({ type: "show-pocket" }));
       return;
     }
     if (action === "copy") {
@@ -1214,7 +1212,7 @@ onUnmounted(() => {
             aria-hidden="true"
             focusable="false"
           /><strong>还没有接收文件</strong>
-          <p>源文件留在原处；未暂存的记录仅在本次运行保留。</p>
+          <p>源文件留在原处，置物架索引在重启后保留。</p>
           <button @click="selectFiles">选择本地文件</button>
         </div>
         <div v-else class="file-list">

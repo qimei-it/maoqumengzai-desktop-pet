@@ -41,6 +41,18 @@ function receive(event: DragEvent): void {
   over.value = false
   emit('receiveFiles', [...(event.dataTransfer?.files || [])])
 }
+function convertSelected(): void {
+  const file = selected.value
+  if (!file) return
+  emit('command', { type: 'convert-open', fileIds: [file.id] })
+}
+function commandForSelected(
+  type: 'save-copy' | 'remove-file' | 'reveal-file',
+): void {
+  const file = selected.value
+  if (!file) return
+  emit('command', { type, fileId: file.id })
+}
 </script>
 
 <template>
@@ -78,7 +90,6 @@ function receive(event: DragEvent): void {
       </div>
 
       <template v-else>
-        <p class="pocket-drag-hint">按住卡片拖出</p>
         <div class="pocket-files" role="group" aria-label="本地文件">
           <article
             v-for="file in state.files"
@@ -97,15 +108,12 @@ function receive(event: DragEvent): void {
             @dragstart="startDrag($event, file.id)"
           >
             <span class="pocket-file-symbol">
-              <FileTypeIcon :name="file.name" :size="24" />
+              <FileTypeIcon :name="file.name" :size="22" />
             </span>
-            <div class="pocket-file-description">
-              <strong :title="file.name">{{ file.name }}</strong
-              ><span
-                >{{ size(file.size)
-                }}<span v-if="file.status === 'shelved'"> · 已暂存</span></span
-              >
-            </div>
+            <strong class="pocket-file-name" :title="file.name">{{
+              file.name
+            }}</strong>
+            <span class="pocket-file-size">{{ size(file.size) }}</span>
             <GripVertical
               class="pocket-drag-icon"
               :size="16"
@@ -115,67 +123,13 @@ function receive(event: DragEvent): void {
             />
           </article>
         </div>
-        <div v-if="selected" class="pocket-actions">
-          <div class="pocket-primary-actions button-pair">
-            <button
-              class="button-glass"
-              :disabled="selected.status === 'shelved'"
-              @click="
-                emit('command', { type: 'stash-file', fileId: selected.id })
-              "
-            >
-              {{
-                selected.status === 'shelved'
-                  ? '已暂存到置物架'
-                  : '暂存到置物架'
-              }}
-            </button>
-            <button
-              class="button-soft"
-              @click="
-                emit('command', { type: 'save-copy', fileId: selected.id })
-              "
-            >
-              另存副本
-            </button>
-          </div>
-          <button
-            class="pocket-convert button-soft"
-            disabled
-            title="格式转换引擎尚未接入"
-          >
-            转换格式
-          </button>
-          <p
-            v-if="selected.status === 'shelved'"
-            class="pocket-saved"
-            role="status"
-          >
-            已暂存
-          </p>
-          <div class="pocket-secondary-actions">
-            <button
-              @click="
-                emit('command', { type: 'reveal-file', fileId: selected.id })
-              "
-            >
-              定位原文件</button
-            ><button
-              @click="
-                emit('command', { type: 'remove-file', fileId: selected.id })
-              "
-            >
-              移除记录
-            </button>
-          </div>
-        </div>
       </template>
       <section v-if="state?.belly.length" class="pocket-belly">
         <div class="pocket-belly-heading">
           <strong>肚子里的</strong><span>7 天内可取回</span>
         </div>
         <ul>
-          <li v-for="entry in state.belly.slice(0, 3)" :key="entry.id">
+          <li v-for="entry in state?.belly.slice(0, 3)" :key="entry.id">
             <span class="pocket-belly-name" :title="entry.name">{{
               entry.name
             }}</span>
@@ -188,16 +142,32 @@ function receive(event: DragEvent): void {
             </button>
           </li>
         </ul>
-        <p v-if="state.belly.length > 3">
+        <p v-if="state && state.belly.length > 3">
           还有 {{ state.belly.length - 3 }} 项，完整列表将随工作台提供。
         </p>
       </section>
       <p v-if="error" class="pocket-error" role="alert">{{ error }}</p>
-      <footer v-if="state?.files.length" class="pocket-footer">
-        <button class="button-soft pocket-add" @click="emit('selectFiles')">
-          添加文件
+      <div v-if="state?.files.length" class="pocket-actions">
+        <button class="button-glass pocket-add" @click="emit('selectFiles')">
+          新增文件
         </button>
-      </footer>
+        <button class="button-soft" @click="convertSelected">格式转换</button>
+        <button class="button-soft" @click="commandForSelected('save-copy')">
+          另存副本
+        </button>
+        <button
+          class="button-soft"
+          @click="commandForSelected('remove-file')"
+        >
+          移出置物架
+        </button>
+        <button
+          class="button-soft"
+          @click="commandForSelected('reveal-file')"
+        >
+          定位源文件
+        </button>
+      </div>
     </section>
   </main>
 </template>
@@ -220,25 +190,19 @@ function receive(event: DragEvent): void {
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
 }
-.pocket-drag-hint {
-  font-size: var(--font-size-label);
-  color: var(--color-muted);
-  line-height: 1.6;
-  margin: 0 0 12px;
-}
 .pocket-files {
-  max-height: 151px;
-  min-height: 70px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
-  flex: 0 1 auto;
 }
 .pocket-file {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 10px;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 10px;
   margin-bottom: 4px;
   border-radius: var(--radius-control);
   cursor: grab;
@@ -261,23 +225,19 @@ function receive(event: DragEvent): void {
   color: var(--color-brand-ink);
   flex: none;
 }
-.pocket-file-description {
+.pocket-file-name {
   flex: 1;
   min-width: 0;
-}
-.pocket-file-description strong {
-  display: block;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-body);
   font-weight: 600;
 }
-.pocket-file-description > span {
-  display: block;
-  font-size: var(--font-size-label);
+.pocket-file-size {
+  flex: none;
   color: var(--color-muted);
-  margin-top: 5px;
+  font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
 }
 .pocket-drag-icon {
@@ -285,51 +245,23 @@ function receive(event: DragEvent): void {
   flex: none;
 }
 .pocket-actions {
-  margin-top: 14px;
-}
-.pocket-primary-actions {
-  gap: var(--space-4);
-}
-.pocket-primary-actions .button-glass,
-.pocket-primary-actions .button-soft {
-  border-color: transparent;
-}
-.pocket-convert {
-  min-height: var(--tap-min);
-  margin-top: 8px;
-  width: 100%;
-  font-size: var(--font-size-label);
-  background: var(--color-fill-secondary);
-  color: var(--color-muted);
-  cursor: not-allowed;
-  opacity: 1;
-}
-.pocket-saved {
-  font-size: var(--font-size-label);
-  color: var(--color-success);
-  margin: 7px 0 0;
-  line-height: 1.5;
-}
-.pocket-primary-actions button:disabled {
-  background: var(--color-success-soft);
-  color: var(--color-success);
-  border-color: transparent;
-  opacity: 1;
-  cursor: default;
-}
-.pocket-secondary-actions {
+  flex: none;
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-line);
 }
-.pocket-secondary-actions button {
-  background: transparent;
-  border: 0;
-  color: var(--color-muted);
+.pocket-actions button {
+  flex: 1 1 28%;
+  min-height: 34px;
+  padding-inline: 8px;
   font-size: var(--font-size-label);
-  min-height: 28px;
-  padding: 3px 0;
+  white-space: nowrap;
+}
+.pocket-add {
+  border-color: transparent;
 }
 .pocket-belly {
   margin-top: 10px;
@@ -379,21 +311,6 @@ function receive(event: DragEvent): void {
   margin: 4px 0 0;
   color: var(--color-muted);
   font-size: var(--font-size-caption);
-}
-.pocket-footer {
-  display: flex;
-  width: 100%;
-  justify-content: flex-end;
-  align-items: center;
-  margin-top: 12px;
-  padding-top: 0;
-  border-top: 0;
-}
-.pocket-add {
-  min-height: 36px;
-  margin-left: auto;
-  padding-inline: var(--space-6);
-  font-size: var(--font-size-label);
 }
 .pocket-error {
   font-size: var(--font-size-label);

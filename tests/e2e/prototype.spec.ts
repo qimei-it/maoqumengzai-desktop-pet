@@ -91,8 +91,9 @@ test("clicking the pet toggles the pocket and focus elsewhere closes it", async 
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
   const clickPet = async (): Promise<void> => {
+    await pet.bringToFront();
     await pet.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   };
   await clickPet();
   await expect.poll(pocketVisible).toBe(true);
@@ -111,25 +112,45 @@ test("clicking the pet toggles the pocket and focus elsewhere closes it", async 
   await expect.poll(pocketVisible).toBe(false);
 });
 
-test("macOS panel controls close and minimize the pocket", async () => {
+test("macOS panels use native traffic lights and stay fixed-size", async () => {
+  test.skip(process.platform !== "darwin", "macOS-only window chrome");
+  const chrome = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .filter((window) =>
+        ["文件置物架", "智能问答", "文件转换", "批量重命名"].some((name) =>
+          window.getTitle().includes(name),
+        ),
+      )
+      .map((window) => ({
+        title: window.getTitle(),
+        position: window.getWindowButtonPosition(),
+        maximizable: window.isMaximizable(),
+        fullScreenable: window.isFullScreenable(),
+        closable: window.isClosable(),
+        minimizable: window.isMinimizable(),
+      })),
+  );
+  expect(chrome).toHaveLength(4);
+  for (const panel of chrome) {
+    expect(panel.position).toMatchObject({ x: 14, y: 17 });
+    expect(panel.maximizable).toBe(false);
+    expect(panel.fullScreenable).toBe(false);
+    expect(panel.closable).toBe(true);
+    expect(panel.minimizable).toBe(true);
+  }
   const pocketState = () =>
     application.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows().find((item) =>
         item.getTitle().includes("文件置物架"),
-      )!
-      return { visible: window.isVisible(), minimized: window.isMinimized() }
+      )!;
+      return { visible: window.isVisible(), minimized: window.isMinimized() };
     });
   await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
   await expect.poll(async () => (await pocketState()).visible).toBe(true);
-  await pocket.locator(".panel-mac-dot.close").click();
+  await pocket.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
   await expect.poll(async () => (await pocketState()).visible).toBe(false);
-  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
-  await expect.poll(async () => (await pocketState()).visible).toBe(true);
-  await pocket.locator(".panel-mac-dot.minimize").click();
-  await expect.poll(async () => (await pocketState()).minimized).toBe(true);
-  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
-  await expect.poll(async () => (await pocketState()).minimized).toBe(false);
-  await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
 });
 
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {
@@ -157,9 +178,8 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   await expect(lab).toHaveTitle("毛趣萌仔 · P0 验证台");
   await expect(pet.locator(".marker")).toBeVisible();
   await expect(lab.locator(".file-outline")).toHaveClass(/lucide-inbox/);
-  await expect(pocket.locator(".panel-mac-controls .panel-mac-dot")).toHaveCount(
-    3,
-  );
+  await expect(pocket.locator(".panel-title h1")).toHaveText("文件置物架");
+  await expect(pocket.locator(".panel-win-controls")).toHaveCount(0);
   const version = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(version.ok && version.value.runtime.version).toBe("0.0.1");
   expect(await lab.locator("vite-error-overlay").count()).toBe(0);
@@ -345,6 +365,19 @@ test("OS-backed File objects reach the real local registry; removal preserves so
   expect(registration.ok).toBe(true);
   await expect(lab.getByTestId("file-row")).toHaveCount(1);
   await expect(pocket.getByTestId("pocket-file")).toHaveCount(1);
+  await expect(
+    pocket.getByRole("button", { name: "新增文件", exact: true }),
+  ).toBeVisible();
+  await expect(
+    pocket.getByRole("button", { name: "格式转换", exact: true }),
+  ).toBeVisible();
+  await expect(
+    pocket.getByRole("button", { name: "移出置物架", exact: true }),
+  ).toBeVisible();
+  await expect(
+    pocket.getByRole("button", { name: "定位源文件", exact: true }),
+  ).toBeVisible();
+  await expect(pocket.getByText(/暂存/)).toHaveCount(0);
   await expect(pocket.getByTestId("pocket-file")).toHaveAttribute(
     "draggable",
     "true",
@@ -364,8 +397,8 @@ test("OS-backed File objects reach the real local registry; removal preserves so
   }
   await expect(pocket.getByRole("button", { name: /^拖出/ })).toHaveCount(0);
   await expect(
-    pocket.getByRole("button", { name: "转换格式", exact: true }),
-  ).toBeDisabled();
+    pocket.getByRole("button", { name: "格式转换", exact: true }),
+  ).toBeEnabled();
   const themes = [
     {
       id: "default",
@@ -398,19 +431,16 @@ test("OS-backed File objects reach the real local registry; removal preserves so
       if (className) document.documentElement.classList.add(className);
     }, theme.className);
     await pocket.mouse.move(2, 2);
-    await expect(pocket.locator(".button-pair .button-glass")).toHaveCSS(
+    await expect(pocket.locator(".pocket-add")).toHaveCSS(
       "background-color",
       theme.ink,
     );
     const styles = await pocket.evaluate(() => {
-      const action = document.querySelector<HTMLButtonElement>(
-        ".button-pair .button-glass",
-      )!;
-      const secondary = document.querySelector<HTMLButtonElement>(
-        ".button-pair .button-soft",
-      )!;
-      const footer = document
-        .querySelector(".pocket-footer")!
+      const action = document.querySelector<HTMLButtonElement>(".pocket-add")!;
+      const secondary =
+        document.querySelectorAll<HTMLButtonElement>(".pocket-actions .button-soft")[0]!;
+      const actions = document
+        .querySelector(".pocket-actions")!
         .getBoundingClientRect();
       return {
         brand: getComputedStyle(document.documentElement)
@@ -420,10 +450,9 @@ test("OS-backed File objects reach the real local registry; removal preserves so
           .backgroundColor,
         ink: getComputedStyle(action).backgroundColor,
         primaryBorder: getComputedStyle(action).borderColor,
-        secondaryBorder: getComputedStyle(secondary).borderColor,
         iconCount: document.querySelectorAll(".pocket-file-symbol img").length,
         color: getComputedStyle(
-          document.querySelector(".pocket-file-description strong")!,
+          document.querySelector(".pocket-file-name")!,
         ).color,
         bodySize: getComputedStyle(action).fontSize,
         height: action.getBoundingClientRect().height,
@@ -431,7 +460,7 @@ test("OS-backed File objects reach the real local registry; removal preserves so
           action.getBoundingClientRect().width -
             secondary.getBoundingClientRect().width,
         ),
-        footerVisible: footer.bottom <= innerHeight - 6,
+        actionsVisible: actions.bottom <= innerHeight - 6,
         horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
       };
     });
@@ -439,13 +468,12 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     expect(styles.canvas).toBe(theme.canvas);
     expect(styles.ink).toBe(theme.ink);
     expect(styles.primaryBorder).toBe("rgba(0, 0, 0, 0)");
-    expect(styles.secondaryBorder).toBe("rgba(0, 0, 0, 0)");
     expect(styles.iconCount).toBe(1);
     expect(styles.color).toBe("rgb(26, 26, 26)");
-    expect(styles.bodySize).toBe("14px");
-    expect(styles.height).toBeGreaterThanOrEqual(44);
+    expect(styles.bodySize).toBe("12px");
+    expect(styles.height).toBeGreaterThanOrEqual(34);
     expect(styles.widthDifference).toBeLessThanOrEqual(1);
-    expect(styles.footerVisible).toBe(true);
+    expect(styles.actionsVisible).toBe(true);
     expect(styles.horizontalOverflow).toBe(false);
     await pocket.screenshot({
       path: `/tmp/mqmz-file-pocket-${theme.id}.png`,
@@ -458,7 +486,7 @@ test("OS-backed File objects reach the real local registry; removal preserves so
       "theme-christmas",
     ),
   );
-  await expect(pocket.locator(".button-pair .button-glass")).toHaveCSS(
+  await expect(pocket.locator(".pocket-add")).toHaveCSS(
     "background-color",
     themes[0].ink,
   );
@@ -543,7 +571,7 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
       ),
     )
     .toBe(await realpath(fixture));
-  await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
+  await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
   await pocket
     .locator("#mqmz-card-input")
     .evaluate((element) => element.remove());
@@ -765,7 +793,9 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
     ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
-  await ask.getByRole("button", { name: "关闭", exact: true }).first().click();
+  await ask.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -970,7 +1000,7 @@ test("releasing on the pet cancels instead of acting", async () => {
     .toBe(132);
 });
 
-test("dropping on 置物架 stashes without opening the shelf", async () => {
+test("dropping on 置物架 opens the shelf with the received file", async () => {
   const fixture = join(directory, "轮盘暂存.txt");
   await writeFile(fixture, "donut-stash");
   await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
@@ -1004,12 +1034,11 @@ test("dropping on 置物架 stashes without opening the shelf", async () => {
         .find((window) => window.getTitle().includes("文件置物架"))!
         .isVisible(),
     ),
-  ).toBe(false);
-  await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
+  ).toBe(true);
   await expect(
-    pocket.getByRole("button", { name: "已暂存到置物架", exact: true }),
-  ).toBeDisabled();
-  await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
+    pocket.getByRole("button", { name: "移出置物架", exact: true }),
+  ).toBeVisible();
+  await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
 });
 
 test("dropping on 吃掉 eats the file into a reversible belly", async () => {
@@ -1122,7 +1151,7 @@ test("saving a real copy preserves the original and refuses to overwrite it", as
       })
       .toBe("preserve-original-bytes");
     expect(await readFile(fixture, "utf8")).toBe("preserve-original-bytes");
-    await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
+    await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
   } finally {
     await application.evaluate(({ dialog }) => {
       dialog.showSaveDialog = (
@@ -1293,7 +1322,7 @@ test("an explicit preview request captures actual screens when permission is alr
   expect(runtimeErrors).toEqual([]);
 });
 
-test("stashing persists a local index across restart and removing the card preserves the original", async () => {
+test("receiving persists a local index across restart and removing the card preserves the original", async () => {
   const fixture = join(directory, "重启后仍保留.txt");
   await writeFile(fixture, "persistent-original");
   await pocket.evaluate(() => {
@@ -1309,10 +1338,6 @@ test("stashing persists a local index across restart and removing the card prese
     .evaluate((element) =>
       window.mqmz!.receiveFiles([...(element as HTMLInputElement).files!]),
     );
-  await pocket
-    .getByRole("button", { name: "暂存到置物架", exact: true })
-    .click();
-  await expect(pocket.getByRole("status")).toHaveText("已暂存");
   const stored = JSON.parse(
     await readFile(join(directory, "data", "mqmz.file-shelf.json"), "utf8"),
   );
@@ -1335,9 +1360,9 @@ test("stashing persists a local index across restart and removing the card prese
     pocket.getByRole("button", { name: "文件 重启后仍保留.txt", exact: true }),
   ).toBeVisible();
   await expect(
-    pocket.getByRole("button", { name: "已暂存到置物架", exact: true }),
-  ).toBeDisabled();
-  await pocket.getByRole("button", { name: "移除记录", exact: true }).click();
+    pocket.getByRole("button", { name: "移出置物架", exact: true }),
+  ).toBeVisible();
+  await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
   expect(await readFile(fixture, "utf8")).toBe("persistent-original");
   expect(
     JSON.parse(

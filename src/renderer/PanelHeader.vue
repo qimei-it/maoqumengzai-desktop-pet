@@ -27,31 +27,6 @@ const mac = computed(() => {
     class="panel-header"
     :data-platform="mac ? 'darwin' : 'win32'"
   >
-    <div v-if="mac" class="panel-mac-controls">
-      <button
-        type="button"
-        class="panel-mac-dot close"
-        aria-label="关闭"
-        title="关闭"
-        @click="emit('close')"
-      ></button>
-      <button
-        type="button"
-        class="panel-mac-dot minimize"
-        aria-label="最小化"
-        title="最小化"
-        @click="emit('minimize')"
-      ></button>
-      <button
-        type="button"
-        class="panel-mac-dot zoom"
-        aria-label="最大化"
-        title="固定尺寸"
-        disabled
-        @click="emit('maximize')"
-      ></button>
-    </div>
-
     <div class="panel-title">
       <slot name="icon" />
       <h1>{{ title }}</h1>
@@ -101,7 +76,7 @@ const mac = computed(() => {
   align-items: center;
   justify-content: center;
   height: 32px;
-  margin: calc(-1 * var(--mqmz-panel-padding) + 8px) 0 12px;
+  margin: calc(-1 * var(--mqmz-panel-padding)) 0 12px;
   -webkit-app-region: drag;
 }
 .panel-title {
@@ -126,59 +101,10 @@ const mac = computed(() => {
   gap: 4px;
   -webkit-app-region: no-drag;
 }
-.panel-mac-controls {
-  position: absolute;
-  left: calc(-1 * var(--mqmz-panel-padding) + 7px);
-  top: 50%;
-  display: flex;
-  gap: 8px;
-  transform: translateY(-50%);
-  -webkit-app-region: no-drag;
-}
-.panel-mac-dot {
-  width: 14px;
-  height: 14px;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: var(--mqmz-window-dot-shadow);
-}
-.panel-mac-dot.close {
-  background: radial-gradient(
-    circle at 35% 25%,
-    var(--mqmz-window-close-hi),
-    var(--mqmz-window-close) 46%,
-    var(--mqmz-window-close-lo) 100%
-  );
-}
-.panel-mac-dot.minimize {
-  background: radial-gradient(
-    circle at 35% 25%,
-    var(--mqmz-window-minimize-hi),
-    var(--mqmz-window-minimize) 46%,
-    var(--mqmz-window-minimize-lo) 100%
-  );
-}
-.panel-mac-dot.zoom {
-  background: radial-gradient(
-    circle at 35% 25%,
-    var(--mqmz-window-zoom-hi),
-    var(--mqmz-window-zoom) 46%,
-    var(--mqmz-window-zoom-lo) 100%
-  );
-}
-.panel-mac-dot:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.panel-mac-dot:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
 .panel-win-controls {
   position: absolute;
   right: calc(-1 * var(--mqmz-panel-padding));
-  top: -8px;
+  top: 0;
   display: flex;
   height: 32px;
   -webkit-app-region: no-drag;
@@ -208,10 +134,5 @@ const mac = computed(() => {
 }
 .panel-header[data-platform='win32'] .panel-actions {
   right: 146px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .panel-mac-dot {
-    filter: none;
-  }
 }
 </style>
