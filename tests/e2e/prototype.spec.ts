@@ -167,10 +167,18 @@ test("settings panel updates theme, scale, and bubbles", async () => {
         .find((window) => window.getTitle().includes("设置"))!
         .isVisible(),
     );
+  const dockBefore =
+    process.platform === "darwin"
+      ? await application.evaluate(({ app }) => app.dock?.isVisible() ?? false)
+      : false;
   await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
   await expect.poll(async () => (await settingsVisible())).toBe(false);
   await pocket.getByRole("button", { name: "设置", exact: true }).click();
   await expect.poll(settingsVisible).toBe(true);
+  if (process.platform === "darwin" && !dockBefore)
+    await expect
+      .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()))
+      .toBe(true);
   await expect(
     settings.getByRole("heading", { name: "设置", exact: true }),
   ).toBeVisible();
@@ -276,6 +284,10 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
   await expect.poll(settingsVisible).toBe(false);
+  if (process.platform === "darwin" && !dockBefore)
+    await expect
+      .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()))
+      .toBe(false);
 });
 
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {

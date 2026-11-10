@@ -100,7 +100,6 @@ function close(): void {
 
         <div class="settings-content">
           <template v-if="section === 'appearance'">
-            <h2>外观</h2>
             <div class="settings-row">
               <span class="settings-label">主题</span>
               <div class="settings-segmented" role="group" aria-label="主题">
@@ -132,7 +131,6 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'desktop'">
-            <h2>桌面</h2>
             <div class="settings-row">
               <span id="setting-launch" class="settings-label">开机启动</span>
               <button
@@ -179,7 +177,6 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'data'">
-            <h2>数据</h2>
             <div class="settings-row">
               <span class="settings-label">数据目录</span>
               <button
@@ -216,7 +213,6 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'ai'">
-            <h2>智能体</h2>
             <div class="settings-row">
               <span class="settings-label">DeepSeek Key</span>
               <span class="settings-value">{{
@@ -271,7 +267,6 @@ function close(): void {
           </template>
 
           <template v-else>
-            <h2>关于</h2>
             <div class="settings-row">
               <span class="settings-label">版本</span>
               <span class="settings-value"
@@ -367,12 +362,6 @@ function close(): void {
   overflow: auto;
   padding-right: 4px;
   scrollbar-width: thin;
-}
-.settings-content h2 {
-  margin: 0 0 6px;
-  font-size: var(--font-size-section);
-  line-height: 1.4;
-  font-weight: 650;
 }
 .settings-row {
   display: flex;

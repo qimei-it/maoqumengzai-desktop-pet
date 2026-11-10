@@ -827,7 +827,18 @@ function positionSettings(): void {
   )
   settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+let settingsDockWasVisible = true
+function setSettingsDock(open: boolean): void {
+  if (process.platform !== 'darwin') return
+  if (open) {
+    settingsDockWasVisible = app.dock?.isVisible() ?? true
+    app.setActivationPolicy('regular')
+  } else if (!settingsDockWasVisible) {
+    app.setActivationPolicy('accessory')
+  }
+}
 function openSettings(): void {
+  setSettingsDock(true)
   if (pocket?.isVisible()) pocket.hide()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
@@ -844,6 +855,7 @@ function openSettings(): void {
 }
 function closeSettings(): void {
   settingsWindow?.hide()
+  setSettingsDock(false)
   broadcast()
 }
 async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
