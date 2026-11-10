@@ -50,6 +50,26 @@ macOS 上四款播放器的能力并不对等：
 3. **Windows 的预期更好。** `GlobalSystemMediaTransportControlsSession` 可提供歌名、歌手、时长、播放位置和控制命令，但需要逐款实测（QQ 音乐、网易云、酷狗是否接入 SMTC）。
 4. **产品文案要如实。** 无法读取信息时显示“已连接控制，系统未提供歌曲信息”，不能显示空白或假歌词。
 
+## 正式方案与探针脚本
+
+macOS 不依赖第三方 CLI，改为自带的 MediaRemote helper：
+
+- `scripts/probe-media-macos.swift`
+  - `info`：输出 title/artist/album/duration/elapsed/rate 的 JSON
+  - `play` / `pause` / `toggle` / `next` / `previous`
+  - 命令走 XPC，发送后需等待约 400ms 再退出，否则命令可能丢失
+  - 2026-11-10 用网易云实测：信息读取、播放/暂停、上一首/下一首全部生效
+  - QQ 音乐、酷狗走同一套接口；进度仍按各家是否上报为准
+
+Windows 用公开的 SMTC 探针，待实机验证：
+
+- `scripts/probe-smtc.ps1`
+  - `info`：title/artist/album/duration/elapsed/status/client（`SourceAppUserModelId`）
+  - `play` / `pause` / `toggle` / `next` / `previous`
+  - 依赖 `Windows.Media.Control`，读取 `GetTimelineProperties()` 的位置与 `LastUpdatedTime` 外推
+
+Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
+
 ## 待验证
 
 - Apple Music 的真实播放/暂停/切歌与进度读取（需要可播放内容与会话）。
