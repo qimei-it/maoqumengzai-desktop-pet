@@ -76,7 +76,8 @@ function receive(event: DragEvent): void {
           focusable="false"
         />
         <h2>拖到桌宠身上</h2>
-        <button class="button-soft" @click="emit('selectFiles')">
+        <span class="pocket-or">或</span>
+        <button class="button-glass" @click="emit('selectFiles')">
           选择本地文件
         </button>
       </div>
@@ -197,9 +198,8 @@ function receive(event: DragEvent): void {
         </p>
       </section>
       <p v-if="error" class="pocket-error" role="alert">{{ error }}</p>
-      <footer class="pocket-footer">
-        <span>本地保存 · 原件保留</span
-        ><button v-if="state?.files.length" @click="emit('selectFiles')">
+      <footer v-if="state?.files.length" class="pocket-footer">
+        <button class="button-soft pocket-add" @click="emit('selectFiles')">
           添加文件
         </button>
       </footer>
@@ -216,6 +216,7 @@ function receive(event: DragEvent): void {
   user-select: none;
 }
 .pocket-surface {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -238,15 +239,18 @@ function receive(event: DragEvent): void {
   font-weight: 650;
 }
 .pocket-icon-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   border: 0;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  min-height: 28px;
+  width: 30px;
+  min-height: 30px;
   padding: 0;
-  color: var(--color-muted);
+  color: var(--color-brand-ink);
 }
 .pocket-drag-hint {
   font-size: var(--font-size-label);
@@ -410,23 +414,18 @@ function receive(event: DragEvent): void {
 }
 .pocket-footer {
   display: flex;
-  flex-direction: row;
+  width: 100%;
+  justify-content: flex-end;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
-  font-size: var(--font-size-caption);
-  color: var(--color-muted);
+  margin-top: 12px;
+  padding-top: 0;
   border-top: 0;
 }
-.pocket-footer button {
-  border: 0;
-  background: transparent;
-  color: var(--color-brand-ink);
+.pocket-add {
+  min-height: 36px;
+  margin-left: auto;
+  padding-inline: var(--space-6);
   font-size: var(--font-size-label);
-  padding: 3px 0;
-  min-height: 25px;
 }
 .pocket-error {
   font-size: var(--font-size-label);
@@ -455,8 +454,13 @@ function receive(event: DragEvent): void {
 }
 .pocket-empty button {
   min-height: var(--tap-min);
-  margin-top: 16px;
+  margin-top: 0;
   padding-inline: var(--space-8);
+  font-size: var(--font-size-body);
+}
+.pocket-or {
+  margin: 10px 0;
+  color: var(--color-muted);
   font-size: var(--font-size-label);
 }
 .pocket-over .pocket-surface {

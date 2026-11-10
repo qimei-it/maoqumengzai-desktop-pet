@@ -312,12 +312,12 @@ function positionPocket(): void {
   const a = screen.getDisplayMatching(b).workArea
   const height =
     (files.size === 0
-      ? 320
+      ? 280
       : files.size === 1
         ? [...files.values()][0].status === 'shelved'
-          ? 456
-          : 420
-        : 488) + Math.min(belly.length, 3) * 46
+          ? 402
+          : 378
+        : 470) + Math.min(belly.length, 3) * 46
   const left = b.x - 352 + 24
   const x = left >= a.x ? left : b.x + b.width - 24
   pocket.setBounds(
