@@ -37,7 +37,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(3);
+  await expect.poll(() => application.windows().length).toBe(4);
   const windows = await Promise.all(
     application
       .windows()
@@ -1103,7 +1103,7 @@ test("stashing persists a local index across restart and removing the card prese
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(3);
+  await expect.poll(() => application.windows().length).toBe(4);
   pocket = (
     await Promise.all(
       application

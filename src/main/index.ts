@@ -84,6 +84,7 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 
 let pet: BrowserWindow
 let pocket: BrowserWindow
+let notes: BrowserWindow | undefined
 let lab: BrowserWindow | undefined
 let tray: Tray | undefined
 let scale = 1
@@ -219,6 +220,24 @@ function positionPocket(): void {
   pocket.setBounds(
     fitToDisplays({ x, y: b.y + b.height - height, width: 352, height }, [a]),
   )
+}
+function positionNotes(): void {
+  if (!notes || notes.isDestroyed()) return
+  const b = pet.getBounds()
+  const size = 240
+  const x = Math.round(b.x + b.width / 2 - size / 2)
+  const y = Math.round(b.y + 60 * scale - size)
+  notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
+}
+function updateNotesWindow(): void {
+  if (!notes || notes.isDestroyed()) return
+  if (music.playing) {
+    positionNotes()
+    notes.showInactive()
+    notes.moveTop()
+  } else if (notes.isVisible()) {
+    notes.hide()
+  }
 }
 function showPocket(): void {
   positionPocket()
@@ -428,6 +447,7 @@ function applyMusic(next: MusicState): void {
     return
   music = next
   broadcast()
+  updateNotesWindow()
 }
 function pollMusic(): void {
   if (process.platform !== 'darwin') return
@@ -1101,6 +1121,29 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     pocket.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  notes = new BrowserWindow({
+    width: 240,
+    height: 240,
+    title: '毛趣萌仔 · 音符',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  notes.setIgnoreMouseEvents(true)
+  if (process.platform === 'darwin')
+    notes.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -1118,7 +1161,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, lab]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, lab, notes]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -1140,6 +1183,10 @@ async function createWindows(): Promise<void> {
   pet.on('move', () => {
     broadcast()
     if (pocket.isVisible()) positionPocket()
+    if (notes?.isVisible()) positionNotes()
+  })
+  pet.on('resize', () => {
+    if (notes?.isVisible()) positionNotes()
   })
   await restoreShelf()
   await restoreBelly()
@@ -1148,6 +1195,7 @@ async function createWindows(): Promise<void> {
   await Promise.all([
     load(pet, 'pet'),
     load(pocket, 'pocket'),
+    load(notes, 'notes'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -1268,6 +1316,7 @@ else {
     shuttingDown = true
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
+    notes?.destroy()
     if (broadcastTimer) clearTimeout(broadcastTimer)
     globalShortcut.unregisterAll()
     tray?.destroy()

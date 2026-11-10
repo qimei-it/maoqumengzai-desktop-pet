@@ -635,3 +635,18 @@ footer button {
     max-width: 370px;
   }
 }
+
+/* Transparent overlay window that plays the floating music notes. */
+.notes-surface {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.notes-art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-ink) 40%, transparent));
+}

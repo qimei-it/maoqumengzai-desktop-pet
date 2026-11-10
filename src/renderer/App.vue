@@ -18,6 +18,7 @@ import catBase from "./assets/pet/ragdoll/base.png";
 import catBlink from "./assets/pet/ragdoll/blink.png";
 import catLifted from "./assets/pet/ragdoll/lifted.png";
 import catMusic from "./assets/pet/ragdoll/music.png";
+import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
@@ -25,10 +26,13 @@ import FilePocket from "./FilePocket.vue";
 const petView = new URLSearchParams(location.search).get("view") === "pet";
 const pocketView =
   new URLSearchParams(location.search).get("view") === "pocket";
+const notesView =
+  new URLSearchParams(location.search).get("view") === "notes";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
+if (notesView) document.title = "毛趣萌仔 · 音符";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 const error = ref("");
@@ -545,6 +549,10 @@ onUnmounted(() => {
     </div>
     <span v-if="toast" class="pet-toast" role="status">{{ toast }}</span>
     <span v-if="error" class="pet-error" role="alert">{{ error }}</span>
+  </main>
+
+  <main v-else-if="notesView" class="notes-surface">
+    <img :src="musicNotes" class="notes-art" alt="" />
   </main>
 
   <FilePocket
