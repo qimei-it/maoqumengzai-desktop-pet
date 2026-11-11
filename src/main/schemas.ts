@@ -172,6 +172,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('settings-open-licenses') }).strict(),
   z
     .object({
+      type: z.literal('hover-mode'),
+      active: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('focus-open'),
       tab: z.enum(['focus', 'water', 'todo']),
     })

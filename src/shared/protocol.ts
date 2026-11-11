@@ -207,6 +207,7 @@ export type Command =
   | { type: 'settings-clear-cache' }
   | { type: 'settings-clear-belly' }
   | { type: 'settings-open-licenses' }
+  | { type: 'hover-mode'; active: boolean }
   | { type: 'focus-open'; tab: FocusTab }
   | { type: 'focus-close' }
   | { type: 'focus-start' }

@@ -281,6 +281,7 @@ async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
   clearHoverTimer();
   if (!donutOpen.value) return;
+  const wasHover = donutMode.value === "hover";
   const token = ++closeToken;
   donutClosing.value = true;
   donutActive.value = null;
@@ -296,6 +297,7 @@ async function closeDonut(send = true): Promise<void> {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "本地操作失败。";
   }
+  if (wasHover) await command({ type: "hover-mode", active: false });
 }
 function enter(event: DragEvent): void {
   event.preventDefault();
@@ -573,7 +575,11 @@ async function openHoverDonut(): Promise<void> {
     return;
   petPose.value = "ponder";
   await openDonut("hover");
-  if (!donutOpen.value) petPose.value = "base";
+  if (!donutOpen.value) {
+    petPose.value = "base";
+    return;
+  }
+  await command({ type: "hover-mode", active: true });
 }
 function petPointerMove(event: PointerEvent): void {
   if (!petView || dragOver.value || pointerId !== undefined) {
@@ -1052,7 +1058,8 @@ onUnmounted(() => {
           :error="error"
           :actions="donutActions"
           :labels="donutLabels"
-          :label-size="donutMode === 'hover' ? 13 : 11"
+          :label-size="donutMode === 'hover' ? 12 : 11"
+          :single-line="donutMode === 'hover'"
           :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"
         />
         <span

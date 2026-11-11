@@ -162,6 +162,7 @@ let settings: Settings = { ...defaultSettings }
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
 let focusTab: FocusTab = 'focus'
+let petHoverMode = false
 let focusTimer: ReturnType<typeof setInterval> | undefined
 let dropMode = false
 let wheelOpen = false
@@ -405,7 +406,10 @@ function positionEye(): void {
   // right padding (10px) in style.css.
   const controlsWidth =
     music.source === 'apple' ? 6 * 30 + 5 * 2 : 4 * 30 + 3 * 2
-  const groupStart = target.x + target.width - 10 - controlsWidth
+  const groupStart =
+    settings.musicBarStyle === 'double'
+      ? target.x + 10
+      : target.x + target.width - 10 - controlsWidth
   const playCenter =
     groupStart + (music.source === 'apple' ? 2 : 1) * 32 + 15
   const x = Math.round(playCenter - size / 2)
@@ -414,7 +418,7 @@ function positionEye(): void {
 }
 function updateEyeWindow(): void {
   if (!eye || eye.isDestroyed()) return
-  if (music.title && !dropMode) {
+  if (music.title && !dropMode && !petHoverMode) {
     positionEye()
     eye.showInactive()
     eye.moveTop()
@@ -1384,9 +1388,16 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
+  const double = settings.musicBarStyle === 'double'
   return {
-    width: music.source === 'apple' ? 406 : 344,
-    height: settings.musicBarStyle === 'double' ? 108 : 50,
+    width: double
+      ? music.source === 'apple'
+        ? 360
+        : 320
+      : music.source === 'apple'
+        ? 406
+        : 344,
+    height: double ? 108 : 50,
   }
 }
 function pillLayout(liftPet: boolean): Rect {
@@ -1421,7 +1432,7 @@ function positionPill(): void {
 }
 function updatePillWindow(): void {
   if (!pill || pill.isDestroyed()) return
-  if (music.title && barVisible && !dropMode) {
+  if (music.title && barVisible && !dropMode && !petHoverMode) {
     positionPill()
     pill.showInactive()
     pill.moveTop()
@@ -1434,6 +1445,7 @@ function updateNotesWindow(): void {
   if (
     music.playing &&
     !dropMode &&
+    !petHoverMode &&
     !bubbleText &&
     !toastText
   ) {
@@ -1544,8 +1556,10 @@ function closeWheelWindow(): void {
   placePet(target)
   baseBounds = undefined
   mask = undefined
+  petHoverMode = false
   setPassthrough(false)
   persist(target)
+  syncOverlays()
   broadcast()
 }
 async function saveBelly(): Promise<void> {
@@ -2639,6 +2653,7 @@ function setupIpc(): void {
       'settings-clear-cache',
       'settings-clear-belly',
       'settings-open-licenses',
+      'hover-mode',
       'focus-open',
       'focus-close',
       'focus-start',
@@ -2842,6 +2857,11 @@ function setupIpc(): void {
         break
       case 'settings-open-licenses':
         await openLicenses()
+        break
+      case 'hover-mode':
+        petHoverMode = command.active
+        syncOverlays()
+        broadcast()
         break
       case 'focus-open':
         openFocus(command.tab)

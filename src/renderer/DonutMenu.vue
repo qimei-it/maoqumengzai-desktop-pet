@@ -26,6 +26,7 @@ const props = defineProps<{
   labels?: Record<string, readonly string[]>
   labelSize?: number
   ariaLabel?: string
+  singleLine?: boolean
 }>()
 const actions = computed(() => props.actions ?? sliceActions)
 const labels = computed<Record<string, readonly string[]>>(
@@ -71,11 +72,29 @@ const wedges = computed(() => {
     // Short labels stay in one vertical column. Longer labels use two
     // horizontal rows split by word (格式 / 转换, 批量 / 重命名).
     const columns = labels.value[action] ?? [action]
-    const lineHeight = fontSize * 1.25
+    const lineHeight = fontSize * (props.singleLine ? 1.15 : 1.25)
     const charWidth = fontSize * 1.08
     const center = pointAt(m.mid, mid)
-    const glyphs =
-      columns.length === 1
+    const chars = Array.from(columns.join(''))
+    const horizontal = Math.abs(Math.cos(mid)) >= 0.5
+    const glyphs = props.singleLine
+      ? horizontal
+        ? chars.map((char, charIndex) => ({
+            char,
+            x:
+              center.x -
+              ((chars.length - 1) * charWidth) / 2 +
+              charIndex * charWidth,
+            y: center.y,
+          }))
+        : chars.map((char, charIndex) => ({
+            char,
+            x: center.x,
+            y:
+              center.y +
+              (charIndex - (chars.length - 1) / 2) * lineHeight,
+          }))
+      : columns.length === 1
         ? Array.from(columns[0]).map((char, charIndex) => ({
             char,
             x: center.x,
@@ -84,9 +103,9 @@ const wedges = computed(() => {
               (charIndex - (columns[0].length - 1) / 2) * lineHeight,
           }))
         : columns.flatMap((row, rowIndex) => {
-            const chars = Array.from(row)
-            const width = (chars.length - 1) * charWidth
-            return chars.map((char, charIndex) => ({
+            const rowChars = Array.from(row)
+            const width = (rowChars.length - 1) * charWidth
+            return rowChars.map((char, charIndex) => ({
               char,
               x: center.x - width / 2 + charIndex * charWidth,
               y: center.y + (rowIndex - (columns.length - 1) / 2) * lineHeight,

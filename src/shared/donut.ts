@@ -541,8 +541,8 @@ export const hoverActions = ['focus', 'water', 'todo', 'agent'] as const
 export type HoverAction = (typeof hoverActions)[number]
 
 export const hoverLabels: Record<HoverAction, readonly string[]> = {
-  focus: ['番茄', '时钟'],
-  water: ['喝水', '提醒'],
-  todo: ['待办', '清单'],
-  agent: ['智能', '体'],
+  focus: ['番茄时钟'],
+  water: ['喝水提醒'],
+  todo: ['待办清单'],
+  agent: ['智能体'],
 }

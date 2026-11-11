@@ -835,7 +835,7 @@ footer button {
   gap: 2px;
 }
 .pill-surface.double .pill-controls {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 @media (prefers-reduced-motion: reduce) {
   .pill-lyric.scrolling .pill-lyric-track {
