@@ -1,3 +1,4 @@
+import type { FocusSession, WaterEntry } from './focus'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 
@@ -94,8 +95,17 @@ export type ConvertOutcome = {
   messages: string[]
 }
 export type FocusPhase = 'focus' | 'short' | 'long'
-export type FocusTab = 'focus' | 'water'
-export type FocusTodo = { id: string; text: string; done: boolean }
+export type FocusTodo = {
+  id: string
+  text: string
+  done: boolean
+  listId: string | null
+  today: boolean
+  urgent: boolean
+  flagged: boolean
+}
+export type TodoList = { id: string; name: string; groupId: string | null }
+export type TodoGroup = { id: string; name: string }
 export type FocusState = {
   phase: FocusPhase
   running: boolean
@@ -107,6 +117,10 @@ export type FocusState = {
   waterEnd: number
   waterNextAt?: number
   todos: FocusTodo[]
+  todoLists: TodoList[]
+  todoGroups: TodoGroup[]
+  sessions: FocusSession[]
+  waterLog: WaterEntry[]
 }
 export type RenameFile = { id: string; name: string }
 export type RenameState = {
@@ -159,9 +173,9 @@ export type Snapshot = {
   rename: RenameState
   settingsOpen: boolean
   settings: SettingsState
-  focusOpen: boolean
+  pomodoroOpen: boolean
+  waterOpen: boolean
   todoOpen: boolean
-  focusTab: FocusTab
   focus: FocusState
 }
 export type Command =
@@ -213,8 +227,11 @@ export type Command =
   | { type: 'settings-clear-belly' }
   | { type: 'settings-open-licenses' }
   | { type: 'hover-mode'; active: boolean }
-  | { type: 'focus-open'; tab: FocusTab }
-  | { type: 'focus-close' }
+  | { type: 'pomodoro-open' }
+  | { type: 'pomodoro-close' }
+  | { type: 'water-open' }
+  | { type: 'water-close' }
+  | { type: 'water-drink' }
   | { type: 'todo-open' }
   | { type: 'todo-close' }
   | { type: 'focus-start' }
@@ -229,10 +246,26 @@ export type Command =
       start: number
       end: number
     }
-  | { type: 'todo-add'; text: string }
+  | {
+      type: 'todo-add'
+      text: string
+      listId?: string | null
+      today?: boolean
+      urgent?: boolean
+      flagged?: boolean
+    }
   | { type: 'todo-toggle'; id: string }
   | { type: 'todo-remove'; id: string }
-  | { type: 'todo-clear-done' }
+  | { type: 'todo-clear-done'; ids?: string[] }
+  | {
+      type: 'todo-update'
+      id: string
+      patch: { today?: boolean; urgent?: boolean; flagged?: boolean }
+    }
+  | { type: 'todo-list-add'; name: string; groupId?: string | null }
+  | { type: 'todo-list-remove'; id: string }
+  | { type: 'todo-group-add'; name: string }
+  | { type: 'todo-group-remove'; id: string }
   | {
       type: 'panel-control'
       action: 'minimize' | 'maximize' | 'close'

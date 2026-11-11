@@ -7,10 +7,66 @@ const todoSchema = z
     id: z.string().uuid(),
     text: z.string().min(1).max(200),
     done: z.boolean(),
+    listId: z.string().uuid().nullable().default(null),
+    today: z.boolean().default(false),
+    urgent: z.boolean().default(false),
+    flagged: z.boolean().default(false),
+  })
+  .strict()
+
+const listSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(40),
+    groupId: z.string().uuid().nullable().default(null),
+  })
+  .strict()
+
+const groupSchema = z
+  .object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(40),
+  })
+  .strict()
+
+const sessionSchema = z
+  .object({
+    id: z.string().uuid(),
+    endedAt: z.number().finite(),
+    minutes: z.number().int().min(1).max(240),
+  })
+  .strict()
+
+const waterEntrySchema = z
+  .object({
+    id: z.string().uuid(),
+    at: z.number().finite(),
   })
   .strict()
 
 const schema = z
+  .object({
+    version: z.literal(2),
+    phase: z.enum(['focus', 'short', 'long']),
+    running: z.boolean(),
+    endsAt: z.number().finite().nullable(),
+    remaining: z.number().int().min(0).max(24 * 60 * 60),
+    completed: z.number().int().min(0).max(100_000),
+    water: z.boolean(),
+    waterInterval: z.number().int().min(5).max(240).default(60),
+    waterStart: z.number().int().min(0).max(23).default(9),
+    waterEnd: z.number().int().min(1).max(24).default(22),
+    waterNextAt: z.number().finite().nullable(),
+    todos: z.array(todoSchema).max(500),
+    todoLists: z.array(listSchema).max(100),
+    todoGroups: z.array(groupSchema).max(40),
+    sessions: z.array(sessionSchema).max(300).default([]),
+    waterLog: z.array(waterEntrySchema).max(500).default([]),
+  })
+  .strict()
+
+/** Version 1 stored flat todos without lists, flags or smart categories. */
+const schemaV1 = z
   .object({
     version: z.literal(1),
     phase: z.enum(['focus', 'short', 'long']),
@@ -23,14 +79,27 @@ const schema = z
     waterStart: z.number().int().min(0).max(23).default(9),
     waterEnd: z.number().int().min(1).max(24).default(22),
     waterNextAt: z.number().finite().nullable(),
-    todos: z.array(todoSchema).max(500),
+    todos: z
+      .array(
+        z
+          .object({
+            id: z.string().uuid(),
+            text: z.string().min(1).max(200),
+            done: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(500),
   })
   .strict()
 
 export type FocusData = z.infer<typeof schema>
+export type FocusTodoData = z.infer<typeof todoSchema>
+export type TodoListData = z.infer<typeof listSchema>
+export type TodoGroupData = z.infer<typeof groupSchema>
 
 export const defaultFocus = (): FocusData => ({
-  version: 1,
+  version: 2,
   phase: 'focus',
   running: false,
   endsAt: null,
@@ -42,13 +111,39 @@ export const defaultFocus = (): FocusData => ({
   waterEnd: 22,
   waterNextAt: null,
   todos: [],
+  todoLists: [],
+  todoGroups: [],
+  sessions: [],
+  waterLog: [],
 })
+
+export function parseFocus(raw: unknown): FocusData {
+  const current = schema.safeParse(raw)
+  if (current.success) return current.data
+  const legacy = schemaV1.safeParse(raw)
+  if (!legacy.success) return defaultFocus()
+  return {
+    ...legacy.data,
+    version: 2,
+    todos: legacy.data.todos.map((todo) => ({
+      ...todo,
+      listId: null,
+      today: false,
+      urgent: false,
+      flagged: false,
+    })),
+    todoLists: [],
+    todoGroups: [],
+    sessions: [],
+    waterLog: [],
+  }
+}
 
 let queue = Promise.resolve()
 
 export async function loadFocusFile(path: string): Promise<FocusData> {
   try {
-    return schema.parse(JSON.parse(await readFile(path, 'utf8')))
+    return parseFocus(JSON.parse(await readFile(path, 'utf8')))
   } catch {
     return defaultFocus()
   }

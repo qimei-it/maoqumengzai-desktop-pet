@@ -1,21 +1,31 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Droplets, Pause, Play, RotateCcw, Timer } from '@lucide/vue'
-import type { Command, FocusTab, Snapshot } from '../shared/protocol'
-import { focusPhaseLabels, formatFocus } from '../shared/focus'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { Droplets } from '@lucide/vue'
+import type { Command, Snapshot } from '../shared/protocol'
+import {
+  countToday,
+  formatClockTime,
+  groupByDay,
+} from '../shared/focus'
 import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
-const tab = computed<FocusTab>(() => props.state?.focusTab ?? 'focus')
+type WaterTab = 'settings' | 'log'
+const tab = ref<WaterTab>('settings')
+const now = ref(Date.now())
+let clock: number | undefined
+onMounted(() => {
+  clock = window.setInterval(() => {
+    now.value = Date.now()
+  }, 30_000)
+})
+onUnmounted(() => {
+  if (clock) window.clearInterval(clock)
+})
+
 const focus = computed(() => props.state?.focus)
-const remaining = computed(() => formatFocus(focus.value?.remaining ?? 0))
-const completed = computed(() => focus.value?.completed ?? 0)
-/** Focus sessions finished inside the current four-session cycle. */
-const cycleDone = computed(() =>
-  completed.value % 4 === 0 && completed.value > 0 ? 4 : completed.value % 4,
-)
 const waterInterval = computed(() => focus.value?.waterInterval ?? 60)
 const waterStart = computed(() => focus.value?.waterStart ?? 9)
 const waterEnd = computed(() => focus.value?.waterEnd ?? 22)
@@ -27,7 +37,13 @@ const waterNext = computed(() => {
     minute: '2-digit',
   })
 })
-const phases = ['focus', 'short', 'long'] as const
+const log = computed(() => focus.value?.waterLog ?? [])
+const groups = computed(() =>
+  groupByDay(log.value, (entry) => entry.at, now.value),
+)
+const todayCount = computed(() =>
+  countToday(log.value, (entry) => entry.at, now.value),
+)
 
 function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
@@ -66,19 +82,16 @@ function changeWaterEnd(event: Event): void {
     end,
   )
 }
-function openTab(next: FocusTab): void {
-  emit('command', { type: 'focus-open', tab: next })
-}
 function close(): void {
-  emit('command', { type: 'focus-close' })
+  emit('command', { type: 'water-close' })
 }
 </script>
 
 <template>
-  <main class="focus-shell" @keydown.esc="close">
-    <section class="focus-surface" aria-label="专注">
+  <main class="water-shell" @keydown.esc="close">
+    <section class="water-surface" aria-label="喝水提醒">
       <PanelHeader
-        title="专注"
+        title="喝水提醒"
         :platform="state?.runtime.platform"
         @minimize="
           emit('command', { type: 'panel-control', action: 'minimize' })
@@ -87,104 +100,38 @@ function close(): void {
       />
 
       <div
-        class="focus-tabs"
+        class="water-tabs"
         role="tablist"
-        aria-label="专注分类"
+        aria-label="喝水分类"
         :data-active="tab"
       >
-        <span class="focus-tabs-thumb" aria-hidden="true" />
+        <span class="water-tabs-thumb" aria-hidden="true" />
         <button
           type="button"
           role="tab"
-          :aria-selected="tab === 'focus'"
-          :class="{ active: tab === 'focus' }"
-          @click="openTab('focus')"
+          :aria-selected="tab === 'settings'"
+          :class="{ active: tab === 'settings' }"
+          @click="tab = 'settings'"
         >
-          <Timer :size="15" :stroke-width="2" aria-hidden="true" />
-          番茄时钟
+          提醒设置
         </button>
         <button
           type="button"
           role="tab"
-          :aria-selected="tab === 'water'"
-          :class="{ active: tab === 'water' }"
-          @click="openTab('water')"
+          :aria-selected="tab === 'log'"
+          :class="{ active: tab === 'log' }"
+          @click="tab = 'log'"
         >
-          <Droplets :size="15" :stroke-width="2" aria-hidden="true" />
-          喝水
+          喝水记录
         </button>
       </div>
 
-      <div v-if="tab === 'focus'" class="focus-body">
-        <div class="focus-phases" role="group" aria-label="计时阶段">
-          <button
-            v-for="phase in phases"
-            :key="phase"
-            type="button"
-            :class="{ active: focus?.phase === phase }"
-            @click="emit('command', { type: 'focus-phase', phase })"
-          >
-            {{ focusPhaseLabels[phase] }}
-          </button>
-        </div>
-        <div class="focus-clock" aria-live="polite">{{ remaining }}</div>
-        <div class="focus-meta">
-          <span>{{ focus?.running ? '进行中' : '已暂停' }}</span>
-          <span
-            class="focus-dots"
-            role="img"
-            :title="`每 4 次专注后长休，已完成 ${cycleDone} / 4 次`"
-            :aria-label="`每 4 次专注后长休，已完成 ${cycleDone} / 4 次`"
-          >
-            <span
-              v-for="index in 4"
-              :key="index"
-              :class="{ done: index <= cycleDone }"
-            />
-          </span>
-        </div>
-        <div class="focus-controls">
-          <button
-            type="button"
-            class="button-glass"
-            @click="
-              emit('command', {
-                type: focus?.running ? 'focus-pause' : 'focus-start',
-              })
-            "
-          >
-            <Pause
-              v-if="focus?.running"
-              :size="17"
-              :stroke-width="2"
-              aria-hidden="true"
-            />
-            <Play
-              v-else
-              :size="17"
-              :stroke-width="2"
-              aria-hidden="true"
-            />
-            {{ focus?.running ? '暂停' : '开始' }}
-          </button>
-          <button
-            type="button"
-            class="button-soft"
-            aria-label="重置"
-            title="重置"
-            @click="emit('command', { type: 'focus-reset' })"
-          >
-            <RotateCcw :size="17" :stroke-width="2" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      <div v-else class="focus-body">
-        <div class="focus-row">
+      <div v-if="tab === 'settings'" class="water-body">
+        <div class="water-row">
           <span id="water-toggle-label">喝水提醒</span>
           <button
             type="button"
-            class="focus-switch"
+            class="water-switch"
             role="switch"
             aria-labelledby="water-toggle-label"
             :aria-checked="focus?.water"
@@ -192,18 +139,18 @@ function close(): void {
               emit('command', { type: 'focus-water', enabled: !focus?.water })
             "
           >
-            <span class="focus-switch-thumb" />
+            <span class="water-switch-thumb" />
           </button>
         </div>
-        <div class="focus-row">
+        <div class="water-row">
           <span>下次提醒</span>
-          <span class="focus-value">{{ focus?.water ? waterNext : '已关闭' }}</span>
+          <span class="water-value">{{ focus?.water ? waterNext : '已关闭' }}</span>
         </div>
-        <div class="focus-row">
+        <div class="water-row">
           <span>提醒间隔</span>
-          <span class="focus-config">
+          <span class="water-config">
             <input
-              class="focus-number"
+              class="water-number"
               type="number"
               min="5"
               max="240"
@@ -212,14 +159,14 @@ function close(): void {
               aria-label="喝水提醒间隔分钟"
               @change="changeWaterInterval"
             />
-            <span class="focus-value">分钟</span>
+            <span class="water-value">分钟</span>
           </span>
         </div>
-        <div class="focus-row">
+        <div class="water-row">
           <span>生效时段</span>
-          <span class="focus-config">
+          <span class="water-config">
             <select
-              class="focus-select"
+              class="water-select"
               :value="waterStart"
               aria-label="喝水提醒开始时间"
               @change="changeWaterStart"
@@ -228,9 +175,9 @@ function close(): void {
                 {{ hourLabel(hour - 1) }}
               </option>
             </select>
-            <span class="focus-value">–</span>
+            <span class="water-value">–</span>
             <select
-              class="focus-select"
+              class="water-select"
               :value="waterEnd"
               aria-label="喝水提醒结束时间"
               @change="changeWaterEnd"
@@ -243,20 +190,57 @@ function close(): void {
         </div>
       </div>
 
-      <p v-if="error" class="focus-error" role="alert">{{ error }}</p>
+      <div v-else class="water-body water-records">
+        <div class="water-summary">
+          <span class="water-today">今日 {{ todayCount }} 次</span>
+          <button
+            type="button"
+            class="button-glass"
+            @click="emit('command', { type: 'water-drink' })"
+          >
+            <Droplets :size="16" :stroke-width="2" aria-hidden="true" />
+            记录一次
+          </button>
+        </div>
+        <div class="water-history">
+          <div v-if="groups.length" class="water-history-list">
+            <section v-for="group in groups" :key="group.key" class="water-day">
+              <div class="water-day-title">
+                <span>{{ group.label }}</span>
+                <span>{{ group.count }} 次</span>
+              </div>
+              <div
+                v-for="entry in group.items"
+                :key="entry.id"
+                class="water-entry"
+              >
+                <Droplets
+                  :size="13"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                <span>{{ formatClockTime(entry.at) }}</span>
+              </div>
+            </section>
+          </div>
+          <p v-else class="water-empty">还没有喝水记录</p>
+        </div>
+      </div>
+
+      <p v-if="error" class="water-error" role="alert">{{ error }}</p>
     </section>
   </main>
 </template>
 
 <style scoped>
-.focus-shell {
+.water-shell {
   height: 100vh;
   padding: 7px;
   background: transparent;
   color: var(--color-ink);
   user-select: none;
 }
-.focus-surface {
+.water-surface {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -265,16 +249,17 @@ function close(): void {
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
 }
-.focus-tabs {
+.water-tabs {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  margin-top: 10px;
   padding: 4px;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background: var(--color-fill-secondary);
 }
-.focus-tabs-thumb {
+.water-tabs-thumb {
   position: absolute;
   top: 4px;
   bottom: 4px;
@@ -286,16 +271,12 @@ function close(): void {
   transition: transform var(--motion-slide) var(--ease-spring);
   will-change: transform;
 }
-.focus-tabs[data-active='water'] .focus-tabs-thumb {
+.water-tabs[data-active='log'] .water-tabs-thumb {
   transform: translateX(100%);
 }
-.focus-tabs button {
+.water-tabs button {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
   min-height: 36px;
   padding: 0 8px;
   border: 0;
@@ -305,89 +286,21 @@ function close(): void {
   font-size: var(--font-size-label);
   transition: color var(--motion-fast) var(--ease-standard);
 }
-.focus-tabs button.active {
+.water-tabs button.active {
   color: var(--color-brand-ink);
   font-weight: 600;
 }
-.focus-tabs button:focus-visible {
+.water-tabs button:focus-visible {
   outline-offset: -2px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .focus-tabs-thumb {
-    transition: none;
-  }
-}
-.focus-body {
+.water-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding-top: 16px;
+  padding-top: 12px;
 }
-.focus-phases {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-}
-.focus-phases button {
-  min-height: 32px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
-}
-.focus-phases button.active {
-  border-color: transparent;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-  font-weight: 600;
-}
-.focus-clock {
-  margin: 26px 0 6px;
-  text-align: center;
-  font-size: 58px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  letter-spacing: 1px;
-}
-.focus-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
-}
-.focus-dots {
-  display: flex;
-  gap: 5px;
-}
-.focus-dots span {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-line);
-}
-.focus-dots span.done {
-  background: var(--color-brand-ink);
-}
-.focus-controls {
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
-}
-.focus-controls .button-glass {
-  flex: 1;
-  gap: 6px;
-}
-.focus-controls .button-soft {
-  width: var(--tap-min);
-  height: var(--tap-min);
-  padding: 0;
-  flex: none;
-}
-.focus-row {
+.water-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -396,17 +309,17 @@ function close(): void {
   border-bottom: 1px solid var(--color-line);
   font-size: var(--font-size-body);
 }
-.focus-value {
+.water-value {
   color: var(--color-muted);
   font-size: var(--font-size-label);
 }
-.focus-config {
+.water-config {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.focus-number,
-.focus-select {
+.water-number,
+.water-select {
   height: 30px;
   padding: 0 6px;
   border: 1px solid var(--color-line);
@@ -416,19 +329,19 @@ function close(): void {
   font: inherit;
   font-size: var(--font-size-label);
 }
-.focus-number {
+.water-number {
   width: 58px;
   text-align: right;
 }
-.focus-select {
+.water-select {
   min-width: 72px;
 }
-.focus-number:focus-visible,
-.focus-select:focus-visible {
+.water-number:focus-visible,
+.water-select:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
 }
-.focus-switch {
+.water-switch {
   position: relative;
   width: 42px;
   height: 25px;
@@ -438,11 +351,11 @@ function close(): void {
   border-radius: 999px;
   background: var(--color-fill-secondary);
 }
-.focus-switch[aria-checked='true'] {
+.water-switch[aria-checked='true'] {
   border-color: transparent;
   background: var(--color-brand-ink);
 }
-.focus-switch-thumb {
+.water-switch-thumb {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -453,25 +366,77 @@ function close(): void {
   box-shadow: var(--shadow-control);
   transition: transform var(--motion-fast) var(--ease-out);
 }
-.focus-switch[aria-checked='true'] .focus-switch-thumb {
+.water-switch[aria-checked='true'] .water-switch-thumb {
   transform: translateX(17px);
 }
-.focus-error {
+.water-records {
+  padding-top: 14px;
+}
+.water-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.water-today {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.water-summary .button-glass {
+  gap: 5px;
+  padding-inline: 14px;
+}
+.water-history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.water-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.water-day + .water-day {
+  margin-top: 8px;
+}
+.water-day-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+.water-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+}
+.water-entry svg {
+  color: var(--color-brand);
+}
+.water-empty {
+  margin: auto;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.water-error {
   margin: 10px 0 0;
   color: var(--color-danger);
   font-size: var(--font-size-label);
-  line-height: 1.5;
-}
-.focus-tabs button:focus-visible,
-.focus-phases button:focus-visible,
-.focus-switch:focus-visible,
-.focus-check:focus-visible,
-.focus-remove:focus-visible {
-  outline: 2px solid var(--color-brand-ink);
-  outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .focus-switch-thumb {
+  .water-tabs-thumb {
     transition: none;
   }
 }

@@ -176,13 +176,11 @@ export const commandSchema = z.discriminatedUnion('type', [
       active: z.boolean(),
     })
     .strict(),
-  z
-    .object({
-      type: z.literal('focus-open'),
-      tab: z.enum(['focus', 'water']),
-    })
-    .strict(),
-  z.object({ type: z.literal('focus-close') }).strict(),
+  z.object({ type: z.literal('pomodoro-open') }).strict(),
+  z.object({ type: z.literal('pomodoro-close') }).strict(),
+  z.object({ type: z.literal('water-open') }).strict(),
+  z.object({ type: z.literal('water-close') }).strict(),
+  z.object({ type: z.literal('water-drink') }).strict(),
   z.object({ type: z.literal('todo-open') }).strict(),
   z.object({ type: z.literal('todo-close') }).strict(),
   z.object({ type: z.literal('focus-start') }).strict(),
@@ -213,11 +211,52 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('todo-add'),
       text: z.string().trim().min(1).max(200),
+      listId: z.string().uuid().nullable().optional(),
+      today: z.boolean().optional(),
+      urgent: z.boolean().optional(),
+      flagged: z.boolean().optional(),
     })
     .strict(),
   z.object({ type: z.literal('todo-toggle'), id: z.string().uuid() }).strict(),
+  z
+    .object({
+      type: z.literal('todo-update'),
+      id: z.string().uuid(),
+      patch: z
+        .object({
+          today: z.boolean().optional(),
+          urgent: z.boolean().optional(),
+          flagged: z.boolean().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
   z.object({ type: z.literal('todo-remove'), id: z.string().uuid() }).strict(),
-  z.object({ type: z.literal('todo-clear-done') }).strict(),
+  z
+    .object({
+      type: z.literal('todo-clear-done'),
+      ids: z.array(z.string().uuid()).max(500).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-list-add'),
+      name: z.string().trim().min(1).max(40),
+      groupId: z.string().uuid().nullable().optional(),
+    })
+    .strict(),
+  z
+    .object({ type: z.literal('todo-list-remove'), id: z.string().uuid() })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-group-add'),
+      name: z.string().trim().min(1).max(40),
+    })
+    .strict(),
+  z
+    .object({ type: z.literal('todo-group-remove'), id: z.string().uuid() })
+    .strict(),
   z
     .object({
       type: z.literal('panel-control'),

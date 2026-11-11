@@ -49,7 +49,8 @@ import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
 import FocusBadge from "./FocusBadge.vue";
-import FocusPanel from "./FocusPanel.vue";
+import PomodoroPanel from "./PomodoroPanel.vue";
+import WaterPanel from "./WaterPanel.vue";
 import TodoPanel from "./TodoPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 import { focusDurations } from "../shared/focus";
@@ -79,6 +80,7 @@ const focusView =
   new URLSearchParams(location.search).get("view") === "focus";
 const focusBadgeView =
   new URLSearchParams(location.search).get("view") === "focus-badge";
+const waterView = new URLSearchParams(location.search).get("view") === "water";
 const todoView = new URLSearchParams(location.search).get("view") === "todo";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
@@ -95,6 +97,7 @@ document.body.classList.toggle("rename-view", renameView);
 document.body.classList.toggle("settings-view", settingsView);
 document.body.classList.toggle("focus-view", focusView);
 document.body.classList.toggle("focus-badge-view", focusBadgeView);
+document.body.classList.toggle("water-view", waterView);
 document.body.classList.toggle("todo-view", todoView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
@@ -109,8 +112,9 @@ if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
 if (settingsView) document.title = "毛趣萌仔 · 设置";
-if (focusView) document.title = "毛趣萌仔 · 专注";
+if (focusView) document.title = "毛趣萌仔 · 番茄时钟";
 if (focusBadgeView) document.title = "毛趣萌仔 · 计时环";
+if (waterView) document.title = "毛趣萌仔 · 喝水提醒";
 if (todoView) document.title = "毛趣萌仔 · 待办清单";
 const api = window.mqmz;
 const state = ref<Snapshot>();
@@ -664,7 +668,11 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     await command({ type: "todo-open" });
     return;
   }
-  await command({ type: "focus-open", tab: action });
+  if (action === "water") {
+    await command({ type: "water-open" });
+    return;
+  }
+  await command({ type: "pomodoro-open" });
 }
 function petSurfaceClick(): void {
   if (!donutOpen.value || donutMode.value !== "hover") return;
@@ -1470,8 +1478,15 @@ onUnmounted(() => {
     @command="command"
   />
 
-  <FocusPanel
+  <PomodoroPanel
     v-else-if="focusView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <WaterPanel
+    v-else-if="waterView"
     :state="state"
     :error="error"
     @command="command"

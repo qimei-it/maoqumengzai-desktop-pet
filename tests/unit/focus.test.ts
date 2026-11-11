@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import {
+  countToday,
   focusDurations,
+  formatCalendarDate,
+  formatClockTime,
   formatFocus,
+  groupByDay,
   nextPhase,
   nextWaterAt,
   phaseSeconds,
@@ -48,5 +52,39 @@ describe('focus helpers', () => {
     const clamped = new Date(2026, 10, 11, 10, 0).getTime()
     expect(nextWaterAt(clamped, 1, 8, 21)).toBe(clamped + 5 * 60 * 1000)
     expect(nextWaterAt(clamped, 999, 8, 21)).toBe(clamped + 240 * 60 * 1000)
+  })
+
+  test('history groups by day, newest first', () => {
+    const now = new Date(2026, 10, 11, 15, 0).getTime()
+    const at = (day: number, hour: number) =>
+      new Date(2026, 10, day, hour, 0).getTime()
+    const entries = [
+      { id: 'a', at: at(9, 9) },
+      { id: 'b', at: at(11, 8) },
+      { id: 'c', at: at(11, 14) },
+      { id: 'd', at: at(10, 7) },
+    ]
+    const groups = groupByDay(entries, (entry) => entry.at, now)
+    expect(groups.map((group) => group.label)).toEqual(['今天', '昨天', '11月9日'])
+    expect(groups[0].items.map((entry) => entry.id)).toEqual(['c', 'b'])
+    expect(groups[0].count).toBe(2)
+  })
+
+  test('history skips entries older than the window and counts today', () => {
+    const now = new Date(2026, 10, 11, 12, 0).getTime()
+    const at = (day: number) => new Date(2026, 10, day, 9, 0).getTime()
+    const entries = [
+      { id: 'today', at: at(11) },
+      { id: 'week', at: at(7) },
+      { id: 'old', at: at(2) },
+    ]
+    expect(groupByDay(entries, (entry) => entry.at, now)).toHaveLength(2)
+    expect(countToday(entries, (entry) => entry.at, now)).toBe(1)
+  })
+
+  test('calendar and clock labels use local padded values', () => {
+    const stamp = new Date(2026, 2, 4, 7, 5).getTime()
+    expect(formatCalendarDate(stamp)).toBe('2026年03月04日')
+    expect(formatClockTime(stamp)).toBe('07:05')
   })
 })

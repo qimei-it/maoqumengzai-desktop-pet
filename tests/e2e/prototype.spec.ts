@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
-import { mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -24,7 +24,8 @@ let ask: Page;
 let convert: Page;
 let rename: Page;
 let settings: Page;
-let focus: Page;
+let pomodoro: Page;
+let water: Page;
 let focusBadge: Page;
 let todo: Page;
 let pill: Page;
@@ -41,13 +42,47 @@ test.beforeAll(async () => {
     ),
   );
   environment.MQMZ_DATA_DIR = join(directory, "data");
+  await mkdir(environment.MQMZ_DATA_DIR, { recursive: true });
+  const today = new Date();
+  today.setHours(8, 0, 0, 0);
+  const todayLater = new Date(today);
+  todayLater.setHours(9, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(11, 0, 0, 0);
+  await writeFile(
+    join(environment.MQMZ_DATA_DIR, "mqmz.focus.json"),
+    JSON.stringify({
+      version: 2,
+      phase: "focus",
+      running: false,
+      endsAt: null,
+      remaining: 1500,
+      completed: 2,
+      water: true,
+      waterInterval: 60,
+      waterStart: 9,
+      waterEnd: 22,
+      waterNextAt: null,
+      todos: [],
+      todoLists: [],
+      todoGroups: [],
+      sessions: [
+        { id: crypto.randomUUID(), endedAt: today.getTime(), minutes: 25 },
+        { id: crypto.randomUUID(), endedAt: todayLater.getTime(), minutes: 25 },
+        { id: crypto.randomUUID(), endedAt: yesterday.getTime(), minutes: 25 },
+      ],
+      waterLog: [],
+    }),
+    "utf8",
+  );
   delete environment.ELECTRON_RUN_AS_NODE;
   launchEnvironment = environment;
   application = await electron.launch({
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(17);
+  await expect.poll(() => application.windows().length).toBe(18);
   const windows = await Promise.all(
     application
       .windows()
@@ -60,7 +95,8 @@ test.beforeAll(async () => {
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
-  focus = windows.find((item) => item.title.includes("专注"))!.page;
+  pomodoro = windows.find((item) => item.title.includes("番茄时钟"))!.page;
+  water = windows.find((item) => item.title.includes("喝水提醒"))!.page;
   focusBadge = windows.find((item) => item.title.includes("计时环"))!.page;
   todo = windows.find((item) => item.title.includes("待办清单"))!.page;
   pill = windows.find((item) => item.title.includes("音乐控制"))!.page;
@@ -71,7 +107,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings, focus, focusBadge, todo, pill]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings, pomodoro, water, focusBadge, todo, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -368,44 +404,36 @@ test("hovering the pet centre opens companion tools", async () => {
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok && snapshot.value.focusOpen;
+      return snapshot.ok && snapshot.value.pomodoroOpen;
     })
     .toBe(false);
 
   await pet.evaluate(() =>
-    window.mqmz!.command({ type: "focus-open", tab: "focus" }),
+    window.mqmz!.command({ type: "pomodoro-open" }),
   );
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok && snapshot.value.focusOpen;
+      return snapshot.ok && snapshot.value.pomodoroOpen;
     })
     .toBe(true);
-  await expect(focus.getByRole("heading", { name: "专注" })).toBeVisible();
-  const movedFocus = await application.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find((item) =>
-      item.getTitle().includes("专注"),
-    )!;
-    window.setBounds({ x: 80, y: 80, width: 360, height: 420 });
-    return window.getBounds();
-  });
-  await focus.getByRole("tab", { name: "喝水", exact: true }).click();
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  const stayed = await application.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()
-      .find((item) => item.getTitle().includes("专注"))!
-      .getBounds(),
+  await expect(
+    pomodoro.getByRole("heading", { name: "番茄时钟" }),
+  ).toBeVisible();
+  await expect(pomodoro.locator(".focus-date")).toHaveText(
+    /^\d{4}年\d{2}月\d{2}日$/,
   );
-  expect(stayed).toEqual(movedFocus);
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  const waterThumb = await focus.locator(".focus-tabs-thumb").boundingBox();
-  const track = await focus.locator(".focus-tabs").boundingBox();
-  expect(waterThumb!.x).toBeGreaterThan(track!.x + track!.width / 2 - 4);
-  await focus.getByRole("tab", { name: "番茄时钟", exact: true }).click();
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  const focusThumb = await focus.locator(".focus-tabs-thumb").boundingBox();
-  expect(focusThumb!.x).toBeLessThan(track!.x + track!.width / 2 - track!.width / 4);
-  await focus.getByRole("button", { name: "开始", exact: true }).click();
+  await expect(pomodoro.locator(".focus-count")).toHaveText("今日 2 次");
+  await expect(pomodoro.locator(".focus-day-title")).toHaveCount(2);
+  await expect(pomodoro.locator(".focus-day-title").first()).toContainText(
+    "今天",
+  );
+  await expect(pomodoro.locator(".focus-session")).toHaveCount(3);
+  await expect(
+    pomodoro.getByRole("button", { name: /长休/ }),
+  ).toContainText("2/4");
+
+  await pomodoro.getByRole("button", { name: "开始", exact: true }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -413,11 +441,12 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(true);
   await expect(pet.locator(".marker")).toHaveAttribute("src", /focus/);
-  const primary = await focus.locator(".focus-controls .button-glass").boundingBox();
-  const reset = await focus.getByRole("button", { name: "重置" }).boundingBox();
+  const primary = await pomodoro
+    .locator(".focus-controls .button-glass")
+    .boundingBox();
+  const reset = await pomodoro.getByRole("button", { name: "重置" }).boundingBox();
   expect(reset!.width).toBe(primary!.height);
   expect(reset!.height).toBe(primary!.height);
-  await expect(focus.getByRole("button", { name: "跳过" })).toHaveCount(0);
   const badgeVisible = () =>
     application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()
@@ -425,16 +454,16 @@ test("hovering the pet centre opens companion tools", async () => {
         .isVisible(),
     );
   await expect.poll(badgeVisible).toBe(false);
-  await focus.evaluate(() =>
+  await pomodoro.evaluate(() =>
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
   await expect.poll(badgeVisible).toBe(true);
   await pet.evaluate(() =>
-    window.mqmz!.command({ type: "focus-open", tab: "focus" }),
+    window.mqmz!.command({ type: "pomodoro-open" }),
   );
   await expect.poll(badgeVisible).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 1200));
-  await focus.getByRole("button", { name: "暂停", exact: true }).click();
+  await pomodoro.getByRole("button", { name: "暂停", exact: true }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -442,11 +471,58 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBeLessThan(1500);
 
-  await focus.getByRole("tab", { name: "喝水", exact: true }).click();
-  await focus.getByLabel("喝水提醒间隔分钟").fill("30");
-  await focus.getByLabel("喝水提醒间隔分钟").press("Tab");
-  await focus.getByLabel("喝水提醒开始时间").selectOption("8");
-  await focus.getByLabel("喝水提醒结束时间").selectOption("21");
+  await pet.evaluate(() => window.mqmz!.command({ type: "water-open" }));
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.waterOpen;
+    })
+    .toBe(true);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.pomodoroOpen;
+    })
+    .toBe(false);
+  await expect(
+    water.getByRole("heading", { name: "喝水提醒" }),
+  ).toBeVisible();
+  await expect(water.getByRole("tab")).toHaveCount(2);
+  const movedWater = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes("喝水提醒"),
+    )!;
+    window.setBounds({ x: 120, y: 120, width: 360, height: 420 });
+    return window.getBounds();
+  });
+  await water.getByRole("tab", { name: "喝水记录", exact: true }).click();
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  const stayed = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("喝水提醒"))!
+      .getBounds(),
+  );
+  expect(stayed).toEqual(movedWater);
+  const waterThumb = await water.locator(".water-tabs-thumb").boundingBox();
+  const waterTrack = await water.locator(".water-tabs").boundingBox();
+  expect(waterThumb!.x).toBeGreaterThan(
+    waterTrack!.x + waterTrack!.width / 2 - 4,
+  );
+  await expect(water.locator(".water-today")).toHaveText("今日 0 次");
+  await water.getByRole("button", { name: "记录一次" }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.waterLog.length : 0;
+    })
+    .toBe(1);
+  await expect(water.locator(".water-today")).toHaveText("今日 1 次");
+  await expect(water.locator(".water-entry")).toHaveCount(1);
+  await water.getByRole("tab", { name: "提醒设置", exact: true }).click();
+  await water.getByLabel("喝水提醒间隔分钟").fill("30");
+  await water.getByLabel("喝水提醒间隔分钟").press("Tab");
+  await water.getByLabel("喝水提醒开始时间").selectOption("8");
+  await water.getByLabel("喝水提醒结束时间").selectOption("21");
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -455,20 +531,20 @@ test("hovering the pet centre opens companion tools", async () => {
         : "";
     })
     .toBe("30:8:21");
-  await focus.getByRole("switch", { name: "喝水提醒" }).click();
+  await water.getByRole("switch", { name: "喝水提醒" }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok && snapshot.value.focus.water;
     })
     .toBe(false);
-  await focus.evaluate(() =>
+  await water.evaluate(() =>
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok && snapshot.value.focusOpen;
+      return snapshot.ok && snapshot.value.waterOpen;
     })
     .toBe(false);
 
@@ -480,6 +556,7 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(true);
   await expect(todo.getByRole("heading", { name: "待办清单" })).toBeVisible();
+  await expect(todo.getByRole("tab")).toHaveCount(6);
   await todo.getByLabel("新建待办").fill("悬停轮盘测试");
   await todo.getByRole("button", { name: "添加", exact: true }).click();
   await expect
@@ -488,18 +565,44 @@ test("hovering the pet centre opens companion tools", async () => {
       return snapshot.ok ? snapshot.value.focus.todos.length : 0;
     })
     .toBe(1);
-  await expect(todo.locator(".todo-card.all .todo-card-count")).toHaveText("1");
+  await expect(todo.locator(".todo-smart.all .todo-smart-count")).toHaveText("1");
+  await todo.getByRole("button", { name: "标记旗标" }).first().click();
+  await expect(todo.locator(".todo-smart.flagged .todo-smart-count")).toHaveText(
+    "1",
+  );
   await todo.getByRole("button", { name: "标记完成" }).first().click();
-  await expect(todo.locator(".todo-card.done .todo-card-count")).toHaveText("1");
+  await expect(todo.locator(".todo-smart.done .todo-smart-count")).toHaveText("1");
   await todo.getByRole("tab", { name: /已完成/ }).click();
   await expect(todo.locator(".todo-item > span")).toHaveClass(/done/);
-  await todo.getByRole("button", { name: "清除", exact: true }).click();
+  await todo.getByRole("button", { name: "清除已完成", exact: true }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.focus.todos.length : 0;
     })
     .toBe(0);
+  await todo.getByRole("button", { name: "新建组" }).click();
+  await todo.getByLabel("组名称").fill("生活");
+  await todo.getByRole("button", { name: "创建组" }).click();
+  await expect(todo.getByText("生活", { exact: true })).toBeVisible();
+  await todo.getByRole("button", { name: "新建清单", exact: true }).click();
+  await todo.getByLabel("清单名称").fill("工作");
+  await todo.getByRole("button", { name: "创建清单" }).click();
+  await todo.getByRole("button", { name: /工作/ }).click();
+  await todo.getByLabel("新建待办").fill("清单里的待办");
+  await todo.getByRole("button", { name: "添加", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.todos.length : 0;
+    })
+    .toBe(1);
+  await expect(
+    todo.locator(".todo-list-item.active .todo-list-count"),
+  ).toHaveText("1");
+  await todo.getByRole("button", { name: "删除清单" }).click();
+  await todo.getByRole("tab", { name: /全部/ }).click();
+  await expect(todo.locator(".todo-item > span")).toHaveCount(1);
   await todo.evaluate(() => window.mqmz!.command({ type: "todo-close" }));
   await expect
     .poll(async () => {
@@ -524,6 +627,14 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   ).toBe(true);
   expect(
     startupVisibility.find((window) => window.title.includes("待办清单"))
+      ?.visible,
+  ).toBe(false);
+  expect(
+    startupVisibility.find((window) => window.title.includes("番茄时钟"))
+      ?.visible,
+  ).toBe(false);
+  expect(
+    startupVisibility.find((window) => window.title.includes("喝水提醒"))
       ?.visible,
   ).toBe(false);
   expect(
@@ -1811,7 +1922,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(17);
+  await expect.poll(() => application.windows().length).toBe(18);
   pocket = (
     await Promise.all(
       application
@@ -1857,7 +1968,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(17);
+  await expect.poll(() => application.windows().length).toBe(18);
   const restarted = await Promise.all(
     application
       .windows()

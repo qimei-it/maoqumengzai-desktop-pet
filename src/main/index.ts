@@ -91,7 +91,6 @@ import {
   isPdfFile,
   type ConvertAction,
 } from '../shared/convert'
-import type { FocusTab } from '../shared/protocol'
 import { isZipFile } from '../shared/archive'
 import {
   defaultSettings,
@@ -161,7 +160,6 @@ let scale = 1
 let settings: Settings = { ...defaultSettings }
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
-let focusTab: FocusTab = 'focus'
 let petHoverMode = false
 let hoverCenterSince = 0
 let hoverSent = false
@@ -200,7 +198,8 @@ let askWindow: BrowserWindow | undefined
 let convertWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
-let focusWindow: BrowserWindow | undefined
+let pomodoroWindow: BrowserWindow | undefined
+let waterWindow: BrowserWindow | undefined
 let todoWindow: BrowserWindow | undefined
 let focusBadge: BrowserWindow | undefined
 let aiKey: string | undefined
@@ -332,9 +331,9 @@ function snapshot(): Snapshot {
     rename: renameState(),
     settingsOpen: windowVisible(settingsWindow),
     settings: settingsState(),
-    focusOpen: windowVisible(focusWindow),
+    pomodoroOpen: windowVisible(pomodoroWindow),
+    waterOpen: windowVisible(waterWindow),
     todoOpen: windowVisible(todoWindow),
-    focusTab,
     focus: {
       phase: focusData.phase,
       running: focusData.running,
@@ -349,6 +348,10 @@ function snapshot(): Snapshot {
       waterEnd: focusData.waterEnd,
       waterNextAt: focusData.waterNextAt ?? undefined,
       todos: focusData.todos,
+      todoLists: focusData.todoLists,
+      todoGroups: focusData.todoGroups,
+      sessions: focusData.sessions,
+      waterLog: focusData.waterLog,
     },
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
     ...(toastText ? { toast: toastText } : {}),
@@ -375,7 +378,8 @@ function broadcast(): void {
       convertWindow,
       renameWindow,
       settingsWindow,
-      focusWindow,
+      pomodoroWindow,
+      waterWindow,
       todoWindow,
       focusBadge,
     ])
@@ -860,15 +864,16 @@ function positionTodo(): void {
   if (!todoWindow || todoWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
-  const width = 380
-  const height = 500
+  const width = 760
+  const height = 640
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openTodo(): void {
   const wasVisible = windowVisible(todoWindow)
-  if (windowVisible(focusWindow)) closeFocus()
+  if (windowVisible(pomodoroWindow)) closePomodoro()
+  if (windowVisible(waterWindow)) closeWater()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
@@ -1008,6 +1013,17 @@ function notifyFocus(title: string, body: string): void {
 function completeFocus(): void {
   const previous = focusData.phase
   const next = nextPhase(focusData.phase, focusData.completed)
+  const sessions =
+    previous === 'focus'
+      ? [
+          ...focusData.sessions,
+          {
+            id: randomUUID(),
+            endedAt: Date.now(),
+            minutes: Math.round(phaseSeconds('focus') / 60),
+          },
+        ].slice(-300)
+      : focusData.sessions
   focusData = {
     ...focusData,
     phase: next.phase,
@@ -1015,6 +1031,7 @@ function completeFocus(): void {
     running: false,
     endsAt: null,
     remaining: phaseSeconds(next.phase),
+    sessions,
   }
   notifyFocus(
     '番茄时钟',
@@ -1124,6 +1141,27 @@ function setFocusPhase(phase: FocusData['phase']): void {
   syncOverlays()
   broadcast()
 }
+function addWaterDrink(): void {
+  const now = Date.now()
+  focusData = {
+    ...focusData,
+    waterLog: [
+      ...focusData.waterLog,
+      { id: randomUUID(), at: now },
+    ].slice(-500),
+    // A fresh drink restarts the reminder countdown.
+    waterNextAt: focusData.water
+      ? nextWaterAt(
+          now,
+          focusData.waterInterval,
+          focusData.waterStart,
+          focusData.waterEnd,
+        )
+      : null,
+  }
+  persistFocus()
+  broadcast()
+}
 function setWaterReminder(enabled: boolean): void {
   focusData = {
     ...focusData,
@@ -1156,14 +1194,30 @@ function setWaterConfig(
   persistFocus()
   broadcast()
 }
-function addTodo(text: string): void {
+function addTodo(
+  text: string,
+  listId?: string | null,
+  flags?: { today?: boolean; urgent?: boolean; flagged?: boolean },
+): void {
   const value = text.trim()
   if (!value) return
+  const target =
+    listId && focusData.todoLists.some((list) => list.id === listId)
+      ? listId
+      : null
   focusData = {
     ...focusData,
     todos: [
       ...focusData.todos,
-      { id: randomUUID(), text: value, done: false },
+      {
+        id: randomUUID(),
+        text: value,
+        done: false,
+        listId: target,
+        today: flags?.today === true,
+        urgent: flags?.urgent === true,
+        flagged: flags?.flagged === true,
+      },
     ].slice(-500),
   }
   persistFocus()
@@ -1179,12 +1233,83 @@ function toggleTodo(id: string): void {
   persistFocus()
   broadcast()
 }
-function clearDoneTodos(): void {
-  if (!focusData.todos.some((todo) => todo.done)) return
+function updateTodo(
+  id: string,
+  patch: { today?: boolean; urgent?: boolean; flagged?: boolean },
+): void {
+  if (
+    patch.today === undefined &&
+    patch.urgent === undefined &&
+    patch.flagged === undefined
+  )
+    return
   focusData = {
     ...focusData,
-    todos: focusData.todos.filter((todo) => !todo.done),
+    todos: focusData.todos.map((todo) =>
+      todo.id === id ? { ...todo, ...patch } : todo,
+    ),
   }
+  persistFocus()
+  broadcast()
+}
+function addTodoList(name: string, groupId?: string | null): void {
+  const value = name.trim()
+  if (!value || focusData.todoLists.length >= 100) return
+  const target =
+    groupId && focusData.todoGroups.some((group) => group.id === groupId)
+      ? groupId
+      : null
+  focusData = {
+    ...focusData,
+    todoLists: [
+      ...focusData.todoLists,
+      { id: randomUUID(), name: value, groupId: target },
+    ],
+  }
+  persistFocus()
+  broadcast()
+}
+function removeTodoList(id: string): void {
+  if (!focusData.todoLists.some((list) => list.id === id)) return
+  focusData = {
+    ...focusData,
+    todoLists: focusData.todoLists.filter((list) => list.id !== id),
+    todos: focusData.todos.map((todo) =>
+      todo.listId === id ? { ...todo, listId: null } : todo,
+    ),
+  }
+  persistFocus()
+  broadcast()
+}
+function addTodoGroup(name: string): void {
+  const value = name.trim()
+  if (!value || focusData.todoGroups.length >= 40) return
+  focusData = {
+    ...focusData,
+    todoGroups: [...focusData.todoGroups, { id: randomUUID(), name: value }],
+  }
+  persistFocus()
+  broadcast()
+}
+function removeTodoGroup(id: string): void {
+  if (!focusData.todoGroups.some((group) => group.id === id)) return
+  focusData = {
+    ...focusData,
+    todoGroups: focusData.todoGroups.filter((group) => group.id !== id),
+    todoLists: focusData.todoLists.map((list) =>
+      list.groupId === id ? { ...list, groupId: null } : list,
+    ),
+  }
+  persistFocus()
+  broadcast()
+}
+function clearDoneTodos(ids?: string[]): void {
+  const scope = ids ? new Set(ids) : null
+  const remaining = focusData.todos.filter(
+    (todo) => !todo.done || (scope !== null && !scope.has(todo.id)),
+  )
+  if (remaining.length === focusData.todos.length) return
+  focusData = { ...focusData, todos: remaining }
   persistFocus()
   broadcast()
 }
@@ -1196,8 +1321,23 @@ function removeTodo(id: string): void {
   persistFocus()
   broadcast()
 }
-function positionFocus(): void {
-  if (!focusWindow || focusWindow.isDestroyed()) return
+function positionPomodoro(): void {
+  if (!pomodoroWindow || pomodoroWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 360
+  const height = 520
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  pomodoroWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function positionWater(): void {
+  if (!waterWindow || waterWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 360
@@ -1209,7 +1349,32 @@ function positionFocus(): void {
     Math.max(a.y + 8, b.y + b.height - height),
     a.y + a.height - height - 8,
   )
-  focusWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+  waterWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openWater(): void {
+  const wasVisible = windowVisible(waterWindow)
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (todoWindow?.isVisible()) todoWindow.hide()
+  if (windowVisible(pomodoroWindow)) closePomodoro()
+  if (waterWindow && !waterWindow.isDestroyed()) {
+    if (!wasVisible) positionWater()
+    if (process.platform === 'darwin' || waterWindow.isMinimized())
+      waterWindow.restore()
+    waterWindow.show()
+    waterWindow.moveTop()
+    waterWindow.focus()
+  }
+  syncOverlays()
+  broadcast()
+}
+function closeWater(): void {
+  waterWindow?.hide()
+  syncOverlays()
+  broadcast()
 }
 function positionFocusBadge(): void {
   if (!focusBadge || focusBadge.isDestroyed()) return
@@ -1230,7 +1395,7 @@ function positionFocusBadge(): void {
 function updateFocusBadge(): void {
   if (!focusBadge || focusBadge.isDestroyed()) return
   const panelVisible =
-    windowVisible(focusWindow) && !focusWindow?.isMinimized()
+    windowVisible(pomodoroWindow) && !pomodoroWindow?.isMinimized()
   const active =
     focusData.running &&
     focusData.phase === 'focus' &&
@@ -1245,28 +1410,28 @@ function updateFocusBadge(): void {
     focusBadge.hide()
   }
 }
-function openFocus(tab: FocusTab): void {
-  const wasVisible = windowVisible(focusWindow)
-  focusTab = tab
+function openPomodoro(): void {
+  const wasVisible = windowVisible(pomodoroWindow)
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
-  if (focusWindow && !focusWindow.isDestroyed()) {
-    if (!wasVisible) positionFocus()
-    if (process.platform === 'darwin' || focusWindow.isMinimized())
-      focusWindow.restore()
-    focusWindow.show()
-    focusWindow.moveTop()
-    focusWindow.focus()
+  if (waterWindow?.isVisible()) waterWindow.hide()
+  if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
+    if (!wasVisible) positionPomodoro()
+    if (process.platform === 'darwin' || pomodoroWindow.isMinimized())
+      pomodoroWindow.restore()
+    pomodoroWindow.show()
+    pomodoroWindow.moveTop()
+    pomodoroWindow.focus()
   }
   syncOverlays()
   broadcast()
 }
-function closeFocus(): void {
-  focusWindow?.hide()
+function closePomodoro(): void {
+  pomodoroWindow?.hide()
   syncOverlays()
   broadcast()
 }
@@ -2505,7 +2670,8 @@ function authorized(
       window !== convertWindow &&
       window !== renameWindow &&
       window !== settingsWindow &&
-      window !== focusWindow &&
+      window !== pomodoroWindow &&
+      window !== waterWindow &&
       window !== todoWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
@@ -2768,8 +2934,11 @@ function setupIpc(): void {
       'settings-clear-belly',
       'settings-open-licenses',
       'hover-mode',
-      'focus-open',
-      'focus-close',
+      'pomodoro-open',
+      'pomodoro-close',
+      'water-open',
+      'water-close',
+      'water-drink',
       'todo-open',
       'todo-close',
       'focus-start',
@@ -2781,8 +2950,13 @@ function setupIpc(): void {
       'focus-water-config',
       'todo-add',
       'todo-toggle',
+      'todo-update',
       'todo-remove',
       'todo-clear-done',
+      'todo-list-add',
+      'todo-list-remove',
+      'todo-group-add',
+      'todo-group-remove',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2981,11 +3155,20 @@ function setupIpc(): void {
         syncOverlays()
         broadcast()
         break
-      case 'focus-open':
-        openFocus(command.tab)
+      case 'pomodoro-open':
+        openPomodoro()
         break
-      case 'focus-close':
-        closeFocus()
+      case 'pomodoro-close':
+        closePomodoro()
+        break
+      case 'water-open':
+        openWater()
+        break
+      case 'water-close':
+        closeWater()
+        break
+      case 'water-drink':
+        addWaterDrink()
         break
       case 'todo-open':
         openTodo()
@@ -3015,16 +3198,35 @@ function setupIpc(): void {
         setWaterConfig(command.interval, command.start, command.end)
         break
       case 'todo-add':
-        addTodo(command.text)
+        addTodo(command.text, command.listId, {
+          today: command.today,
+          urgent: command.urgent,
+          flagged: command.flagged,
+        })
         break
       case 'todo-toggle':
         toggleTodo(command.id)
+        break
+      case 'todo-update':
+        updateTodo(command.id, command.patch)
         break
       case 'todo-remove':
         removeTodo(command.id)
         break
       case 'todo-clear-done':
-        clearDoneTodos()
+        clearDoneTodos(command.ids)
+        break
+      case 'todo-list-add':
+        addTodoList(command.name, command.groupId)
+        break
+      case 'todo-list-remove':
+        removeTodoList(command.id)
+        break
+      case 'todo-group-add':
+        addTodoGroup(command.name)
+        break
+      case 'todo-group-remove':
+        removeTodoGroup(command.id)
         break
       case 'notify':
         showToast(command.text)
@@ -3042,7 +3244,8 @@ function setupIpc(): void {
           else if (owner === convertWindow) closeConvert()
           else if (owner === renameWindow) closeRename()
           else if (owner === settingsWindow) closeSettings()
-          else if (owner === focusWindow) closeFocus()
+          else if (owner === pomodoroWindow) closePomodoro()
+          else if (owner === waterWindow) closeWater()
           else owner.hide()
         }
         break
@@ -3623,10 +3826,31 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  focusWindow = new BrowserWindow({
+  pomodoroWindow = new BrowserWindow({
+    width: 360,
+    height: 520,
+    title: '毛趣萌仔 · 番茄时钟',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  waterWindow = new BrowserWindow({
     width: 360,
     height: 420,
-    title: '毛趣萌仔 · 专注',
+    title: '毛趣萌仔 · 喝水提醒',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
     show: false,
@@ -3645,8 +3869,8 @@ async function createWindows(): Promise<void> {
     },
   })
   todoWindow = new BrowserWindow({
-    width: 380,
-    height: 500,
+    width: 760,
+    height: 640,
     title: '毛趣萌仔 · 待办清单',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -3671,7 +3895,8 @@ async function createWindows(): Promise<void> {
     convertWindow,
     renameWindow,
     settingsWindow,
-    focusWindow,
+    pomodoroWindow,
+    waterWindow,
     todoWindow,
   ])
     configurePanelChrome(panel)
@@ -3719,7 +3944,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, pomodoroWindow, waterWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -3760,10 +3985,16 @@ async function createWindows(): Promise<void> {
       closeSettings()
     }
   })
-  focusWindow?.on('close', (event) => {
+  pomodoroWindow?.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
-      closeFocus()
+      closePomodoro()
+    }
+  })
+  waterWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeWater()
     }
   })
   pet.on('close', (event) => {
@@ -3787,6 +4018,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(todoWindow)) positionTodo()
+    if (windowVisible(waterWindow)) positionWater()
     if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
@@ -3803,6 +4035,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(todoWindow)) positionTodo()
+    if (windowVisible(waterWindow)) positionWater()
     if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
@@ -3824,7 +4057,8 @@ async function createWindows(): Promise<void> {
     load(convertWindow, 'convert'),
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
-    load(focusWindow, 'focus'),
+    load(pomodoroWindow, 'focus'),
+    load(waterWindow, 'water'),
     load(todoWindow, 'todo'),
     load(focusBadge, 'focus-badge'),
     ...(lab ? [load(lab, 'lab')] : []),
@@ -3844,6 +4078,8 @@ async function createWindows(): Promise<void> {
           broadcast()
         },
       },
+      { label: '番茄时钟', click: openPomodoro },
+      { label: '喝水提醒', click: openWater },
       { label: '待办清单', click: openTodo },
       { label: '智能问答', click: () => openAsk([]) },
       { label: '设置…', click: openSettings },
@@ -4018,7 +4254,8 @@ else {
     toastWindow?.destroy()
     renameWindow?.destroy()
     settingsWindow?.destroy()
-    focusWindow?.destroy()
+    pomodoroWindow?.destroy()
+    waterWindow?.destroy()
     todoWindow?.destroy()
     focusBadge?.destroy()
     askWindow?.destroy()
