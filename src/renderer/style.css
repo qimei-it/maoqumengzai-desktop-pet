@@ -1182,6 +1182,8 @@ footer button {
 .focus-view #app,
 .focus-badge-view,
 .focus-badge-view #app,
+.todo-view,
+.todo-view #app,
 .rename-view,
 .rename-view #app {
   background: transparent;

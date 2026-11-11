@@ -1,24 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import {
-  Check,
-  Circle,
-  Droplets,
-  ListTodo,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  Timer,
-  Trash2,
-} from '@lucide/vue'
+import { Droplets, Pause, Play, RotateCcw, Timer } from '@lucide/vue'
 import type { Command, FocusTab, Snapshot } from '../shared/protocol'
 import { focusPhaseLabels, formatFocus } from '../shared/focus'
 import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
-const draft = ref('')
 
 const tab = computed<FocusTab>(() => props.state?.focusTab ?? 'focus')
 const focus = computed(() => props.state?.focus)
@@ -81,12 +69,6 @@ function changeWaterEnd(event: Event): void {
 function openTab(next: FocusTab): void {
   emit('command', { type: 'focus-open', tab: next })
 }
-function addTodo(): void {
-  const text = draft.value.trim()
-  if (!text) return
-  emit('command', { type: 'todo-add', text })
-  draft.value = ''
-}
 function close(): void {
   emit('command', { type: 'focus-close' })
 }
@@ -104,9 +86,17 @@ function close(): void {
         @close="emit('command', { type: 'panel-control', action: 'close' })"
       />
 
-      <div class="focus-tabs" role="group" aria-label="专注分类">
+      <div
+        class="focus-tabs"
+        role="tablist"
+        aria-label="专注分类"
+        :data-active="tab"
+      >
+        <span class="focus-tabs-thumb" aria-hidden="true" />
         <button
           type="button"
+          role="tab"
+          :aria-selected="tab === 'focus'"
           :class="{ active: tab === 'focus' }"
           @click="openTab('focus')"
         >
@@ -115,19 +105,13 @@ function close(): void {
         </button>
         <button
           type="button"
+          role="tab"
+          :aria-selected="tab === 'water'"
           :class="{ active: tab === 'water' }"
           @click="openTab('water')"
         >
           <Droplets :size="15" :stroke-width="2" aria-hidden="true" />
           喝水
-        </button>
-        <button
-          type="button"
-          :class="{ active: tab === 'todo' }"
-          @click="openTab('todo')"
-        >
-          <ListTodo :size="15" :stroke-width="2" aria-hidden="true" />
-          待办
         </button>
       </div>
 
@@ -195,7 +179,7 @@ function close(): void {
         </div>
       </div>
 
-      <div v-else-if="tab === 'water'" class="focus-body">
+      <div v-else class="focus-body">
         <div class="focus-row">
           <span id="water-toggle-label">喝水提醒</span>
           <button
@@ -259,58 +243,6 @@ function close(): void {
         </div>
       </div>
 
-      <div v-else class="focus-body focus-todos">
-        <div class="focus-add">
-          <input
-            v-model="draft"
-            type="text"
-            maxlength="200"
-            placeholder="添加待办"
-            aria-label="添加待办"
-            @keydown.enter="addTodo"
-          />
-          <button
-            type="button"
-            class="button-glass"
-            :disabled="!draft.trim()"
-            @click="addTodo"
-          >
-            <Plus :size="16" :stroke-width="2" aria-hidden="true" />
-            添加
-          </button>
-        </div>
-        <div v-if="focus?.todos.length" class="focus-todo-list">
-          <div v-for="todo in focus.todos" :key="todo.id" class="focus-todo">
-            <button
-              type="button"
-              class="focus-check"
-              :class="{ done: todo.done }"
-              :aria-label="todo.done ? '标记未完成' : '标记完成'"
-              @click="emit('command', { type: 'todo-toggle', id: todo.id })"
-            >
-              <Check
-                v-if="todo.done"
-                :size="13"
-                :stroke-width="2.4"
-                aria-hidden="true"
-              />
-              <Circle v-else :size="13" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <span :class="{ done: todo.done }">{{ todo.text }}</span>
-            <button
-              type="button"
-              class="focus-remove"
-              aria-label="删除待办"
-              title="删除待办"
-              @click="emit('command', { type: 'todo-remove', id: todo.id })"
-            >
-              <Trash2 :size="14" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-        <p v-else class="focus-empty">还没有待办</p>
-      </div>
-
       <p v-if="error" class="focus-error" role="alert">{{ error }}</p>
     </section>
   </main>
@@ -334,31 +266,56 @@ function close(): void {
   box-shadow: var(--mqmz-panel-shadow);
 }
 .focus-tabs {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-  padding: 3px;
-  border-radius: var(--radius-control);
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
   background: var(--color-fill-secondary);
 }
+.focus-tabs-thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  transition: transform var(--motion-slide) var(--ease-spring);
+  will-change: transform;
+}
+.focus-tabs[data-active='water'] .focus-tabs-thumb {
+  transform: translateX(100%);
+}
 .focus-tabs button {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 34px;
+  min-height: 36px;
   padding: 0 8px;
   border: 0;
-  border-radius: calc(var(--radius-control) - 3px);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 .focus-tabs button.active {
-  background: var(--color-surface);
   color: var(--color-brand-ink);
-  box-shadow: var(--shadow-control);
   font-weight: 600;
+}
+.focus-tabs button:focus-visible {
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-tabs-thumb {
+    transition: none;
+  }
 }
 .focus-body {
   flex: 1;
@@ -498,80 +455,6 @@ function close(): void {
 }
 .focus-switch[aria-checked='true'] .focus-switch-thumb {
   transform: translateX(17px);
-}
-.focus-todos {
-  padding-top: 12px;
-}
-.focus-add {
-  display: flex;
-  gap: 8px;
-}
-.focus-add input {
-  flex: 1;
-  min-width: 0;
-  height: var(--tap-min);
-  padding: 0 10px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-body);
-}
-.focus-add .button-glass {
-  flex: none;
-  gap: 5px;
-  padding-inline: 14px;
-}
-.focus-todo-list {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  margin-top: 10px;
-}
-.focus-todo {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 42px;
-  border-bottom: 1px solid var(--color-line);
-}
-.focus-todo > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-body);
-}
-.focus-todo > span.done {
-  color: var(--color-muted);
-  text-decoration: line-through;
-}
-.focus-check,
-.focus-remove {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-}
-.focus-check.done {
-  color: var(--color-brand-ink);
-}
-.focus-remove:hover {
-  color: var(--color-danger);
-  background: var(--color-danger-soft);
-}
-.focus-empty {
-  margin: auto;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
 }
 .focus-error {
   margin: 10px 0 0;

@@ -94,7 +94,7 @@ export type ConvertOutcome = {
   messages: string[]
 }
 export type FocusPhase = 'focus' | 'short' | 'long'
-export type FocusTab = 'focus' | 'water' | 'todo'
+export type FocusTab = 'focus' | 'water'
 export type FocusTodo = { id: string; text: string; done: boolean }
 export type FocusState = {
   phase: FocusPhase
@@ -160,6 +160,7 @@ export type Snapshot = {
   settingsOpen: boolean
   settings: SettingsState
   focusOpen: boolean
+  todoOpen: boolean
   focusTab: FocusTab
   focus: FocusState
 }
@@ -214,6 +215,8 @@ export type Command =
   | { type: 'hover-mode'; active: boolean }
   | { type: 'focus-open'; tab: FocusTab }
   | { type: 'focus-close' }
+  | { type: 'todo-open' }
+  | { type: 'todo-close' }
   | { type: 'focus-start' }
   | { type: 'focus-pause' }
   | { type: 'focus-reset' }
@@ -229,6 +232,7 @@ export type Command =
   | { type: 'todo-add'; text: string }
   | { type: 'todo-toggle'; id: string }
   | { type: 'todo-remove'; id: string }
+  | { type: 'todo-clear-done' }
   | {
       type: 'panel-control'
       action: 'minimize' | 'maximize' | 'close'

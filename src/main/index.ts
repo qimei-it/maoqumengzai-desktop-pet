@@ -201,6 +201,7 @@ let convertWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
 let focusWindow: BrowserWindow | undefined
+let todoWindow: BrowserWindow | undefined
 let focusBadge: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
@@ -332,6 +333,7 @@ function snapshot(): Snapshot {
     settingsOpen: windowVisible(settingsWindow),
     settings: settingsState(),
     focusOpen: windowVisible(focusWindow),
+    todoOpen: windowVisible(todoWindow),
     focusTab,
     focus: {
       phase: focusData.phase,
@@ -374,6 +376,7 @@ function broadcast(): void {
       renameWindow,
       settingsWindow,
       focusWindow,
+      todoWindow,
       focusBadge,
     ])
       if (window && !window.isDestroyed())
@@ -853,6 +856,38 @@ function positionSettings(): void {
   const y = a.y + Math.round((a.height - height) / 2)
   settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function positionTodo(): void {
+  if (!todoWindow || todoWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 380
+  const height = 500
+  const x = a.x + Math.round((a.width - width) / 2)
+  const y = a.y + Math.round((a.height - height) / 2)
+  todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openTodo(): void {
+  const wasVisible = windowVisible(todoWindow)
+  if (windowVisible(focusWindow)) closeFocus()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (todoWindow && !todoWindow.isDestroyed()) {
+    if (!wasVisible) positionTodo()
+    if (process.platform === 'darwin' || todoWindow.isMinimized())
+      todoWindow.restore()
+    todoWindow.show()
+    todoWindow.moveTop()
+    todoWindow.focus()
+  }
+  broadcast()
+}
+function closeTodo(): void {
+  todoWindow?.hide()
+  broadcast()
+}
 function applyDockIcon(): void {
   if (process.platform !== 'darwin' || !app.dock) return
   const icon = nativeImage.createFromPath(iconPath('app-icon.png'))
@@ -1144,6 +1179,15 @@ function toggleTodo(id: string): void {
   persistFocus()
   broadcast()
 }
+function clearDoneTodos(): void {
+  if (!focusData.todos.some((todo) => todo.done)) return
+  focusData = {
+    ...focusData,
+    todos: focusData.todos.filter((todo) => !todo.done),
+  }
+  persistFocus()
+  broadcast()
+}
 function removeTodo(id: string): void {
   focusData = {
     ...focusData,
@@ -1203,6 +1247,7 @@ function openFocus(tab: FocusTab): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (todoWindow?.isVisible()) todoWindow.hide()
   if (focusWindow && !focusWindow.isDestroyed()) {
     if (!wasVisible) positionFocus()
     if (process.platform === 'darwin' || focusWindow.isMinimized())
@@ -2455,6 +2500,7 @@ function authorized(
       window !== renameWindow &&
       window !== settingsWindow &&
       window !== focusWindow &&
+      window !== todoWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
@@ -2718,6 +2764,8 @@ function setupIpc(): void {
       'hover-mode',
       'focus-open',
       'focus-close',
+      'todo-open',
+      'todo-close',
       'focus-start',
       'focus-pause',
       'focus-reset',
@@ -2728,6 +2776,7 @@ function setupIpc(): void {
       'todo-add',
       'todo-toggle',
       'todo-remove',
+      'todo-clear-done',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2932,6 +2981,12 @@ function setupIpc(): void {
       case 'focus-close':
         closeFocus()
         break
+      case 'todo-open':
+        openTodo()
+        break
+      case 'todo-close':
+        closeTodo()
+        break
       case 'focus-start':
         startFocus()
         break
@@ -2961,6 +3016,9 @@ function setupIpc(): void {
         break
       case 'todo-remove':
         removeTodo(command.id)
+        break
+      case 'todo-clear-done':
+        clearDoneTodos()
         break
       case 'notify':
         showToast(command.text)
@@ -3580,6 +3638,27 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
+  todoWindow = new BrowserWindow({
+    width: 380,
+    height: 500,
+    title: '毛趣萌仔 · 待办清单',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
   for (const panel of [
     pocket,
     askWindow,
@@ -3587,6 +3666,7 @@ async function createWindows(): Promise<void> {
     renameWindow,
     settingsWindow,
     focusWindow,
+    todoWindow,
   ])
     configurePanelChrome(panel)
   focusBadge = new BrowserWindow({
@@ -3633,7 +3713,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -3700,6 +3780,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
+    if (windowVisible(todoWindow)) positionTodo()
     if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
@@ -3715,6 +3796,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
+    if (windowVisible(todoWindow)) positionTodo()
     if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
@@ -3737,6 +3819,7 @@ async function createWindows(): Promise<void> {
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
     load(focusWindow, 'focus'),
+    load(todoWindow, 'todo'),
     load(focusBadge, 'focus-badge'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
@@ -3755,6 +3838,7 @@ async function createWindows(): Promise<void> {
           broadcast()
         },
       },
+      { label: '待办清单', click: openTodo },
       { label: '智能问答', click: () => openAsk([]) },
       { label: '设置…', click: openSettings },
       { label: '恢复标记位置', click: recover },
@@ -3929,6 +4013,7 @@ else {
     renameWindow?.destroy()
     settingsWindow?.destroy()
     focusWindow?.destroy()
+    todoWindow?.destroy()
     focusBadge?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()

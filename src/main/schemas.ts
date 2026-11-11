@@ -179,10 +179,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('focus-open'),
-      tab: z.enum(['focus', 'water', 'todo']),
+      tab: z.enum(['focus', 'water']),
     })
     .strict(),
   z.object({ type: z.literal('focus-close') }).strict(),
+  z.object({ type: z.literal('todo-open') }).strict(),
+  z.object({ type: z.literal('todo-close') }).strict(),
   z.object({ type: z.literal('focus-start') }).strict(),
   z.object({ type: z.literal('focus-pause') }).strict(),
   z.object({ type: z.literal('focus-reset') }).strict(),
@@ -215,6 +217,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('todo-toggle'), id: z.string().uuid() }).strict(),
   z.object({ type: z.literal('todo-remove'), id: z.string().uuid() }).strict(),
+  z.object({ type: z.literal('todo-clear-done') }).strict(),
   z
     .object({
       type: z.literal('panel-control'),
