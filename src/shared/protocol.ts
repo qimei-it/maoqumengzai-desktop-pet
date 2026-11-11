@@ -7,6 +7,7 @@ export const channels = {
   command: 'mqmz:prototype:command',
   mask: 'mqmz:pet:hit-mask',
   pointer: 'mqmz:pet:pointer',
+  hover: 'mqmz:pet:hover',
   selectFiles: 'mqmz:files:select',
   receiveFiles: 'mqmz:files:receive',
   startDrag: 'mqmz:files:start-drag',
@@ -246,4 +247,5 @@ export interface PrototypeApi {
   capturePreview(): Promise<Result<CapturePreview[]>>
   saveCapture(id: string): Promise<Result<Snapshot>>
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
+  onHover(listener: () => void): () => void
 }

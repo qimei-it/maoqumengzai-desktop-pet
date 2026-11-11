@@ -35,5 +35,10 @@ const api: PrototypeApi = {
     ipcRenderer.on(channels.updated, handler)
     return () => ipcRenderer.removeListener(channels.updated, handler)
   },
+  onHover: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(channels.hover, handler)
+    return () => ipcRenderer.removeListener(channels.hover, handler)
+  },
 }
 contextBridge.exposeInMainWorld('mqmz', api)

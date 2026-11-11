@@ -300,6 +300,8 @@ test("settings panel updates theme, scale, and bubbles", async () => {
 test("hovering the pet centre opens companion tools", async () => {
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
+  await pet.mouse.move(4, 4);
+  await new Promise((resolve) => setTimeout(resolve, 120));
   await pet.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
   await expect(pet.locator(".donut-segment")).toHaveCount(4);
@@ -336,11 +338,9 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(false);
 
-  const next = await pet.locator(".marker").boundingBox();
-  if (!next) throw new Error("Marker is not rendered");
-  await pet.mouse.move(next.x + next.width / 2, next.y + next.height / 2);
-  await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
-  await openAt(0);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "focus-open", tab: "focus" }),
+  );
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());

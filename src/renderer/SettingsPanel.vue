@@ -580,14 +580,15 @@ function close(): void {
 }
 .bar-style {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-muted);
-  text-align: left;
+  text-align: center;
 }
 .bar-style.active {
   border-color: var(--color-brand-ink);
@@ -597,7 +598,6 @@ function close(): void {
 .bar-preview {
   position: relative;
   display: flex;
-  flex: 1;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -644,16 +644,22 @@ function close(): void {
   place-items: center;
   color: var(--color-brand-ink);
 }
-.preview-compact,
+.preview-compact {
+  width: min(300px, 100%);
+  height: 34px;
+  border-radius: 999px;
+}
 .preview-minimal {
-  align-self: center;
-  height: 32px;
+  width: 190px;
+  max-width: 100%;
+  height: 34px;
   border-radius: 999px;
 }
 .preview-double {
   display: block;
-  align-self: center;
-  height: 70px;
+  width: 140px;
+  max-width: 100%;
+  height: 72px;
   padding: 8px;
 }
 .preview-double-top {
@@ -677,9 +683,7 @@ function close(): void {
   margin-left: 0;
 }
 .bar-style-name {
-  flex: none;
-  width: 64px;
-  text-align: right;
+  text-align: center;
   font-size: var(--font-size-label);
 }
 @media (prefers-reduced-motion: reduce) {

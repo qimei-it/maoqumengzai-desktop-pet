@@ -150,6 +150,7 @@ const poseSrc = computed(() => poseSources[displayPose.value]);
 const toast = ref("");
 const markerScale = computed(() => state.value?.scale || 1);
 let unsubscribe: (() => void) | undefined;
+let unsubscribeHover: (() => void) | undefined;
 let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
 let dropModeChain: Promise<void> = Promise.resolve();
@@ -298,7 +299,10 @@ async function closeDonut(send = true): Promise<void> {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "本地操作失败。";
   }
-  if (wasHover) await command({ type: "hover-mode", active: false });
+  if (wasHover) {
+    hoverSuppressedUntil = Date.now() + 250;
+    await command({ type: "hover-mode", active: false });
+  }
 }
 function enter(event: DragEvent): void {
   event.preventDefault();
@@ -571,6 +575,7 @@ async function openHoverDonut(): Promise<void> {
     donutOpen.value ||
     dragOver.value ||
     pointerId !== undefined ||
+    Date.now() < hoverSuppressedUntil ||
     state.value?.dropMode
   )
     return;
@@ -1015,6 +1020,9 @@ onMounted(async () => {
   unsubscribe = api.onSnapshot((value) => {
     state.value = value;
   });
+  unsubscribeHover = api.onHover(() => {
+    void openHoverDonut();
+  });
   await attempt(async () => {
     state.value = unwrap(await api.snapshot());
     displayId.value = state.value.displays[0]?.id;
@@ -1044,6 +1052,7 @@ onUnmounted(() => {
   if (blinkReset) clearTimeout(blinkReset);
   if (toastTimer) clearTimeout(toastTimer);
   unsubscribe?.();
+  unsubscribeHover?.();
   observer?.disconnect();
 });
 </script>

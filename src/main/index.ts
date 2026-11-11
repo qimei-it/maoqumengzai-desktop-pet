@@ -163,6 +163,8 @@ let settingsExisted = false
 let focusData: FocusData = defaultFocus()
 let focusTab: FocusTab = 'focus'
 let petHoverMode = false
+let hoverCenterSince = 0
+let hoverSent = false
 let focusTimer: ReturnType<typeof setInterval> | undefined
 let dropMode = false
 let wheelOpen = false
@@ -3710,11 +3712,27 @@ async function createWindows(): Promise<void> {
         cursor.y >= b.y &&
         cursor.x < b.x + b.width &&
         cursor.y < b.y + b.height
+      const opaque = hitOpaquePixel(mask, cursor.x - b.x, cursor.y - b.y)
       setPassthrough(
-        !dropMode &&
-          !wheelOpen &&
-          (!inside || !hitOpaquePixel(mask, cursor.x - b.x, cursor.y - b.y)),
+        !dropMode && !wheelOpen && (!inside || !opaque),
       )
+      const center =
+        Math.hypot(
+          cursor.x - (b.x + b.width / 2),
+          cursor.y - (b.y + b.height / 2),
+        ) <= 28 * scale
+      const canHover =
+        !dropMode && !wheelOpen && inside && opaque && center && !drag
+      if (canHover) {
+        if (!hoverCenterSince) hoverCenterSince = Date.now()
+        if (!hoverSent && Date.now() - hoverCenterSince >= 550) {
+          hoverSent = true
+          pet.webContents.send(channels.hover)
+        }
+      } else {
+        hoverCenterSince = 0
+        hoverSent = false
+      }
     }
   }, 16)
   addEvent('真实 Electron 窗口已启动；交互标记不代表正式角色素材。')
