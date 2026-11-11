@@ -6,6 +6,7 @@ import {
   Infinity as InfinityIcon,
   Inbox,
   MessageSquareQuote,
+  Music as MusicIcon,
   Pause,
   Play,
   Plus,
@@ -696,6 +697,14 @@ const plainPreview = computed(() => plainLines.value.slice(0, 3));
 const plainCurrent = computed(() =>
   Math.floor((plainPreview.value.length - 1) / 2),
 );
+const pillLyric = computed(() => {
+  if (state.value?.lyricsOpen === false) return "";
+  if (state.value?.lyrics?.instrumental) return "纯音乐";
+  if (currentLyric.value) return currentLyric.value.current;
+  if (plainLines.value.length)
+    return plainLines.value[plainCurrent.value] ?? "";
+  return state.value?.lyrics?.missing ? "暂无歌词" : "";
+});
 const widthLines = computed(() => {
   if (state.value?.lyrics?.instrumental) return ["纯音乐"];
   if (lyricLines.value.length) return lyricLines.value.map((line) => line.text);
@@ -774,7 +783,7 @@ function tickLyrics(): void {
   lyricNow.value = performance.now();
 }
 function syncLyricTicker(): void {
-  if (!lyricsView) return;
+  if (!lyricsView && !pillView) return;
   const run = Boolean(state.value?.music.playing && state.value?.lyricsOpen);
   if (run && lyricTimer === undefined) {
     syncLyricBase();
@@ -791,10 +800,10 @@ watch(
   syncLyricTicker,
 );
 onMounted(() => {
-  if (!lyricsView) return;
+  if (!lyricsView && !pillView) return;
   lyricNow.value = performance.now();
   syncLyricTicker();
-  void nextTick(reportLyricsWidth);
+  if (lyricsView) void nextTick(reportLyricsWidth);
 });
 onUnmounted(() => {
   if (lyricTimer !== undefined) clearInterval(lyricTimer);
@@ -910,110 +919,134 @@ onUnmounted(() => {
   </main>
 
   <main v-else-if="pillView" class="pill-surface">
-    <button
-      v-if="state?.music.source === 'apple'"
-      type="button"
-      class="pill-button"
-      :class="{ active: state?.music.shuffle }"
-      :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
-      :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
-      @click="musicControl('shuffle')"
-    >
-      <Shuffle :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      v-if="state?.music.source === 'apple'"
-      type="button"
-      class="pill-button"
-      :class="{ active: state?.music.repeat !== 'off' }"
-      :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-      :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-      @click="musicControl('repeat')"
-    >
-      <InfinityIcon
-        v-if="state?.music.repeat === 'one'"
-        :size="17"
-        :stroke-width="2"
-        aria-hidden="true"
-      />
-      <Repeat v-else :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      type="button"
-      class="pill-button"
-      aria-label="上一首"
-      title="上一首"
-      @click="musicControl('previous')"
-    >
-      <SkipBack :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      type="button"
-      class="pill-button"
-      :aria-label="state?.music.playing ? '暂停' : '播放'"
-      :title="state?.music.playing ? '暂停' : '播放'"
-      @click="musicControl('toggle')"
-    >
-      <Pause
-        v-if="state?.music.playing"
-        :size="17"
-        :stroke-width="2"
-        aria-hidden="true"
-      />
-      <Play v-else :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      type="button"
-      class="pill-button"
-      aria-label="下一首"
-      title="下一首"
-      @click="musicControl('next')"
-    >
-      <SkipForward :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      type="button"
-      class="pill-button"
-      :class="{
-        active: state?.lyricsOpen && state?.lyricsAvailable !== false,
-      }"
-      :disabled="state?.lyricsAvailable === false"
-      :aria-label="
-        state?.lyricsAvailable === false
-          ? '暂无歌词'
-          : state?.lyricsOpen
-            ? '隐藏歌词'
-            : '显示歌词'
-      "
-      :title="
-        state?.lyricsAvailable === false
-          ? '暂无歌词'
-          : state?.lyricsOpen
-            ? '隐藏歌词'
-            : '显示歌词'
-      "
-      @click="onLyrics"
-    >
-      <MessageSquareQuote :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
-    <button
-      type="button"
-      class="pill-button"
-      :class="{ active: state?.music.muted }"
-      :aria-label="state?.music.muted ? '取消静音' : '静音'"
-      :title="state?.music.muted ? '取消静音' : '静音'"
-      @mouseenter="showVolumePopup(true)"
-      @mouseleave="showVolumePopup(false)"
-      @click="musicControl('mute')"
-    >
-      <VolumeX
-        v-if="state?.music.muted"
-        :size="17"
-        :stroke-width="2"
-        aria-hidden="true"
-      />
-      <Volume2 v-else :size="17" :stroke-width="2" aria-hidden="true" />
-    </button>
+    <div class="pill-group pill-transport">
+      <button
+        v-if="state?.music.source === 'apple'"
+        type="button"
+        class="pill-button"
+        :class="{ active: state?.music.shuffle }"
+        :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+        :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+        @click="musicControl('shuffle')"
+      >
+        <Shuffle :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        v-if="state?.music.source === 'apple'"
+        type="button"
+        class="pill-button"
+        :class="{ active: state?.music.repeat !== 'off' }"
+        :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+        :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+        @click="musicControl('repeat')"
+      >
+        <InfinityIcon
+          v-if="state?.music.repeat === 'one'"
+          :size="15"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
+        <Repeat v-else :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="pill-button"
+        aria-label="上一首"
+        title="上一首"
+        @click="musicControl('previous')"
+      >
+        <SkipBack :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="pill-button"
+        :aria-label="state?.music.playing ? '暂停' : '播放'"
+        :title="state?.music.playing ? '暂停' : '播放'"
+        @click="musicControl('toggle')"
+      >
+        <Pause
+          v-if="state?.music.playing"
+          :size="15"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
+        <Play v-else :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="pill-button"
+        aria-label="下一首"
+        title="下一首"
+        @click="musicControl('next')"
+      >
+        <SkipForward :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+    </div>
+
+    <div class="pill-now">
+      <div class="pill-cover" :class="{ empty: !state?.music.cover }">
+        <img v-if="state?.music.cover" :src="state.music.cover" alt="" />
+        <MusicIcon v-else :size="20" :stroke-width="2" aria-hidden="true" />
+      </div>
+      <div class="pill-meta">
+        <strong :title="state?.music.title">{{
+          state?.music.title || "未在播放"
+        }}</strong>
+        <span
+          :key="pillLyric || state?.music.artist"
+          class="pill-lyric"
+          :class="{ placeholder: !pillLyric }"
+          :title="pillLyric || state?.music.artist"
+          >{{ pillLyric || state?.music.artist || "" }}</span
+        >
+      </div>
+    </div>
+
+    <div class="pill-group pill-actions">
+      <button
+        type="button"
+        class="pill-button"
+        :class="{
+          active: state?.lyricsOpen && state?.lyricsAvailable !== false,
+        }"
+        :disabled="state?.lyricsAvailable === false"
+        :aria-label="
+          state?.lyricsAvailable === false
+            ? '暂无歌词'
+            : state?.lyricsOpen
+              ? '隐藏歌词'
+              : '显示歌词'
+        "
+        :title="
+          state?.lyricsAvailable === false
+            ? '暂无歌词'
+            : state?.lyricsOpen
+              ? '隐藏歌词'
+              : '显示歌词'
+        "
+        @click="onLyrics"
+      >
+        <MessageSquareQuote :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="pill-button"
+        :class="{ active: state?.music.muted }"
+        :aria-label="state?.music.muted ? '取消静音' : '静音'"
+        :title="state?.music.muted ? '取消静音' : '静音'"
+        @mouseenter="showVolumePopup(true)"
+        @mouseleave="showVolumePopup(false)"
+        @click="musicControl('mute')"
+      >
+        <VolumeX
+          v-if="state?.music.muted"
+          :size="15"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
+        <Volume2 v-else :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+    </div>
   </main>
 
   <main

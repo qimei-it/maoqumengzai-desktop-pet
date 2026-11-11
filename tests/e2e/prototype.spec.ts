@@ -24,6 +24,7 @@ let ask: Page;
 let convert: Page;
 let rename: Page;
 let settings: Page;
+let pill: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
 let startupVisibility: { title: string; visible: boolean }[];
@@ -56,6 +57,7 @@ test.beforeAll(async () => {
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
+  pill = windows.find((item) => item.title.includes("音乐控制"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
       title: window.getTitle(),
@@ -63,7 +65,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -318,6 +320,8 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   await expect(lab.locator(".file-outline")).toHaveClass(/lucide-inbox/);
   await expect(pocket.locator(".panel-title h1")).toHaveText("文件置物架");
   await expect(pocket.locator(".panel-win-controls")).toHaveCount(0);
+  await expect(pill.locator(".pill-cover")).toHaveCount(1);
+  await expect(pill.locator(".pill-meta")).toHaveCount(1);
   const version = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(version.ok && version.value.runtime.version).toBe("0.0.1");
   expect(await lab.locator("vite-error-overlay").count()).toBe(0);

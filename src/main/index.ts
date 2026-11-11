@@ -35,6 +35,7 @@ import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
+import { coverKey, loadCover } from './cover-art'
 import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   bubbleCategories,
@@ -174,7 +175,8 @@ let musicPollMs = 2500
 let music: MusicState = { playing: false }
 let barVisible = true
 let volumeBeforeMute = 50
-let lyricsOpen = false
+let lyricsOpen = true
+let coverRequest = 0
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
@@ -369,11 +371,7 @@ function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
   const b = pet.getBounds()
   const size = 32
-  const pillWidth = music.source === 'apple' ? 256 : 184
-  const pillX = b.x + Math.round(b.width / 2) - pillWidth / 2
-  const index = music.source === 'apple' ? 1 : 0
-  const center = pillX + 20 + index * 36
-  const x = Math.round(center - size / 2)
+  const x = b.x + b.width - size - 8
   const y = b.y + b.height - Math.round(22 * scale) - size - 6
   eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
@@ -406,21 +404,9 @@ function positionLyrics(): void {
   lyricsWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateLyricsWindow(): void {
-  if (!lyricsWindow || lyricsWindow.isDestroyed()) return
-  if (
-    lyricsOpen &&
-    lyrics &&
-    music.title &&
-    !dropMode &&
-    !bubbleText &&
-    !toastText
-  ) {
-    positionLyrics()
-    lyricsWindow.showInactive()
-    lyricsWindow.moveTop()
-  } else if (lyricsWindow.isVisible()) {
+  // Lyrics moved into the music control bar; keep the old overlay hidden.
+  if (lyricsWindow && !lyricsWindow.isDestroyed() && lyricsWindow.isVisible())
     lyricsWindow.hide()
-  }
 }
 function aiState(): AiState {
   return {
@@ -1163,14 +1149,18 @@ function positionNotes(): void {
   const y = Math.round(b.y + 60 * scale - size)
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
+function pillSize(): { width: number; height: number } {
+  return { width: music.source === 'apple' ? 432 : 368, height: 68 }
+}
 function positionPill(): void {
   if (!pill || pill.isDestroyed()) return
   const b = pet.getBounds()
-  const width = music.source === 'apple' ? 256 : 184
-  const height = 40
+  const a = screen.getDisplayMatching(b).workArea
+  const { width, height } = pillSize()
   const x = Math.round(b.x + b.width / 2 - width / 2)
-  const y = b.y + b.height - Math.round(22 * scale)
-  pill.setBounds(fitToDisplays({ x, y, width, height }, areas()))
+  let y = b.y - height - 8
+  if (y < a.y + 8) y = b.y + b.height + 8
+  pill.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function updatePillWindow(): void {
   if (!pill || pill.isDestroyed()) return
@@ -1473,20 +1463,41 @@ function applyMusic(next: MusicState): void {
   )
     return
   const previousKey = currentBubbleKey()
-  music = next
+  const previousCoverKey = coverKey(music)
+  const nextCoverKey = coverKey(next)
+  music = {
+    ...next,
+    ...(nextCoverKey && nextCoverKey === previousCoverKey && music.cover
+      ? { cover: music.cover }
+      : {}),
+  }
+  if (nextCoverKey !== previousCoverKey) {
+    coverRequest += 1
+    const request = coverRequest
+    if (nextCoverKey)
+      void loadCover(dataRoot, music).then((cover) => {
+        if (request !== coverRequest || coverKey(music) !== nextCoverKey) return
+        if (!cover) return
+        music = { ...music, cover: cover.dataUrl }
+        broadcast()
+      })
+  }
   const nextKey = currentBubbleKey()
   if (previousKey !== nextKey) {
     hideBubble()
     resetBubbleTrack()
   }
   if (!next.title) {
-    lyricsOpen = false
     scheduleMusicPoll(2500)
     lyrics = undefined
     lyricsKey = undefined
   } else if (lyricsOpen) {
     const key = currentTrackKey()
-    if (key && key !== lyricsKey) void loadLyricsFor(key)
+    if (key && key !== lyricsKey) {
+      lyrics = undefined
+      lyricsAvailable = undefined
+      void loadLyricsFor(key)
+    }
   }
   broadcast()
   syncOverlays()

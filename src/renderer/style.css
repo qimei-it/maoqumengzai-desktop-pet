@@ -659,15 +659,14 @@ footer button {
   filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-ink) 40%, transparent));
 }
 
-/* Compact music controls that sit under the pet. */
+/* Music bar: cover, one lyric line and transport controls. */
 .pill-surface {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
+  gap: 8px;
   height: 100vh;
-  padding: 4px;
-  border-radius: 999px;
+  padding: 8px;
+  border-radius: 18px;
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   box-shadow: var(--shadow-stage);
@@ -679,12 +678,84 @@ footer button {
   height: 100vh;
   overflow: hidden;
 }
+.pill-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.pill-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+}
+.pill-cover {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  box-shadow: var(--shadow-control);
+}
+.pill-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pill-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+}
+.pill-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+  font-weight: 650;
+  line-height: 1.35;
+}
+.pill-lyric {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+  color: var(--color-brand-ink);
+  animation: pill-lyric-in var(--motion-fast) var(--ease-out);
+}
+.pill-lyric.placeholder {
+  color: var(--color-muted);
+}
+@keyframes pill-lyric-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .pill-button {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 30px;
-  min-height: 30px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
   border: none;
   border-radius: 999px;
@@ -708,6 +779,11 @@ footer button {
 .pill-button:active {
   background: var(--color-brand-soft);
   transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill-lyric {
+    animation: none;
+  }
 }
 
 /* Vertical volume slider that pops above the control bar. */

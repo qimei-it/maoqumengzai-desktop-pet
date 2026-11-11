@@ -58,6 +58,7 @@ export type MusicState = {
   positionAt?: number
   album?: string
   genre?: string
+  cover?: string
 }
 export type LyricsState = {
   key: string
