@@ -42,6 +42,7 @@ import catLifted from "./assets/pet/ragdoll/lifted.png";
 import catMusic from "./assets/pet/ragdoll/music.png";
 import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
+import catFocus from "./assets/pet/ragdoll/focus.png";
 import AskPanel from "./AskPanel.vue";
 import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
@@ -49,6 +50,7 @@ import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
 import FocusPanel from "./FocusPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
+import { focusDurations } from "../shared/focus";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
 const pocketView =
@@ -129,20 +131,27 @@ const donutActions = computed(() =>
 const donutLabels = computed(() =>
   donutMode.value === "hover" ? hoverLabels : sliceLabelColumns,
 );
-type PetPose = "base" | "blink" | "lifted" | "music" | "ponder";
+type PetPose = "base" | "blink" | "lifted" | "music" | "ponder" | "focus";
 const poseSources: Record<PetPose, string> = {
   base: catBase,
   blink: catBlink,
   lifted: catLifted,
   music: catMusic,
   ponder: catPonder,
+  focus: catFocus,
 };
 const petName = "麻薯";
 const petPose = ref<PetPose>("base");
+const focusActive = computed(() => {
+  const focus = state.value?.focus;
+  if (!focus || focus.phase !== "focus") return false;
+  return focus.running || focus.remaining < focusDurations.focus;
+});
 /** Interaction poses win over listening; the blink is only a frame of the base. */
 const displayPose = computed<PetPose>(() => {
   if (petPose.value === "lifted" || petPose.value === "ponder")
     return petPose.value;
+  if (focusActive.value) return "focus";
   if (state.value?.music.playing) return "music";
   return petPose.value;
 });

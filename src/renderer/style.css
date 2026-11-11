@@ -499,6 +499,19 @@ footer button {
   transform-origin: 50% 92%;
   animation: pet-music 2.2s ease-in-out infinite;
 }
+.marker.focus {
+  transform-origin: 50% 92%;
+  animation: pet-focus 4.2s ease-in-out infinite;
+}
+@keyframes pet-focus {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-0.4deg) scaleY(1);
+  }
+  50% {
+    transform: translateY(-1.5px) rotate(0.4deg) scaleY(1.008);
+  }
+}
 @keyframes pet-music {
   0%,
   100% {
@@ -540,7 +553,8 @@ footer button {
   .marker,
   .marker.lifted,
   .marker.music,
-  .marker.ponder {
+  .marker.ponder,
+  .marker.focus {
     animation: none;
   }
 }

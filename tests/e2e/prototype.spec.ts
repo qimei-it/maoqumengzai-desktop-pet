@@ -367,6 +367,7 @@ test("hovering the pet centre opens companion tools", async () => {
       return snapshot.ok && snapshot.value.focus.running;
     })
     .toBe(true);
+  await expect(pet.locator(".marker")).toHaveAttribute("src", /focus/);
   await new Promise((resolve) => setTimeout(resolve, 1200));
   await focus.getByRole("button", { name: "暂停", exact: true }).click();
   await expect
