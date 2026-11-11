@@ -28,14 +28,20 @@ export function nextPhase(
   return { phase: count % 4 === 0 ? 'long' : 'short', completed: count }
 }
 
-/** Water reminders run every hour, only between 09:00 and 22:00 local time. */
-export function nextWaterAt(now: number): number {
-  const next = now + 60 * 60 * 1000
+/** Water reminders repeat inside the configured hours, 60 minutes and 09:00–22:00 by default. */
+export function nextWaterAt(
+  now: number,
+  intervalMinutes = 60,
+  startHour = 9,
+  endHour = 22,
+): number {
+  const interval = Math.min(240, Math.max(5, Math.round(intervalMinutes)))
+  const next = now + interval * 60 * 1000
   const date = new Date(next)
-  if (date.getHours() >= 22 || date.getHours() < 9) {
+  if (date.getHours() >= endHour || date.getHours() < startHour) {
     const morning = new Date(now)
-    if (date.getHours() >= 22) morning.setDate(morning.getDate() + 1)
-    morning.setHours(9, 0, 0, 0)
+    if (date.getHours() >= endHour) morning.setDate(morning.getDate() + 1)
+    morning.setHours(startHour, 0, 0, 0)
     return morning.getTime()
   }
   return next

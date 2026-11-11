@@ -201,6 +201,7 @@ let convertWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
 let focusWindow: BrowserWindow | undefined
+let focusBadge: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
@@ -341,6 +342,9 @@ function snapshot(): Snapshot {
           : focusData.remaining,
       completed: focusData.completed,
       water: focusData.water,
+      waterInterval: focusData.waterInterval,
+      waterStart: focusData.waterStart,
+      waterEnd: focusData.waterEnd,
       waterNextAt: focusData.waterNextAt ?? undefined,
       todos: focusData.todos,
     },
@@ -370,6 +374,7 @@ function broadcast(): void {
       renameWindow,
       settingsWindow,
       focusWindow,
+      focusBadge,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -435,6 +440,7 @@ function syncOverlays(): void {
   updateEyeWindow()
   updateLyricsWindow()
   updateBubbleWindow()
+  updateFocusBadge()
 }
 function positionLyrics(): void {
   if (!lyricsWindow || lyricsWindow.isDestroyed()) return
@@ -976,10 +982,11 @@ function completeFocus(): void {
     remaining: phaseSeconds(next.phase),
   }
   notifyFocus(
-    '番茄钟',
+    '番茄时钟',
     previous === 'focus' ? '专注结束，休息一下' : '休息结束，继续专注',
   )
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function focusTick(): void {
@@ -999,12 +1006,22 @@ function focusTick(): void {
   if (focusData.water) {
     const now = Date.now()
     if (!focusData.waterNextAt) {
-      focusData.waterNextAt = nextWaterAt(now)
+      focusData.waterNextAt = nextWaterAt(
+        now,
+        focusData.waterInterval,
+        focusData.waterStart,
+        focusData.waterEnd,
+      )
       persistFocus()
       changed = true
     } else if (focusData.waterNextAt <= now) {
       notifyFocus('喝水提醒', '该喝水了')
-      focusData.waterNextAt = nextWaterAt(now)
+      focusData.waterNextAt = nextWaterAt(
+        now,
+        focusData.waterInterval,
+        focusData.waterStart,
+        focusData.waterEnd,
+      )
       persistFocus()
       changed = true
     }
@@ -1020,6 +1037,7 @@ function startFocus(): void {
     endsAt: Date.now() + focusData.remaining * 1000,
   }
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function pauseFocusTimer(): void {
@@ -1031,6 +1049,7 @@ function pauseFocusTimer(): void {
     endsAt: null,
   }
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function resetFocusTimer(): void {
@@ -1041,6 +1060,7 @@ function resetFocusTimer(): void {
     remaining: phaseSeconds(focusData.phase),
   }
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function skipFocusTimer(): void {
@@ -1054,6 +1074,7 @@ function skipFocusTimer(): void {
     remaining: phaseSeconds(next.phase),
   }
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function setFocusPhase(phase: FocusData['phase']): void {
@@ -1065,13 +1086,37 @@ function setFocusPhase(phase: FocusData['phase']): void {
     remaining: phaseSeconds(phase),
   }
   persistFocus()
+  syncOverlays()
   broadcast()
 }
 function setWaterReminder(enabled: boolean): void {
   focusData = {
     ...focusData,
     water: enabled,
-    waterNextAt: enabled ? nextWaterAt(Date.now()) : null,
+    waterNextAt: enabled ? nextWaterAt(
+      Date.now(),
+      focusData.waterInterval,
+      focusData.waterStart,
+      focusData.waterEnd,
+    ) : null,
+  }
+  persistFocus()
+  broadcast()
+}
+function setWaterConfig(
+  interval: number,
+  start: number,
+  end: number,
+): void {
+  if (start >= end) throw new Error('喝水提醒的结束时间必须晚于开始时间。')
+  focusData = {
+    ...focusData,
+    waterInterval: interval,
+    waterStart: start,
+    waterEnd: end,
+    waterNextAt: focusData.water
+      ? nextWaterAt(Date.now(), interval, start, end)
+      : null,
   }
   persistFocus()
   broadcast()
@@ -1122,7 +1167,36 @@ function positionFocus(): void {
   )
   focusWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function positionFocusBadge(): void {
+  if (!focusBadge || focusBadge.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const size = 64
+  let x = b.x + b.width + 6
+  if (x + size > a.x + a.width - 6) x = b.x - size - 6
+  const y = Math.min(b.y + 20, a.y + a.height - size - 6)
+  focusBadge.setBounds(fitToDisplays({ x, y, width: size, height: size }, [a]))
+}
+function updateFocusBadge(): void {
+  if (!focusBadge || focusBadge.isDestroyed()) return
+  const panelVisible =
+    windowVisible(focusWindow) && !focusWindow?.isMinimized()
+  const active =
+    focusData.running &&
+    focusData.phase === 'focus' &&
+    !panelVisible &&
+    !dropMode &&
+    !petHoverMode
+  if (active) {
+    positionFocusBadge()
+    focusBadge.showInactive()
+    focusBadge.moveTop()
+  } else if (focusBadge.isVisible()) {
+    focusBadge.hide()
+  }
+}
 function openFocus(tab: FocusTab): void {
+  const wasVisible = windowVisible(focusWindow)
   focusTab = tab
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
@@ -1130,17 +1204,19 @@ function openFocus(tab: FocusTab): void {
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (focusWindow && !focusWindow.isDestroyed()) {
-    positionFocus()
+    if (!wasVisible) positionFocus()
     if (process.platform === 'darwin' || focusWindow.isMinimized())
       focusWindow.restore()
     focusWindow.show()
     focusWindow.moveTop()
     focusWindow.focus()
   }
+  syncOverlays()
   broadcast()
 }
 function closeFocus(): void {
   focusWindow?.hide()
+  syncOverlays()
   broadcast()
 }
 async function pathExists(path: string): Promise<boolean> {
@@ -2648,6 +2724,7 @@ function setupIpc(): void {
       'focus-skip',
       'focus-phase',
       'focus-water',
+      'focus-water-config',
       'todo-add',
       'todo-toggle',
       'todo-remove',
@@ -2872,6 +2949,9 @@ function setupIpc(): void {
         break
       case 'focus-water':
         setWaterReminder(command.enabled)
+        break
+      case 'focus-water-config':
+        setWaterConfig(command.interval, command.start, command.end)
         break
       case 'todo-add':
         addTodo(command.text)
@@ -3509,6 +3589,32 @@ async function createWindows(): Promise<void> {
     focusWindow,
   ])
     configurePanelChrome(panel)
+  focusBadge = new BrowserWindow({
+    width: 64,
+    height: 64,
+    title: '毛趣萌仔 · 计时环',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  focusBadge.setIgnoreMouseEvents(true)
+  if (process.platform === 'darwin') {
+    focusBadge.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    focusBadge.setHiddenInMissionControl(true)
+  }
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,
@@ -3527,7 +3633,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -3594,6 +3700,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
+    if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
   pet.on('resize', () => {
@@ -3608,6 +3715,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
+    if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
   await restoreShelf()
@@ -3629,9 +3737,11 @@ async function createWindows(): Promise<void> {
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
     load(focusWindow, 'focus'),
+    load(focusBadge, 'focus-badge'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
+  syncOverlays()
   tray = new Tray(trayImage())
   tray.setToolTip('毛趣萌仔 · P0 交互原型')
   tray.setContextMenu(
@@ -3763,7 +3873,12 @@ else {
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
       if (focusData.water && !focusData.waterNextAt)
-        focusData.waterNextAt = nextWaterAt(Date.now())
+        focusData.waterNextAt = nextWaterAt(
+          Date.now(),
+          focusData.waterInterval,
+          focusData.waterStart,
+          focusData.waterEnd,
+        )
       await saveFocusFile(focusPath, focusData)
       if (app.isPackaged)
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
@@ -3814,6 +3929,7 @@ else {
     renameWindow?.destroy()
     settingsWindow?.destroy()
     focusWindow?.destroy()
+    focusBadge?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
     globalShortcut.unregisterAll()

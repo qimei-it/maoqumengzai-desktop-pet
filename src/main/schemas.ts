@@ -201,6 +201,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('focus-water-config'),
+      interval: z.number().int().min(5).max(240),
+      start: z.number().int().min(0).max(23),
+      end: z.number().int().min(1).max(24),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('todo-add'),
       text: z.string().trim().min(1).max(200),
     })

@@ -25,6 +25,9 @@ const tab = computed<FocusTab>(() => props.state?.focusTab ?? 'focus')
 const focus = computed(() => props.state?.focus)
 const remaining = computed(() => formatFocus(focus.value?.remaining ?? 0))
 const completed = computed(() => focus.value?.completed ?? 0)
+const waterInterval = computed(() => focus.value?.waterInterval ?? 60)
+const waterStart = computed(() => focus.value?.waterStart ?? 9)
+const waterEnd = computed(() => focus.value?.waterEnd ?? 22)
 const waterNext = computed(() => {
   const timestamp = focus.value?.waterNextAt
   if (!timestamp) return '—'
@@ -35,6 +38,43 @@ const waterNext = computed(() => {
 })
 const phases = ['focus', 'short', 'long'] as const
 
+function hourLabel(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`
+}
+function updateWaterConfig(interval: number, start: number, end: number): void {
+  const safeStart = Math.min(23, Math.max(0, Math.round(start)))
+  const safeEnd = Math.min(24, Math.max(1, Math.round(end)))
+  if (safeStart >= safeEnd) return
+  emit('command', {
+    type: 'focus-water-config',
+    interval: Math.min(240, Math.max(5, Math.round(interval))),
+    start: safeStart,
+    end: safeEnd,
+  })
+}
+function changeWaterInterval(event: Event): void {
+  updateWaterConfig(
+    Number((event.target as HTMLInputElement).value),
+    waterStart.value,
+    waterEnd.value,
+  )
+}
+function changeWaterStart(event: Event): void {
+  const start = Number((event.target as HTMLSelectElement).value)
+  updateWaterConfig(
+    waterInterval.value,
+    start,
+    start >= waterEnd.value ? Math.min(24, start + 1) : waterEnd.value,
+  )
+}
+function changeWaterEnd(event: Event): void {
+  const end = Number((event.target as HTMLSelectElement).value)
+  updateWaterConfig(
+    waterInterval.value,
+    end <= waterStart.value ? Math.max(0, end - 1) : waterStart.value,
+    end,
+  )
+}
 function openTab(next: FocusTab): void {
   emit('command', { type: 'focus-open', tab: next })
 }
@@ -59,16 +99,7 @@ function close(): void {
           emit('command', { type: 'panel-control', action: 'minimize' })
         "
         @close="emit('command', { type: 'panel-control', action: 'close' })"
-      >
-        <template #icon>
-          <Timer
-            :size="17"
-            :stroke-width="2"
-            aria-hidden="true"
-            focusable="false"
-          />
-        </template>
-      </PanelHeader>
+      />
 
       <div class="focus-tabs" role="group" aria-label="专注分类">
         <button
@@ -77,7 +108,7 @@ function close(): void {
           @click="openTab('focus')"
         >
           <Timer :size="15" :stroke-width="2" aria-hidden="true" />
-          番茄钟
+          番茄时钟
         </button>
         <button
           type="button"
@@ -187,11 +218,45 @@ function close(): void {
         </div>
         <div class="focus-row">
           <span>提醒间隔</span>
-          <span class="focus-value">60 分钟</span>
+          <span class="focus-config">
+            <input
+              class="focus-number"
+              type="number"
+              min="5"
+              max="240"
+              step="5"
+              :value="waterInterval"
+              aria-label="喝水提醒间隔分钟"
+              @change="changeWaterInterval"
+            />
+            <span class="focus-value">分钟</span>
+          </span>
         </div>
         <div class="focus-row">
           <span>生效时段</span>
-          <span class="focus-value">09:00–22:00</span>
+          <span class="focus-config">
+            <select
+              class="focus-select"
+              :value="waterStart"
+              aria-label="喝水提醒开始时间"
+              @change="changeWaterStart"
+            >
+              <option v-for="hour in 24" :key="hour" :value="hour - 1">
+                {{ hourLabel(hour - 1) }}
+              </option>
+            </select>
+            <span class="focus-value">–</span>
+            <select
+              class="focus-select"
+              :value="waterEnd"
+              aria-label="喝水提醒结束时间"
+              @change="changeWaterEnd"
+            >
+              <option v-for="hour in 24" :key="hour + 1" :value="hour">
+                {{ hourLabel(hour) }}
+              </option>
+            </select>
+          </span>
         </div>
       </div>
 
@@ -376,6 +441,34 @@ function close(): void {
 .focus-value {
   color: var(--color-muted);
   font-size: var(--font-size-label);
+}
+.focus-config {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.focus-number,
+.focus-select {
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.focus-number {
+  width: 58px;
+  text-align: right;
+}
+.focus-select {
+  min-width: 72px;
+}
+.focus-number:focus-visible,
+.focus-select:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
 }
 .focus-switch {
   position: relative;

@@ -48,6 +48,7 @@ import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
+import FocusBadge from "./FocusBadge.vue";
 import FocusPanel from "./FocusPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 import { focusDurations } from "../shared/focus";
@@ -75,6 +76,8 @@ const settingsView =
   new URLSearchParams(location.search).get("view") === "settings";
 const focusView =
   new URLSearchParams(location.search).get("view") === "focus";
+const focusBadgeView =
+  new URLSearchParams(location.search).get("view") === "focus-badge";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -89,6 +92,7 @@ document.body.classList.toggle("toast-view", toastView);
 document.body.classList.toggle("rename-view", renameView);
 document.body.classList.toggle("settings-view", settingsView);
 document.body.classList.toggle("focus-view", focusView);
+document.body.classList.toggle("focus-badge-view", focusBadgeView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -103,6 +107,7 @@ if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
 if (settingsView) document.title = "毛趣萌仔 · 设置";
 if (focusView) document.title = "毛趣萌仔 · 专注";
+if (focusBadgeView) document.title = "毛趣萌仔 · 计时环";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 function applyTheme(theme: string | undefined): void {
@@ -1452,6 +1457,8 @@ onUnmounted(() => {
     :error="error"
     @command="command"
   />
+
+  <FocusBadge v-else-if="focusBadgeView" :state="state" />
 
   <FilePocket
     v-else-if="pocketView"

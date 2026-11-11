@@ -19,6 +19,9 @@ const schema = z
     remaining: z.number().int().min(0).max(24 * 60 * 60),
     completed: z.number().int().min(0).max(100_000),
     water: z.boolean(),
+    waterInterval: z.number().int().min(5).max(240).default(60),
+    waterStart: z.number().int().min(0).max(23).default(9),
+    waterEnd: z.number().int().min(1).max(24).default(22),
     waterNextAt: z.number().finite().nullable(),
     todos: z.array(todoSchema).max(500),
   })
@@ -34,6 +37,9 @@ export const defaultFocus = (): FocusData => ({
   remaining: focusDurations.focus,
   completed: 0,
   water: true,
+  waterInterval: 60,
+  waterStart: 9,
+  waterEnd: 22,
   waterNextAt: null,
   todos: [],
 })

@@ -102,6 +102,9 @@ export type FocusState = {
   remaining: number
   completed: number
   water: boolean
+  waterInterval: number
+  waterStart: number
+  waterEnd: number
   waterNextAt?: number
   todos: FocusTodo[]
 }
@@ -217,6 +220,12 @@ export type Command =
   | { type: 'focus-skip' }
   | { type: 'focus-phase'; phase: FocusPhase }
   | { type: 'focus-water'; enabled: boolean }
+  | {
+      type: 'focus-water-config'
+      interval: number
+      start: number
+      end: number
+    }
   | { type: 'todo-add'; text: string }
   | { type: 'todo-toggle'; id: string }
   | { type: 'todo-remove'; id: string }

@@ -25,6 +25,7 @@ let convert: Page;
 let rename: Page;
 let settings: Page;
 let focus: Page;
+let focusBadge: Page;
 let pill: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
@@ -45,7 +46,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(15);
+  await expect.poll(() => application.windows().length).toBe(16);
   const windows = await Promise.all(
     application
       .windows()
@@ -59,6 +60,7 @@ test.beforeAll(async () => {
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
   focus = windows.find((item) => item.title.includes("专注"))!.page;
+  focusBadge = windows.find((item) => item.title.includes("计时环"))!.page;
   pill = windows.find((item) => item.title.includes("音乐控制"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
@@ -67,7 +69,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings, focus, pill]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings, focus, focusBadge, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -360,6 +362,22 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(true);
   await expect(focus.getByRole("heading", { name: "专注" })).toBeVisible();
+  const movedFocus = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes("专注"),
+    )!;
+    window.setBounds({ x: 80, y: 80, width: 360, height: 420 });
+    return window.getBounds();
+  });
+  await focus.getByRole("button", { name: "喝水", exact: true }).click();
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const stayed = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("专注"))!
+      .getBounds(),
+  );
+  expect(stayed).toEqual(movedFocus);
+  await focus.getByRole("button", { name: "番茄时钟", exact: true }).click();
   await focus.getByRole("button", { name: "开始", exact: true }).click();
   await expect
     .poll(async () => {
@@ -368,6 +386,21 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(true);
   await expect(pet.locator(".marker")).toHaveAttribute("src", /focus/);
+  const badgeVisible = () =>
+    application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((item) => item.getTitle().includes("计时环"))!
+        .isVisible(),
+    );
+  await expect.poll(badgeVisible).toBe(false);
+  await focus.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
+  await expect.poll(badgeVisible).toBe(true);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "focus-open", tab: "focus" }),
+  );
+  await expect.poll(badgeVisible).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 1200));
   await focus.getByRole("button", { name: "暂停", exact: true }).click();
   await expect
@@ -387,6 +420,18 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(1);
   await focus.getByRole("button", { name: "喝水", exact: true }).click();
+  await focus.getByLabel("喝水提醒间隔分钟").fill("30");
+  await focus.getByLabel("喝水提醒间隔分钟").press("Tab");
+  await focus.getByLabel("喝水提醒开始时间").selectOption("8");
+  await focus.getByLabel("喝水提醒结束时间").selectOption("21");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.focus.waterInterval}:${snapshot.value.focus.waterStart}:${snapshot.value.focus.waterEnd}`
+        : "";
+    })
+    .toBe("30:8:21");
   await focus.getByRole("switch", { name: "喝水提醒" }).click();
   await expect
     .poll(async () => {
@@ -1703,7 +1748,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(15);
+  await expect.poll(() => application.windows().length).toBe(16);
   pocket = (
     await Promise.all(
       application
@@ -1749,7 +1794,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(15);
+  await expect.poll(() => application.windows().length).toBe(16);
   const restarted = await Promise.all(
     application
       .windows()

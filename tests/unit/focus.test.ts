@@ -37,4 +37,16 @@ describe('focus helpers', () => {
     const early = new Date(2026, 10, 11, 8, 30).getTime()
     expect(new Date(nextWaterAt(early)).getHours()).toBe(9)
   })
+
+  test('water interval and active hours are configurable', () => {
+    const morning = new Date(2026, 10, 11, 10, 0).getTime()
+    expect(nextWaterAt(morning, 30, 8, 21)).toBe(morning + 30 * 60 * 1000)
+    const evening = new Date(2026, 10, 11, 20, 45).getTime()
+    const tomorrow = new Date(nextWaterAt(evening, 30, 8, 21))
+    expect(tomorrow.getDate()).toBe(12)
+    expect(tomorrow.getHours()).toBe(8)
+    const clamped = new Date(2026, 10, 11, 10, 0).getTime()
+    expect(nextWaterAt(clamped, 1, 8, 21)).toBe(clamped + 5 * 60 * 1000)
+    expect(nextWaterAt(clamped, 999, 8, 21)).toBe(clamped + 240 * 60 * 1000)
+  })
 })
