@@ -386,6 +386,11 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(true);
   await expect(pet.locator(".marker")).toHaveAttribute("src", /focus/);
+  const primary = await focus.locator(".focus-controls .button-glass").boundingBox();
+  const reset = await focus.getByRole("button", { name: "重置" }).boundingBox();
+  expect(reset!.width).toBe(primary!.height);
+  expect(reset!.height).toBe(primary!.height);
+  await expect(focus.getByRole("button", { name: "跳过" })).toHaveCount(0);
   const badgeVisible = () =>
     application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()

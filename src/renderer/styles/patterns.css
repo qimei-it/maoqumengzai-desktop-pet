@@ -71,6 +71,11 @@
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
 }
+/* Pointer clicks keep the button edge clean; only keyboard focus draws the ring. */
+body[data-input='pointer'] .button-glass:focus-visible,
+body[data-input='pointer'] .button-soft:focus-visible {
+  outline: none;
+}
 .button-glass:disabled,
 .button-soft:disabled {
   background: var(--color-disabled-bg);

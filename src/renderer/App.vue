@@ -1025,7 +1025,16 @@ watch(
     }
   },
 );
+/** Mouse focus never paints the keyboard ring; keyboard focus still does. */
+function markPointerInput(): void {
+  document.body.dataset.input = "pointer";
+}
+function markKeyboardInput(): void {
+  document.body.dataset.input = "keyboard";
+}
 onMounted(async () => {
+  window.addEventListener("pointerdown", markPointerInput, true);
+  window.addEventListener("keydown", markKeyboardInput);
   if (!api) {
     error.value =
       "当前页面未连接 Electron。请运行 npm run dev，窗口与文件能力不会在普通浏览器中模拟成功。";
@@ -1059,6 +1068,8 @@ onMounted(async () => {
   }
 });
 onUnmounted(() => {
+  window.removeEventListener("pointerdown", markPointerInput, true);
+  window.removeEventListener("keydown", markKeyboardInput);
   window.removeEventListener("resize", updateMask);
   window.removeEventListener("keydown", onKeydown);
   disarmWatchdog();

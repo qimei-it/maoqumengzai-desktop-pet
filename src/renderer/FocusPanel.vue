@@ -9,7 +9,6 @@ import {
   Play,
   Plus,
   RotateCcw,
-  SkipForward,
   Timer,
   Trash2,
 } from '@lucide/vue'
@@ -25,6 +24,10 @@ const tab = computed<FocusTab>(() => props.state?.focusTab ?? 'focus')
 const focus = computed(() => props.state?.focus)
 const remaining = computed(() => formatFocus(focus.value?.remaining ?? 0))
 const completed = computed(() => focus.value?.completed ?? 0)
+/** Focus sessions finished inside the current four-session cycle. */
+const cycleDone = computed(() =>
+  completed.value % 4 === 0 && completed.value > 0 ? 4 : completed.value % 4,
+)
 const waterInterval = computed(() => focus.value?.waterInterval ?? 60)
 const waterStart = computed(() => focus.value?.waterStart ?? 9)
 const waterEnd = computed(() => focus.value?.waterEnd ?? 22)
@@ -143,11 +146,16 @@ function close(): void {
         <div class="focus-clock" aria-live="polite">{{ remaining }}</div>
         <div class="focus-meta">
           <span>{{ focus?.running ? '进行中' : '已暂停' }}</span>
-          <span class="focus-dots" aria-label="每四次专注后长休">
+          <span
+            class="focus-dots"
+            role="img"
+            :title="`每 4 次专注后长休，已完成 ${cycleDone} / 4 次`"
+            :aria-label="`每 4 次专注后长休，已完成 ${cycleDone} / 4 次`"
+          >
             <span
               v-for="index in 4"
               :key="index"
-              :class="{ done: index <= completed % 4 || (completed > 0 && completed % 4 === 0) }"
+              :class="{ done: index <= cycleDone }"
             />
           </span>
         </div>
@@ -183,15 +191,6 @@ function close(): void {
             @click="emit('command', { type: 'focus-reset' })"
           >
             <RotateCcw :size="17" :stroke-width="2" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class="button-soft"
-            aria-label="跳过"
-            title="跳过"
-            @click="emit('command', { type: 'focus-skip' })"
-          >
-            <SkipForward :size="17" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -426,7 +425,9 @@ function close(): void {
   gap: 6px;
 }
 .focus-controls .button-soft {
-  width: 48px;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
   flex: none;
 }
 .focus-row {
