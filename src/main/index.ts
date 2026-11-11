@@ -76,7 +76,7 @@ import {
   hitOpaquePixel,
   movedBeyondThreshold,
 } from '../shared/geometry'
-import { basePetSize, donutWindowSize } from '../shared/donut'
+import { basePetSize, donutWindowSize, petSprite } from '../shared/donut'
 import {
   availableConvertTargets,
   isImageFile,
@@ -1151,7 +1151,7 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
-  return { width: music.source === 'apple' ? 600 : 534, height: 76 }
+  return { width: music.source === 'apple' ? 500 : 434, height: 76 }
 }
 function positionPill(): void {
   if (!pill || pill.isDestroyed() || pillPositioning) return
@@ -1159,10 +1159,13 @@ function positionPill(): void {
   const a = screen.getDisplayMatching(b).workArea
   const { width, height } = pillSize()
   let petBounds = b
-  const maxY = a.y + a.height - height - 8
-  if (b.y + b.height + 8 > maxY) {
+  const spriteBottom = (bounds: Rect) =>
+    bounds.y + bounds.height - Math.round(((basePetSize.height - petSprite.height) / 2) * scale)
+  const maxY = a.y + a.height - height - 2
+  if (spriteBottom(b) + 2 > maxY) {
     // Keep the bar under the pet; lift the pet just enough to make room.
-    const shifted = Math.max(a.y + 8, b.y - (b.y + b.height + 8 - maxY))
+    const shift = spriteBottom(b) + 2 - maxY
+    const shifted = Math.max(a.y + 8, b.y - shift)
     if (shifted !== b.y) {
       petBounds = { ...b, y: shifted }
       pillPositioning = true
@@ -1172,7 +1175,7 @@ function positionPill(): void {
     }
   }
   const x = Math.round(petBounds.x + petBounds.width / 2 - width / 2)
-  const y = petBounds.y + petBounds.height + 8
+  const y = spriteBottom(petBounds) + 2
   pill.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function updatePillWindow(): void {

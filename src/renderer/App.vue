@@ -5,7 +5,6 @@ import {
   EyeOff,
   Infinity as InfinityIcon,
   Inbox,
-  MessageSquareQuote,
   Music as MusicIcon,
   Pause,
   Play,
@@ -698,12 +697,33 @@ const plainCurrent = computed(() =>
   Math.floor((plainPreview.value.length - 1) / 2),
 );
 const pillLyric = computed(() => {
-  if (state.value?.lyricsOpen === false) return "";
   if (state.value?.lyrics?.instrumental) return "纯音乐";
   if (currentLyric.value) return currentLyric.value.current;
   if (plainLines.value.length)
     return plainLines.value[plainCurrent.value] ?? "";
-  return state.value?.lyrics?.missing ? "暂无歌词" : "";
+  return "";
+});
+const pillSubline = computed(() => {
+  if (pillLyric.value) return pillLyric.value;
+  const artist = state.value?.music.artist?.trim();
+  const album = state.value?.music.album?.trim();
+  if (artist && album) return `${artist} — ${album}`;
+  return artist || album || "";
+});
+const pillLyricEl = ref<HTMLElement>();
+const pillLyricScrolling = ref(false);
+const pillLyricDuration = computed(
+  () => `${Math.min(18, Math.max(7, pillSubline.value.length * 0.3))}s`,
+);
+function measurePillLyric(): void {
+  const element = pillLyricEl.value;
+  if (!element) return;
+  pillLyricScrolling.value = element.scrollWidth > element.clientWidth + 1;
+}
+watch(pillSubline, async () => {
+  pillLyricScrolling.value = false;
+  await nextTick();
+  measurePillLyric();
 });
 const widthLines = computed(() => {
   if (state.value?.lyrics?.instrumental) return ["纯音乐"];
@@ -746,9 +766,6 @@ watch(
     if (lyricsView) void nextTick(reportLyricsWidth);
   },
 );
-function onLyrics() {
-  return command({ type: "lyrics" });
-}
 function startDrag(event: DragEvent, id: string): void {
   event.preventDefault();
   api?.startDrag(id);
@@ -804,6 +821,7 @@ onMounted(() => {
   lyricNow.value = performance.now();
   syncLyricTicker();
   if (lyricsView) void nextTick(reportLyricsWidth);
+  if (pillView) void nextTick(measurePillLyric);
 });
 onUnmounted(() => {
   if (lyricTimer !== undefined) clearInterval(lyricTimer);
@@ -930,12 +948,24 @@ onUnmounted(() => {
           state?.music.title || "未在播放"
         }}</strong>
         <span
-          :key="pillLyric || state?.music.artist"
+          ref="pillLyricEl"
+          :key="pillSubline"
           class="pill-lyric"
-          :class="{ placeholder: !pillLyric }"
-          :title="pillLyric || state?.music.artist"
-          >{{ pillLyric || state?.music.artist || "" }}</span
+          :class="{
+            placeholder: !pillLyric,
+            scrolling: pillLyricScrolling,
+            paused: !state?.music?.playing,
+          }"
+          :style="{ '--pill-lyric-duration': pillLyricDuration }"
+          :title="pillSubline"
         >
+          <span class="pill-lyric-track">
+            <span>{{ pillSubline }}</span>
+            <span v-if="pillLyricScrolling" aria-hidden="true">{{
+              pillSubline
+            }}</span>
+          </span>
+        </span>
       </div>
     </div>
 
@@ -1023,35 +1053,6 @@ onUnmounted(() => {
     <div class="pill-group pill-actions">
       <button
         type="button"
-        class="pill-button"
-        :class="{
-          active: state?.lyricsOpen && state?.lyricsAvailable !== false,
-        }"
-        :disabled="state?.lyricsAvailable === false"
-        :aria-label="
-          state?.lyricsAvailable === false
-            ? '暂无歌词'
-            : state?.lyricsOpen
-              ? '隐藏歌词'
-              : '显示歌词'
-        "
-        :title="
-          state?.lyricsAvailable === false
-            ? '暂无歌词'
-            : state?.lyricsOpen
-              ? '隐藏歌词'
-              : '显示歌词'
-        "
-        @click="onLyrics"
-      >
-        <MessageSquareQuote
-          :size="20"
-          :stroke-width="2"
-          aria-hidden="true"
-        />
-      </button>
-      <button
-        type="button"
         class="pill-button pill-volume"
         :class="{ active: state?.music.muted }"
         :aria-label="state?.music.muted ? '取消静音' : '静音'"
@@ -1064,12 +1065,14 @@ onUnmounted(() => {
           v-if="state?.music.muted"
           :size="20"
           :stroke-width="2"
+          fill="currentColor"
           aria-hidden="true"
         />
         <Volume2
           v-else
           :size="20"
           :stroke-width="2"
+          fill="currentColor"
           aria-hidden="true"
         />
       </button>
