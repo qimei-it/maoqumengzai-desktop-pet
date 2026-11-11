@@ -833,6 +833,7 @@ footer button {
 .pill-surface.double .pill-meta {
   height: 56px;
   gap: 2px;
+  justify-content: flex-start;
 }
 .pill-surface.double .pill-controls {
   justify-content: flex-start;

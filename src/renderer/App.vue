@@ -161,6 +161,7 @@ let acceptSlicesAfter = 0;
 let closeToken = 0;
 let donutOpening = false;
 let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+let hoverSuppressedUntil = 0;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -582,7 +583,12 @@ async function openHoverDonut(): Promise<void> {
   await command({ type: "hover-mode", active: true });
 }
 function petPointerMove(event: PointerEvent): void {
-  if (!petView || dragOver.value || pointerId !== undefined) {
+  if (
+    !petView ||
+    dragOver.value ||
+    pointerId !== undefined ||
+    Date.now() < hoverSuppressedUntil
+  ) {
     clearHoverTimer();
     return;
   }
@@ -608,9 +614,22 @@ function petPointerMove(event: PointerEvent): void {
     clearHoverTimer();
   }
 }
-function petPointerLeave(): void {
+function petPointerLeave(event: PointerEvent): void {
   clearHoverTimer();
-  if (donutOpen.value && donutMode.value === "hover") void closeDonut();
+  if (!donutOpen.value || donutMode.value !== "hover") return;
+  // Resizing the window to show the ring can emit a synthetic leave. Only
+  // close once the pointer is actually outside the expanded window.
+  const { clientX, clientY } = event;
+  window.setTimeout(() => {
+    if (!donutOpen.value || donutMode.value !== "hover") return;
+    if (
+      clientX < 0 ||
+      clientY < 0 ||
+      clientX >= window.innerWidth ||
+      clientY >= window.innerHeight
+    )
+      void closeDonut();
+  }, 180);
 }
 async function runHoverAction(action: HoverAction): Promise<void> {
   await closeDonut();
@@ -632,6 +651,7 @@ function petSurfaceClick(): void {
 function pointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !api || pointerId !== undefined || donutOpen.value)
     return;
+  hoverSuppressedUntil = Date.now() + 600;
   clearHoverTimer();
   event.preventDefault();
   petPose.value = "lifted";
@@ -643,6 +663,8 @@ function pointerDown(event: PointerEvent): void {
 }
 function pointerUp(event: PointerEvent): void {
   if (pointerId !== event.pointerId || !api) return;
+  hoverSuppressedUntil = Date.now() + 600;
+  clearHoverTimer();
   pointerId = undefined;
   petPose.value = "base";
   void attempt(async () => {

@@ -1392,8 +1392,8 @@ function pillSize(): { width: number; height: number } {
   return {
     width: double
       ? music.source === 'apple'
-        ? 360
-        : 320
+        ? 210
+        : 170
       : music.source === 'apple'
         ? 406
         : 344,

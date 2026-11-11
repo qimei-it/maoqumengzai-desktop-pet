@@ -224,7 +224,7 @@ function commandForSelected(
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--color-muted);
+  color: var(--color-brand-ink);
 }
 .pocket-settings:hover {
   background: var(--color-brand-soft);
@@ -294,11 +294,15 @@ function commandForSelected(
   flex: 1 1 28%;
   min-height: 34px;
   padding-inline: 8px;
+  border-color: transparent;
   font-size: var(--font-size-label);
   white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
 }
-.pocket-add {
-  border-color: transparent;
+.pocket-actions button:hover:not(:disabled) {
+  border-color: var(--color-line);
 }
 .pocket-belly {
   margin-top: 10px;
