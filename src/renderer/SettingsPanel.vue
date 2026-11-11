@@ -2,11 +2,18 @@
 import { computed, ref, watch } from 'vue'
 import {
   Database,
+  EyeOff,
   Info,
   Monitor,
   Palette,
+  Pause,
+  Repeat,
   Settings,
+  Shuffle,
   SixteenthNotes,
+  SkipBack,
+  SkipForward,
+  Volume2,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
@@ -40,6 +47,7 @@ const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
 const themes = themeIds.map((id) => ({ id, label: themeLabels[id] }))
+const previewControls = [Shuffle, SkipBack, Pause, SkipForward, Repeat, Volume2]
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const bellyCount = computed(() => props.state?.belly.length ?? 0)
 
@@ -236,13 +244,44 @@ function close(): void {
                 @click="update({ musicBarStyle: style })"
               >
                 <span class="bar-preview" :class="`preview-${style}`">
-                  <span class="preview-cover" />
-                  <span v-if="style !== 'minimal'" class="preview-lines">
-                    <span /><span />
-                  </span>
-                  <span class="preview-controls">
-                    <span /><span /><span />
-                  </span>
+                  <template v-if="style === 'double'">
+                    <span class="preview-double-top">
+                      <span class="preview-cover" />
+                      <span class="preview-lines"><span /><span /></span>
+                    </span>
+                    <span class="preview-hide">
+                      <EyeOff :size="8" :stroke-width="2" aria-hidden="true" />
+                    </span>
+                    <span class="preview-controls">
+                      <component
+                        :is="icon"
+                        v-for="(icon, index) in previewControls"
+                        :key="index"
+                        :size="9"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span class="preview-hide">
+                      <EyeOff :size="8" :stroke-width="2" aria-hidden="true" />
+                    </span>
+                    <span class="preview-cover" />
+                    <span v-if="style === 'compact'" class="preview-lines">
+                      <span /><span />
+                    </span>
+                    <span class="preview-controls">
+                      <component
+                        :is="icon"
+                        v-for="(icon, index) in previewControls"
+                        :key="index"
+                        :size="9"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </template>
                 </span>
                 <span class="bar-style-name">{{
                   musicBarStyleLabels[style]
@@ -535,20 +574,20 @@ function close(): void {
   font-weight: 600;
 }
 .bar-styles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 .bar-style {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-muted);
-  text-align: center;
+  text-align: left;
 }
 .bar-style.active {
   border-color: var(--color-brand-ink);
@@ -558,9 +597,10 @@ function close(): void {
 .bar-preview {
   position: relative;
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: 5px;
-  height: 64px;
+  gap: 4px;
+  min-width: 0;
   padding: 6px;
   overflow: hidden;
   border: 1px solid var(--color-line);
@@ -569,11 +609,10 @@ function close(): void {
 }
 .preview-cover {
   flex: none;
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--color-line);
+  width: 14px;
+  height: 14px;
   border-radius: 4px;
-  background: var(--color-brand-soft);
+  background: var(--color-brand);
 }
 .preview-lines {
   display: flex;
@@ -588,54 +627,65 @@ function close(): void {
   background: var(--color-line);
 }
 .preview-lines span:first-child {
-  width: 76%;
+  width: 70%;
   background: var(--color-muted);
 }
 .preview-controls {
   display: flex;
+  flex: none;
+  align-items: center;
   gap: 2px;
   margin-left: auto;
+  color: var(--color-brand-ink);
 }
-.preview-controls span {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--color-brand-ink);
-  opacity: 0.72;
+.preview-hide {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-brand-ink);
 }
-.preview-compact {
-  align-self: center;
-  width: 100%;
-  height: 28px;
-  border-radius: 999px;
-}
+.preview-compact,
 .preview-minimal {
   align-self: center;
-  width: 100%;
-  height: 28px;
+  height: 32px;
   border-radius: 999px;
 }
-.preview-minimal .preview-controls {
-  margin-left: auto;
-}
 .preview-double {
+  display: block;
   align-self: center;
-  width: 72%;
-  height: 58px;
-  align-items: flex-start;
-  padding-top: 8px;
+  height: 70px;
+  padding: 8px;
 }
-.preview-double .preview-cover {
-  width: 14px;
-  height: 14px;
+.preview-double-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 18px;
+}
+.preview-double .preview-lines {
+  flex: 1;
+}
+.preview-double .preview-hide {
+  position: absolute;
+  top: 4px;
+  right: 5px;
 }
 .preview-double .preview-controls {
   position: absolute;
-  left: 6px;
   bottom: 6px;
+  left: 8px;
+  margin-left: 0;
 }
 .bar-style-name {
+  flex: none;
+  width: 64px;
+  text-align: right;
   font-size: var(--font-size-label);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-style {
+    transition: none;
+  }
 }
 .settings-error {
   margin: 12px 0 0;
