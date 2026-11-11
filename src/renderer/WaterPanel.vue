@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Droplets } from '@lucide/vue'
+import { Droplets, GlassWater, Settings } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   countToday,
@@ -113,6 +113,7 @@ function close(): void {
           :class="{ active: tab === 'settings' }"
           @click="tab = 'settings'"
         >
+          <Settings :size="15" :stroke-width="2" aria-hidden="true" />
           提醒设置
         </button>
         <button
@@ -122,6 +123,7 @@ function close(): void {
           :class="{ active: tab === 'log' }"
           @click="tab = 'log'"
         >
+          <GlassWater :size="15" :stroke-width="2" aria-hidden="true" />
           喝水记录
         </button>
       </div>
@@ -195,10 +197,9 @@ function close(): void {
           <span class="water-today">今日 {{ todayCount }} 次</span>
           <button
             type="button"
-            class="button-glass"
+            class="button-glass water-drink"
             @click="emit('command', { type: 'water-drink' })"
           >
-            <Droplets :size="16" :stroke-width="2" aria-hidden="true" />
             记录一次
           </button>
         </div>
@@ -277,6 +278,10 @@ function close(): void {
 .water-tabs button {
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 36px;
   padding: 0 8px;
   border: 0;
@@ -383,9 +388,12 @@ function close(): void {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.water-summary .button-glass {
-  gap: 5px;
+.water-summary .water-drink {
+  min-height: 32px;
+  height: 32px;
   padding-inline: 14px;
+  font-size: var(--font-size-label);
+  font-weight: 600;
 }
 .water-history {
   flex: 1;
