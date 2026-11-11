@@ -1151,7 +1151,7 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
-  return { width: music.source === 'apple' ? 406 : 344, height: 60 }
+  return { width: music.source === 'apple' ? 406 : 344, height: 50 }
 }
 function positionPill(): void {
   if (!pill || pill.isDestroyed() || pillPositioning) return
