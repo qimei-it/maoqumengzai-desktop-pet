@@ -661,6 +661,7 @@ footer button {
 
 /* Music bar: cover, one lyric line and transport controls. */
 .pill-surface {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -795,6 +796,31 @@ footer button {
 .pill-button.pill-volume {
   color: var(--color-brand-ink);
 }
+.pill-hide {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-brand-ink);
+  cursor: pointer;
+}
+.pill-hide:hover {
+  background: var(--color-brand-soft);
+}
+.pill-hide:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+.pill-surface.double .pill-hide {
+  position: absolute;
+  top: 3px;
+  right: 6px;
+}
 .pill-button:disabled,
 .pill-button:disabled:hover {
   opacity: 0.4;
@@ -834,6 +860,7 @@ footer button {
   height: 56px;
   gap: 2px;
   justify-content: flex-start;
+  padding-right: 20px;
 }
 .pill-surface.double .pill-controls {
   justify-content: flex-start;

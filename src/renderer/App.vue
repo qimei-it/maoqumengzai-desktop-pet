@@ -832,15 +832,27 @@ const plainCurrent = computed(() =>
 const isDoubleBar = computed(
   () => (state.value?.settings.musicBarStyle ?? "double") === "double",
 );
+const hasLyrics = computed(() =>
+  Boolean(
+    state.value?.lyrics?.instrumental ||
+      state.value?.lyrics?.synced?.trim() ||
+      state.value?.lyrics?.plain?.trim(),
+  ),
+);
 const pillLyric = computed(() => {
   if (state.value?.lyrics?.instrumental) return "纯音乐";
   if (currentLyric.value) return currentLyric.value.current;
+  if (lyricLines.value.length) return lyricLines.value[0]?.text ?? "";
   if (plainLines.value.length)
     return plainLines.value[plainCurrent.value] ?? "";
-  return "";
+  return hasLyrics.value ? "♪" : "";
 });
 const pillSubline = computed(() => {
   if (pillLyric.value) return pillLyric.value;
+  if (hasLyrics.value) return "♪";
+  // Do not flash the artist while lyrics for the current track are loading.
+  if (state.value?.music.title && state.value?.lyricsAvailable === undefined)
+    return "♪";
   const artist = state.value?.music.artist?.trim();
   const album = state.value?.music.album?.trim();
   if (artist && album) return `${artist} — ${album}`;
@@ -1269,6 +1281,16 @@ onUnmounted(() => {
         />
       </button>
     </div>
+
+    <button
+      type="button"
+      class="pill-hide"
+      aria-label="隐藏播放控制栏"
+      title="隐藏播放控制栏"
+      @click="command({ type: 'bar-toggle' })"
+    >
+      <EyeOff :size="16" :stroke-width="2" aria-hidden="true" />
+    </button>
   </main>
 
   <main

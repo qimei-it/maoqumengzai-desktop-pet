@@ -400,25 +400,24 @@ function refreshPocketLayout(): void {
 }
 function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
-  const target = windowVisible(pill) && pill ? pill.getBounds() : pillLayout(false)
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
   const size = 32
-  // Keep in sync with .pill-button (30px), .pill-group gap (2px) and the
-  // right padding (10px) in style.css.
-  const controlsWidth =
-    music.source === 'apple' ? 6 * 30 + 5 * 2 : 4 * 30 + 3 * 2
-  const groupStart =
-    settings.musicBarStyle === 'double'
-      ? target.x + 10
-      : target.x + target.width - 10 - controlsWidth
-  const playCenter =
-    groupStart + (music.source === 'apple' ? 2 : 1) * 32 + 15
-  const x = Math.round(playCenter - size / 2)
-  const y = target.y - size - 4
-  eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
+  const spriteBottom =
+    b.y +
+    b.height -
+    Math.round(((basePetSize.height - petSprite.height) / 2) * scale)
+  let x = b.x + b.width + 6
+  if (x + size > a.x + a.width - 6) x = b.x - size - 6
+  const y = Math.min(
+    spriteBottom - size - 4,
+    a.y + a.height - size - 6,
+  )
+  eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, [a]))
 }
 function updateEyeWindow(): void {
   if (!eye || eye.isDestroyed()) return
-  if (music.title && !dropMode && !petHoverMode) {
+  if (music.title && !dropMode && !petHoverMode && !barVisible) {
     positionEye()
     eye.showInactive()
     eye.moveTop()
@@ -1395,8 +1394,8 @@ function pillSize(): { width: number; height: number } {
         ? 210
         : 170
       : music.source === 'apple'
-        ? 406
-        : 344,
+        ? 432
+        : 370,
     height: double ? 108 : 50,
   }
 }
