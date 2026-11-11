@@ -3,11 +3,12 @@
 export const themeIds = ['default', 'halloween', 'christmas'] as const
 export type ThemeId = (typeof themeIds)[number]
 
-export const musicBarStyles = ['compact', 'double'] as const
+export const musicBarStyles = ['compact', 'double', 'minimal'] as const
 export type MusicBarStyle = (typeof musicBarStyles)[number]
 export const musicBarStyleLabels: Record<MusicBarStyle, string> = {
   compact: '单行',
   double: '双行',
+  minimal: '仅封面',
 }
 
 export const petScales = [0.75, 1, 1.5, 2] as const

@@ -223,19 +223,31 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'music'">
-            <div class="settings-row">
-              <span class="settings-label">控制栏样式</span>
-              <div class="settings-segmented" role="group" aria-label="控制栏样式">
-                <button
-                  v-for="style in musicBarStyles"
-                  :key="style"
-                  type="button"
-                  :class="{ active: settings.musicBarStyle === style }"
-                  @click="update({ musicBarStyle: style })"
-                >
-                  {{ musicBarStyleLabels[style] }}
-                </button>
-              </div>
+            <h3 class="settings-group-title">控制栏样式</h3>
+            <div class="bar-styles" role="radiogroup" aria-label="控制栏样式">
+              <button
+                v-for="style in musicBarStyles"
+                :key="style"
+                type="button"
+                class="bar-style"
+                :class="{ active: settings.musicBarStyle === style }"
+                role="radio"
+                :aria-checked="settings.musicBarStyle === style"
+                @click="update({ musicBarStyle: style })"
+              >
+                <span class="bar-preview" :class="`preview-${style}`">
+                  <span class="preview-cover" />
+                  <span v-if="style !== 'minimal'" class="preview-lines">
+                    <span /><span />
+                  </span>
+                  <span class="preview-controls">
+                    <span /><span /><span />
+                  </span>
+                </span>
+                <span class="bar-style-name">{{
+                  musicBarStyleLabels[style]
+                }}</span>
+              </button>
             </div>
           </template>
 
@@ -515,6 +527,115 @@ function close(): void {
 .settings-field input:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
+}
+.settings-group-title {
+  margin: 2px 0 10px;
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+.bar-styles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.bar-style {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-muted);
+  text-align: center;
+}
+.bar-style.active {
+  border-color: var(--color-brand-ink);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.bar-preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 64px;
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+.preview-cover {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 4px;
+  background: var(--color-brand-soft);
+}
+.preview-lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.preview-lines span {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+.preview-lines span:first-child {
+  width: 76%;
+  background: var(--color-muted);
+}
+.preview-controls {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.preview-controls span {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-brand-ink);
+  opacity: 0.72;
+}
+.preview-compact {
+  align-self: center;
+  width: 100%;
+  height: 28px;
+  border-radius: 999px;
+}
+.preview-minimal {
+  align-self: center;
+  width: 100%;
+  height: 28px;
+  border-radius: 999px;
+}
+.preview-minimal .preview-controls {
+  margin-left: auto;
+}
+.preview-double {
+  align-self: center;
+  width: 72%;
+  height: 58px;
+  align-items: flex-start;
+  padding-top: 8px;
+}
+.preview-double .preview-cover {
+  width: 14px;
+  height: 14px;
+}
+.preview-double .preview-controls {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+}
+.bar-style-name {
+  font-size: var(--font-size-label);
 }
 .settings-error {
   margin: 12px 0 0;

@@ -797,6 +797,7 @@ footer button {
   color: var(--color-brand-ink);
 }
 .pill-hide {
+  order: -1;
   display: grid;
   place-items: center;
   width: 24px;
@@ -865,6 +866,10 @@ footer button {
 .pill-surface.double .pill-controls {
   justify-content: flex-start;
 }
+.pill-surface.minimal .pill-now {
+  flex: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pill-lyric.scrolling .pill-lyric-track {
     animation: none;

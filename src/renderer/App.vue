@@ -829,9 +829,10 @@ const plainPreview = computed(() => plainLines.value.slice(0, 3));
 const plainCurrent = computed(() =>
   Math.floor((plainPreview.value.length - 1) / 2),
 );
-const isDoubleBar = computed(
-  () => (state.value?.settings.musicBarStyle ?? "double") === "double",
+const barStyle = computed(
+  () => state.value?.settings.musicBarStyle ?? "double",
 );
+const isTwoLineBar = computed(() => barStyle.value === "double");
 const hasLyrics = computed(() =>
   Boolean(
     state.value?.lyrics?.instrumental ||
@@ -1118,14 +1119,17 @@ onUnmounted(() => {
   <main
     v-else-if="pillView"
     class="pill-surface"
-    :class="{ double: isDoubleBar }"
+    :class="{
+      double: barStyle === 'double',
+      minimal: barStyle === 'minimal',
+    }"
   >
     <div class="pill-now">
       <div class="pill-cover" :class="{ empty: !state?.music.cover }">
         <img v-if="state?.music.cover" :src="state.music.cover" alt="" />
         <MusicIcon v-else :size="18" :stroke-width="2" aria-hidden="true" />
       </div>
-      <div class="pill-meta">
+      <div v-if="barStyle !== 'minimal'" class="pill-meta">
         <span
           ref="pillTitleEl"
           :key="state?.music.title"
@@ -1145,7 +1149,7 @@ onUnmounted(() => {
           </span>
         </span>
         <span
-          v-if="isDoubleBar"
+          v-if="isTwoLineBar"
           :key="pillSubline"
           class="pill-lyric pill-lyric-lines"
           :class="{ placeholder: !pillLyric }"

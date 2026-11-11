@@ -1387,17 +1387,12 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
-  const double = settings.musicBarStyle === 'double'
-  return {
-    width: double
-      ? music.source === 'apple'
-        ? 210
-        : 170
-      : music.source === 'apple'
-        ? 432
-        : 370,
-    height: double ? 108 : 50,
-  }
+  const style = settings.musicBarStyle
+  if (style === 'compact')
+    return { width: music.source === 'apple' ? 432 : 370, height: 50 }
+  if (style === 'minimal')
+    return { width: music.source === 'apple' ? 288 : 224, height: 50 }
+  return { width: music.source === 'apple' ? 210 : 170, height: 108 }
 }
 function pillLayout(liftPet: boolean): Rect {
   const b = pet.getBounds()

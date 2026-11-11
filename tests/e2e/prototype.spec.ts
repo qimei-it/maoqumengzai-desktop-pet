@@ -250,6 +250,8 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toBe(false);
 
+  await settings.getByRole("button", { name: "音乐播放器", exact: true }).click();
+  await expect(settings.locator(".bar-style")).toHaveCount(3);
   await settings.getByRole("button", { name: "数据", exact: true }).click();
   await settings.getByRole("button", { name: "清理", exact: true }).click();
   await expect
