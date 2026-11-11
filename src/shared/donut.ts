@@ -535,3 +535,14 @@ export function conversionTargets(
   }
   return (shared ?? []).slice(0, limit)
 }
+
+/** Hover menu opens without files and points at companion tools. */
+export const hoverActions = ['focus', 'water', 'todo', 'agent'] as const
+export type HoverAction = (typeof hoverActions)[number]
+
+export const hoverLabels: Record<HoverAction, readonly string[]> = {
+  focus: ['番茄', '时钟'],
+  water: ['喝水', '提醒'],
+  todo: ['待办', '清单'],
+  agent: ['智能', '体'],
+}

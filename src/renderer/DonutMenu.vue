@@ -19,10 +19,19 @@ import { createChannel, isSettled, stepSpring } from '../shared/spring'
 
 const props = defineProps<{
   scale: number
-  active: DropAction | null
+  active: string | null
   error?: string
   closing?: boolean
+  actions?: readonly string[]
+  labels?: Record<string, readonly string[]>
+  labelSize?: number
+  ariaLabel?: string
 }>()
+const actions = computed(() => props.actions ?? sliceActions)
+const labels = computed<Record<string, readonly string[]>>(
+  () => props.labels ?? sliceLabelColumns,
+)
+const count = computed(() => actions.value.length)
 
 /** Filee's spring: 320/20 pops out with a small bounce, 36 settles without one. */
 const popSpring = { stiffness: 320, damping: 20, mass: 1 }
@@ -47,20 +56,21 @@ const shadowStops = computed(() => ({
 }))
 const shadowOpacity = computed(
   () =>
-    open.value.reduce((total, value) => total + value, 0) / sliceCount,
+    open.value.reduce((total, value) => total + value, 0) /
+    Math.max(1, count.value),
 )
 
 const wedges = computed(() => {
   const m = metrics.value
-  const step = span(sliceCount)
+  const step = span(count.value)
   const gap = sliceGap * props.scale
   const corner = sliceCornerRadius * props.scale
-  const fontSize = 11 * props.scale
-  return sliceActions.map((action, index) => {
-    const mid = midAngle(index, sliceCount)
+  const fontSize = (props.labelSize ?? 11) * props.scale
+  return actions.value.map((action, index) => {
+    const mid = midAngle(index, count.value)
     // Short labels stay in one vertical column. Longer labels use two
     // horizontal rows split by word (格式 / 转换, 批量 / 重命名).
-    const columns = sliceLabelColumns[action]
+    const columns = labels.value[action] ?? [action]
     const lineHeight = fontSize * 1.25
     const charWidth = fontSize * 1.08
     const center = pointAt(m.mid, mid)
@@ -91,15 +101,15 @@ const wedges = computed(() => {
   })
 })
 
-const open = ref<number[]>(new Array(sliceCount).fill(reducedMotion ? 1 : 0))
-const hover = ref<number[]>(new Array(sliceCount).fill(0))
-const channels = Array.from({ length: sliceCount }, () => createChannel(0))
+const open = ref<number[]>(new Array(count.value).fill(reducedMotion ? 1 : 0))
+const hover = ref<number[]>(new Array(count.value).fill(0))
+const channels = Array.from({ length: count.value }, () => createChannel(0))
 
 let frame = 0
 let clock = 0
 let lastFrame = 0
 let closeStartedAt = 0
-const openAtClose = new Array(sliceCount).fill(1)
+const openAtClose = new Array(count.value).fill(1)
 
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3
@@ -141,8 +151,8 @@ function tick(now: number): void {
   }
 
   const nextHover = hover.value.slice()
-  for (let index = 0; index < sliceCount; index += 1) {
-    const target = props.active === sliceActions[index] ? 1 : 0
+  for (let index = 0; index < count.value; index += 1) {
+    const target = props.active === actions.value[index] ? 1 : 0
     if (reducedMotion) {
       channels[index] = { value: target, velocity: 0 }
       nextHover[index] = target
@@ -163,7 +173,7 @@ function tick(now: number): void {
 }
 
 function syncHoverTargets(): void {
-  hover.value = sliceActions.map((action) => (props.active === action ? 1 : 0))
+  hover.value = actions.value.map((action) => (props.active === action ? 1 : 0))
   channels.forEach((channel, index) => {
     channel.value = hover.value[index]
     channel.velocity = 0
@@ -191,7 +201,7 @@ function emphasis(index: number): number {
 function sliceTransform(index: number): string {
   const offset = pointAt(
     popOut * props.scale * hover.value[index],
-    midAngle(index, sliceCount),
+    midAngle(index, count.value),
   )
   const scale =
     (0.78 + 0.22 * open.value[index]) * (1 + hover.value[index] * 0.025)
@@ -205,7 +215,7 @@ watch(
   () => props.closing,
   (closing) => {
     if (!closing) return
-    openAtClose.splice(0, sliceCount, ...open.value)
+    openAtClose.splice(0, count.value, ...open.value)
     closeStartedAt = clock
     start()
   },
@@ -231,7 +241,7 @@ onUnmounted(() => {
     class="donut"
     :style="{ '--box': `${box}px` }"
     role="group"
-    aria-label="文件操作轮盘"
+    :aria-label="ariaLabel ?? '文件操作轮盘'"
   >
     <svg
       class="donut-ring"
@@ -286,7 +296,7 @@ onUnmounted(() => {
           :class="{ hot: isHot(index) }"
           :x="glyph.x"
           :y="glyph.y"
-          :style="{ fontSize: `${11 * scale}px` }"
+          :style="{ fontSize: `${(labelSize ?? 11) * scale}px` }"
           text-anchor="middle"
           dominant-baseline="central"
         >

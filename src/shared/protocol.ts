@@ -92,6 +92,18 @@ export type ConvertOutcome = {
   failed: number
   messages: string[]
 }
+export type FocusPhase = 'focus' | 'short' | 'long'
+export type FocusTab = 'focus' | 'water' | 'todo'
+export type FocusTodo = { id: string; text: string; done: boolean }
+export type FocusState = {
+  phase: FocusPhase
+  running: boolean
+  remaining: number
+  completed: number
+  water: boolean
+  waterNextAt?: number
+  todos: FocusTodo[]
+}
 export type RenameFile = { id: string; name: string }
 export type RenameState = {
   busy: boolean
@@ -143,6 +155,9 @@ export type Snapshot = {
   rename: RenameState
   settingsOpen: boolean
   settings: SettingsState
+  focusOpen: boolean
+  focusTab: FocusTab
+  focus: FocusState
 }
 export type Command =
   | { type: 'recover' }
@@ -192,6 +207,17 @@ export type Command =
   | { type: 'settings-clear-cache' }
   | { type: 'settings-clear-belly' }
   | { type: 'settings-open-licenses' }
+  | { type: 'focus-open'; tab: FocusTab }
+  | { type: 'focus-close' }
+  | { type: 'focus-start' }
+  | { type: 'focus-pause' }
+  | { type: 'focus-reset' }
+  | { type: 'focus-skip' }
+  | { type: 'focus-phase'; phase: FocusPhase }
+  | { type: 'focus-water'; enabled: boolean }
+  | { type: 'todo-add'; text: string }
+  | { type: 'todo-toggle'; id: string }
+  | { type: 'todo-remove'; id: string }
   | {
       type: 'panel-control'
       action: 'minimize' | 'maximize' | 'close'

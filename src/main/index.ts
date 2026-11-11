@@ -7,6 +7,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  Notification,
   powerMonitor,
   screen,
   session,
@@ -36,6 +37,13 @@ import { channels } from '../shared/protocol'
 import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
 import { coverKey, loadCover } from './cover-art'
+import { defaultFocus, loadFocusFile, saveFocusFile, type FocusData } from './focus-store'
+import {
+  formatFocus,
+  nextPhase,
+  nextWaterAt,
+  phaseSeconds,
+} from '../shared/focus'
 import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   bubbleCategories,
@@ -83,6 +91,7 @@ import {
   isPdfFile,
   type ConvertAction,
 } from '../shared/convert'
+import type { FocusTab } from '../shared/protocol'
 import { isZipFile } from '../shared/archive'
 import {
   defaultSettings,
@@ -151,6 +160,9 @@ let tray: Tray | undefined
 let scale = 1
 let settings: Settings = { ...defaultSettings }
 let settingsExisted = false
+let focusData: FocusData = defaultFocus()
+let focusTab: FocusTab = 'focus'
+let focusTimer: ReturnType<typeof setInterval> | undefined
 let dropMode = false
 let wheelOpen = false
 let baseBounds: Rect | undefined
@@ -185,6 +197,7 @@ let askWindow: BrowserWindow | undefined
 let convertWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
+let focusWindow: BrowserWindow | undefined
 let aiKey: string | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
@@ -230,6 +243,7 @@ const statePath = join(dataRoot, 'mqmz.window-state.json')
 const shelfPath = join(dataRoot, 'mqmz.file-shelf.json')
 const bellyPath = join(dataRoot, 'mqmz.belly.json')
 const settingsPath = join(dataRoot, 'mqmz.settings.json')
+const focusPath = join(dataRoot, 'mqmz.focus.json')
 const bellyDirectory = join(dataRoot, 'belly')
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
@@ -313,6 +327,20 @@ function snapshot(): Snapshot {
     rename: renameState(),
     settingsOpen: windowVisible(settingsWindow),
     settings: settingsState(),
+    focusOpen: windowVisible(focusWindow),
+    focusTab,
+    focus: {
+      phase: focusData.phase,
+      running: focusData.running,
+      remaining:
+        focusData.running && focusData.endsAt
+          ? Math.max(0, Math.ceil((focusData.endsAt - Date.now()) / 1000))
+          : focusData.remaining,
+      completed: focusData.completed,
+      water: focusData.water,
+      waterNextAt: focusData.waterNextAt ?? undefined,
+      todos: focusData.todos,
+    },
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
     ...(toastText ? { toast: toastText } : {}),
   }
@@ -338,6 +366,7 @@ function broadcast(): void {
       convertWindow,
       renameWindow,
       settingsWindow,
+      focusWindow,
     ])
       if (window && !window.isDestroyed())
         window.webContents.send(channels.updated, state)
@@ -921,6 +950,201 @@ async function openLicenses(): Promise<void> {
     : join(app.getAppPath(), 'resources/licenses')
   const error = await shell.openPath(path)
   if (error) throw new Error('无法打开第三方许可目录。')
+}
+function focusSnapshotRemaining(): number {
+  return focusData.running && focusData.endsAt
+    ? Math.max(0, Math.ceil((focusData.endsAt - Date.now()) / 1000))
+    : focusData.remaining
+}
+function persistFocus(): void {
+  void saveFocusFile(focusPath, focusData).catch(() => {
+    addEvent('专注状态保存失败；当前计时仍可使用。')
+  })
+}
+function notifyFocus(title: string, body: string): void {
+  addEvent(`${title}：${body}`)
+  if (Notification.isSupported())
+    new Notification({ title, body, silent: false }).show()
+  showToast(body)
+}
+function completeFocus(): void {
+  const previous = focusData.phase
+  const next = nextPhase(focusData.phase, focusData.completed)
+  focusData = {
+    ...focusData,
+    phase: next.phase,
+    completed: next.completed,
+    running: false,
+    endsAt: null,
+    remaining: phaseSeconds(next.phase),
+  }
+  notifyFocus(
+    '番茄钟',
+    previous === 'focus' ? '专注结束，休息一下' : '休息结束，继续专注',
+  )
+  persistFocus()
+  broadcast()
+}
+function focusTick(): void {
+  if (shuttingDown) return
+  let changed = false
+  if (focusData.running && focusData.endsAt) {
+    const remaining = focusSnapshotRemaining()
+    if (remaining !== focusData.remaining) {
+      focusData.remaining = remaining
+      changed = true
+    }
+    if (remaining <= 0) {
+      completeFocus()
+      return
+    }
+  }
+  if (focusData.water) {
+    const now = Date.now()
+    if (!focusData.waterNextAt) {
+      focusData.waterNextAt = nextWaterAt(now)
+      persistFocus()
+      changed = true
+    } else if (focusData.waterNextAt <= now) {
+      notifyFocus('喝水提醒', '该喝水了')
+      focusData.waterNextAt = nextWaterAt(now)
+      persistFocus()
+      changed = true
+    }
+  }
+  if (changed) broadcast()
+}
+function startFocus(): void {
+  if (focusData.running) return
+  if (focusData.remaining <= 0) focusData.remaining = phaseSeconds(focusData.phase)
+  focusData = {
+    ...focusData,
+    running: true,
+    endsAt: Date.now() + focusData.remaining * 1000,
+  }
+  persistFocus()
+  broadcast()
+}
+function pauseFocusTimer(): void {
+  if (!focusData.running) return
+  focusData = {
+    ...focusData,
+    running: false,
+    remaining: focusSnapshotRemaining(),
+    endsAt: null,
+  }
+  persistFocus()
+  broadcast()
+}
+function resetFocusTimer(): void {
+  focusData = {
+    ...focusData,
+    running: false,
+    endsAt: null,
+    remaining: phaseSeconds(focusData.phase),
+  }
+  persistFocus()
+  broadcast()
+}
+function skipFocusTimer(): void {
+  const next = nextPhase(focusData.phase, focusData.completed)
+  focusData = {
+    ...focusData,
+    phase: next.phase,
+    completed: next.completed,
+    running: false,
+    endsAt: null,
+    remaining: phaseSeconds(next.phase),
+  }
+  persistFocus()
+  broadcast()
+}
+function setFocusPhase(phase: FocusData['phase']): void {
+  focusData = {
+    ...focusData,
+    phase,
+    running: false,
+    endsAt: null,
+    remaining: phaseSeconds(phase),
+  }
+  persistFocus()
+  broadcast()
+}
+function setWaterReminder(enabled: boolean): void {
+  focusData = {
+    ...focusData,
+    water: enabled,
+    waterNextAt: enabled ? nextWaterAt(Date.now()) : null,
+  }
+  persistFocus()
+  broadcast()
+}
+function addTodo(text: string): void {
+  const value = text.trim()
+  if (!value) return
+  focusData = {
+    ...focusData,
+    todos: [
+      ...focusData.todos,
+      { id: randomUUID(), text: value, done: false },
+    ].slice(-500),
+  }
+  persistFocus()
+  broadcast()
+}
+function toggleTodo(id: string): void {
+  focusData = {
+    ...focusData,
+    todos: focusData.todos.map((todo) =>
+      todo.id === id ? { ...todo, done: !todo.done } : todo,
+    ),
+  }
+  persistFocus()
+  broadcast()
+}
+function removeTodo(id: string): void {
+  focusData = {
+    ...focusData,
+    todos: focusData.todos.filter((todo) => todo.id !== id),
+  }
+  persistFocus()
+  broadcast()
+}
+function positionFocus(): void {
+  if (!focusWindow || focusWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 360
+  const height = 420
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  focusWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openFocus(tab: FocusTab): void {
+  focusTab = tab
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (focusWindow && !focusWindow.isDestroyed()) {
+    positionFocus()
+    if (process.platform === 'darwin' || focusWindow.isMinimized())
+      focusWindow.restore()
+    focusWindow.show()
+    focusWindow.moveTop()
+    focusWindow.focus()
+  }
+  broadcast()
+}
+function closeFocus(): void {
+  focusWindow?.hide()
+  broadcast()
 }
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -2149,6 +2373,7 @@ function authorized(
       window !== convertWindow &&
       window !== renameWindow &&
       window !== settingsWindow &&
+      window !== focusWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
   )
@@ -2409,6 +2634,17 @@ function setupIpc(): void {
       'settings-clear-cache',
       'settings-clear-belly',
       'settings-open-licenses',
+      'focus-open',
+      'focus-close',
+      'focus-start',
+      'focus-pause',
+      'focus-reset',
+      'focus-skip',
+      'focus-phase',
+      'focus-water',
+      'todo-add',
+      'todo-toggle',
+      'todo-remove',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
@@ -2602,6 +2838,39 @@ function setupIpc(): void {
       case 'settings-open-licenses':
         await openLicenses()
         break
+      case 'focus-open':
+        openFocus(command.tab)
+        break
+      case 'focus-close':
+        closeFocus()
+        break
+      case 'focus-start':
+        startFocus()
+        break
+      case 'focus-pause':
+        pauseFocusTimer()
+        break
+      case 'focus-reset':
+        resetFocusTimer()
+        break
+      case 'focus-skip':
+        skipFocusTimer()
+        break
+      case 'focus-phase':
+        setFocusPhase(command.phase)
+        break
+      case 'focus-water':
+        setWaterReminder(command.enabled)
+        break
+      case 'todo-add':
+        addTodo(command.text)
+        break
+      case 'todo-toggle':
+        toggleTodo(command.id)
+        break
+      case 'todo-remove':
+        removeTodo(command.id)
+        break
       case 'notify':
         showToast(command.text)
         break
@@ -2618,6 +2887,7 @@ function setupIpc(): void {
           else if (owner === convertWindow) closeConvert()
           else if (owner === renameWindow) closeRename()
           else if (owner === settingsWindow) closeSettings()
+          else if (owner === focusWindow) closeFocus()
           else owner.hide()
         }
         break
@@ -3198,7 +3468,35 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  for (const panel of [pocket, askWindow, convertWindow, renameWindow, settingsWindow])
+  focusWindow = new BrowserWindow({
+    width: 360,
+    height: 420,
+    title: '毛趣萌仔 · 专注',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  for (const panel of [
+    pocket,
+    askWindow,
+    convertWindow,
+    renameWindow,
+    settingsWindow,
+    focusWindow,
+  ])
     configurePanelChrome(panel)
   lab = !app.isPackaged
     ? new BrowserWindow({
@@ -3218,7 +3516,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, focusWindow, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -3257,6 +3555,12 @@ async function createWindows(): Promise<void> {
     if (!shuttingDown) {
       event.preventDefault()
       closeSettings()
+    }
+  })
+  focusWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeFocus()
     }
   })
   pet.on('close', (event) => {
@@ -3313,6 +3617,7 @@ async function createWindows(): Promise<void> {
     load(convertWindow, 'convert'),
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
+    load(focusWindow, 'focus'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
@@ -3357,6 +3662,7 @@ async function createWindows(): Promise<void> {
   })
   // ~60fps while dragging: the window follows the cursor from this loop, so a
   // slower tick reads as a low frame rate.
+  focusTimer = setInterval(focusTick, 1000)
   pollMusic()
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
@@ -3428,6 +3734,10 @@ else {
       settings = loadedSettings.settings
       settingsExisted = loadedSettings.existed
       scale = settings.scale
+      focusData = await loadFocusFile(focusPath)
+      if (focusData.water && !focusData.waterNextAt)
+        focusData.waterNextAt = nextWaterAt(Date.now())
+      await saveFocusFile(focusPath, focusData)
       if (app.isPackaged)
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
       applyDockIcon()
@@ -3443,6 +3753,10 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    if (focusTimer) {
+      clearInterval(focusTimer)
+      focusTimer = undefined
+    }
     clearPocketBlurTimer()
     if (broadcastTimer) {
       clearTimeout(broadcastTimer)
@@ -3472,6 +3786,7 @@ else {
     toastWindow?.destroy()
     renameWindow?.destroy()
     settingsWindow?.destroy()
+    focusWindow?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
     globalShortcut.unregisterAll()

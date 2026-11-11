@@ -24,6 +24,7 @@ let ask: Page;
 let convert: Page;
 let rename: Page;
 let settings: Page;
+let focus: Page;
 let pill: Page;
 let directory: string;
 let launchEnvironment: Record<string, string>;
@@ -44,7 +45,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(14);
+  await expect.poll(() => application.windows().length).toBe(15);
   const windows = await Promise.all(
     application
       .windows()
@@ -57,6 +58,7 @@ test.beforeAll(async () => {
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
+  focus = windows.find((item) => item.title.includes("专注"))!.page;
   pill = windows.find((item) => item.title.includes("音乐控制"))!.page;
   startupVisibility = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({
@@ -65,7 +67,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings, pill]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings, focus, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -291,6 +293,101 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     await expect
       .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()))
       .toBe(false);
+});
+
+test("hovering the pet centre opens companion tools", async () => {
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  await pet.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
+  await expect(pet.locator(".donut-segment")).toHaveCount(4);
+  const labels = (await pet.locator(".donut-label").allTextContents()).join("");
+  for (const label of ["番茄", "时钟", "喝水", "提醒", "待办", "清单", "智能", "体"])
+    expect(labels).toContain(label);
+
+  const openAt = async (index: number): Promise<void> => {
+    const current = await pet.locator(".marker").boundingBox();
+    if (!current) throw new Error("Marker is not rendered");
+    const metrics = donutMetrics(1);
+    const angle = midAngle(index, 4);
+    const x = current.x + current.width / 2 + metrics.mid * Math.sin(angle);
+    const y = current.y + current.height / 2 - metrics.mid * Math.cos(angle);
+    await pet.mouse.move(x, y);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await pet.mouse.click(x, y);
+  };
+
+  await openAt(3);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.aiOpen;
+    })
+    .toBe(true);
+  await ask.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.aiOpen;
+    })
+    .toBe(false);
+
+  const next = await pet.locator(".marker").boundingBox();
+  if (!next) throw new Error("Marker is not rendered");
+  await pet.mouse.move(next.x + next.width / 2, next.y + next.height / 2);
+  await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
+  await openAt(0);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.focusOpen;
+    })
+    .toBe(true);
+  await expect(focus.getByRole("heading", { name: "专注" })).toBeVisible();
+  await focus.getByRole("button", { name: "开始", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.focus.running;
+    })
+    .toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await focus.getByRole("button", { name: "暂停", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.remaining : 0;
+    })
+    .toBeLessThan(1500);
+
+  await focus.getByRole("button", { name: "待办", exact: true }).click();
+  await focus.getByLabel("添加待办").fill("悬停轮盘测试");
+  await focus.getByRole("button", { name: "添加", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.todos.length : 0;
+    })
+    .toBe(1);
+  await focus.getByRole("button", { name: "喝水", exact: true }).click();
+  await focus.getByRole("switch", { name: "喝水提醒" }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.focus.water;
+    })
+    .toBe(false);
+  await focus.evaluate(() =>
+    window.mqmz!.command({ type: "panel-control", action: "close" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok && snapshot.value.focusOpen;
+    })
+    .toBe(false);
 });
 
 test("actual Electron windows render with isolation, transparency, and a pixel mask", async () => {
@@ -1579,7 +1676,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(14);
+  await expect.poll(() => application.windows().length).toBe(15);
   pocket = (
     await Promise.all(
       application
@@ -1625,7 +1722,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(14);
+  await expect.poll(() => application.windows().length).toBe(15);
   const restarted = await Promise.all(
     application
       .windows()

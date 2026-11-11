@@ -24,9 +24,17 @@ import type {
 } from "../shared/protocol";
 import {
   actionAt,
+  donutMetrics,
   donutWindowSize,
+  hitTest,
+  hoverActions,
+  hoverLabels,
   petSprite,
+  popOut,
+  sliceActions,
+  sliceLabelColumns,
   type DropAction,
+  type HoverAction,
 } from "../shared/donut";
 import catBase from "./assets/pet/ragdoll/base.png";
 import catBlink from "./assets/pet/ragdoll/blink.png";
@@ -39,6 +47,7 @@ import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
 import FilePocket from "./FilePocket.vue";
+import FocusPanel from "./FocusPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
@@ -62,6 +71,8 @@ const renameView =
   new URLSearchParams(location.search).get("view") === "rename";
 const settingsView =
   new URLSearchParams(location.search).get("view") === "settings";
+const focusView =
+  new URLSearchParams(location.search).get("view") === "focus";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
 document.body.classList.toggle("notes-view", notesView);
@@ -75,6 +86,7 @@ document.body.classList.toggle("convert-view", convertView);
 document.body.classList.toggle("toast-view", toastView);
 document.body.classList.toggle("rename-view", renameView);
 document.body.classList.toggle("settings-view", settingsView);
+document.body.classList.toggle("focus-view", focusView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
 if (notesView) document.title = "毛趣萌仔 · 音符";
@@ -88,6 +100,7 @@ if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
 if (settingsView) document.title = "毛趣萌仔 · 设置";
+if (focusView) document.title = "毛趣萌仔 · 专注";
 const api = window.mqmz;
 const state = ref<Snapshot>();
 function applyTheme(theme: string | undefined): void {
@@ -108,7 +121,14 @@ const marker = ref<HTMLImageElement>();
 const displayId = ref<number>();
 const donutOpen = ref(false);
 const donutClosing = ref(false);
-const donutActive = ref<DropAction | null>(null);
+const donutActive = ref<string | null>(null);
+const donutMode = ref<"file" | "hover">("file");
+const donutActions = computed(() =>
+  donutMode.value === "hover" ? hoverActions : sliceActions,
+);
+const donutLabels = computed(() =>
+  donutMode.value === "hover" ? hoverLabels : sliceLabelColumns,
+);
 type PetPose = "base" | "blink" | "lifted" | "music" | "ponder";
 const poseSources: Record<PetPose, string> = {
   base: catBase,
@@ -140,6 +160,7 @@ let dragWatchdog: ReturnType<typeof setTimeout> | undefined;
 let acceptSlicesAfter = 0;
 let closeToken = 0;
 let donutOpening = false;
+let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -229,24 +250,25 @@ function viewportReady(width: number): Promise<void> {
     check();
   });
 }
-async function openDonut(): Promise<void> {
+async function openDonut(mode: "file" | "hover" = "file"): Promise<void> {
   // A new drag may arrive while the previous wheel is fading out.
   closeToken += 1;
   if (donutOpening) return;
   if (donutOpen.value && !donutClosing.value) return;
   donutOpening = true;
+  donutMode.value = mode;
   try {
-    await openDonutSurface();
+    await openDonutSurface(mode);
   } finally {
     donutOpening = false;
   }
 }
-async function openDonutSurface(): Promise<void> {
+async function openDonutSurface(mode: "file" | "hover"): Promise<void> {
   // The window is invisible: resize it first, then mount the ring so no slice
   // is ever drawn outside the window while it changes size.
   await command({ type: "wheel", open: true });
   await viewportReady(donutWindowSize(markerScale.value).width);
-  if (!dragOver.value) {
+  if (mode === "file" && !dragOver.value) {
     await command({ type: "wheel", open: false });
     return;
   }
@@ -257,6 +279,7 @@ async function openDonutSurface(): Promise<void> {
 }
 async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
+  clearHoverTimer();
   if (!donutOpen.value) return;
   const token = ++closeToken;
   donutClosing.value = true;
@@ -266,6 +289,7 @@ async function closeDonut(send = true): Promise<void> {
   donutOpen.value = false;
   donutClosing.value = false;
   petPose.value = "base";
+  donutMode.value = "file";
   if (!send || !api) return;
   try {
     state.value = unwrap(await api.command({ type: "wheel", open: false }));
@@ -275,6 +299,7 @@ async function closeDonut(send = true): Promise<void> {
 }
 function enter(event: DragEvent): void {
   event.preventDefault();
+  clearHoverTimer();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
   dragOver.value = true;
   if (!petView) return;
@@ -520,8 +545,88 @@ function onKeydown(event: KeyboardEvent): void {
   void closeDonut();
   void command({ type: "drop-mode", enabled: false });
 }
+function clearHoverTimer(): void {
+  if (hoverTimer) clearTimeout(hoverTimer);
+  hoverTimer = undefined;
+}
+function hoverRegionAt(clientX: number, clientY: number): HoverAction | null {
+  const rect = marker.value?.getBoundingClientRect();
+  if (!rect || !slicesReady()) return null;
+  const m = donutMetrics(markerScale.value);
+  const hit = hitTest(
+    clientX - (rect.x + rect.width / 2),
+    clientY - (rect.y + rect.height / 2),
+    m.inner,
+    m.outer,
+    hoverActions.length,
+    Math.round(popOut * markerScale.value),
+  );
+  return hit.kind === "segment" ? hoverActions[hit.index] : null;
+}
+async function openHoverDonut(): Promise<void> {
+  if (
+    donutOpen.value ||
+    dragOver.value ||
+    pointerId !== undefined ||
+    state.value?.dropMode
+  )
+    return;
+  petPose.value = "ponder";
+  await openDonut("hover");
+  if (!donutOpen.value) petPose.value = "base";
+}
+function petPointerMove(event: PointerEvent): void {
+  if (!petView || dragOver.value || pointerId !== undefined) {
+    clearHoverTimer();
+    return;
+  }
+  const rect = marker.value?.getBoundingClientRect();
+  if (!rect) return;
+  const dx = event.clientX - (rect.x + rect.width / 2);
+  const dy = event.clientY - (rect.y + rect.height / 2);
+  const distance = Math.hypot(dx, dy);
+  if (donutOpen.value) {
+    if (donutMode.value !== "hover") return;
+    donutActive.value = hoverRegionAt(event.clientX, event.clientY);
+    if (distance > donutMetrics(markerScale.value).outer + 24)
+      void closeDonut();
+    return;
+  }
+  if (distance <= 28 * markerScale.value) {
+    if (!hoverTimer)
+      hoverTimer = setTimeout(() => {
+        hoverTimer = undefined;
+        void openHoverDonut();
+      }, 550);
+  } else {
+    clearHoverTimer();
+  }
+}
+function petPointerLeave(): void {
+  clearHoverTimer();
+  if (donutOpen.value && donutMode.value === "hover") void closeDonut();
+}
+async function runHoverAction(action: HoverAction): Promise<void> {
+  await closeDonut();
+  if (action === "agent") {
+    await command({ type: "ai-open", fileIds: [] });
+    return;
+  }
+  await command({ type: "focus-open", tab: action });
+}
+function petSurfaceClick(): void {
+  if (!donutOpen.value || donutMode.value !== "hover") return;
+  const action = donutActive.value as HoverAction | null;
+  if (!action) {
+    void closeDonut();
+    return;
+  }
+  void runHoverAction(action);
+}
 function pointerDown(event: PointerEvent): void {
-  if (event.button !== 0 || !api || pointerId !== undefined) return;
+  if (event.button !== 0 || !api || pointerId !== undefined || donutOpen.value)
+    return;
+  clearHoverTimer();
   event.preventDefault();
   petPose.value = "lifted";
   pointerId = event.pointerId;
@@ -712,6 +817,12 @@ const pillSubline = computed(() => {
 });
 const pillLyricEl = ref<HTMLElement>();
 const pillLyricScrolling = ref(false);
+const pillTitleEl = ref<HTMLElement>();
+const pillTitleScrolling = ref(false);
+const pillTitleDuration = computed(
+  () =>
+    `${Math.min(16, Math.max(6, (state.value?.music.title?.length ?? 0) * 0.3))}s`,
+);
 const pillLyricDuration = computed(
   () => `${Math.min(18, Math.max(7, pillSubline.value.length * 0.3))}s`,
 );
@@ -720,11 +831,24 @@ function measurePillLyric(): void {
   if (!element) return;
   pillLyricScrolling.value = element.scrollWidth > element.clientWidth + 1;
 }
+function measurePillTitle(): void {
+  const element = pillTitleEl.value;
+  if (!element) return;
+  pillTitleScrolling.value = element.scrollWidth > element.clientWidth + 1;
+}
 watch(pillSubline, async () => {
   pillLyricScrolling.value = false;
   await nextTick();
   measurePillLyric();
 });
+watch(
+  () => state.value?.music.title,
+  async () => {
+    pillTitleScrolling.value = false;
+    await nextTick();
+    measurePillTitle();
+  },
+);
 const widthLines = computed(() => {
   if (state.value?.lyrics?.instrumental) return ["纯音乐"];
   if (lyricLines.value.length) return lyricLines.value.map((line) => line.text);
@@ -818,10 +942,15 @@ onMounted(() => {
   lyricNow.value = performance.now();
   syncLyricTicker();
   if (lyricsView) void nextTick(reportLyricsWidth);
-  if (pillView) void nextTick(measurePillLyric);
+  if (pillView)
+    void nextTick(() => {
+      measurePillTitle();
+      measurePillLyric();
+    });
 });
 onUnmounted(() => {
   if (lyricTimer !== undefined) clearInterval(lyricTimer);
+  clearHoverTimer();
 });
 watch(
   () => state.value?.wheelOpen,
@@ -884,6 +1013,9 @@ onUnmounted(() => {
     @dragover="over"
     @dragleave="leave"
     @drop="receive"
+    @pointermove="petPointerMove"
+    @pointerleave="petPointerLeave"
+    @click="petSurfaceClick"
     @contextmenu.prevent="command({ type: 'show-pocket' })"
   >
     <div class="marker-content">
@@ -910,10 +1042,15 @@ onUnmounted(() => {
         />
         <DonutMenu
           v-if="donutOpen"
+          :key="donutMode"
           :scale="markerScale"
           :active="donutActive"
           :closing="donutClosing"
           :error="error"
+          :actions="donutActions"
+          :labels="donutLabels"
+          :label-size="donutMode === 'hover' ? 13 : 11"
+          :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"
         />
         <span
           class="marker-caption"
@@ -941,9 +1078,24 @@ onUnmounted(() => {
         <MusicIcon v-else :size="18" :stroke-width="2" aria-hidden="true" />
       </div>
       <div class="pill-meta">
-        <strong :title="state?.music.title">{{
-          state?.music.title || "未在播放"
-        }}</strong>
+        <span
+          ref="pillTitleEl"
+          :key="state?.music.title"
+          class="pill-title"
+          :class="{
+            scrolling: pillTitleScrolling,
+            paused: !state?.music?.playing,
+          }"
+          :style="{ '--pill-title-duration': pillTitleDuration }"
+          :title="state?.music.title"
+        >
+          <span class="pill-title-track">
+            <span>{{ state?.music.title || "未在播放" }}</span>
+            <span v-if="pillTitleScrolling" aria-hidden="true">{{
+              state?.music.title || "未在播放"
+            }}</span>
+          </span>
+        </span>
         <span
           ref="pillLyricEl"
           :key="pillSubline"
@@ -1200,6 +1352,13 @@ onUnmounted(() => {
 
   <SettingsPanel
     v-else-if="settingsView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <FocusPanel
+    v-else-if="focusView"
     :state="state"
     :error="error"
     @command="command"
