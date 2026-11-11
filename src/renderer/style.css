@@ -663,10 +663,10 @@ footer button {
 .pill-surface {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   height: 100vh;
-  padding: 8px;
-  border-radius: 18px;
+  padding: 10px;
+  border-radius: 20px;
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   box-shadow: var(--shadow-stage);
@@ -681,25 +681,25 @@ footer button {
 .pill-group {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex: none;
 }
 .pill-now {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
-  height: 52px;
+  height: 56px;
 }
 .pill-cover {
   display: grid;
   place-items: center;
   flex: none;
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
   box-shadow: var(--shadow-control);
@@ -753,9 +753,9 @@ footer button {
 .pill-button {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   padding: 0;
   border: none;
   border-radius: 999px;
@@ -769,6 +769,10 @@ footer button {
 .pill-button.active {
   color: var(--color-brand-ink);
   background: var(--color-brand-soft);
+}
+.pill-button.transport,
+.pill-button.pill-volume {
+  color: var(--color-brand-ink);
 }
 .pill-button:disabled,
 .pill-button:disabled:hover {

@@ -907,6 +907,7 @@ onUnmounted(() => {
               donutOpen ||
               displayPose === 'lifted' ||
               displayPose === 'music' ||
+              (!!state?.music.title && !!state?.barVisible && !state?.dropMode) ||
               !!toast,
           }"
           :style="{ fontSize: `${10 * markerScale}px` }"
@@ -919,74 +920,10 @@ onUnmounted(() => {
   </main>
 
   <main v-else-if="pillView" class="pill-surface">
-    <div class="pill-group pill-transport">
-      <button
-        v-if="state?.music.source === 'apple'"
-        type="button"
-        class="pill-button"
-        :class="{ active: state?.music.shuffle }"
-        :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
-        :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
-        @click="musicControl('shuffle')"
-      >
-        <Shuffle :size="15" :stroke-width="2" aria-hidden="true" />
-      </button>
-      <button
-        v-if="state?.music.source === 'apple'"
-        type="button"
-        class="pill-button"
-        :class="{ active: state?.music.repeat !== 'off' }"
-        :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-        :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-        @click="musicControl('repeat')"
-      >
-        <InfinityIcon
-          v-if="state?.music.repeat === 'one'"
-          :size="15"
-          :stroke-width="2"
-          aria-hidden="true"
-        />
-        <Repeat v-else :size="15" :stroke-width="2" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        class="pill-button"
-        aria-label="上一首"
-        title="上一首"
-        @click="musicControl('previous')"
-      >
-        <SkipBack :size="15" :stroke-width="2" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        class="pill-button"
-        :aria-label="state?.music.playing ? '暂停' : '播放'"
-        :title="state?.music.playing ? '暂停' : '播放'"
-        @click="musicControl('toggle')"
-      >
-        <Pause
-          v-if="state?.music.playing"
-          :size="15"
-          :stroke-width="2"
-          aria-hidden="true"
-        />
-        <Play v-else :size="15" :stroke-width="2" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        class="pill-button"
-        aria-label="下一首"
-        title="下一首"
-        @click="musicControl('next')"
-      >
-        <SkipForward :size="15" :stroke-width="2" aria-hidden="true" />
-      </button>
-    </div>
-
     <div class="pill-now">
       <div class="pill-cover" :class="{ empty: !state?.music.cover }">
         <img v-if="state?.music.cover" :src="state.music.cover" alt="" />
-        <MusicIcon v-else :size="20" :stroke-width="2" aria-hidden="true" />
+        <MusicIcon v-else :size="22" :stroke-width="2" aria-hidden="true" />
       </div>
       <div class="pill-meta">
         <strong :title="state?.music.title">{{
@@ -1000,6 +937,87 @@ onUnmounted(() => {
           >{{ pillLyric || state?.music.artist || "" }}</span
         >
       </div>
+    </div>
+
+    <div class="pill-group pill-controls">
+      <button
+        v-if="state?.music.source === 'apple'"
+        type="button"
+        class="pill-button"
+        :class="{ active: state?.music.shuffle }"
+        :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+        :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+        @click="musicControl('shuffle')"
+      >
+        <Shuffle :size="18" :stroke-width="2" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        class="pill-button transport"
+        aria-label="上一首"
+        title="上一首"
+        @click="musicControl('previous')"
+      >
+        <SkipBack
+          :size="20"
+          :stroke-width="2"
+          fill="currentColor"
+          aria-hidden="true"
+        />
+      </button>
+      <button
+        type="button"
+        class="pill-button transport"
+        :aria-label="state?.music.playing ? '暂停' : '播放'"
+        :title="state?.music.playing ? '暂停' : '播放'"
+        @click="musicControl('toggle')"
+      >
+        <Pause
+          v-if="state?.music.playing"
+          :size="20"
+          :stroke-width="2"
+          fill="currentColor"
+          aria-hidden="true"
+        />
+        <Play
+          v-else
+          :size="20"
+          :stroke-width="2"
+          fill="currentColor"
+          aria-hidden="true"
+        />
+      </button>
+      <button
+        type="button"
+        class="pill-button transport"
+        aria-label="下一首"
+        title="下一首"
+        @click="musicControl('next')"
+      >
+        <SkipForward
+          :size="20"
+          :stroke-width="2"
+          fill="currentColor"
+          aria-hidden="true"
+        />
+      </button>
+      <button
+        v-if="state?.music.source === 'apple'"
+        type="button"
+        class="pill-button"
+        :class="{ active: state?.music.repeat !== 'off' }"
+        :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+        :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+        @click="musicControl('repeat')"
+      >
+        <InfinityIcon
+          v-if="state?.music.repeat === 'one'"
+          :size="18"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
+        <Repeat v-else :size="18" :stroke-width="2" aria-hidden="true" />
+      </button>
     </div>
 
     <div class="pill-group pill-actions">
@@ -1026,11 +1044,15 @@ onUnmounted(() => {
         "
         @click="onLyrics"
       >
-        <MessageSquareQuote :size="15" :stroke-width="2" aria-hidden="true" />
+        <MessageSquareQuote
+          :size="20"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
       </button>
       <button
         type="button"
-        class="pill-button"
+        class="pill-button pill-volume"
         :class="{ active: state?.music.muted }"
         :aria-label="state?.music.muted ? '取消静音' : '静音'"
         :title="state?.music.muted ? '取消静音' : '静音'"
@@ -1040,11 +1062,16 @@ onUnmounted(() => {
       >
         <VolumeX
           v-if="state?.music.muted"
-          :size="15"
+          :size="20"
           :stroke-width="2"
           aria-hidden="true"
         />
-        <Volume2 v-else :size="15" :stroke-width="2" aria-hidden="true" />
+        <Volume2
+          v-else
+          :size="20"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
       </button>
     </div>
   </main>

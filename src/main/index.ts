@@ -177,6 +177,7 @@ let barVisible = true
 let volumeBeforeMute = 50
 let lyricsOpen = true
 let coverRequest = 0
+let pillPositioning = false
 let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
@@ -1150,16 +1151,28 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
-  return { width: music.source === 'apple' ? 432 : 368, height: 68 }
+  return { width: music.source === 'apple' ? 600 : 534, height: 76 }
 }
 function positionPill(): void {
-  if (!pill || pill.isDestroyed()) return
+  if (!pill || pill.isDestroyed() || pillPositioning) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const { width, height } = pillSize()
-  const x = Math.round(b.x + b.width / 2 - width / 2)
-  let y = b.y - height - 8
-  if (y < a.y + 8) y = b.y + b.height + 8
+  let petBounds = b
+  const maxY = a.y + a.height - height - 8
+  if (b.y + b.height + 8 > maxY) {
+    // Keep the bar under the pet; lift the pet just enough to make room.
+    const shifted = Math.max(a.y + 8, b.y - (b.y + b.height + 8 - maxY))
+    if (shifted !== b.y) {
+      petBounds = { ...b, y: shifted }
+      pillPositioning = true
+      placePet(petBounds)
+      persist(petBounds)
+      pillPositioning = false
+    }
+  }
+  const x = Math.round(petBounds.x + petBounds.width / 2 - width / 2)
+  const y = petBounds.y + petBounds.height + 8
   pill.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function updatePillWindow(): void {
