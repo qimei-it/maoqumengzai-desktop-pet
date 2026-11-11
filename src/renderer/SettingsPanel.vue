@@ -1,20 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  Database,
-  EyeOff,
-  Info,
-  Monitor,
-  Palette,
-  Pause,
-  Repeat,
-  Settings,
-  Shuffle,
-  SixteenthNotes,
-  SkipBack,
-  SkipForward,
-  Volume2,
-} from '@lucide/vue'
+import { Database, Info, Monitor, Palette, Settings, SixteenthNotes } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   defaultSettings,
@@ -26,6 +12,7 @@ import {
   type SettingsState,
 } from '../shared/settings'
 import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
+import MusicBarPreview from './MusicBarPreview.vue'
 import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
@@ -47,7 +34,6 @@ const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
 const themes = themeIds.map((id) => ({ id, label: themeLabels[id] }))
-const previewControls = [Shuffle, SkipBack, Pause, SkipForward, Repeat, Volume2]
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const bellyCount = computed(() => props.state?.belly.length ?? 0)
 
@@ -243,46 +229,7 @@ function close(): void {
                 :aria-checked="settings.musicBarStyle === style"
                 @click="update({ musicBarStyle: style })"
               >
-                <span class="bar-preview" :class="`preview-${style}`">
-                  <template v-if="style === 'double'">
-                    <span class="preview-double-top">
-                      <span class="preview-cover" />
-                      <span class="preview-lines"><span /><span /></span>
-                    </span>
-                    <span class="preview-hide">
-                      <EyeOff :size="8" :stroke-width="2" aria-hidden="true" />
-                    </span>
-                    <span class="preview-controls">
-                      <component
-                        :is="icon"
-                        v-for="(icon, index) in previewControls"
-                        :key="index"
-                        :size="9"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </template>
-                  <template v-else>
-                    <span class="preview-hide">
-                      <EyeOff :size="8" :stroke-width="2" aria-hidden="true" />
-                    </span>
-                    <span class="preview-cover" />
-                    <span v-if="style === 'compact'" class="preview-lines">
-                      <span /><span />
-                    </span>
-                    <span class="preview-controls">
-                      <component
-                        :is="icon"
-                        v-for="(icon, index) in previewControls"
-                        :key="index"
-                        :size="9"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </template>
-                </span>
+                <MusicBarPreview :variant="style" />
                 <span class="bar-style-name">{{
                   musicBarStyleLabels[style]
                 }}</span>
@@ -594,93 +541,6 @@ function close(): void {
   border-color: var(--color-brand-ink);
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
-}
-.bar-preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 6px;
-  overflow: hidden;
-  border: 1px solid var(--color-line);
-  border-radius: 12px;
-  background: var(--color-surface);
-}
-.preview-cover {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  background: var(--color-brand);
-}
-.preview-lines {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.preview-lines span {
-  height: 3px;
-  border-radius: 999px;
-  background: var(--color-line);
-}
-.preview-lines span:first-child {
-  width: 70%;
-  background: var(--color-muted);
-}
-.preview-controls {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-  color: var(--color-brand-ink);
-}
-.preview-hide {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--color-brand-ink);
-}
-.preview-compact {
-  width: min(300px, 100%);
-  height: 34px;
-  border-radius: 999px;
-}
-.preview-minimal {
-  width: 190px;
-  max-width: 100%;
-  height: 34px;
-  border-radius: 999px;
-}
-.preview-double {
-  display: block;
-  width: 140px;
-  max-width: 100%;
-  height: 72px;
-  padding: 8px;
-}
-.preview-double-top {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-right: 18px;
-}
-.preview-double .preview-lines {
-  flex: 1;
-}
-.preview-double .preview-hide {
-  position: absolute;
-  top: 4px;
-  right: 5px;
-}
-.preview-double .preview-controls {
-  position: absolute;
-  bottom: 6px;
-  left: 8px;
-  margin-left: 0;
 }
 .bar-style-name {
   text-align: center;
