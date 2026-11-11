@@ -801,7 +801,7 @@ function tickLyrics(): void {
 }
 function syncLyricTicker(): void {
   if (!lyricsView && !pillView) return;
-  const run = Boolean(state.value?.music.playing && state.value?.lyricsOpen);
+  const run = Boolean(state.value?.music.playing);
   if (run && lyricTimer === undefined) {
     syncLyricBase();
     lyricNow.value = lyricBaseAt;
@@ -812,10 +812,7 @@ function syncLyricTicker(): void {
     lyricNow.value = performance.now();
   }
 }
-watch(
-  () => [state.value?.music.playing, state.value?.lyricsOpen].join("|"),
-  syncLyricTicker,
-);
+watch(() => state.value?.music.playing, syncLyricTicker);
 onMounted(() => {
   if (!lyricsView && !pillView) return;
   lyricNow.value = performance.now();

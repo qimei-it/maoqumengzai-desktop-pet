@@ -1193,7 +1193,6 @@ function updateNotesWindow(): void {
   if (
     music.playing &&
     !dropMode &&
-    !lyricsOpen &&
     !bubbleText &&
     !toastText
   ) {
@@ -1507,7 +1506,7 @@ function applyMusic(next: MusicState): void {
     scheduleMusicPoll(2500)
     lyrics = undefined
     lyricsKey = undefined
-  } else if (lyricsOpen) {
+  } else {
     const key = currentTrackKey()
     if (key && key !== lyricsKey) {
       lyrics = undefined
@@ -1906,11 +1905,6 @@ function lyricsHasContent(state: LyricsState | undefined): boolean {
 function setLyricsAvailable(value: boolean | undefined): void {
   if (lyricsAvailable === value) return
   lyricsAvailable = value
-  if (value === false && lyricsOpen) {
-    lyricsOpen = false
-    scheduleMusicPoll(2500)
-    syncOverlays()
-  }
   broadcast()
 }
 async function loadLyricsFor(key: string): Promise<void> {
