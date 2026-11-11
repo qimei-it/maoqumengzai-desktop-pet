@@ -49,8 +49,8 @@ const offset = computed(() => circumference * (1 - progress.value))
   position: relative;
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
+  width: 68px;
+  height: 68px;
   border-radius: 999px;
   background: var(--color-surface);
   box-shadow: var(--shadow-stage);
@@ -76,7 +76,7 @@ const offset = computed(() => circumference * (1 - progress.value))
 .focus-badge-ring span {
   position: relative;
   color: var(--color-brand-ink);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }

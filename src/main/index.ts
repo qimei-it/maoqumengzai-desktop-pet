@@ -1215,10 +1215,16 @@ function positionFocusBadge(): void {
   if (!focusBadge || focusBadge.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
-  const size = 64
-  let x = b.x + b.width + 6
-  if (x + size > a.x + a.width - 6) x = b.x - size - 6
-  const y = Math.min(b.y + 20, a.y + a.height - size - 6)
+  const size = 76
+  // Tuck the ring against the pet: the sprite already carries transparent margin.
+  const overlap = 2
+  let x = b.x + b.width - overlap
+  if (x + size > a.x + a.width - 6) x = b.x - size + overlap
+  x = Math.max(a.x + 6, x)
+  const y = Math.min(
+    Math.max(a.y + 6, b.y + Math.round((b.height - size) / 2)),
+    a.y + a.height - size - 6,
+  )
   focusBadge.setBounds(fitToDisplays({ x, y, width: size, height: size }, [a]))
 }
 function updateFocusBadge(): void {
@@ -3670,8 +3676,8 @@ async function createWindows(): Promise<void> {
   ])
     configurePanelChrome(panel)
   focusBadge = new BrowserWindow({
-    width: 64,
-    height: 64,
+    width: 76,
+    height: 76,
     title: '毛趣萌仔 · 计时环',
     show: false,
     frame: false,
