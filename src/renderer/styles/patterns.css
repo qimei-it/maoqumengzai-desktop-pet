@@ -46,7 +46,7 @@
   background-color: var(--mqmz-action-background);
   background-image: var(--gradient-button-primary);
   color: var(--color-on-brand);
-  border-color: var(--color-brand-ink);
+  border-color: transparent;
 }
 .button-glass:hover:not(:disabled) {
   background-color: color-mix(
@@ -54,6 +54,7 @@
     var(--color-brand-ink) 92%,
     var(--color-ink)
   );
+  border-color: var(--color-brand);
 }
 .button-soft:hover:not(:disabled) {
   background: var(--color-brand-soft);
@@ -61,6 +62,9 @@
 .button-glass:active:not(:disabled),
 .button-soft:active:not(:disabled) {
   box-shadow: var(--shadow-control-pressed);
+}
+.button-glass:active:not(:disabled) {
+  border-color: var(--color-brand);
 }
 .button-glass:focus-visible,
 .button-soft:focus-visible {
