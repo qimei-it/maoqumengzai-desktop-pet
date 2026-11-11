@@ -187,6 +187,18 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await expect(
     settings.getByRole("heading", { name: "设置", exact: true }),
   ).toBeVisible();
+  const settingsCenter = await application.evaluate(({ BrowserWindow, screen }) => {
+    const bounds = BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle().includes("设置"))!
+      .getBounds();
+    const area = screen.getDisplayMatching(bounds).workArea;
+    return {
+      dx: Math.abs(bounds.x + bounds.width / 2 - (area.x + area.width / 2)),
+      dy: Math.abs(bounds.y + bounds.height / 2 - (area.y + area.height / 2)),
+    };
+  });
+  expect(settingsCenter.dx).toBeLessThanOrEqual(1);
+  expect(settingsCenter.dy).toBeLessThanOrEqual(1);
   if (process.platform === "darwin") {
     const menu = await application.evaluate(({ Menu }) =>
       Menu.getApplicationMenu()?.items[0]?.submenu?.items.map((item) => item.label),
@@ -1036,6 +1048,18 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
     ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
+  const askCenter = await application.evaluate(({ BrowserWindow, screen }) => {
+    const bounds = BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle().includes("智能问答"))!
+      .getBounds();
+    const area = screen.getDisplayMatching(bounds).workArea;
+    return {
+      dx: Math.abs(bounds.x + bounds.width / 2 - (area.x + area.width / 2)),
+      dy: Math.abs(bounds.y + bounds.height / 2 - (area.y + area.height / 2)),
+    };
+  });
+  expect(askCenter.dx).toBeLessThanOrEqual(1);
+  expect(askCenter.dy).toBeLessThanOrEqual(1);
   await ask.evaluate(() =>
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
