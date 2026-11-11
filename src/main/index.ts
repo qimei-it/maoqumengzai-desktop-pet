@@ -370,10 +370,17 @@ function refreshPocketLayout(): void {
 }
 function positionEye(): void {
   if (!eye || eye.isDestroyed()) return
-  const b = pet.getBounds()
+  const target = windowVisible(pill) && pill ? pill.getBounds() : pillLayout(false)
   const size = 32
-  const x = b.x + b.width - size - 8
-  const y = b.y + b.height - Math.round(22 * scale) - size - 6
+  // Keep in sync with .pill-button (30px), .pill-group gap (2px) and the
+  // right padding (10px) in style.css.
+  const controlsWidth =
+    music.source === 'apple' ? 6 * 30 + 5 * 2 : 4 * 30 + 3 * 2
+  const groupStart = target.x + target.width - 10 - controlsWidth
+  const playCenter =
+    groupStart + (music.source === 'apple' ? 2 : 1) * 32 + 15
+  const x = Math.round(playCenter - size / 2)
+  const y = target.y - size - 4
   eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function updateEyeWindow(): void {
@@ -1153,16 +1160,17 @@ function positionNotes(): void {
 function pillSize(): { width: number; height: number } {
   return { width: music.source === 'apple' ? 406 : 344, height: 50 }
 }
-function positionPill(): void {
-  if (!pill || pill.isDestroyed() || pillPositioning) return
+function pillLayout(liftPet: boolean): Rect {
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const { width, height } = pillSize()
-  let petBounds = b
   const spriteBottom = (bounds: Rect) =>
-    bounds.y + bounds.height - Math.round(((basePetSize.height - petSprite.height) / 2) * scale)
+    bounds.y +
+    bounds.height -
+    Math.round(((basePetSize.height - petSprite.height) / 2) * scale)
+  let petBounds = b
   const maxY = a.y + a.height - height - 2
-  if (spriteBottom(b) + 2 > maxY) {
+  if (liftPet && spriteBottom(b) + 2 > maxY) {
     // Keep the bar under the pet; lift the pet just enough to make room.
     const shift = spriteBottom(b) + 2 - maxY
     const shifted = Math.max(a.y + 8, b.y - shift)
@@ -1176,7 +1184,11 @@ function positionPill(): void {
   }
   const x = Math.round(petBounds.x + petBounds.width / 2 - width / 2)
   const y = spriteBottom(petBounds) + 2
-  pill.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+  return fitToDisplays({ x, y, width, height }, [a])
+}
+function positionPill(): void {
+  if (!pill || pill.isDestroyed() || pillPositioning) return
+  pill.setBounds(pillLayout(true))
 }
 function updatePillWindow(): void {
   if (!pill || pill.isDestroyed()) return
