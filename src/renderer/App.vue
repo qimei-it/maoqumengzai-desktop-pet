@@ -1048,9 +1048,7 @@ onUnmounted(() => {
         />
         <Repeat v-else :size="16" :stroke-width="2" aria-hidden="true" />
       </button>
-    </div>
 
-    <div class="pill-group pill-actions">
       <button
         type="button"
         class="pill-button pill-volume"
