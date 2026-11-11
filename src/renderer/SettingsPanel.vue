@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Database, Info, Monitor, Palette, Settings } from '@lucide/vue'
+import {
+  Database,
+  Info,
+  Monitor,
+  Palette,
+  Settings,
+  SixteenthNotes,
+} from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   defaultSettings,
+  musicBarStyleLabels,
+  musicBarStyles,
   petScales,
   themeIds,
   themeLabels,
@@ -19,6 +28,7 @@ const nav = [
   { id: 'appearance', label: '外观', icon: Palette },
   { id: 'desktop', label: '桌面', icon: Monitor },
   { id: 'data', label: '数据', icon: Database },
+  { id: 'music', label: '音乐播放器', icon: SixteenthNotes },
   { id: 'ai', label: '智能体', icon: DeepSeekAgentMark },
   { id: 'about', label: '关于', icon: Info },
 ] as const
@@ -209,6 +219,23 @@ function close(): void {
                   清空
                 </button>
               </span>
+            </div>
+          </template>
+
+          <template v-else-if="section === 'music'">
+            <div class="settings-row">
+              <span class="settings-label">控制栏样式</span>
+              <div class="settings-segmented" role="group" aria-label="控制栏样式">
+                <button
+                  v-for="style in musicBarStyles"
+                  :key="style"
+                  type="button"
+                  :class="{ active: settings.musicBarStyle === style }"
+                  @click="update({ musicBarStyle: style })"
+                >
+                  {{ musicBarStyleLabels[style] }}
+                </button>
+              </div>
             </div>
           </template>
 

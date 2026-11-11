@@ -834,6 +834,7 @@ function settingsState(): SettingsState {
     launchAtLogin: settings.launchAtLogin,
     statusBubbles: settings.statusBubbles,
     musicBubbles: settings.musicBubbles,
+    musicBarStyle: settings.musicBarStyle,
   }
 }
 function positionSettings(): void {
@@ -904,6 +905,7 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
   }
   if (!settings.statusBubbles) hideToast()
   if (!settings.musicBubbles) hideBubble()
+  if (patch.musicBarStyle !== undefined) syncOverlays()
   if (
     app.isPackaged &&
     patch.launchAtLogin !== undefined &&
@@ -1382,7 +1384,10 @@ function positionNotes(): void {
   notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
 }
 function pillSize(): { width: number; height: number } {
-  return { width: music.source === 'apple' ? 406 : 344, height: 50 }
+  return {
+    width: music.source === 'apple' ? 406 : 344,
+    height: settings.musicBarStyle === 'double' ? 108 : 50,
+  }
 }
 function pillLayout(liftPet: boolean): Rect {
   const b = pet.getBounds()

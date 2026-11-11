@@ -801,6 +801,9 @@ const plainPreview = computed(() => plainLines.value.slice(0, 3));
 const plainCurrent = computed(() =>
   Math.floor((plainPreview.value.length - 1) / 2),
 );
+const isDoubleBar = computed(
+  () => (state.value?.settings.musicBarStyle ?? "double") === "double",
+);
 const pillLyric = computed(() => {
   if (state.value?.lyrics?.instrumental) return "纯音乐";
   if (currentLyric.value) return currentLyric.value.current;
@@ -1071,7 +1074,11 @@ onUnmounted(() => {
     <span v-if="error" class="pet-error" role="alert">{{ error }}</span>
   </main>
 
-  <main v-else-if="pillView" class="pill-surface">
+  <main
+    v-else-if="pillView"
+    class="pill-surface"
+    :class="{ double: isDoubleBar }"
+  >
     <div class="pill-now">
       <div class="pill-cover" :class="{ empty: !state?.music.cover }">
         <img v-if="state?.music.cover" :src="state.music.cover" alt="" />
@@ -1097,6 +1104,15 @@ onUnmounted(() => {
           </span>
         </span>
         <span
+          v-if="isDoubleBar"
+          :key="pillSubline"
+          class="pill-lyric pill-lyric-lines"
+          :class="{ placeholder: !pillLyric }"
+          :title="pillSubline"
+          >{{ pillSubline }}</span
+        >
+        <span
+          v-else
           ref="pillLyricEl"
           :key="pillSubline"
           class="pill-lyric"

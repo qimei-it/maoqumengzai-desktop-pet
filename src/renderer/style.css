@@ -805,6 +805,38 @@ footer button {
   background: var(--color-brand-soft);
   transform: scale(0.96);
 }
+.pill-lyric-lines {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow: hidden;
+  line-height: 1.3;
+}
+.pill-surface.double {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 22px;
+}
+.pill-surface.double .pill-now {
+  flex: none;
+  height: 56px;
+  gap: 10px;
+}
+.pill-surface.double .pill-cover {
+  width: 56px;
+  height: 56px;
+  border-radius: 13px;
+}
+.pill-surface.double .pill-meta {
+  height: 56px;
+  gap: 2px;
+}
+.pill-surface.double .pill-controls {
+  justify-content: flex-end;
+}
 @media (prefers-reduced-motion: reduce) {
   .pill-lyric.scrolling .pill-lyric-track {
     animation: none;

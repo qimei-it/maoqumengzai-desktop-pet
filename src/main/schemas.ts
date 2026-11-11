@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { petScales, themeIds } from '../shared/settings'
+import { musicBarStyles, petScales, themeIds } from '../shared/settings'
 
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const rect = z
@@ -161,6 +161,7 @@ export const commandSchema = z.discriminatedUnion('type', [
           launchAtLogin: z.boolean().optional(),
           statusBubbles: z.boolean().optional(),
           musicBubbles: z.boolean().optional(),
+          musicBarStyle: z.enum(musicBarStyles).optional(),
         })
         .strict(),
     })

@@ -3,6 +3,13 @@
 export const themeIds = ['default', 'halloween', 'christmas'] as const
 export type ThemeId = (typeof themeIds)[number]
 
+export const musicBarStyles = ['compact', 'double'] as const
+export type MusicBarStyle = (typeof musicBarStyles)[number]
+export const musicBarStyleLabels: Record<MusicBarStyle, string> = {
+  compact: '单行',
+  double: '双行',
+}
+
 export const petScales = [0.75, 1, 1.5, 2] as const
 export type PetScale = (typeof petScales)[number]
 
@@ -19,6 +26,7 @@ export type Settings = {
   launchAtLogin: boolean
   statusBubbles: boolean
   musicBubbles: boolean
+  musicBarStyle: MusicBarStyle
 }
 
 export type SettingsState = Omit<Settings, 'version'>
@@ -30,6 +38,7 @@ export const defaultSettings: Settings = {
   launchAtLogin: false,
   statusBubbles: true,
   musicBubbles: true,
+  musicBarStyle: 'double',
 }
 
 export function isThemeId(value: string): value is ThemeId {

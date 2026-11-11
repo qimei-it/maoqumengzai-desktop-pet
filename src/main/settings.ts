@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { z } from 'zod'
 import {
   defaultSettings,
+  musicBarStyles,
   petScales,
   themeIds,
   type Settings,
@@ -15,6 +16,7 @@ const settingsSchema = z
     launchAtLogin: z.boolean(),
     statusBubbles: z.boolean(),
     musicBubbles: z.boolean(),
+    musicBarStyle: z.enum(musicBarStyles).default('double'),
   })
   .strict()
 
