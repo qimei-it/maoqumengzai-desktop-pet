@@ -941,7 +941,7 @@ onUnmounted(() => {
     <div class="pill-now">
       <div class="pill-cover" :class="{ empty: !state?.music.cover }">
         <img v-if="state?.music.cover" :src="state.music.cover" alt="" />
-        <MusicIcon v-else :size="22" :stroke-width="2" aria-hidden="true" />
+        <MusicIcon v-else :size="18" :stroke-width="2" aria-hidden="true" />
       </div>
       <div class="pill-meta">
         <strong :title="state?.music.title">{{
@@ -979,7 +979,7 @@ onUnmounted(() => {
         :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
         @click="musicControl('shuffle')"
       >
-        <Shuffle :size="18" :stroke-width="2" aria-hidden="true" />
+        <Shuffle :size="16" :stroke-width="2" aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -989,7 +989,7 @@ onUnmounted(() => {
         @click="musicControl('previous')"
       >
         <SkipBack
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
@@ -1004,14 +1004,14 @@ onUnmounted(() => {
       >
         <Pause
           v-if="state?.music.playing"
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
         />
         <Play
           v-else
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
@@ -1025,7 +1025,7 @@ onUnmounted(() => {
         @click="musicControl('next')"
       >
         <SkipForward
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
@@ -1042,11 +1042,11 @@ onUnmounted(() => {
       >
         <InfinityIcon
           v-if="state?.music.repeat === 'one'"
-          :size="18"
+          :size="16"
           :stroke-width="2"
           aria-hidden="true"
         />
-        <Repeat v-else :size="18" :stroke-width="2" aria-hidden="true" />
+        <Repeat v-else :size="16" :stroke-width="2" aria-hidden="true" />
       </button>
     </div>
 
@@ -1063,14 +1063,14 @@ onUnmounted(() => {
       >
         <VolumeX
           v-if="state?.music.muted"
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
         />
         <Volume2
           v-else
-          :size="20"
+          :size="18"
           :stroke-width="2"
           fill="currentColor"
           aria-hidden="true"
