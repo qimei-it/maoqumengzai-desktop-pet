@@ -37,6 +37,14 @@ export const mailProviderLabels: Record<MailProvider, string> = {
   gmail: 'Gmail',
 }
 
+export const mailHelpUrls: Record<MailProvider, string> = {
+  qq: 'https://wx.mail.qq.com/list/readtemplate?name=app_intro.html#/agreement/authorizationCode',
+  '163':
+    'https://help.mail.163.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac20c5161d133bdd17d',
+  gmail:
+    'https://knowledge.workspace.google.com/admin/sync/turn-pop-and-imap-on-or-off-for-users?hl=zh-cn',
+}
+
 export const mailProviderHosts: Record<
   MailProvider,
   { host: string; port: number }

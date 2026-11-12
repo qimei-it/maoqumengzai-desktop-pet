@@ -425,6 +425,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('mail-help'),
+      provider: z.enum(['qq', '163', 'gmail']),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('mail-sync'),
       accountId: z.string().uuid().optional(),
     })

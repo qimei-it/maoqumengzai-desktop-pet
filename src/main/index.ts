@@ -160,7 +160,11 @@ import {
   probeMailAccount,
   syncMailInbox,
 } from './mail-sync'
-import { mailAccountLabel, mailUnreadTotal } from '../shared/mail'
+import {
+  mailAccountLabel,
+  mailHelpUrls,
+  mailUnreadTotal,
+} from '../shared/mail'
 import type {
   MailConfig,
   MailMessageDetail,
@@ -5615,6 +5619,7 @@ function setupIpc(): void {
       'mail-add-account',
       'mail-reauthorize',
       'mail-remove-account',
+      'mail-help',
       'mail-sync',
       'mail-update-config',
       'mail-choose-attachment-dir',
@@ -5980,6 +5985,9 @@ function setupIpc(): void {
         break
       case 'mail-remove-account':
         await removeMailAccount(command.accountId)
+        break
+      case 'mail-help':
+        await shell.openExternal(mailHelpUrls[command.provider])
         break
       case 'mail-sync':
         if (command.accountId) await syncMailAccount(command.accountId)

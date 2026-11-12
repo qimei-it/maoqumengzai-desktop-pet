@@ -2794,6 +2794,14 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     .locator(".mail-row", { hasText: "邮箱账户" })
     .getByRole("button", { name: "添加", exact: true })
     .click();
+  await expect(settings.locator(".mail-account-block")).toHaveCSS(
+    "border-bottom-width",
+    "1px",
+  );
+  await expect(settings.locator(".mail-help-link")).toContainText(
+    "邮件客户端设置方式",
+  );
+  await expect(settings.locator(".mail-help-link svg")).toHaveCount(1);
   await expect(settings.locator(".mail-provider-track")).toBeVisible();
   await expect(settings.locator(".mail-provider-thumb")).toBeVisible();
   await expect(settings.locator(".mail-provider")).toHaveCount(3);

@@ -8,7 +8,11 @@ import {
   loadMailConfig,
   saveMailConfig,
 } from '../../src/main/mail-config'
-import { mailAccountLabel, mailUnreadTotal } from '../../src/shared/mail'
+import {
+  mailAccountLabel,
+  mailHelpUrls,
+  mailUnreadTotal,
+} from '../../src/shared/mail'
 
 const directories: string[] = []
 
@@ -200,6 +204,12 @@ describe('mail unread total', () => {
   test('sums unread counts across accounts', () => {
     expect(mailUnreadTotal([{ unread: 2 }, { unread: 3 }])).toBe(5)
     expect(mailUnreadTotal([])).toBe(0)
+  })
+
+  test('uses the official help links for each provider', () => {
+    expect(mailHelpUrls.qq).toContain('wx.mail.qq.com')
+    expect(mailHelpUrls['163']).toContain('help.mail.163.com')
+    expect(mailHelpUrls.gmail).toContain('knowledge.workspace.google.com')
   })
 
   test('labels accounts with display name and address', () => {

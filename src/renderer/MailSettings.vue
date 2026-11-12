@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
+  ExternalLink,
   PenLine,
   RefreshCw,
   Trash2,
@@ -125,6 +126,9 @@ function submit(): void {
     ...(formName.value.trim() ? { displayName: formName.value.trim() } : {}),
   })
 }
+function openMailHelp(): void {
+  emit('command', { type: 'mail-help', provider: formProvider.value })
+}
 function syncAccount(accountId: string): void {
   emit('command', { type: 'mail-sync', accountId })
 }
@@ -188,147 +192,157 @@ watch(
 
 <template>
   <div class="mail-settings">
-    <div class="mail-row">
-      <span class="mail-label">邮箱账户</span>
-      <button
-        v-if="!formOpen"
-        type="button"
-        class="settings-button primary"
-        :disabled="busy"
-        @click="openAdd"
-      >
-        添加
-      </button>
-    </div>
-
-    <div v-if="accounts.length" class="mail-accounts">
-      <div
-        v-for="account in accounts"
-        :key="account.id"
-        class="mail-account"
-        :title="account.error"
-      >
-        <img
-          class="mail-account-icon"
-          :src="providerIcon(account.provider)"
-          alt=""
-          draggable="false"
-        />
-        <span class="mail-account-email" :title="mailAccountLabel(account)">
-          {{ mailAccountLabel(account) }}
-        </span>
-        <span class="mail-status" :class="account.status">
-          {{ statusLabel(account) }}
-        </span>
-        <span v-if="account.unread" class="mail-unread">
-          {{ account.unread }} 封未读
-        </span>
+    <div class="mail-account-block">
+      <div class="mail-row mail-account-head">
+        <span class="mail-label">邮箱账户</span>
         <button
+          v-if="!formOpen"
           type="button"
-          class="mail-icon-action"
-          :disabled="busy"
-          aria-label="同步邮件"
-          title="同步"
-          @click="syncAccount(account.id)"
-        >
-          <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="mail-icon-action"
-          :disabled="busy"
-          aria-label="重新授权"
-          title="重新授权"
-          @click="openReauthorize(account)"
-        >
-          <PenLine :size="14" :stroke-width="2" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="mail-icon-action"
-          :disabled="busy"
-          aria-label="删除邮箱账户"
-          title="删除"
-          @click="removeAccount(account.id)"
-        >
-          <Trash2 :size="14" :stroke-width="2" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-
-    <form v-if="formOpen" class="mail-form" @submit.prevent="submit">
-      <div
-        v-if="!reauthorizeId"
-        class="mail-provider-track"
-        role="radiogroup"
-        aria-label="邮箱服务商"
-      >
-        <span
-          class="mail-provider-thumb"
-          :style="{ transform: `translateX(${providerIndex * 100}%)` }"
-        />
-        <button
-          v-for="provider in providerOptions"
-          :key="provider.id"
-          type="button"
-          class="mail-provider"
-          :class="{ active: formProvider === provider.id }"
-          :disabled="Boolean(reauthorizeId) || busy"
-          :aria-pressed="formProvider === provider.id"
-          @click="formProvider = provider.id"
-        >
-          <img :src="provider.icon" alt="" draggable="false" />
-          {{ provider.label }}
-        </button>
-      </div>
-      <label class="mail-field">
-        <span>邮箱地址</span>
-        <input
-          v-model="formEmail"
-          type="email"
-          autocomplete="username"
-          :disabled="Boolean(reauthorizeId) || busy"
-          :placeholder="emailPlaceholder"
-        />
-      </label>
-      <label class="mail-field">
-        <span>授权码 / 应用专用密码</span>
-        <input
-          v-model="formSecret"
-          type="password"
-          autocomplete="current-password"
-          :disabled="busy"
-          placeholder="输入授权码"
-        />
-      </label>
-      <label class="mail-field">
-        <span>显示名称</span>
-        <input
-          v-model="formName"
-          type="text"
-          maxlength="40"
-          :disabled="busy"
-          placeholder="可选"
-        />
-      </label>
-      <div class="mail-form-actions">
-        <button
-          type="button"
-          class="settings-button"
-          :disabled="busy"
-          @click="closeForm"
-        >
-          取消
-        </button>
-        <button
-          type="submit"
           class="settings-button primary"
           :disabled="busy"
+          @click="openAdd"
         >
-          {{ reauthorizeId ? '保存' : '测试并添加' }}
+          添加
         </button>
       </div>
-    </form>
+
+      <div v-if="accounts.length" class="mail-accounts">
+        <div
+          v-for="account in accounts"
+          :key="account.id"
+          class="mail-account"
+          :title="account.error"
+        >
+          <img
+            class="mail-account-icon"
+            :src="providerIcon(account.provider)"
+            alt=""
+            draggable="false"
+          />
+          <span class="mail-account-email" :title="mailAccountLabel(account)">
+            {{ mailAccountLabel(account) }}
+          </span>
+          <span class="mail-status" :class="account.status">
+            {{ statusLabel(account) }}
+          </span>
+          <span v-if="account.unread" class="mail-unread">
+            {{ account.unread }} 封未读
+          </span>
+          <button
+            type="button"
+            class="mail-icon-action"
+            :disabled="busy"
+            aria-label="同步邮件"
+            title="同步"
+            @click="syncAccount(account.id)"
+          >
+            <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="mail-icon-action"
+            :disabled="busy"
+            aria-label="重新授权"
+            title="重新授权"
+            @click="openReauthorize(account)"
+          >
+            <PenLine :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="mail-icon-action"
+            :disabled="busy"
+            aria-label="删除邮箱账户"
+            title="删除"
+            @click="removeAccount(account.id)"
+          >
+            <Trash2 :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <form v-if="formOpen" class="mail-form" @submit.prevent="submit">
+        <div
+          v-if="!reauthorizeId"
+          class="mail-provider-track"
+          role="radiogroup"
+          aria-label="邮箱服务商"
+        >
+          <span
+            class="mail-provider-thumb"
+            :style="{ transform: `translateX(${providerIndex * 100}%)` }"
+          />
+          <button
+            v-for="provider in providerOptions"
+            :key="provider.id"
+            type="button"
+            class="mail-provider"
+            :class="{ active: formProvider === provider.id }"
+            :disabled="Boolean(reauthorizeId) || busy"
+            :aria-pressed="formProvider === provider.id"
+            @click="formProvider = provider.id"
+          >
+            <img :src="provider.icon" alt="" draggable="false" />
+            {{ provider.label }}
+          </button>
+        </div>
+        <label class="mail-field">
+          <span>邮箱地址</span>
+          <input
+            v-model="formEmail"
+            type="email"
+            autocomplete="username"
+            :disabled="Boolean(reauthorizeId) || busy"
+            :placeholder="emailPlaceholder"
+          />
+        </label>
+        <label class="mail-field">
+          <span>授权码 / 应用专用密码</span>
+          <input
+            v-model="formSecret"
+            type="password"
+            autocomplete="current-password"
+            :disabled="busy"
+            placeholder="输入授权码"
+          />
+        </label>
+        <label class="mail-field">
+          <span>显示名称</span>
+          <input
+            v-model="formName"
+            type="text"
+            maxlength="40"
+            :disabled="busy"
+            placeholder="可选"
+          />
+        </label>
+        <div class="mail-form-actions">
+          <button
+            type="button"
+            class="mail-help-link"
+            @click="openMailHelp"
+          >
+            邮件客户端设置方式
+            <ExternalLink :size="12" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="settings-button"
+            :disabled="busy"
+            @click="closeForm"
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            class="settings-button primary"
+            :disabled="busy"
+          >
+            {{ reauthorizeId ? '保存' : '测试并添加' }}
+          </button>
+        </div>
+      </form>
+    </div>
 
     <div class="mail-row">
       <span class="mail-label">同步间隔</span>
@@ -419,6 +433,12 @@ watch(
 .mail-row-last {
   border-bottom: 0;
 }
+.mail-account-block {
+  border-bottom: 1px solid var(--color-line);
+}
+.mail-account-head {
+  border-bottom: 0;
+}
 .mail-label {
   flex: none;
   color: var(--color-ink);
@@ -434,7 +454,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 0;
+  padding: 0 0 10px;
 }
 .mail-account {
   display: flex;
@@ -589,8 +609,31 @@ watch(
 }
 .mail-form-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+.mail-help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  cursor: pointer;
+}
+.mail-help-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.mail-help-link:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 .mail-switch {
   position: relative;

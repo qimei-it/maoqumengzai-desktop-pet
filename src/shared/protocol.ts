@@ -475,6 +475,7 @@ export type Command =
       displayName?: string
     }
   | { type: 'mail-remove-account'; accountId: string }
+  | { type: 'mail-help'; provider: MailProvider }
   | { type: 'mail-sync'; accountId?: string }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
   | { type: 'mail-choose-attachment-dir' }
