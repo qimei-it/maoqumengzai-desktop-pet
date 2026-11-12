@@ -14,6 +14,7 @@
     "sync:design": "node scripts/sync-design-tokens.mjs",
     "sync:fxemoji": "node scripts/fetch-fxemoji.mjs",
     "check:design": "node scripts/check-design-tokens.mjs",
+    "check:engines": "vitest run tests/unit/engines.test.ts",
     "generate:icons": "node scripts/generate-native-icons.mjs",
     "generate:app-icons": "node scripts/generate-app-icons.mjs",
     "start": "node scripts/set-dev-app-name.mjs && electron .",

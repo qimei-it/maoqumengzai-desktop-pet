@@ -10,6 +10,7 @@ import {
   outputDirectory,
   outputName,
   pdfPageName,
+  securedOutputName,
   splitOutputDirectory,
   splitPageName,
 } from '../../src/shared/convert'
@@ -36,6 +37,30 @@ describe('image conversion targets', () => {
     expect(isImageFile('a.Jpeg')).toBe(true)
     expect(isImageFile('a.pdf')).toBe(false)
     expect(availableImageTargets([])).toEqual([])
+  })
+
+  test('qpdf unlocks password protection targets', () => {
+    expect(availableConvertTargets(['a.pdf'], { qpdf: true })).toContainEqual({
+      id: 'pdf-encrypt',
+      label: '加密 PDF',
+      group: 'pdf',
+    })
+    expect(availableConvertTargets(['a.pdf'], { qpdf: true })).toContainEqual({
+      id: 'pdf-decrypt',
+      label: '解除密码',
+      group: 'pdf',
+    })
+    expect(
+      availableConvertTargets(['a.pdf']).some(
+        (target) => target.id === 'pdf-encrypt',
+      ),
+    ).toBe(false)
+    expect(securedOutputName('/tmp/合同.pdf', 'pdf-encrypt', 1)).toBe(
+      '合同-加密.pdf',
+    )
+    expect(securedOutputName('/tmp/合同.pdf', 'pdf-decrypt', 2)).toBe(
+      '合同-解密 (2).pdf',
+    )
   })
 
   test('images also offer PDF; PDF batches merge or split', () => {

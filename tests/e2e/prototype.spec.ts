@@ -1,6 +1,7 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -286,7 +287,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   ).toBeVisible();
   await expect(
     settings.locator(".engine-card", { hasText: "sharp" }),
-  ).toContainText("已内置");
+  ).toContainText("可用");
   const libreOfficeCard = settings.locator(".engine-card", {
     hasText: "LibreOffice",
   });
@@ -299,7 +300,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   ).toBeEnabled();
   await expect(
     settings.locator(".engine-card", { hasText: "qpdf" }),
-  ).toContainText("未接入");
+  ).toContainText("未选择");
   await settings.getByRole("button", { name: "外观", exact: true }).click();
   await settings.getByRole("button", { name: "万圣节", exact: true }).click();
   await expect
@@ -2513,6 +2514,148 @@ test("透明图片转 JPG 使用白色背景", async () => {
   const stats = await sharp(join(directory, "透明图.jpg")).stats();
   for (const channel of stats.channels) expect(channel.mean).toBeGreaterThan(254);
   await convert.getByRole("button", { name: "完成", exact: true }).click();
+});
+
+test("qpdf 可以加密并解除 PDF 密码", async () => {
+  const qpdf = "/opt/homebrew/bin/qpdf";
+  test.skip(!existsSync(qpdf), "本机未安装 qpdf");
+  await application.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, qpdf);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "engine-use-local", id: "qpdf" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.engines.qpdf.status : "missing";
+    })
+    .toBe("ready");
+  const source = join(directory, "qpdf加密.pdf");
+  const document = await PDFDocument.create();
+  const font = await document.embedFont(StandardFonts.Helvetica);
+  document
+    .addPage([300, 200])
+    .drawText("confidential", { x: 30, y: 100, size: 18, font });
+  await writeFile(source, await document.save());
+  await dropOnPet(source, "convert");
+  await convert.getByRole("button", { name: "加密 PDF", exact: true }).click();
+  await convert.locator(".convert-password input").fill("secret123");
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  const encrypted = join(directory, "qpdf加密-加密.pdf");
+  const encryptedInfo = await promisify(execFile)(qpdf, [
+    "--password=secret123",
+    "--show-encryption",
+    encrypted,
+  ]);
+  expect(encryptedInfo.stdout).toContain("R = 6");
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+
+  await dropOnPet(encrypted, "convert");
+  await convert.getByRole("button", { name: "解除密码", exact: true }).click();
+  await convert.locator(".convert-password input").fill("wrong");
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.failed : 0;
+    })
+    .toBe(1);
+  await expect(convert.locator(".convert-errors")).toContainText(
+    "PDF 密码不正确",
+  );
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+
+  await dropOnPet(encrypted, "convert");
+  await convert.getByRole("button", { name: "解除密码", exact: true }).click();
+  await convert.locator(".convert-password input").fill("secret123");
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  const decryptedInfo = await promisify(execFile)(qpdf, [
+    "--show-encryption",
+    join(directory, "qpdf加密-加密-解密.pdf"),
+  ]);
+  expect(decryptedInfo.stdout).toContain("File is not encrypted");
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "engine-remove", id: "qpdf" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.engines.qpdf.status : "ready";
+    })
+    .toBe("missing");
+  await dropOnPet(source, "convert");
+  await expect(
+    convert.getByRole("button", { name: "加密 PDF", exact: true }),
+  ).toHaveCount(0);
+  await convert.evaluate(() =>
+    window.mqmz!.command({ type: "convert-close" }),
+  );
+});
+
+test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
+  test.skip(process.platform === "win32", "fake FFmpeg 脚本仅在 POSIX 下可用");
+  const fake = join(directory, "settings-ffmpeg.sh");
+  await writeFile(
+    fake,
+    '#!/bin/bash\nif [[ " $* " == *" -version "* ]]; then echo "ffmpeg version 6.0"; exit 0; fi\nexit 0\n',
+    "utf8",
+  );
+  await chmod(fake, 0o755);
+  await application.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, fake);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "engine-use-local", id: "ffmpeg" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.engines.ffmpeg.origin : "none";
+    })
+    .toBe("local");
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-open" }),
+  );
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-section", section: "conversion" }),
+  );
+  await expect(
+    settings.locator(".engine-card", { hasText: "sharp" }),
+  ).toContainText("可用");
+  await expect(
+    settings
+      .locator(".engine-card", { hasText: "FFmpeg" })
+      .getByRole("button", { name: "卸载", exact: true }),
+  ).toBeVisible();
+  await expect(
+    settings
+      .locator(".engine-card", { hasText: "qpdf" })
+      .getByRole("button", { name: "使用本地程序…", exact: true }),
+  ).toBeVisible();
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-close" }),
+  );
 });
 
 test("打包归档、解压缩与压缩大小 work on real files", async () => {
