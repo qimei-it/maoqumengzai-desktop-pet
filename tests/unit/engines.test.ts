@@ -53,9 +53,9 @@ describe('conversion engine manifest', () => {
 
   it('keeps FFmpeg builds checksummed with size metadata', () => {
     expect(new Set(ffmpegBuildPlatforms)).toEqual(
-      new Set(['darwin-arm64', 'darwin-x64', 'win32-x64']),
+      new Set(['darwin-arm64', 'win32-x64']),
     )
-    for (const target of ['darwin-arm64', 'darwin-x64', 'win32-x64']) {
+    for (const target of ['darwin-arm64', 'win32-x64']) {
       const [platform, arch] = target.split('-')
       const build = ffmpegBuild(platform, arch)
       expect(build, target).not.toBeNull()

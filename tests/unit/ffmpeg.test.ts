@@ -10,7 +10,6 @@ describe('ffmpeg build manifest', () => {
     expect(mac?.sha256).toHaveLength(64)
     expect(mac?.binaryPath).toBe('bin/ffmpeg')
     expect(ffmpegBuild('win32', 'x64')?.binaryPath).toBe('ffmpeg.exe')
-    expect(ffmpegBuild('darwin', 'x64')?.installedBytes).toBe(36_861_715)
   })
 
   test('reports unsupported platforms without inventing a source', () => {
