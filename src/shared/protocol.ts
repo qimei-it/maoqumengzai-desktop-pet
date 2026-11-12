@@ -223,6 +223,7 @@ export type SettingsSection =
   | 'clipboard'
   | 'shelf'
   | 'conversion'
+  | 'mail'
   | 'music'
   | 'ai'
   | 'about'

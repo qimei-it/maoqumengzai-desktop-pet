@@ -227,6 +227,7 @@ export const commandSchema = z.discriminatedUnion('type', [
         'clipboard',
         'shelf',
         'conversion',
+        'mail',
         'music',
         'ai',
         'about',

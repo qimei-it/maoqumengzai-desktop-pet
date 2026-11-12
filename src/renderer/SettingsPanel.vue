@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, Database, Info, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, Database, Info, Mail, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
 import type { Command, SettingsSection, Snapshot } from '../shared/protocol'
 import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
@@ -31,6 +31,7 @@ const nav = [
   { id: 'clipboard', label: '剪贴板', icon: ClipboardList },
   { id: 'shelf', label: '文件置物架', icon: Archive },
   { id: 'conversion', label: '格式转换', icon: Boxes },
+  { id: 'mail', label: '邮件客户端', icon: Mail },
   { id: 'music', label: '音乐播放器', icon: SixteenthNotes },
   { id: 'ai', label: '智能体', icon: DeepSeekAgentMark },
   { id: 'about', label: '关于', icon: Info },
@@ -673,7 +674,7 @@ function close(): void {
 
               </article>
             </div>
-            <div class="settings-row">
+            <div class="settings-row settings-row-last">
               <span class="settings-label">第三方许可</span>
               <button
                 type="button"
@@ -682,6 +683,14 @@ function close(): void {
               >
                 查看
               </button>
+            </div>
+          </template>
+
+          <template v-else-if="section === 'mail'">
+            <h3 class="settings-group-title">邮件客户端</h3>
+            <div class="settings-row settings-row-last">
+              <span class="settings-label">邮箱账户</span>
+              <span class="settings-value">未配置</span>
             </div>
           </template>
 
@@ -1049,6 +1058,9 @@ function close(): void {
   gap: 16px;
   min-height: 56px;
   border-bottom: 1px solid var(--color-line);
+}
+.settings-row-last {
+  border-bottom: 0;
 }
 .pet-grid {
   display: grid;
