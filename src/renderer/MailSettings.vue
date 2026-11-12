@@ -392,7 +392,7 @@ watch(
 .mail-label {
   flex: none;
   color: var(--color-ink);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-body);
 }
 .mail-action {
   min-height: 30px;

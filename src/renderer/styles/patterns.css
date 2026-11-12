@@ -132,3 +132,12 @@ body[data-input='pointer'] .button-soft:focus-visible {
     transition: none;
   }
 }
+
+/* Settings sections never draw a divider under their final row. */
+.settings-content > .settings-row:last-of-type {
+  border-bottom: 0;
+}
+.settings-content > .settings-row:has(+ .settings-field:last-of-type),
+.settings-content > .settings-field:last-of-type {
+  border-bottom: 0;
+}
