@@ -2310,8 +2310,8 @@ function positionSettings(): void {
   if (!settingsWindow || settingsWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
-  const width = 640
-  const height = 540
+  const width = 760
+  const height = 620
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
@@ -6091,8 +6091,8 @@ async function createWindows(): Promise<void> {
   if (process.platform === 'darwin')
     renameWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   settingsWindow = new BrowserWindow({
-    width: 640,
-    height: 540,
+    width: 760,
+    height: 620,
     title: '毛趣萌仔 · 设置',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,

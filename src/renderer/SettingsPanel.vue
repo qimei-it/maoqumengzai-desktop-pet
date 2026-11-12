@@ -487,7 +487,7 @@ function close(): void {
               <h3 class="engine-section-title">内置引擎</h3>
               <button
                 type="button"
-                class="engine-button"
+                class="engine-button engine-check"
                 @click="checkBuiltin"
               >
                 重新检查
@@ -861,6 +861,13 @@ function close(): void {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 10px;
+}
+.engine-button.engine-check {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: var(--font-size-caption);
+  font-weight: 500;
 }
 .engine-section-head .engine-section-title {
   margin: 0;
