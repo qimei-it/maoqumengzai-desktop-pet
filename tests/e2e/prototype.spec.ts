@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -2290,6 +2290,229 @@ test("格式转换可以移除已添加的文件", async () => {
         file.id,
       );
   }
+});
+
+test("合并 PDF 支持调整文件顺序", async () => {
+  const first = join(directory, "合并甲.pdf");
+  const second = join(directory, "合并乙.pdf");
+  for (const [path, width] of [
+    [first, 200],
+    [second, 300],
+  ] as const) {
+    const document = await PDFDocument.create();
+    document.addPage([width, width]);
+    await writeFile(path, await document.save());
+  }
+  await dropOnPet([first, second], "convert");
+  await expect(
+    convert.getByRole("button", { name: "合并 PDF", exact: true }),
+  ).toBeVisible();
+  await expect(convert.locator(".convert-file").first()).toContainText(
+    "合并甲.pdf",
+  );
+  await convert
+    .getByRole("button", { name: "下移 合并甲.pdf", exact: true })
+    .click();
+  await expect(convert.locator(".convert-file").first()).toContainText(
+    "合并乙.pdf",
+  );
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  const merged = await PDFDocument.load(
+    await readFile(join(directory, "convert_output", "合并乙-合并.pdf")),
+  );
+  expect(merged.getPages().map((page) => page.getWidth())).toEqual([300, 200]);
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+});
+
+test("提取音频打开专用成功面板并复用转换结果样式", async () => {
+  test.skip(process.platform === "win32", "fake FFmpeg 脚本仅在 POSIX 下可用");
+  const fake = join(directory, "fake-ffmpeg-fast.sh");
+  await writeFile(
+    fake,
+    `#!/bin/bash
+if [[ " $* " == *" -version "* ]]; then echo "ffmpeg version 6.0"; exit 0; fi
+if [[ " $* " != *" -progress "* ]]; then exit 0; fi
+for last; do :; done
+printf 'ID3 fake audio' > "$last"
+echo "out_time_us=3000000"
+exit 0
+`,
+    "utf8",
+  );
+  await chmod(fake, 0o755);
+  await application.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, fake);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "engine-use-local", id: "ffmpeg" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.engines.ffmpeg.origin : "none";
+    })
+    .toBe("local");
+  const video = join(directory, "提取音轨.mp4");
+  await writeFile(video, "fake video");
+  await dropOnPet(video, "audio");
+  await expect(
+    convert.getByRole("heading", { name: "提取音频", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  await expect(convert.locator(".convert-result")).toContainText("已转换 1 个");
+  await expect(convert.locator(".convert-preview")).toHaveCount(1);
+  await expect(
+    convert.getByRole("button", { name: "打开所在位置", exact: true }),
+  ).toBeVisible();
+  expect(await readFile(join(directory, "提取音轨.mp3"), "utf8")).toBe(
+    "ID3 fake audio",
+  );
+  expect(
+    await application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle().includes("提取音频"))
+        ?.getBounds().height,
+    ),
+  ).toBe(360);
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+});
+
+test("取消转换停止子进程并清理临时文件", async () => {
+  test.skip(process.platform === "win32", "fake FFmpeg 脚本仅在 POSIX 下可用");
+  const marker = join(directory, "slow-ffmpeg-finished");
+  const fake = join(directory, "fake-ffmpeg-slow.sh");
+  await writeFile(
+    fake,
+    `#!/bin/bash
+if [[ " $* " == *" -version "* ]]; then echo "ffmpeg version 6.0"; exit 0; fi
+if [[ " $* " != *" -progress "* ]]; then exit 0; fi
+for last; do :; done
+printf 'partial' > "$last"
+sleep 5
+touch "${marker}"
+exit 0
+`,
+    "utf8",
+  );
+  await chmod(fake, 0o755);
+  await application.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, fake);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "engine-use-local", id: "ffmpeg" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.engines.ffmpeg.origin : "none";
+    })
+    .toBe("local");
+  const video = join(directory, "取消长视频.mp4");
+  await writeFile(video, "fake video");
+  await dropOnPet(video, "audio");
+  await expect(
+    convert.getByRole("button", { name: "取消转换", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await readdir(directory)).some((name) => name.startsWith(".mqmz-")),
+    )
+    .toBe(true);
+  await convert.getByRole("button", { name: "取消转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.busy : true;
+    })
+    .toBe(false);
+  await expect(
+    convert.getByRole("button", { name: "开始转换", exact: true }),
+  ).toBeVisible();
+  await expect(convert.locator(".convert-notice")).toContainText("已取消转换");
+  expect((await readdir(directory)).some((name) => name.startsWith(".mqmz-"))).toBe(
+    false,
+  );
+  expect((await readdir(directory)).includes("取消长视频.mp3")).toBe(false);
+  await convert.waitForTimeout(5500);
+  expect((await readdir(directory)).includes("slow-ffmpeg-finished")).toBe(false);
+  await convert.evaluate(() =>
+    window.mqmz!.command({ type: "convert-close" }),
+  );
+});
+
+test("批量转换部分失败时保留成功结果", async () => {
+  const good = join(directory, "部分成功.png");
+  const broken = join(directory, "损坏图片.png");
+  await sharp({
+    create: {
+      width: 40,
+      height: 40,
+      channels: 3,
+      background: "#227755",
+    },
+  })
+    .png()
+    .toFile(good);
+  await writeFile(broken, "not an image");
+  await dropOnPet([good, broken], "convert");
+  await convert.getByRole("button", { name: "PDF", exact: true }).click();
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  await expect(convert.locator(".convert-result")).toContainText("已转换 1 个");
+  await expect(convert.locator(".convert-result")).toContainText("失败 1 个");
+  await expect(convert.locator(".convert-errors")).toContainText(
+    "不是有效的图片",
+  );
+  expect((await readdir(join(directory, "convert_output"))).includes("部分成功.pdf")).toBe(true);
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
+});
+
+test("透明图片转 JPG 使用白色背景", async () => {
+  const source = join(directory, "透明图.png");
+  await sharp({
+    create: {
+      width: 32,
+      height: 32,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .png()
+    .toFile(source);
+  await dropOnPet(source, "convert");
+  await convert.getByRole("button", { name: "JPG", exact: true }).click();
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
+    })
+    .toBe(1);
+  const stats = await sharp(join(directory, "透明图.jpg")).stats();
+  for (const channel of stats.channels) expect(channel.mean).toBeGreaterThan(254);
+  await convert.getByRole("button", { name: "完成", exact: true }).click();
 });
 
 test("打包归档、解压缩与压缩大小 work on real files", async () => {
