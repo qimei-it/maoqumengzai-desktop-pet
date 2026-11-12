@@ -157,7 +157,11 @@ export async function fetchMailDetail(
   try {
     await client.connect()
     await client.mailboxOpen('INBOX', { readOnly: false })
-    const message = await client.fetchOne(String(uid), { source: true })
+    const message = await client.fetchOne(
+      String(uid),
+      { source: true },
+      { uid: true },
+    )
     if (!message || !('source' in message) || !message.source)
       throw new Error('邮件内容为空。')
     const parsed = await simpleParser(message.source)
@@ -194,7 +198,9 @@ export async function fetchMailDetail(
       ...(attachment.contentType ? { mime: attachment.contentType } : {}),
       data: attachment.content,
     }))
-    await client.messageFlagsAdd(String(uid), ['\\Seen'])
+    await client
+      .messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
+      .catch(() => {})
     return {
       subject,
       ...(from?.name ? { fromName: from.name } : {}),

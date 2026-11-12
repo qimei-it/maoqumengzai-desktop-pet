@@ -206,7 +206,7 @@ watch(
         </button>
       </div>
 
-      <div v-if="accounts.length" class="mail-accounts">
+      <div v-if="accounts.length && !formOpen" class="mail-accounts">
         <div
           v-for="account in accounts"
           :key="account.id"

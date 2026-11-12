@@ -586,7 +586,7 @@ export const hoverLabels: Record<HoverAction, readonly string[]> = {
   water: ['喝水', '提醒'],
   focus: ['番茄', '时钟'],
   shelf: ['置物架'],
-  mail: ['发邮件'],
+  mail: ['邮件'],
   settings: ['设置'],
 }
 
@@ -600,7 +600,7 @@ export const hoverActionLabels: Record<HoverAction, string> = {
   water: '喝水提醒',
   focus: '番茄时钟',
   shelf: '置物架',
-  mail: '发邮件',
+  mail: '邮件',
   settings: '设置',
 }
 
