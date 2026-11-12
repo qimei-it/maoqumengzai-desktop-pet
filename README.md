@@ -4,6 +4,7 @@
 ## 第一版实施资料
 
 - [需求基线、实施清单与 Agent 交接](docs/v1-implementation-handoff.md)
+- [开源策略与功能开放边界](docs/open-source-strategy.md)
 - [P0 技术验证进度](docs/p0-validation-progress.md)
 - [双平台支持矩阵](docs/platform-support-matrix.md)
 - [技术方案](docs/technical-architecture.md)
@@ -16,6 +17,16 @@
 - [DeepSeek 智能问答接入](docs/research/deepseek-chat.md)
 
 当前已实现 P0 第 3 项的 Electron + Vue 透明窗口验证原型，完整首版仍按验收清单推进。项目标识统一使用 `mqmz`。Git 提交与双远端推送规范见 [AGENTS.md](AGENTS.md)。
+
+## 开源与功能边界
+
+本项目只维护一条公开开源的客户端代码线，按能力分层开放，不拆分“开源版 / 闭源版”两个安装包：
+
+- 本地功能（桌宠、提醒、待办、置物架、剪贴板、截图、文件转换、音乐与歌词、邮箱收件）无需账号，离线可用。
+- 宠物档案与云端同步需要绑定毛趣映画账户。
+- 交友广场仅对已绑定账户开放，并移出首个公开开源版本；后续开放由服务端运营开关控制。
+
+客户端不存放任何密钥，接口地址按公开信息对待；账号、设备会话、资源归属与限流全部由服务端校验。完整决策与发布检查见 [开源策略与功能开放边界](docs/open-source-strategy.md)。
 
 ## 本地运行
 
