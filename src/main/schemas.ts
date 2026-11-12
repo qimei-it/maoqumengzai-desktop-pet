@@ -371,21 +371,13 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('engine-use-local'),
-      id: z.union([
-        z.literal('ffmpeg'),
-        z.literal('libreoffice'),
-        z.literal('qpdf'),
-      ]),
+      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
     })
     .strict(),
   z
     .object({
       type: z.literal('engine-remove'),
-      id: z.union([
-        z.literal('ffmpeg'),
-        z.literal('libreoffice'),
-        z.literal('qpdf'),
-      ]),
+      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
     })
     .strict(),
   z.object({ type: z.literal('engine-self-check') }).strict(),

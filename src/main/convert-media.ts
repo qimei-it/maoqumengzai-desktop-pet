@@ -4,6 +4,8 @@ import { constants } from 'node:fs'
 import { copyFile, link, mkdir, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import sharp from 'sharp'
+import { ffmpegEnv } from './ffmpeg-bundle'
 import {
   outputDirectory,
   outputName,
@@ -19,18 +21,41 @@ function mediaArgs(
   destination: string,
 ): string[] {
   const base = ['-hide_banner', '-loglevel', 'error', '-y', '-i', sourcePath]
-  const h264 = [
-    '-c:v',
-    'libx264',
-    '-preset',
-    'medium',
-    '-crf',
-    '20',
-    '-c:a',
-    'aac',
-    '-b:a',
-    '192k',
-  ]
+  const h264 =
+    process.platform === 'darwin'
+      ? [
+          '-c:v',
+          'h264_videotoolbox',
+          '-b:v',
+          '4M',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '192k',
+        ]
+      : process.platform === 'win32'
+        ? [
+            '-c:v',
+            'h264_mf',
+            '-b:v',
+            '4M',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+          ]
+        : [
+            '-c:v',
+            'libx264',
+            '-preset',
+            'medium',
+            '-crf',
+            '20',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+          ]
   switch (target) {
     case 'mp4':
       return [...base, ...h264, '-movflags', '+faststart', destination]
@@ -71,12 +96,6 @@ function mediaArgs(
         ...base,
         '-vf',
         "fps=12,scale='min(720,iw)':-2:flags=lanczos",
-        '-c:v',
-        'libwebp_anim',
-        '-quality',
-        '75',
-        '-loop',
-        '0',
         '-an',
         destination,
       ]
@@ -136,7 +155,12 @@ function durationOf(
     execFile(
       binary,
       ['-hide_banner', '-i', sourcePath],
-      { timeout: 10_000, maxBuffer: 2 * 1024 * 1024, signal },
+      {
+        timeout: 10_000,
+        maxBuffer: 2 * 1024 * 1024,
+        signal,
+        env: ffmpegEnv(binary),
+      },
       (_error, _stdout, stderr) => {
         const match = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(
           String(stderr || ''),
@@ -168,6 +192,7 @@ function runFfmpeg(
     }
     const child = spawn(binary, ['-progress', 'pipe:1', '-nostats', ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: ffmpegEnv(binary),
     })
     let stderr = ''
     let buffer = ''
@@ -267,16 +292,21 @@ export async function convertMedia(
   if (signal?.aborted) throw abortError()
   const folder = outputDirectory(sourcePath, batch)
   await mkdir(folder, { recursive: true })
+  const directTarget = target === 'webp-anim' ? 'gif' : target
   const temp = join(
     folder,
-    `.mqmz-${randomUUID()}.${targetExtension(target)}`,
+    `.mqmz-${randomUUID()}.${targetExtension(directTarget)}`,
   )
+  const webpTemp =
+    target === 'webp-anim'
+      ? join(folder, `.mqmz-${randomUUID()}.webp`)
+      : undefined
   try {
     const duration = await durationOf(sourcePath, ffmpeg, signal)
     let last = 0
     await runFfmpeg(
       ffmpeg,
-      mediaArgs(sourcePath, target, temp),
+      mediaArgs(sourcePath, directTarget, temp),
       (seconds) => {
         if (!duration || duration <= 0) return
         const fraction = Math.min(0.99, Math.max(0, seconds / duration))
@@ -287,8 +317,16 @@ export async function convertMedia(
       signal,
     )
     if (signal?.aborted) throw abortError()
+    if (webpTemp) {
+      await sharp(temp, { animated: true })
+        .webp({ quality: 75, loop: 0 })
+        .toFile(webpTemp)
+      if (signal?.aborted) throw abortError()
+      return await publishExclusive(webpTemp, folder, sourcePath, target)
+    }
     return await publishExclusive(temp, folder, sourcePath, target)
   } finally {
     await unlink(temp).catch(() => {})
+    if (webpTemp) await unlink(webpTemp).catch(() => {})
   }
 }

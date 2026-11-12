@@ -24,6 +24,8 @@ extraResources:
     to: licenses
   - from: resources/helpers
     to: helpers
+  - from: resources/engines/qpdf
+    to: engines/qpdf
 mac:
   icon: build/icon.icns
   target:

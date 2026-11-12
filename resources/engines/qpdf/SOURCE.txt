@@ -1,0 +1,3 @@
+qpdf 12.4.2
+https://github.com/qpdf/qpdf/releases/tag/v12.4.2
+Official macOS arm64/x64 and Windows x64 binaries. Apache-2.0.

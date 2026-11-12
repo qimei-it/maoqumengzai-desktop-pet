@@ -66,13 +66,6 @@ const libreOfficeStatusLabel = computed(() => {
   if (libreOffice.value?.status === 'error') return '不可用'
   return '未选择'
 })
-const qpdf = computed(() => props.state?.engines.qpdf)
-const qpdfReady = computed(() => qpdf.value?.status === 'ready')
-const qpdfStatusLabel = computed(() => {
-  if (qpdfReady.value) return '可用'
-  if (qpdf.value?.status === 'error') return '不可用'
-  return '未选择'
-})
 const ffmpegStatus = computed(() => ffmpeg.value?.status ?? 'missing')
 const ffmpegStatusLabel = computed(() => {
   switch (ffmpegStatus.value) {
@@ -90,7 +83,7 @@ const ffmpegStatusLabel = computed(() => {
 })
 const ffmpegSource = computed(() => {
   if (ffmpeg.value?.origin === 'local') return '本地程序'
-  return ffmpeg.value?.source ?? 'npmmirror 镜像'
+  return ffmpeg.value?.source ?? 'AgentDVR FFmpeg · LGPL v3'
 })
 function formatEngineSize(bytes: number): string {
   if (!bytes) return '—'
@@ -111,10 +104,7 @@ function useLocalFfmpeg(): void {
 function useLocalLibreOffice(): void {
   emit('command', { type: 'engine-use-local', id: 'libreoffice' })
 }
-function useLocalQpdf(): void {
-  emit('command', { type: 'engine-use-local', id: 'qpdf' })
-}
-function removeEngine(id: 'ffmpeg' | 'libreoffice' | 'qpdf'): void {
+function removeEngine(id: 'ffmpeg' | 'libreoffice'): void {
   emit('command', { type: 'engine-remove', id })
 }
 function checkBuiltin(): void {
@@ -131,13 +121,11 @@ function engineStatusClass(id: string): string {
   if (id === 'ffmpeg') return ffmpegStatus.value
   if (id === 'libreoffice')
     return libreOfficeReady.value ? 'installed' : 'idle'
-  if (id === 'qpdf') return qpdfReady.value ? 'installed' : 'idle'
   return 'idle'
 }
 function engineStatusText(id: string): string {
   if (id === 'ffmpeg') return ffmpegStatusLabel.value
   if (id === 'libreoffice') return libreOfficeStatusLabel.value
-  if (id === 'qpdf') return qpdfStatusLabel.value
   return '未接入'
 }
 const clipboardUnpinnedCount = computed(
@@ -578,13 +566,7 @@ function close(): void {
                         : '需要本机安装 LibreOffice'
                     }}
                   </template>
-                  <template v-else>
-                    {{
-                      qpdfReady
-                        ? `来源 本地程序${qpdf?.version ? ` · v${qpdf.version}` : ''}`
-                        : '需要本机安装 qpdf'
-                    }}
-                  </template>
+
                 </p>
                 <div class="engine-card-footer">
                   <div
@@ -672,24 +654,7 @@ function close(): void {
                       卸载
                     </button>
                   </template>
-                  <template v-else>
-                    <button
-                      type="button"
-                      class="engine-button"
-                      @click="useLocalQpdf"
-                    >
-                      使用本地程序…
-                    </button>
-                    <button
-                      v-if="qpdfReady"
-                      type="button"
-                      class="engine-button"
-                      title="清除应用内选择，不删除系统程序"
-                      @click="removeEngine('qpdf')"
-                    >
-                      卸载
-                    </button>
-                  </template>
+
                 </div>
                 <p
                   v-if="engine.id === 'ffmpeg' && ffmpeg?.error"
@@ -705,13 +670,7 @@ function close(): void {
                 >
                   {{ libreOffice.error }}
                 </p>
-                <p
-                  v-else-if="engine.id === 'qpdf' && qpdf?.error"
-                  class="engine-error"
-                  role="alert"
-                >
-                  {{ qpdf.error }}
-                </p>
+
               </article>
             </div>
             <div class="settings-row">

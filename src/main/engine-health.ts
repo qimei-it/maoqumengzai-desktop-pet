@@ -10,6 +10,7 @@ import { createExtractorFromData } from 'node-unrar-js'
 import { builtinEngines } from '../shared/conversion-engines'
 import { sevenZipBinaryPath } from './archive-zip'
 import { easyOfdBase } from './convert-ofd'
+import { qpdfBinaryPath, qpdfVersion } from './qpdf-bundle'
 
 export type BuiltinEngineHealth = {
   status: 'ready' | 'error'
@@ -108,6 +109,11 @@ async function checkEach(): Promise<Record<string, BuiltinEngineHealth>> {
   await run('fflate', version('fflate'), async () => {
     const archive = zipSync({ 'health.txt': new Uint8Array([109, 113]) })
     if (archive.length === 0) throw new Error('ZIP 模块无法生成归档。')
+  })
+  await run('qpdf', version('qpdf'), async () => {
+    const binary = qpdfBinaryPath()
+    if (!binary) throw new Error('qpdf 组件文件缺失或为空。')
+    await qpdfVersion(binary)
   })
   return results
 }

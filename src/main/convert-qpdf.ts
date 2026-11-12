@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { outputDirectory, securedOutputName } from '../shared/convert'
 import { writeExclusive } from './write-output'
+import { qpdfEnv } from './qpdf-bundle'
 
 const timeout = 120_000
 
@@ -45,6 +46,7 @@ function runQpdf(
     const child = spawn(binary, args, {
       stdio: ['ignore', 'ignore', 'pipe'],
       detached: process.platform !== 'win32',
+      env: qpdfEnv(binary),
     })
     let stderr = ''
     let settled = false

@@ -330,7 +330,6 @@ export type Snapshot = {
   engines: {
     ffmpeg: FfmpegEngineState
     libreoffice: LocalEngineState
-    qpdf: LocalEngineState
     builtin: Record<
       string,
       { status: 'ready' | 'error'; version: string; error?: string }
@@ -444,8 +443,8 @@ export type Command =
   | { type: 'engine-install'; id: 'ffmpeg' }
   | { type: 'engine-cancel'; id: 'ffmpeg' }
   | { type: 'engine-recheck'; id: 'ffmpeg' }
-  | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' | 'qpdf' }
-  | { type: 'engine-remove'; id: 'ffmpeg' | 'libreoffice' | 'qpdf' }
+  | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' }
+  | { type: 'engine-remove'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-self-check' }
   | { type: 'break-toggle'; kind: BreakKind; enabled: boolean }
   | { type: 'break-interval'; kind: BreakKind; minutes: number }

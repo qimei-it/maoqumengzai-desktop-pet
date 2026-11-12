@@ -5,6 +5,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import sharp from 'sharp'
 import type { ConvertOutput, ConvertOutputKind } from '../shared/protocol'
+import { ffmpegEnv } from './ffmpeg-bundle'
 
 const thumbWidth = 320
 const thumbHeight = 180
@@ -70,7 +71,12 @@ function videoPreview(ffmpeg: string | null, path: string): Promise<string | und
           'mjpeg',
           'pipe:1',
         ],
-        { encoding: 'buffer', maxBuffer: 4 * 1024 * 1024, timeout: 15_000 },
+        {
+          encoding: 'buffer',
+          maxBuffer: 4 * 1024 * 1024,
+          timeout: 15_000,
+          env: ffmpegEnv(ffmpeg),
+        },
         (error, stdout) => {
           if (error || !stdout.length) {
             resolve(undefined)

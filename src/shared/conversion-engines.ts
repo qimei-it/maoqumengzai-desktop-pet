@@ -10,7 +10,7 @@ export type BuiltinEngine = {
   packageName?: string
 }
 
-export type OptionalEngineId = 'ffmpeg' | 'libreoffice' | 'qpdf'
+export type OptionalEngineId = 'ffmpeg' | 'libreoffice'
 
 export type OptionalEngine = {
   id: OptionalEngineId
@@ -106,6 +106,15 @@ export const builtinEngines: readonly BuiltinEngine[] = [
     source: 'npm',
     packageName: 'fflate',
   },
+  {
+    id: 'qpdf',
+    name: 'qpdf',
+    version: '12.4.2',
+    role: 'PDF 加密与解密',
+    formats: 'PDF 加密、解除密码',
+    license: 'Apache-2.0',
+    source: 'qpdf 官方构建',
+  },
 ]
 
 export const optionalEngines: readonly OptionalEngine[] = [
@@ -115,8 +124,8 @@ export const optionalEngines: readonly OptionalEngine[] = [
     role: '音视频转换',
     description: '转换视频与音频格式，把视频转成 GIF，或从视频中提取音轨。',
     formats: 'MP4、MOV、MKV、WebM、GIF、WebP、MP3、WAV、M4A、FLAC',
-    license: 'GPL / nonfree 构建，安装前展示来源',
-    source: 'npmmirror 镜像 · ffmpeg-static b6.1.1',
+    license: 'LGPL-3.0',
+    source: 'AgentDVR FFmpeg 9.0.2 · LGPL v3',
     distribution: 'download',
     platforms: ['darwin-arm64', 'darwin-x64', 'win32-x64'],
     managed: true,
@@ -129,18 +138,6 @@ export const optionalEngines: readonly OptionalEngine[] = [
       '读取旧版和少见的 Office 格式，并把 Word、Excel、PowerPoint 转成 PDF。',
     formats: 'DOC、DOCX、XLS、XLSX、PPT、PPTX',
     license: 'MPL-2.0',
-    source: '用户本地安装',
-    distribution: 'local',
-    platforms: ['darwin', 'win32'],
-    managed: false,
-  },
-  {
-    id: 'qpdf',
-    name: 'qpdf',
-    role: 'PDF 加密与解密',
-    description: '为 PDF 设置打开密码，或移除已有密码。',
-    formats: 'PDF',
-    license: 'Apache-2.0',
     source: '用户本地安装',
     distribution: 'local',
     platforms: ['darwin', 'win32'],
