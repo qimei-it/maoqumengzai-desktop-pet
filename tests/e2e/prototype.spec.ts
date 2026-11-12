@@ -2803,16 +2803,7 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
   await settings
     .locator(".mail-row", { hasText: "同步间隔" })
     .locator("select")
-    .selectOption("0");
-  const manualInterval = settings.locator(".mail-number");
-  await expect(manualInterval).toBeVisible();
-  await manualInterval.fill("0");
-  await manualInterval.blur();
-  await expect(settings.locator(".toast-item.toast-error").last()).toContainText(
-    "1–1440",
-  );
-  await manualInterval.fill("45");
-  await manualInterval.blur();
+    .selectOption("45");
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());

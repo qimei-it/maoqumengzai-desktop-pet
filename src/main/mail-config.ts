@@ -2,12 +2,20 @@
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { MailConfig } from '../shared/mail'
+import {
+  mailSyncOptions,
+  type MailConfig,
+} from '../shared/mail'
 
 const schema = z
   .object({
     version: z.literal(1),
-    syncMinutes: z.number().int().min(0).max(1440),
+    syncMinutes: z
+      .number()
+      .int()
+      .refine((value) =>
+        (mailSyncOptions as readonly number[]).includes(value),
+      ),
     notify: z.boolean(),
     unreadBadge: z.boolean(),
     attachmentDir: z.string().min(1),
@@ -32,7 +40,11 @@ export async function loadMailConfig(
   try {
     const stored = schema.parse(JSON.parse(await readFile(path, 'utf8')))
     return {
-      syncMinutes: stored.syncMinutes,
+      syncMinutes: (mailSyncOptions as readonly number[]).includes(
+        stored.syncMinutes,
+      )
+        ? stored.syncMinutes
+        : 15,
       notify: stored.notify,
       unreadBadge: stored.unreadBadge,
       attachmentDir: stored.attachmentDir,

@@ -46,7 +46,7 @@ export const mailProviderHosts: Record<
   gmail: { host: 'imap.gmail.com', port: 993 },
 }
 
-export const mailSyncOptions = [0, 5, 15, 30, 60] as const
+export const mailSyncOptions = [5, 10, 15, 30, 45, 60] as const
 export const mailRetentionOptions = [30, 90, 180, 0] as const
 
 export type MailMessageSummary = {

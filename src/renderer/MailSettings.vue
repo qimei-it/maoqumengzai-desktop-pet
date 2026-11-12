@@ -57,10 +57,7 @@ const formSecret = ref('')
 const formName = ref('')
 const reauthorizeId = ref<string>()
 const wasBusy = ref(false)
-const manualSync = ref(false)
-const manualMinutes = ref(15)
 let lastMailError = ''
-const syncPresets = [0, 5, 15, 30, 60]
 
 function resetForm(): void {
   formProvider.value = 'qq'
@@ -131,7 +128,7 @@ function statusLabel(account: MailAccount): string {
 function syncOptions(): Array<{ value: number; label: string }> {
   return mailSyncOptions.map((value) => ({
     value,
-    label: value === 0 ? '手动' : `${value} 分钟`,
+    label: `${value} 分钟`,
   }))
 }
 function retentionOptions(): Array<{ value: number; label: string }> {
@@ -141,23 +138,9 @@ function retentionOptions(): Array<{ value: number; label: string }> {
   }))
 }
 function onSyncChange(event: Event): void {
-  const value = Number((event.target as HTMLSelectElement).value)
-  if (value === 0) {
-    manualSync.value = true
-    manualMinutes.value =
-      config.value.syncMinutes > 0 ? config.value.syncMinutes : 15
-    return
-  }
-  manualSync.value = false
-  updateConfig({ syncMinutes: value })
-}
-function applyManualSync(): void {
-  const value = Number(manualMinutes.value)
-  if (!Number.isInteger(value) || value < 1 || value > 1440) {
-    pushToast('同步间隔必须是 1–1440 的整数分钟。', 'error')
-    return
-  }
-  updateConfig({ syncMinutes: value })
+  updateConfig({
+    syncMinutes: Number((event.target as HTMLSelectElement).value),
+  })
 }
 function onRetentionChange(event: Event): void {
   updateConfig({
@@ -165,15 +148,6 @@ function onRetentionChange(event: Event): void {
   })
 }
 
-watch(
-  () => config.value.syncMinutes,
-  (value) => {
-    const preset = syncPresets.includes(value)
-    manualSync.value = !preset
-    if (!preset && value > 0) manualMinutes.value = value
-  },
-  { immediate: true },
-)
 watch(
   () => props.mail?.error,
   (value) => {
@@ -328,10 +302,9 @@ watch(
     <div class="mail-row">
       <span class="mail-label">同步间隔</span>
       <SelectField
-        :value="manualSync ? 0 : config.syncMinutes"
+        :value="config.syncMinutes"
         :disabled="busy"
-        :wide="!manualSync"
-        :min-width="manualSync ? '96px' : undefined"
+        wide
         @change="onSyncChange"
       >
         <option
@@ -342,21 +315,6 @@ watch(
           {{ option.label }}
         </option>
       </SelectField>
-      <template v-if="manualSync">
-        <input
-          v-model.number="manualMinutes"
-          class="mail-number"
-          type="number"
-          min="1"
-          max="1440"
-          step="1"
-          :disabled="busy"
-          aria-label="自定义同步间隔分钟"
-          @keydown.enter.prevent="applyManualSync"
-          @blur="applyManualSync"
-        />
-        <span class="mail-unit">分钟</span>
-      </template>
     </div>
     <div class="mail-row">
       <span class="mail-label">新邮件通知</span>
@@ -620,25 +578,6 @@ watch(
 .mail-submit:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-.mail-number {
-  width: 72px;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-}
-.mail-unit {
-  color: var(--color-muted);
-  font-size: var(--font-size-caption);
-}
-.mail-number:focus-visible {
-  outline: 2px solid var(--color-brand-ink);
-  outline-offset: 2px;
 }
 .mail-switch {
   position: relative;
