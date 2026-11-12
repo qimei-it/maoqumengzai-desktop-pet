@@ -144,6 +144,19 @@ import { buildConvertOutput } from './convert-preview'
 import { convertOffice } from './convert-office'
 import { convertPdfSecurity } from './convert-qpdf'
 import { qpdfBinaryPath } from './qpdf-bundle'
+import { MailDatabase } from './mail-db'
+import {
+  defaultMailConfig,
+  loadMailConfig,
+  saveMailConfig,
+} from './mail-config'
+import {
+  loadMailSecret,
+  removeMailSecret,
+  saveMailSecret,
+} from './mail-secrets'
+import { probeMailAccount } from './mail-sync'
+import type { MailConfig, MailProvider, MailState } from '../shared/mail'
 import { convertDocumentToPdf } from './convert-document'
 import { ofdToImages, ofdToPdf } from './convert-ofd'
 import { csvToXlsx } from './convert-spreadsheet'
@@ -242,6 +255,12 @@ let libreOfficeReady = false
 let libreOfficeVersion: string | undefined
 let libreOfficeError: string | undefined
 let builtinHealth: Record<string, BuiltinEngineHealth> = {}
+let mailDb: MailDatabase | undefined
+let mailConfig: MailConfig = defaultMailConfig(app.getPath('downloads'))
+let mailBusy = false
+let mailSyncing = false
+let mailError: string | undefined
+let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let ffmpegInstalling = false
 let ffmpegProgress = 0
 let ffmpegError: string | undefined
@@ -361,6 +380,9 @@ const settingsPath = join(dataRoot, 'mqmz.settings.json')
 const focusPath = join(dataRoot, 'mqmz.focus.json')
 const clipboardPath = join(dataRoot, 'mqmz.clipboard.json')
 const enginePrefsPath = join(dataRoot, 'mqmz.engines.json')
+const mailDbPath = join(dataRoot, 'mqmz.mail.db')
+const mailConfigPath = join(dataRoot, 'mqmz.mail.json')
+const mailSecretsPath = join(dataRoot, 'mqmz.mail.secrets.json')
 const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 let shelfQueue = Promise.resolve()
@@ -460,6 +482,7 @@ function snapshot(): Snapshot {
       libreoffice: libreOfficeState(),
       builtin: builtinHealth,
     },
+    mail: mailState(),
     focus: {
       phase: focusData.phase,
       running: focusData.running,
@@ -2165,6 +2188,172 @@ async function chooseLocalLibreOffice(): Promise<void> {
   showToast('已使用本地 LibreOffice')
 }
 
+function mailState(): MailState {
+  return {
+    accounts: mailDb?.listAccounts() ?? [],
+    config: mailConfig,
+    busy: mailBusy,
+    ...(mailError ? { error: mailError } : {}),
+  }
+}
+function scheduleMailSync(): void {
+  if (mailSyncTimer) clearInterval(mailSyncTimer)
+  mailSyncTimer = undefined
+  if (mailConfig.syncMinutes <= 0) return
+  mailSyncTimer = setInterval(() => {
+    void syncAllMail(true)
+  }, mailConfig.syncMinutes * 60_000)
+}
+function notifyMail(account: { email: string; displayName?: string }, unread: number): void {
+  if (!mailConfig.notify || !Notification.isSupported()) return
+  new Notification({
+    title: '新邮件',
+    body: `${account.displayName || account.email} 有 ${unread} 封未读`,
+  }).show()
+}
+async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
+  mailConfig = { ...mailConfig, ...patch }
+  await saveMailConfig(mailConfigPath, mailConfig)
+  scheduleMailSync()
+  broadcast()
+}
+async function addMailAccount(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  displayName?: string,
+): Promise<void> {
+  if (!mailDb) throw new Error('邮件数据库尚未就绪。')
+  if (mailBusy) throw new Error('正在处理邮件账户，请稍候。')
+  mailBusy = true
+  mailError = undefined
+  broadcast()
+  let accountId: string | undefined
+  try {
+    const probe = await probeMailAccount(provider, email, secret)
+    const account = mailDb.addAccount({ provider, email, displayName })
+    accountId = account.id
+    await saveMailSecret(mailSecretsPath, account.id, secret)
+    mailDb.updateAccount(account.id, {
+      status: 'ready',
+      unread: probe.unread,
+      lastSyncAt: Date.now(),
+      error: null,
+    })
+    addEvent(`邮件账户 ${email} 已添加。`)
+    showToast('邮箱账户已添加')
+  } catch (error) {
+    if (accountId) {
+      mailDb.removeAccount(accountId)
+      await removeMailSecret(mailSecretsPath, accountId).catch(() => {})
+    }
+    mailError = error instanceof Error ? error.message : '邮箱账户添加失败。'
+    throw new Error(mailError)
+  } finally {
+    mailBusy = false
+    broadcast()
+  }
+}
+async function reauthorizeMail(accountId: string, secret: string): Promise<void> {
+  if (!mailDb) throw new Error('邮件数据库尚未就绪。')
+  const account = mailDb.account(accountId)
+  if (!account) throw new Error('邮箱账户不存在。')
+  if (mailBusy) throw new Error('正在处理邮件账户，请稍候。')
+  mailBusy = true
+  mailError = undefined
+  broadcast()
+  try {
+    const probe = await probeMailAccount(account.provider, account.email, secret)
+    await saveMailSecret(mailSecretsPath, account.id, secret)
+    mailDb.updateAccount(account.id, {
+      status: 'ready',
+      unread: probe.unread,
+      lastSyncAt: Date.now(),
+      error: null,
+    })
+    showToast('邮箱授权已更新')
+  } catch (error) {
+    mailError = error instanceof Error ? error.message : '邮箱授权更新失败。'
+    throw new Error(mailError)
+  } finally {
+    mailBusy = false
+    broadcast()
+  }
+}
+async function removeMailAccount(accountId: string): Promise<void> {
+  if (!mailDb) return
+  mailDb.removeAccount(accountId)
+  await removeMailSecret(mailSecretsPath, accountId).catch(() => {})
+  mailError = undefined
+  broadcast()
+  showToast('邮箱账户已删除')
+}
+async function syncMailAccount(
+  accountId: string,
+  silent = false,
+): Promise<void> {
+  if (!mailDb) return
+  const account = mailDb.account(accountId)
+  if (!account) {
+    if (!silent) throw new Error('邮箱账户不存在。')
+    return
+  }
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) {
+    mailDb.updateAccount(accountId, {
+      status: 'error',
+      error: '授权已失效，请重新授权。',
+    })
+    if (!silent) throw new Error('授权已失效，请重新授权。')
+    return
+  }
+  mailBusy = true
+  broadcast()
+  try {
+    const probe = await probeMailAccount(account.provider, account.email, secret)
+    mailDb.updateAccount(accountId, {
+      status: 'ready',
+      unread: probe.unread,
+      lastSyncAt: Date.now(),
+      error: null,
+    })
+    if (probe.unread > account.unread) notifyMail(account, probe.unread)
+    mailError = undefined
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : '邮箱同步失败，请稍后重试。'
+    mailDb.updateAccount(accountId, { status: 'error', error: message })
+    if (!silent) throw new Error(message)
+  } finally {
+    mailBusy = false
+    broadcast()
+  }
+}
+async function syncAllMail(silent = false): Promise<void> {
+  if (!mailDb || mailSyncing) return
+  mailSyncing = true
+  try {
+    for (const account of mailDb.listAccounts())
+      await syncMailAccount(account.id, silent)
+  } finally {
+    mailSyncing = false
+  }
+}
+async function chooseMailAttachmentDir(): Promise<void> {
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择邮件附件保存目录',
+    properties: ['openDirectory', 'createDirectory'],
+  })
+  const path = result.filePaths[0]
+  if (result.canceled || !path) return
+  await updateMailConfig({ attachmentDir: path })
+  showToast('附件保存目录已更新')
+}
+async function openMailAttachmentDir(): Promise<void> {
+  await mkdir(mailConfig.attachmentDir, { recursive: true })
+  const error = await shell.openPath(mailConfig.attachmentDir)
+  if (error) throw new Error('无法打开附件保存目录。')
+}
 async function cleanConversionTemp(): Promise<void> {
   try {
     const entries = await readdir(tmpdir())
@@ -5082,6 +5271,13 @@ function setupIpc(): void {
       'engine-use-local',
       'engine-remove',
       'engine-self-check',
+      'mail-add-account',
+      'mail-reauthorize',
+      'mail-remove-account',
+      'mail-sync',
+      'mail-update-config',
+      'mail-choose-attachment-dir',
+      'mail-open-attachment-dir',
       'todo-open',
       'todo-close',
       'focus-start',
@@ -5420,6 +5616,33 @@ function setupIpc(): void {
             ? '内置引擎正常'
             : '有内置引擎不可用',
         )
+        break
+      case 'mail-add-account':
+        await addMailAccount(
+          command.provider,
+          command.email,
+          command.secret,
+          command.displayName,
+        )
+        break
+      case 'mail-reauthorize':
+        await reauthorizeMail(command.accountId, command.secret)
+        break
+      case 'mail-remove-account':
+        await removeMailAccount(command.accountId)
+        break
+      case 'mail-sync':
+        if (command.accountId) await syncMailAccount(command.accountId)
+        else await syncAllMail()
+        break
+      case 'mail-update-config':
+        await updateMailConfig(command.patch)
+        break
+      case 'mail-choose-attachment-dir':
+        await chooseMailAttachmentDir()
+        break
+      case 'mail-open-attachment-dir':
+        await openMailAttachmentDir()
         break
       case 'todo-open':
         openTodo()
@@ -6603,6 +6826,15 @@ else {
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
       await refreshLibreOfficeState()
       builtinHealth = await checkBuiltinEngines(true)
+      mailDb = new MailDatabase(mailDbPath)
+      mailConfig = await loadMailConfig(
+        mailConfigPath,
+        app.getPath('downloads'),
+      )
+      scheduleMailSync()
+      setTimeout(() => {
+        void syncAllMail(true)
+      }, 4000)
       pruneClipboard()
       await saveClipboardFile(clipboardPath, clipboardData)
       await initClipboardWatch()

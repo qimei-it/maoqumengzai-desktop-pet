@@ -33,6 +33,7 @@
     "easyofd": "^1.2.1",
     "fflate": "^0.8.2",
     "heic-decode": "^2.1.0",
+    "imapflow": "^2.11.0",
     "marked": "^18.2.0",
     "node-unrar-js": "^2.0.2",
     "opencc-js": "^1.4.2",

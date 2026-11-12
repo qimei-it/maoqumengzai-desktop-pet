@@ -18,6 +18,7 @@ import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
 import ClipboardSettings from './ClipboardSettings.vue'
 import catBase from './assets/pet/ragdoll/base.png'
 import MusicBarPreview from './MusicBarPreview.vue'
+import MailSettings from './MailSettings.vue'
 import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
@@ -687,11 +688,10 @@ function close(): void {
           </template>
 
           <template v-else-if="section === 'mail'">
-            <h3 class="settings-group-title">邮件客户端</h3>
-            <div class="settings-row settings-row-last">
-              <span class="settings-label">邮箱账户</span>
-              <span class="settings-value">未配置</span>
-            </div>
+            <MailSettings
+              :mail="state?.mail"
+              @command="emit('command', $event)"
+            />
           </template>
 
           <template v-else-if="section === 'music'">

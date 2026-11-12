@@ -1,10 +1,12 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
+import type { MailConfig, MailProvider, MailState } from './mail'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
+export type { MailAccount, MailConfig, MailProvider, MailState } from './mail'
 
 export const channels = {
   snapshot: 'mqmz:prototype:snapshot',
@@ -319,6 +321,7 @@ export type Snapshot = {
   settingsOpen: boolean
   settings: SettingsState
   settingsSection: SettingsSection
+  mail: MailState
   pomodoroOpen: boolean
   waterOpen: boolean
   breakOpen: boolean
@@ -447,6 +450,19 @@ export type Command =
   | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-remove'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-self-check' }
+  | {
+      type: 'mail-add-account'
+      provider: MailProvider
+      email: string
+      secret: string
+      displayName?: string
+    }
+  | { type: 'mail-reauthorize'; accountId: string; secret: string }
+  | { type: 'mail-remove-account'; accountId: string }
+  | { type: 'mail-sync'; accountId?: string }
+  | { type: 'mail-update-config'; patch: Partial<MailConfig> }
+  | { type: 'mail-choose-attachment-dir' }
+  | { type: 'mail-open-attachment-dir' }
   | { type: 'break-toggle'; kind: BreakKind; enabled: boolean }
   | { type: 'break-interval'; kind: BreakKind; minutes: number }
   | { type: 'break-snooze'; kind: BreakKind; minutes?: number }

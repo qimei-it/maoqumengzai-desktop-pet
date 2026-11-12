@@ -568,12 +568,12 @@ export type HoverAction = (typeof hoverActions)[number]
 
 export const hoverLabels: Record<HoverAction, readonly string[]> = {
   agent: ['智能体'],
-  profile: ['宠物档案'],
+  profile: ['宠物', '档案'],
   clipboard: ['剪贴板'],
-  todo: ['待办清单'],
-  break: ['休息提醒'],
-  water: ['喝水提醒'],
-  focus: ['番茄时钟'],
+  todo: ['待办', '清单'],
+  break: ['休息', '提醒'],
+  water: ['喝水', '提醒'],
+  focus: ['番茄', '时钟'],
   shelf: ['置物架'],
   mail: ['邮件'],
   blank: [],

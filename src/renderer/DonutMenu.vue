@@ -100,21 +100,45 @@ const wedges = computed(() => {
     }
     const charStep = (charWidth * 1.12) / Math.max(1, m.mid)
     const glyphs = props.singleLine
-      ? chars.map((char, charIndex) => {
-          const delta = (charIndex - (chars.length - 1) / 2) * charStep
-          const theta = flipped ? mid - delta : mid + delta
-          const position = pointAt(m.mid, theta)
-          return {
-            char,
-            x: position.x,
-            y: position.y,
-            rotate:
-              fixed ??
-              normalizeDegrees(
-                (theta * 180) / Math.PI + (flipped ? 180 : 0),
-              ),
-          }
-        })
+      ? columns.length > 1
+        ? columns.flatMap((row, rowIndex) => {
+            const rowChars = Array.from(row)
+            const rowGap = lineHeight
+            const radial =
+              m.mid +
+              (flipped ? rowIndex - 0.5 : 0.5 - rowIndex) * rowGap
+            return rowChars.map((char, charIndex) => {
+              const delta =
+                (charIndex - (rowChars.length - 1) / 2) * charStep
+              const theta = flipped ? mid - delta : mid + delta
+              const position = pointAt(radial, theta)
+              return {
+                char,
+                x: position.x,
+                y: position.y,
+                rotate:
+                  fixed ??
+                  normalizeDegrees(
+                    (theta * 180) / Math.PI + (flipped ? 180 : 0),
+                  ),
+              }
+            })
+          })
+        : chars.map((char, charIndex) => {
+            const delta = (charIndex - (chars.length - 1) / 2) * charStep
+            const theta = flipped ? mid - delta : mid + delta
+            const position = pointAt(m.mid, theta)
+            return {
+              char,
+              x: position.x,
+              y: position.y,
+              rotate:
+                fixed ??
+                normalizeDegrees(
+                  (theta * 180) / Math.PI + (flipped ? 180 : 0),
+                ),
+            }
+          })
       : columns.length === 1
         ? Array.from(columns[0]).map((char, charIndex) => ({
             char,

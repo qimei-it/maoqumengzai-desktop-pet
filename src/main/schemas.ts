@@ -384,6 +384,50 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('engine-self-check') }).strict(),
   z
     .object({
+      type: z.literal('mail-add-account'),
+      provider: z.enum(['qq', '163', 'gmail']),
+      email: z.string().email().max(254),
+      secret: z.string().min(1).max(512),
+      displayName: z.string().trim().max(40).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-reauthorize'),
+      accountId: z.string().uuid(),
+      secret: z.string().min(1).max(512),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-remove-account'),
+      accountId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-sync'),
+      accountId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-update-config'),
+      patch: z
+        .object({
+          syncMinutes: z.number().int().min(0).max(1440).optional(),
+          notify: z.boolean().optional(),
+          unreadBadge: z.boolean().optional(),
+          attachmentDir: z.string().max(1024).optional(),
+          retentionDays: z.number().int().min(0).max(3650).optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ type: z.literal('mail-choose-attachment-dir') }).strict(),
+  z.object({ type: z.literal('mail-open-attachment-dir') }).strict(),
+  z
+    .object({
       type: z.literal('clipboard-config'),
       patch: z
         .object({
