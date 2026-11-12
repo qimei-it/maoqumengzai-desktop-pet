@@ -2365,11 +2365,18 @@ async function ensureMailDetail(
 async function selectMail(uid: number): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
-  mailPanelLoading = true
-  broadcast()
+  const before = mailDb.message(accountId, 'INBOX', uid)
+  const cached = Boolean(
+    before?.bodyText || before?.bodyHtml || before?.attachments.length,
+  )
+  if (!cached) {
+    mailPanelLoading = true
+    broadcast()
+  }
   try {
-    const before = mailDb.message(accountId, 'INBOX', uid)
-    const detail = await ensureMailDetail(accountId, uid)
+    const detail = cached
+      ? before
+      : await ensureMailDetail(accountId, uid)
     if (!detail) throw new Error('邮件不存在。')
     if (before?.unread) {
       mailDb.setUnread(accountId, 'INBOX', uid, false)
@@ -2391,7 +2398,7 @@ async function selectMail(uid: number): Promise<void> {
       error instanceof Error ? error.message : '无法读取邮件。'
     mailPanelErrorKind = 'detail'
   } finally {
-    mailPanelLoading = false
+    if (!cached) mailPanelLoading = false
     broadcast()
   }
 }

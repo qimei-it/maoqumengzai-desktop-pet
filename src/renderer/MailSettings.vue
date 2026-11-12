@@ -193,7 +193,10 @@ watch(
 <template>
   <div class="mail-settings">
     <div class="mail-account-block">
-      <div class="mail-row mail-account-head">
+      <div
+        class="mail-row mail-account-head"
+        :class="{ compact: formOpen }"
+      >
         <span class="mail-label">邮箱账户</span>
         <button
           v-if="!formOpen"
@@ -439,6 +442,9 @@ watch(
 .mail-account-head {
   border-bottom: 0;
 }
+.mail-account-head.compact {
+  min-height: 0;
+}
 .mail-label {
   flex: none;
   color: var(--color-ink);
@@ -524,7 +530,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 0 14px;
+  padding: 10px 0 14px;
 }
 .mail-provider-track {
   position: relative;

@@ -180,7 +180,7 @@ watch(
               </button>
             </div>
           </div>
-          <div v-if="panel?.loading" class="mail-empty">正在同步</div>
+          <div v-if="panel?.loading" class="mail-empty">正在读取邮件…</div>
           <button
             v-for="message in messages"
             :key="message.uid"
