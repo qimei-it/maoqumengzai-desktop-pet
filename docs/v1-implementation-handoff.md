@@ -305,7 +305,7 @@
 - [x] 引擎来源、版本、校验、平台差异与许可材料已记录；内置引擎随包自检并在打包应用断网首用通过；可选引擎支持安装/选择与卸载清理，Windows/Intel 按用户要求暂缓。
 - [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows/Intel 按用户要求暂缓。
 - [x] 缺引擎、组件损坏、不支持、损坏文件、加密 PDF、权限不足、磁盘不足、密码错误与取消均有独立反馈；批量部分失败保留成功结果。
-- 当前证据（2026-11-12）：126 项单元测试、完整 Electron 套件 41 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。
+- 当前证据（2026-11-12）：127 项单元测试、完整 Electron 套件 41 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
 
 ### P6：宠物档案与账号（交友延后）
 

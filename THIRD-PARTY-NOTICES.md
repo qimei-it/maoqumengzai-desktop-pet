@@ -23,6 +23,7 @@
 | sharp | Apache-2.0 | https://github.com/lovell/sharp |
 | libvips（sharp 预编译包） | LGPL-3.0 及组件各自许可 | https://github.com/libvips/libvips |
 | pdf-lib | MIT | https://github.com/Hopding/pdf-lib |
+| qpdf | Apache-2.0 | https://github.com/qpdf/qpdf |
 | fflate | MIT | https://github.com/101arrowz/fflate |
 | pdf-to-img | MIT | https://github.com/k-yle/pdf-to-img |
 | pdfjs-dist（PDF.js） | Apache-2.0 | https://github.com/mozilla/pdf.js |
@@ -41,15 +42,14 @@ Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原�
 
 ## 可选本地引擎
 
-以下程序不随安装包分发，由用户在设置中选择本机安装或手动下载；应用只保存路径或应用数据目录内的引擎文件，卸载时清除对应选择与临时文件，不删除系统安装。
+可选引擎不随安装包分发，由用户在设置中选择本机安装或手动下载；应用只保存路径或应用数据目录内的引擎文件，卸载时清除对应选择与临时文件，不删除系统安装。qpdf 作为内置引擎随安装包分发，源码与许可见 `resources/engines/qpdf/SOURCE.txt`。
 
 | 组件 | 许可 | 来源 | 说明 |
 | --- | --- | --- | --- |
 | LibreOffice | MPL-2.0 | https://www.libreoffice.org/ | 用户选择本地 `soffice`；许可证原文：`resources/licenses/libreoffice-MPL-2.0.txt` |
-| qpdf | Apache-2.0 | https://qpdf.readthedocs.io/ | 用户选择本地 `qpdf`；用于 PDF 加密与解除密码；许可证原文：`resources/licenses/qpdf-Apache-2.0.txt` |
-| FFmpeg | GPL-3.0 / nonfree 构建 | https://ffmpeg.org/ | 由用户手动下载；许可证原文：`resources/licenses/ffmpeg-GPL-3.0.txt` |
+| FFmpeg | LGPL-3.0 | https://ffmpeg.org/ | AgentDVR LGPL v3 构建（FFmpeg 9.0.2）；许可证与源码说明：`resources/licenses/ffmpeg-LGPL-3.0.txt`、`resources/licenses/ffmpeg-SOURCE.txt` |
 
-FFmpeg 当前可选源为 npmmirror 镜像的 `ffmpeg-static` b6.1.1 静态构建（macOS arm64/x64、Windows x64），安装前校验固定 SHA-256。该构建的配置包含 `--enable-gpl --enable-nonfree`；正式发行前需替换为可再分发构建或单独确认许可，并向用户展示对应 FFmpeg 许可证。
+FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64/x64、Windows x64），安装前校验固定 SHA-256。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录安装，保持可替换性。上游源码与构建来源见 `resources/licenses/ffmpeg-SOURCE.txt`。
 
 ## Artwork
 
