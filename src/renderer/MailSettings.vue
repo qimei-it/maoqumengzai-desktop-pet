@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-  FolderOpen,
   KeyRound,
   RefreshCw,
   Trash2,
@@ -22,6 +21,7 @@ import qqIcon from './assets/mail/qq.svg'
 import mail163Icon from './assets/mail/163.svg'
 import gmailIcon from './assets/mail/gmail.svg'
 import SelectField from './SelectField.vue'
+import { pushToast } from './toasts'
 
 const props = defineProps<{ mail?: MailState }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -56,8 +56,11 @@ const formEmail = ref('')
 const formSecret = ref('')
 const formName = ref('')
 const reauthorizeId = ref<string>()
-const formError = ref('')
 const wasBusy = ref(false)
+const manualSync = ref(false)
+const manualMinutes = ref(15)
+let lastMailError = ''
+const syncPresets = [0, 5, 15, 30, 60]
 
 function resetForm(): void {
   formProvider.value = 'qq'
@@ -65,7 +68,6 @@ function resetForm(): void {
   formSecret.value = ''
   formName.value = ''
   reauthorizeId.value = undefined
-  formError.value = ''
 }
 function openAdd(): void {
   resetForm()
@@ -83,13 +85,11 @@ function closeForm(): void {
   formOpen.value = false
   formSecret.value = ''
   formName.value = ''
-  formError.value = ''
   reauthorizeId.value = undefined
 }
 function submit(): void {
-  formError.value = ''
   if (!formEmail.value.trim() || !formSecret.value) {
-    formError.value = '请填写邮箱地址和授权码。'
+    pushToast('请填写邮箱地址和授权码。', 'error')
     return
   }
   const secret = formSecret.value.replace(/\s+/g, '')
@@ -141,7 +141,23 @@ function retentionOptions(): Array<{ value: number; label: string }> {
   }))
 }
 function onSyncChange(event: Event): void {
-  updateConfig({ syncMinutes: Number((event.target as HTMLSelectElement).value) })
+  const value = Number((event.target as HTMLSelectElement).value)
+  if (value === 0) {
+    manualSync.value = true
+    manualMinutes.value =
+      config.value.syncMinutes > 0 ? config.value.syncMinutes : 15
+    return
+  }
+  manualSync.value = false
+  updateConfig({ syncMinutes: value })
+}
+function applyManualSync(): void {
+  const value = Number(manualMinutes.value)
+  if (!Number.isInteger(value) || value < 1 || value > 1440) {
+    pushToast('同步间隔必须是 1–1440 的整数分钟。', 'error')
+    return
+  }
+  updateConfig({ syncMinutes: value })
 }
 function onRetentionChange(event: Event): void {
   updateConfig({
@@ -150,10 +166,28 @@ function onRetentionChange(event: Event): void {
 }
 
 watch(
+  () => config.value.syncMinutes,
+  (value) => {
+    const preset = syncPresets.includes(value)
+    manualSync.value = !preset
+    if (!preset && value > 0) manualMinutes.value = value
+  },
+  { immediate: true },
+)
+watch(
+  () => props.mail?.error,
+  (value) => {
+    if (value && value !== lastMailError) pushToast(value, 'error')
+    lastMailError = value ?? ''
+  },
+)
+watch(
   () => props.mail?.busy,
   (value) => {
-    if (wasBusy.value && !value && formOpen.value && !props.mail?.error)
+    if (wasBusy.value && !value && formOpen.value && !props.mail?.error) {
       closeForm()
+      pushToast('邮箱账户已保存。', 'success')
+    }
     wasBusy.value = Boolean(value)
   },
 )
@@ -272,9 +306,6 @@ watch(
           placeholder="可选"
         />
       </label>
-      <p v-if="formError || mail?.error" class="mail-error" role="alert">
-        {{ formError || mail?.error }}
-      </p>
       <div class="mail-form-actions">
         <button
           type="button"
@@ -297,9 +328,10 @@ watch(
     <div class="mail-row">
       <span class="mail-label">同步间隔</span>
       <SelectField
-        :value="config.syncMinutes"
+        :value="manualSync ? 0 : config.syncMinutes"
         :disabled="busy"
-        wide
+        :wide="!manualSync"
+        :min-width="manualSync ? '96px' : undefined"
         @change="onSyncChange"
       >
         <option
@@ -310,6 +342,21 @@ watch(
           {{ option.label }}
         </option>
       </SelectField>
+      <template v-if="manualSync">
+        <input
+          v-model.number="manualMinutes"
+          class="mail-number"
+          type="number"
+          min="1"
+          max="1440"
+          step="1"
+          :disabled="busy"
+          aria-label="自定义同步间隔分钟"
+          @keydown.enter.prevent="applyManualSync"
+          @blur="applyManualSync"
+        />
+        <span class="mail-unit">分钟</span>
+      </template>
     </div>
     <div class="mail-row">
       <span class="mail-label">新邮件通知</span>
@@ -340,14 +387,8 @@ watch(
       <span class="mail-path" :title="config.attachmentDir">
         {{ config.attachmentDir }}
       </span>
-      <button
-        type="button"
-        class="mail-icon-action"
-        aria-label="打开附件保存目录"
-        title="打开目录"
-        @click="openAttachmentDir"
-      >
-        <FolderOpen :size="14" :stroke-width="2" aria-hidden="true" />
+      <button type="button" class="mail-action" @click="openAttachmentDir">
+        打开
       </button>
       <button type="button" class="mail-action" @click="chooseAttachmentDir">
         选择
@@ -580,10 +621,24 @@ watch(
   cursor: not-allowed;
   opacity: 0.45;
 }
-.mail-error {
-  margin: 0;
-  color: var(--color-danger);
+.mail-number {
+  width: 72px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.mail-unit {
+  color: var(--color-muted);
   font-size: var(--font-size-caption);
+}
+.mail-number:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
 }
 .mail-switch {
   position: relative;

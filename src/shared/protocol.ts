@@ -1,12 +1,21 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
-import type { MailConfig, MailProvider, MailState } from './mail'
+import type { MailConfig, MailPanelState, MailProvider, MailState } from './mail'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
-export type { MailAccount, MailConfig, MailProvider, MailState } from './mail'
+export type {
+  MailAccount,
+  MailAttachmentInfo,
+  MailConfig,
+  MailMessageDetail,
+  MailMessageSummary,
+  MailPanelState,
+  MailProvider,
+  MailState,
+} from './mail'
 
 export const channels = {
   snapshot: 'mqmz:prototype:snapshot',
@@ -322,6 +331,7 @@ export type Snapshot = {
   settings: SettingsState
   settingsSection: SettingsSection
   mail: MailState
+  mailPanel: MailPanelState
   pomodoroOpen: boolean
   waterOpen: boolean
   breakOpen: boolean
@@ -463,6 +473,16 @@ export type Command =
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
   | { type: 'mail-choose-attachment-dir' }
   | { type: 'mail-open-attachment-dir' }
+  | { type: 'mail-open'; accountId?: string }
+  | { type: 'mail-close' }
+  | { type: 'mail-refresh' }
+  | { type: 'mail-select'; uid: number }
+  | {
+      type: 'mail-save-attachment'
+      uid: number
+      part: string
+      open?: boolean
+    }
   | { type: 'break-toggle'; kind: BreakKind; enabled: boolean }
   | { type: 'break-interval'; kind: BreakKind; minutes: number }
   | { type: 'break-snooze'; kind: BreakKind; minutes?: number }

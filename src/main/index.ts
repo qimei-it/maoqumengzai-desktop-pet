@@ -155,8 +155,20 @@ import {
   removeMailSecret,
   saveMailSecret,
 } from './mail-secrets'
-import { probeMailAccount } from './mail-sync'
-import type { MailConfig, MailProvider, MailState } from '../shared/mail'
+import {
+  fetchMailDetail,
+  probeMailAccount,
+  syncMailInbox,
+} from './mail-sync'
+import type {
+  MailConfig,
+  MailMessageDetail,
+  MailMessageSummary,
+  MailPanelState,
+  MailProvider,
+  MailState,
+} from '../shared/mail'
+import { writeExclusive } from './write-output'
 import { convertDocumentToPdf } from './convert-document'
 import { ofdToImages, ofdToPdf } from './convert-ofd'
 import { csvToXlsx } from './convert-spreadsheet'
@@ -261,6 +273,14 @@ let mailBusy = false
 let mailSyncing = false
 let mailError: string | undefined
 let mailSyncTimer: ReturnType<typeof setInterval> | undefined
+let mailWindow: BrowserWindow | undefined
+let mailPanelAccountId: string | undefined
+let mailPanelLoading = false
+let mailPanelError: string | undefined
+let mailPanelNotice: string | undefined
+let mailPanelNoticeId = 0
+let mailPanelMessages: MailMessageSummary[] = []
+let mailPanelSelected: MailMessageDetail | undefined
 let ffmpegInstalling = false
 let ffmpegProgress = 0
 let ffmpegError: string | undefined
@@ -483,6 +503,7 @@ function snapshot(): Snapshot {
       builtin: builtinHealth,
     },
     mail: mailState(),
+    mailPanel: mailPanelState(),
     focus: {
       phase: focusData.phase,
       running: focusData.running,
@@ -544,6 +565,7 @@ function broadcast(): void {
       convertWindow,
       renameWindow,
       settingsWindow,
+      mailWindow,
       pomodoroWindow,
       waterWindow,
       breakWindow,
@@ -2190,6 +2212,196 @@ async function chooseLocalLibreOffice(): Promise<void> {
   showToast('已使用本地 LibreOffice')
 }
 
+function mailPanelState(): MailPanelState {
+  return {
+    open: windowVisible(mailWindow),
+    ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
+    loading: mailPanelLoading,
+    messages: mailPanelMessages,
+    ...(mailPanelSelected ? { selected: mailPanelSelected } : {}),
+    ...(mailPanelError ? { error: mailPanelError } : {}),
+    ...(mailPanelNotice ? { notice: mailPanelNotice } : {}),
+    ...(mailPanelNoticeId ? { noticeId: mailPanelNoticeId } : {}),
+  }
+}
+function loadMailMessages(accountId: string): void {
+  if (!mailDb) return
+  mailPanelMessages = mailDb.listMessages(accountId, 'INBOX', 50)
+}
+function positionMail(): void {
+  if (!mailWindow || mailWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 980
+  const height = 680
+  const x = a.x + Math.round((a.width - width) / 2)
+  const y = a.y + Math.round((a.height - height) / 2)
+  mailWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+async function openMail(accountId?: string): Promise<void> {
+  if (!mailDb) return
+  const accounts = mailDb.listAccounts()
+  if (!accounts.length) {
+    settingsSection = 'mail'
+    openSettings()
+    showToast('请先添加邮箱账户')
+    return
+  }
+  const account =
+    accounts.find((item) => item.id === accountId) ?? accounts[0]
+  mailPanelAccountId = account.id
+  mailPanelSelected = undefined
+  mailPanelError = undefined
+  mailPanelNotice = undefined
+  loadMailMessages(account.id)
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  hidePocket()
+  if (mailWindow && !mailWindow.isDestroyed()) {
+    positionMail()
+    if (process.platform === 'darwin' || mailWindow.isMinimized())
+      mailWindow.restore()
+    mailWindow.show()
+    mailWindow.moveTop()
+    mailWindow.focus()
+  }
+  broadcast()
+  void refreshMailPanel()
+}
+function closeMail(): void {
+  mailWindow?.hide()
+  broadcast()
+}
+async function refreshMailPanel(): Promise<void> {
+  if (!mailPanelAccountId || !mailDb) return
+  const accountId = mailPanelAccountId
+  mailPanelLoading = true
+  mailPanelError = undefined
+  broadcast()
+  try {
+    await syncMailAccount(accountId, true)
+    loadMailMessages(accountId)
+    const account = mailDb.account(accountId)
+    if (account?.status === 'error') mailPanelError = account.error
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '邮件同步失败。'
+  } finally {
+    mailPanelLoading = false
+    broadcast()
+  }
+}
+async function ensureMailDetail(
+  accountId: string,
+  uid: number,
+): Promise<MailMessageDetail | undefined> {
+  if (!mailDb) return undefined
+  const cached = mailDb.message(accountId, 'INBOX', uid)
+  if (cached?.bodyText || cached?.bodyHtml || cached?.attachments.length)
+    return cached
+  const account = mailDb.account(accountId)
+  if (!account) throw new Error('邮箱账户不存在。')
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) throw new Error('授权已失效，请重新授权。')
+  const detail = await fetchMailDetail(
+    account.provider,
+    account.email,
+    secret,
+    uid,
+  )
+  const folder = join(
+    dataRoot,
+    'mail-cache',
+    accountId,
+    'INBOX',
+    String(uid),
+  )
+  await mkdir(folder, { recursive: true, mode: 0o700 })
+  const attachments = []
+  for (const [index, attachment] of detail.attachments.entries()) {
+    const safe = basename(attachment.filename)
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .trim()
+    const filename = safe || `attachment-${index + 1}`
+    const localPath = join(folder, `${index + 1}-${filename}`)
+    await writeFile(localPath, attachment.data, { mode: 0o600 })
+    attachments.push({
+      part: attachment.part,
+      filename,
+      size: attachment.size,
+      ...(attachment.mime ? { mime: attachment.mime } : {}),
+      localPath,
+    })
+  }
+  mailDb.saveMessageDetail(accountId, 'INBOX', uid, {
+    ...(detail.bodyText ? { bodyText: detail.bodyText } : {}),
+    ...(detail.bodyHtml ? { bodyHtml: detail.bodyHtml } : {}),
+    ...(detail.snippet ? { snippet: detail.snippet } : {}),
+    ...(detail.code ? { code: detail.code } : {}),
+    attachments,
+  })
+  return mailDb.message(accountId, 'INBOX', uid)
+}
+async function selectMail(uid: number): Promise<void> {
+  if (!mailPanelAccountId || !mailDb) return
+  const accountId = mailPanelAccountId
+  mailPanelLoading = true
+  mailPanelError = undefined
+  broadcast()
+  try {
+    const before = mailDb.message(accountId, 'INBOX', uid)
+    const detail = await ensureMailDetail(accountId, uid)
+    if (!detail) throw new Error('邮件不存在。')
+    if (before?.unread) {
+      mailDb.setUnread(accountId, 'INBOX', uid, false)
+      const account = mailDb.account(accountId)
+      if (account)
+        mailDb.updateAccount(accountId, {
+          unread: Math.max(0, account.unread - 1),
+        })
+    }
+    mailPanelSelected = detail
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '无法读取邮件。'
+  } finally {
+    mailPanelLoading = false
+    broadcast()
+  }
+}
+async function saveMailAttachment(
+  uid: number,
+  part: string,
+  openAfterSave: boolean,
+): Promise<void> {
+  if (!mailPanelAccountId || !mailDb) return
+  const accountId = mailPanelAccountId
+  let attachment = mailDb.attachment(accountId, 'INBOX', uid, part)
+  if (!attachment?.localPath) {
+    await selectMail(uid)
+    attachment = mailDb.attachment(accountId, 'INBOX', uid, part)
+  }
+  if (!attachment?.localPath) throw new Error('附件内容尚未缓存。')
+  const bytes = await readFile(attachment.localPath)
+  const saved = await writeExclusive(
+    mailConfig.attachmentDir,
+    (attempt) => {
+      const extension = extname(attachment!.filename)
+      const stem = basename(attachment!.filename, extension)
+      return `${stem}${attempt === 1 ? '' : ` (${attempt})`}${extension}`
+    },
+    bytes,
+  )
+  mailPanelNotice = `已保存到 ${saved}`
+  mailPanelNoticeId += 1
+  if (openAfterSave) {
+    const error = await shell.openPath(saved)
+    if (error) throw new Error('已保存，但无法打开附件。')
+  }
+  broadcast()
+}
 function mailState(): MailState {
   return {
     accounts: mailDb?.listAccounts() ?? [],
@@ -2312,13 +2524,15 @@ async function syncMailAccount(
   mailBusy = true
   broadcast()
   try {
-    const probe = await probeMailAccount(account.provider, account.email, secret)
+    const probe = await syncMailInbox(account.provider, account.email, secret)
+    mailDb.upsertMessages(accountId, 'INBOX', probe.messages)
     mailDb.updateAccount(accountId, {
       status: 'ready',
       unread: probe.unread,
       lastSyncAt: Date.now(),
       error: null,
     })
+    if (mailPanelAccountId === accountId) loadMailMessages(accountId)
     if (probe.unread > account.unread) notifyMail(account, probe.unread)
     mailError = undefined
   } catch (error) {
@@ -4980,6 +5194,7 @@ function authorized(
       window !== convertWindow &&
       window !== renameWindow &&
       window !== settingsWindow &&
+      window !== mailWindow &&
       window !== pomodoroWindow &&
       window !== waterWindow &&
       window !== breakWindow &&
@@ -5280,6 +5495,11 @@ function setupIpc(): void {
       'mail-update-config',
       'mail-choose-attachment-dir',
       'mail-open-attachment-dir',
+      'mail-open',
+      'mail-close',
+      'mail-refresh',
+      'mail-select',
+      'mail-save-attachment',
       'todo-open',
       'todo-close',
       'focus-start',
@@ -5645,6 +5865,21 @@ function setupIpc(): void {
         break
       case 'mail-open-attachment-dir':
         await openMailAttachmentDir()
+        break
+      case 'mail-open':
+        await openMail(command.accountId)
+        break
+      case 'mail-close':
+        closeMail()
+        break
+      case 'mail-refresh':
+        await refreshMailPanel()
+        break
+      case 'mail-select':
+        await selectMail(command.uid)
+        break
+      case 'mail-save-attachment':
+        await saveMailAttachment(command.uid, command.part, command.open ?? false)
         break
       case 'todo-open':
         openTodo()
@@ -6336,6 +6571,27 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
+  mailWindow = new BrowserWindow({
+    width: 980,
+    height: 680,
+    title: '毛趣萌仔 · 邮件',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
   pomodoroWindow = new BrowserWindow({
     width: 360,
     height: 600,
@@ -6668,6 +6924,7 @@ async function createWindows(): Promise<void> {
     load(convertWindow, 'convert'),
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
+    load(mailWindow, 'mail'),
     load(pomodoroWindow, 'focus'),
     load(waterWindow, 'water'),
     load(breakWindow, 'break'),

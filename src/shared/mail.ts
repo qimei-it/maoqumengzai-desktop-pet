@@ -48,3 +48,40 @@ export const mailProviderHosts: Record<
 
 export const mailSyncOptions = [0, 5, 15, 30, 60] as const
 export const mailRetentionOptions = [30, 90, 180, 0] as const
+
+export type MailMessageSummary = {
+  uid: number
+  subject: string
+  fromName?: string
+  fromAddress?: string
+  date?: number
+  unread: boolean
+  hasAttachments: boolean
+  snippet?: string
+}
+
+export type MailAttachmentInfo = {
+  part: string
+  filename: string
+  size: number
+  mime?: string
+  localPath?: string
+}
+
+export type MailMessageDetail = MailMessageSummary & {
+  bodyText?: string
+  bodyHtml?: string
+  attachments: MailAttachmentInfo[]
+  code?: string
+}
+
+export type MailPanelState = {
+  open: boolean
+  accountId?: string
+  loading: boolean
+  messages: MailMessageSummary[]
+  selected?: MailMessageDetail
+  error?: string
+  notice?: string
+  noticeId?: number
+}

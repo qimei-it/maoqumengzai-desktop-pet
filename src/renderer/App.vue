@@ -51,6 +51,7 @@ import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
 import catFocus from "./assets/pet/ragdoll/focus.png";
 import AskPanel from "./AskPanel.vue";
+import MailPanel from "./MailPanel.vue";
 import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
@@ -59,6 +60,7 @@ import FocusBadge from "./FocusBadge.vue";
 import PomodoroPanel from "./PomodoroPanel.vue";
 import WaterPanel from "./WaterPanel.vue";
 import SelectField from "./SelectField.vue";
+import ToastStack from "./ToastStack.vue";
 import BreakPanel from "./BreakPanel.vue";
 import ProfilePanel from "./ProfilePanel.vue";
 import ClipboardPanel from "./ClipboardPanel.vue";
@@ -79,6 +81,7 @@ const lyricsView =
 const bubbleView =
   new URLSearchParams(location.search).get("view") === "bubble";
 const askView = new URLSearchParams(location.search).get("view") === "ask";
+const mailView = new URLSearchParams(location.search).get("view") === "mail";
 const convertView =
   new URLSearchParams(location.search).get("view") === "convert";
 const toastView = new URLSearchParams(location.search).get("view") === "toast";
@@ -105,6 +108,7 @@ document.body.classList.toggle("eye-view", eyeView);
 document.body.classList.toggle("lyrics-view", lyricsView);
 document.body.classList.toggle("bubble-view", bubbleView);
 document.body.classList.toggle("ask-view", askView);
+document.body.classList.toggle("mail-view", mailView);
 document.body.classList.toggle("convert-view", convertView);
 document.body.classList.toggle("toast-view", toastView);
 document.body.classList.toggle("rename-view", renameView);
@@ -125,6 +129,7 @@ if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
 if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 if (bubbleView) document.title = "毛趣萌仔 · 气泡";
 if (askView) document.title = "毛趣萌仔 · 智能问答";
+if (mailView) document.title = "毛趣萌仔 · 邮件";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
@@ -557,11 +562,9 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       state.value = snapshot;
       const ids = snapshot.received?.fileIds ?? [];
       if (!ids.length) return;
-      state.value = unwrap(
-        await api.command({ type: "settings-section", section: "mail" }),
-      );
+      state.value = unwrap(await api.command({ type: "mail-open" }));
     });
-    flash("邮件发送功能尚未接入");
+    flash("邮件附件发送尚未接入");
     return;
   }
   if (action === "rename") {
@@ -794,7 +797,7 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     return;
   }
   if (action === "mail") {
-    await command({ type: "settings-section", section: "mail" });
+    await command({ type: "mail-open" });
     return;
   }
   if (action === "settings") {
@@ -1666,6 +1669,13 @@ onUnmounted(() => {
     @command="command"
   />
 
+  <MailPanel
+    v-else-if="mailView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
   <SettingsPanel
     v-else-if="settingsView"
     :state="state"
@@ -1984,4 +1994,5 @@ onUnmounted(() => {
       </div>
     </footer>
   </main>
+  <ToastStack />
 </template>

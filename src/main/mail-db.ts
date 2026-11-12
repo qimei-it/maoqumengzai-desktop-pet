@@ -6,7 +6,10 @@ import { DatabaseSync } from 'node:sqlite'
 import type {
   MailAccount,
   MailAccountStatus,
+  MailAttachmentInfo,
   MailAuthType,
+  MailMessageDetail,
+  MailMessageSummary,
   MailProvider,
 } from '../shared/mail'
 
@@ -221,6 +224,258 @@ export class MailDatabase {
 
   removeAccount(id: string): void {
     this.db.prepare('DELETE FROM mail_accounts WHERE id = ?').run(id)
+  }
+
+  upsertMessages(
+    accountId: string,
+    folder: string,
+    messages: MailMessageSummary[],
+  ): void {
+    const statement = this.db.prepare(`
+      INSERT INTO mail_messages
+        (account_id, folder, uid, message_id, subject, from_name, from_address,
+         date, snippet, unread, has_attachments, size, cached_at)
+      VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      ON CONFLICT(account_id, folder, uid) DO UPDATE SET
+        subject = excluded.subject,
+        from_name = excluded.from_name,
+        from_address = excluded.from_address,
+        date = excluded.date,
+        snippet = excluded.snippet,
+        unread = excluded.unread,
+        has_attachments = excluded.has_attachments,
+        cached_at = excluded.cached_at
+    `)
+    for (const message of messages) {
+      statement.run(
+        accountId,
+        folder,
+        message.uid,
+        message.subject,
+        message.fromName ?? null,
+        message.fromAddress ?? null,
+        message.date ?? null,
+        message.snippet ?? '',
+        message.unread ? 1 : 0,
+        message.hasAttachments ? 1 : 0,
+        Date.now(),
+      )
+    }
+  }
+
+  listMessages(
+    accountId: string,
+    folder = 'INBOX',
+    limit = 50,
+  ): MailMessageSummary[] {
+    const rows = this.db
+      .prepare(
+        `SELECT uid, subject, from_name, from_address, date, snippet,
+                unread, has_attachments
+         FROM mail_messages
+         WHERE account_id = ? AND folder = ?
+         ORDER BY date DESC, uid DESC
+         LIMIT ?`,
+      )
+      .all(accountId, folder, limit) as unknown as Array<{
+      uid: number
+      subject: string | null
+      from_name: string | null
+      from_address: string | null
+      date: number | null
+      snippet: string | null
+      unread: number
+      has_attachments: number
+    }>
+    return rows.map((row) => ({
+      uid: row.uid,
+      subject: row.subject || '(无主题)',
+      ...(row.from_name ? { fromName: row.from_name } : {}),
+      ...(row.from_address ? { fromAddress: row.from_address } : {}),
+      ...(row.date ? { date: row.date } : {}),
+      ...(row.snippet ? { snippet: row.snippet } : {}),
+      unread: Boolean(row.unread),
+      hasAttachments: Boolean(row.has_attachments),
+    }))
+  }
+
+  message(
+    accountId: string,
+    folder: string,
+    uid: number,
+  ): MailMessageDetail | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT uid, subject, from_name, from_address, date, snippet,
+                unread, has_attachments, body_text, body_html
+         FROM mail_messages
+         WHERE account_id = ? AND folder = ? AND uid = ?`,
+      )
+      .get(accountId, folder, uid) as unknown as
+      | {
+          uid: number
+          subject: string | null
+          from_name: string | null
+          from_address: string | null
+          date: number | null
+          snippet: string | null
+          unread: number
+          has_attachments: number
+          body_text: string | null
+          body_html: string | null
+        }
+      | undefined
+    if (!row) return undefined
+    const attachments = this.db
+      .prepare(
+        `SELECT part, filename, mime, size, local_path
+         FROM mail_attachments
+         WHERE account_id = ? AND folder = ? AND uid = ?
+         ORDER BY part ASC`,
+      )
+      .all(accountId, folder, uid) as unknown as Array<{
+      part: string
+      filename: string
+      mime: string | null
+      size: number
+      local_path: string | null
+    }>
+    const codeRow = this.db
+      .prepare(
+        `SELECT code FROM mail_codes
+         WHERE account_id = ? AND folder = ? AND uid = ?
+         ORDER BY detected_at DESC LIMIT 1`,
+      )
+      .get(accountId, folder, uid) as unknown as
+      | { code: string }
+      | undefined
+    return {
+      uid: row.uid,
+      subject: row.subject || '(无主题)',
+      ...(row.from_name ? { fromName: row.from_name } : {}),
+      ...(row.from_address ? { fromAddress: row.from_address } : {}),
+      ...(row.date ? { date: row.date } : {}),
+      ...(row.snippet ? { snippet: row.snippet } : {}),
+      unread: Boolean(row.unread),
+      hasAttachments: Boolean(row.has_attachments),
+      ...(row.body_text ? { bodyText: row.body_text } : {}),
+      ...(row.body_html ? { bodyHtml: row.body_html } : {}),
+      ...(codeRow?.code ? { code: codeRow.code } : {}),
+      attachments: attachments.map((item) => ({
+        part: item.part,
+        filename: item.filename,
+        size: item.size,
+        ...(item.mime ? { mime: item.mime } : {}),
+        ...(item.local_path ? { localPath: item.local_path } : {}),
+      })),
+    }
+  }
+
+  saveMessageDetail(
+    accountId: string,
+    folder: string,
+    uid: number,
+    detail: {
+      bodyText?: string
+      bodyHtml?: string
+      snippet?: string
+      code?: string
+      attachments: MailAttachmentInfo[]
+    },
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE mail_messages
+         SET body_text = ?, body_html = ?, snippet = ?, has_attachments = ?
+         WHERE account_id = ? AND folder = ? AND uid = ?`,
+      )
+      .run(
+        detail.bodyText ?? null,
+        detail.bodyHtml ?? null,
+        detail.snippet ?? null,
+        detail.attachments.length ? 1 : 0,
+        accountId,
+        folder,
+        uid,
+      )
+    this.db
+      .prepare(
+        'DELETE FROM mail_attachments WHERE account_id = ? AND folder = ? AND uid = ?',
+      )
+      .run(accountId, folder, uid)
+    const insert = this.db.prepare(
+      `INSERT INTO mail_attachments
+        (account_id, folder, uid, part, filename, mime, size, local_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    for (const attachment of detail.attachments)
+      insert.run(
+        accountId,
+        folder,
+        uid,
+        attachment.part,
+        attachment.filename,
+        attachment.mime ?? null,
+        attachment.size,
+        attachment.localPath ?? null,
+      )
+    this.db
+      .prepare(
+        `DELETE FROM mail_codes WHERE account_id = ? AND folder = ? AND uid = ?`,
+      )
+      .run(accountId, folder, uid)
+    if (detail.code)
+      this.db
+        .prepare(
+          `INSERT INTO mail_codes
+            (account_id, folder, uid, code, detected_at, expires_at, copied_at)
+           VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
+        )
+        .run(accountId, folder, uid, detail.code, Date.now())
+  }
+
+  setUnread(
+    accountId: string,
+    folder: string,
+    uid: number,
+    unread: boolean,
+  ): void {
+    this.db
+      .prepare(
+        'UPDATE mail_messages SET unread = ? WHERE account_id = ? AND folder = ? AND uid = ?',
+      )
+      .run(unread ? 1 : 0, accountId, folder, uid)
+  }
+
+  attachment(
+    accountId: string,
+    folder: string,
+    uid: number,
+    part: string,
+  ): MailAttachmentInfo | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT part, filename, mime, size, local_path
+         FROM mail_attachments
+         WHERE account_id = ? AND folder = ? AND uid = ? AND part = ?`,
+      )
+      .get(accountId, folder, uid, part) as unknown as
+      | {
+          part: string
+          filename: string
+          mime: string | null
+          size: number
+          local_path: string | null
+        }
+      | undefined
+    if (!row) return undefined
+    return {
+      part: row.part,
+      filename: row.filename,
+      size: row.size,
+      ...(row.mime ? { mime: row.mime } : {}),
+      ...(row.local_path ? { localPath: row.local_path } : {}),
+    }
   }
 
   close(): void {

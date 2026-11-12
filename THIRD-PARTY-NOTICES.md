@@ -30,6 +30,9 @@
 | @napi-rs/canvas | MIT | https://github.com/Brooooooklyn/canvas |
 | bmp-js | MIT | https://github.com/shaozilee/bmp-js |
 | marked | MIT | https://github.com/markedjs/marked |
+| imapflow | MIT | https://github.com/postalsys/imapflow |
+| mailparser | MIT | https://github.com/nodemailer/mailparser |
+| sanitize-html | MIT | https://github.com/apostrophecms/sanitize-html |
 | heic-decode | ISC | https://github.com/catdad-experiments/heic-decode |
 | libheif-js（HEIC 解码） | LGPL-3.0 | https://github.com/catdad-experiments/libheif-js |
 | easyofd | Apache-2.0 | https://www.npmjs.com/package/easyofd |
@@ -38,7 +41,7 @@
 | node-unrar-js | MIT；unRAR 源码许可 | https://github.com/YuJianrong/node-unrar.js |
 | FFmpeg（可选下载） | 见下方说明 | https://ffmpeg.org/ |
 
-Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。sharp 许可原文：`resources/licenses/sharp-Apache-2.0.txt`。pdf-lib 许可原文：`resources/licenses/pdf-lib-MIT.md`。fflate 许可原文：`resources/licenses/fflate-MIT.txt`。pdf-to-img 许可原文：`resources/licenses/pdf-to-img-MIT.txt`；PDF.js 许可原文：`resources/licenses/pdfjs-Apache-2.0.txt`；@napi-rs/canvas 许可原文：`resources/licenses/napi-rs-canvas-MIT.txt`；bmp-js 许可原文：`resources/licenses/bmp-js-MIT.txt`；marked 许可原文：`resources/licenses/marked-MIT.md`；heic-decode 许可原文：`resources/licenses/heic-decode-ISC.txt`；libheif-js 许可原文：`resources/licenses/libheif-js-LGPL-3.0.txt`。easyofd 许可原文：`resources/licenses/easyofd-Apache-2.0.txt`；7zip-min 许可原文：`resources/licenses/7zip-min-MIT.txt`；7zip-bin 许可原文：`resources/licenses/7zip-bin-LICENSE.txt`；node-unrar-js 许可原文：`resources/licenses/node-unrar-js-MIT.md`。easyofd 随附的 JSZip、X2JS、opentype.js 与 JB2 组件按各自上游许可使用。libvips 为动态链接的预编译运行时，许可与组件清单见 `@img/sharp-libvips-*` 包内 README。
+Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。sharp 许可原文：`resources/licenses/sharp-Apache-2.0.txt`。pdf-lib 许可原文：`resources/licenses/pdf-lib-MIT.md`。fflate 许可原文：`resources/licenses/fflate-MIT.txt`。pdf-to-img 许可原文：`resources/licenses/pdf-to-img-MIT.txt`；PDF.js 许可原文：`resources/licenses/pdfjs-Apache-2.0.txt`；@napi-rs/canvas 许可原文：`resources/licenses/napi-rs-canvas-MIT.txt`；bmp-js 许可原文：`resources/licenses/bmp-js-MIT.txt`；marked 许可原文：`resources/licenses/marked-MIT.md`；imapflow 许可原文：`resources/licenses/imapflow-MIT.txt`；mailparser 许可原文：`resources/licenses/mailparser-MIT.txt`；sanitize-html 许可原文：`resources/licenses/sanitize-html-MIT.txt`；heic-decode 许可原文：`resources/licenses/heic-decode-ISC.txt`；libheif-js 许可原文：`resources/licenses/libheif-js-LGPL-3.0.txt`。easyofd 许可原文：`resources/licenses/easyofd-Apache-2.0.txt`；7zip-min 许可原文：`resources/licenses/7zip-min-MIT.txt`；7zip-bin 许可原文：`resources/licenses/7zip-bin-LICENSE.txt`；node-unrar-js 许可原文：`resources/licenses/node-unrar-js-MIT.md`。easyofd 随附的 JSZip、X2JS、opentype.js 与 JB2 组件按各自上游许可使用。libvips 为动态链接的预编译运行时，许可与组件清单见 `@img/sharp-libvips-*` 包内 README。
 
 ## 可选本地引擎
 

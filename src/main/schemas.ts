@@ -446,6 +446,28 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('mail-open-attachment-dir') }).strict(),
   z
     .object({
+      type: z.literal('mail-open'),
+      accountId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal('mail-close') }).strict(),
+  z.object({ type: z.literal('mail-refresh') }).strict(),
+  z
+    .object({
+      type: z.literal('mail-select'),
+      uid: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-save-attachment'),
+      uid: z.number().int().positive(),
+      part: z.string().min(1).max(120),
+      open: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('clipboard-config'),
       patch: z
         .object({
