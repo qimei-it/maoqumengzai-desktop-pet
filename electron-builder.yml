@@ -5,7 +5,19 @@ directories:
 files:
   - out/**/*
   - package.json
+  - "!node_modules/@lucide/**"
+  - "!node_modules/vue/**"
+  - "!node_modules/@vue/**"
+  - "!node_modules/@babel/**"
+  - "!node_modules/magic-string/**"
+  - "!node_modules/estree-walker/**"
+  - "!node_modules/source-map-js/**"
+  - "!node_modules/postcss/**"
+  - "!node_modules/nanoid/**"
+  - "!node_modules/csstype/**"
+  - "!node_modules/entities/**"
 asar: true
+afterPack: scripts/after-pack.cjs
 asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**
@@ -20,20 +32,31 @@ asarUnpack:
 extraResources:
   - from: resources/icons
     to: icons
+    filter:
+      - "**/*"
+      - "!concepts/**"
   - from: resources/licenses
     to: licenses
   - from: resources/helpers
     to: helpers
-  - from: resources/engines/qpdf
-    to: engines/qpdf
+  - from: resources/engines/qpdf/LICENSE.txt
+    to: engines/qpdf/LICENSE.txt
+  - from: resources/engines/qpdf/SOURCE.txt
+    to: engines/qpdf/SOURCE.txt
 mac:
   icon: build/icon.icns
+  extraResources:
+    - from: resources/engines/qpdf/darwin-arm64
+      to: engines/qpdf/darwin-arm64
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [arm64]
   minimumSystemVersion: '13.0'
 win:
   icon: build/icon.ico
+  extraResources:
+    - from: resources/engines/qpdf/win32-x64
+      to: engines/qpdf/win32-x64
   target:
     - target: nsis
       arch: [x64]

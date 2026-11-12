@@ -50,16 +50,6 @@ const builds: Record<
     binaryPath: 'bin/ffmpeg',
     binaryName: 'ffmpeg',
   },
-  'darwin-x64': {
-    url: `${base}/ffmpeg9.0.2-lgpl-macos-x86_64-notarized.zip`,
-    sha256:
-      'a2585b4b089ccc714495398af7bcccb9ac1a7ed62daee5392d55768b47dc8404',
-    compressedBytes: 15_963_079,
-    installedBytes: 36_861_715,
-    binaryBytes: 443_072,
-    binaryPath: 'bin/ffmpeg',
-    binaryName: 'ffmpeg',
-  },
   'win32-x64': {
     url: `${base}/ffmpeg9.0.2-lgpl-windows-x64.zip`,
     sha256:

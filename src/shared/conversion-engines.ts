@@ -127,7 +127,7 @@ export const optionalEngines: readonly OptionalEngine[] = [
     license: 'LGPL-3.0',
     source: 'AgentDVR FFmpeg 9.0.2 · LGPL v3',
     distribution: 'download',
-    platforms: ['darwin-arm64', 'darwin-x64', 'win32-x64'],
+    platforms: ['darwin-arm64', 'win32-x64'],
     managed: true,
   },
   {

@@ -20,7 +20,7 @@
     "start": "node scripts/set-dev-app-name.mjs && electron .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "pack:mac": "npm run build && electron-builder --mac dmg --x64 --arm64 --publish never",
+    "pack:mac": "npm run build && electron-builder --mac dmg --arm64 --publish never",
     "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "engines": {
