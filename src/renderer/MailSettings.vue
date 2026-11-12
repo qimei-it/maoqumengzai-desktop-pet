@@ -597,8 +597,11 @@ watch(
 }
 .mail-switch {
   position: relative;
+  flex: none;
   width: 36px;
+  min-width: 36px;
   height: 22px;
+  min-height: 22px;
   padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 999px;
