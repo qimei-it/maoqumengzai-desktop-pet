@@ -27,7 +27,7 @@
 
 - 目标：在 Windows 10/11 x64、macOS Intel 上验证全部转换方向。
 - 需要补：真实安装包、PDF 渲染原生依赖、LibreOffice、7-Zip/UnRAR、FFmpeg、HEIC/OFD 样例。
-- 当前状态：macOS arm64 已完成主要样例；其他平台待实测。
+- 当前状态：macOS arm64 已完成主要样例；按用户要求暂缓 Windows/Intel 与 macOS 13 低版本实测，先完成 macOS 当前环境。
 
 ## 5. 其他未纳入首版的方向
 

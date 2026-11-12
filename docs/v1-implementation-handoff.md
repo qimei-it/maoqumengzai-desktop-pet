@@ -235,7 +235,7 @@
 
 ## 6. 分阶段实施清单
 
-阶段用于降低集成风险，第一版最终验收仍覆盖上面的完整范围。每个阶段应留下可运行结果和验证记录。
+阶段用于降低集成风险，第一版最终验收仍覆盖上面的完整范围。每个阶段应留下可运行结果和验证记录。用户已确认：Windows / Intel / macOS 13 实测暂缓，当前以 macOS 本机实现与测试为准。
 
 ### P0：接管、规范与风险原型
 
@@ -284,11 +284,11 @@
 
 - [x] 固定首版输入→输出矩阵和各方向所需引擎。
 - [x] 完成拖给宠物→放入置物架→转换→结果交付流程；转换结果通过点击预览打开或打开所在位置交付，不自动进入置物架、不支持结果拖出。
-- [ ] 批量、进度、重名、原件保护、取消（FFmpeg/LibreOffice/隐藏窗口/PDF 页面）与临时清理已完成；合并排序 UI、队列与部分失败样例待补。
+- [x] 批量顺序处理、PDF 合并排序、进度、重名、原件保护、取消（FFmpeg/LibreOffice/隐藏窗口/PDF 页面）、部分失败与临时清理已完成，并有 Electron 用例覆盖。
 - [ ] 引擎来源、版本、校验、平台差异与许可材料已记录；macOS arm64 打包验证通过；FFmpeg 仍需手动下载，Windows/Intel 与干净系统断网首用待补。
-- [ ] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频真实样例通过；复杂表格、透明图、损坏文件与最低系统待补。
+- [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows/Intel 按用户要求暂缓。
 - [ ] 缺引擎跳转、取消和基本错误提示已实现；权限、磁盘不足、加密/损坏文件仍需逐方向实测。
-- 当前证据（2026-11-12）：120 项单元测试、完整 Electron 套件 34 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。
+- 当前证据（2026-11-12）：120 项单元测试、完整 Electron 套件 39 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。
 
 ### P6：宠物档案与交友
 
