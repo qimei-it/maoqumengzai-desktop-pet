@@ -2646,6 +2646,71 @@ test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
   );
 });
 
+test("邮件客户端设置可添加账户并调整偏好", async () => {
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-open" }),
+  );
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-section", section: "mail" }),
+  );
+  await expect(settings.locator(".settings-group-title")).toHaveCount(0);
+  await expect(settings.locator(".mail-row .mail-label")).toHaveText([
+    "邮箱账户",
+    "同步间隔",
+    "新邮件通知",
+    "未读角标",
+    "附件保存目录",
+    "缓存保留",
+  ]);
+  await settings
+    .locator(".mail-row", { hasText: "邮箱账户" })
+    .getByRole("button", { name: "添加", exact: true })
+    .click();
+  await expect(settings.locator(".mail-provider")).toHaveCount(3);
+  await expect(settings.locator(".mail-provider")).toHaveText([
+    "QQ 邮箱",
+    "163 邮箱",
+    "Gmail",
+  ]);
+  await expect(settings.locator(".mail-field span")).toHaveText([
+    "邮箱地址",
+    "授权码 / 应用专用密码",
+    "显示名称",
+  ]);
+  await settings
+    .getByRole("button", { name: "测试并添加", exact: true })
+    .click();
+  await expect(settings.locator(".mail-error")).toContainText(
+    "请填写邮箱地址和授权码",
+  );
+  await settings.locator(".mail-form").getByRole("button", { name: "取消", exact: true }).click();
+  await expect(settings.locator(".mail-form")).toHaveCount(0);
+
+  await settings
+    .locator(".mail-row", { hasText: "同步间隔" })
+    .locator("select")
+    .selectOption("30");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.mail.config.syncMinutes : 0;
+    })
+    .toBe(30);
+  await settings
+    .locator(".mail-row", { hasText: "新邮件通知" })
+    .locator(".mail-switch")
+    .click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.mail.config.notify : true;
+    })
+    .toBe(false);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-close" }),
+  );
+});
+
 test("打包归档、解压缩与压缩大小 work on real files", async () => {
   const first = join(directory, "归档甲.txt");
   const second = join(directory, "归档乙.txt");
