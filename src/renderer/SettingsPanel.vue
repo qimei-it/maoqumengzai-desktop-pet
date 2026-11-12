@@ -12,7 +12,10 @@ import {
   petScales,
   themeIds,
   themeLabels,
+  type ArchiveFormat,
+  type PetScale,
   type SettingsState,
+  type ThemeId,
 } from '../shared/settings'
 import {
   hoverActionLabels,
@@ -32,6 +35,7 @@ import catBase from './assets/pet/ragdoll/base.png'
 import MusicBarPreview from './MusicBarPreview.vue'
 import MailSettings from './MailSettings.vue'
 import PanelHeader from './PanelHeader.vue'
+import SegmentedControl from './SegmentedControl.vue'
 import WheelConfigurator from './WheelConfigurator.vue'
 import WheelPreview from './WheelPreview.vue'
 
@@ -151,6 +155,23 @@ const clipboardUnpinnedCount = computed(
     0,
 )
 const shelfMaxOptions = [50, 100, 200, 500]
+const themeOptions = themes.map((item) => ({
+  value: item.id,
+  label: item.label,
+}))
+const petScaleOptions = petScales.map((value) => ({
+  value,
+  label: `${value}×`,
+}))
+const shelfMaxControlOptions = shelfMaxOptions.map((value) => ({
+  value,
+  label: String(value),
+}))
+const archiveOptions = [
+  { value: 'zip', label: 'ZIP' },
+  { value: '7z', label: '7Z' },
+] as const
+
 
 watch(configured, (value) => {
   if (!value) return
@@ -279,31 +300,21 @@ function onEscape(): void {
           <template v-else-if="section === 'appearance'">
             <div class="settings-row">
               <span class="settings-label">主题</span>
-              <div class="settings-segmented" role="group" aria-label="主题">
-                <button
-                  v-for="theme in themes"
-                  :key="theme.id"
-                  type="button"
-                  :class="{ active: settings.theme === theme.id }"
-                  @click="update({ theme: theme.id })"
-                >
-                  {{ theme.label }}
-                </button>
-              </div>
+              <SegmentedControl
+                :model-value="settings.theme"
+                :options="themeOptions"
+                aria-label="主题"
+                @update="value => update({ theme: value as ThemeId })"
+              />
             </div>
             <div class="settings-row">
               <span class="settings-label">桌宠大小</span>
-              <div class="settings-segmented" role="group" aria-label="桌宠大小">
-                <button
-                  v-for="value in petScales"
-                  :key="value"
-                  type="button"
-                  :class="{ active: settings.scale === value }"
-                  @click="update({ scale: value })"
-                >
-                  {{ value }}×
-                </button>
-              </div>
+              <SegmentedControl
+                :model-value="settings.scale"
+                :options="petScaleOptions"
+                aria-label="桌宠大小"
+                @update="value => update({ scale: value as PetScale })"
+              />
             </div>
             <div class="wheel-settings-grid">
               <section class="wheel-setting">
@@ -533,47 +544,21 @@ function onEscape(): void {
             </div>
             <div class="settings-row">
               <span class="settings-label">记录上限</span>
-              <div
-                class="settings-segmented"
-                role="group"
+              <SegmentedControl
+                :model-value="settings.shelfMaxRecords"
+                :options="shelfMaxControlOptions"
                 aria-label="置物架记录上限"
-              >
-                <button
-                  v-for="value in shelfMaxOptions"
-                  :key="value"
-                  type="button"
-                  :class="{ active: settings.shelfMaxRecords === value }"
-                  :aria-pressed="settings.shelfMaxRecords === value"
-                  @click="update({ shelfMaxRecords: value })"
-                >
-                  {{ value }}
-                </button>
-              </div>
+                @update="value => update({ shelfMaxRecords: value as number })"
+              />
             </div>
             <div class="settings-row">
               <span class="settings-label">归档格式</span>
-              <div
-                class="settings-segmented"
-                role="group"
+              <SegmentedControl
+                :model-value="settings.archiveFormat"
+                :options="archiveOptions"
                 aria-label="归档格式"
-              >
-                <button
-                  type="button"
-                  :class="{ active: settings.archiveFormat === 'zip' }"
-                  :aria-pressed="settings.archiveFormat === 'zip'"
-                  @click="update({ archiveFormat: 'zip' })"
-                >
-                  ZIP
-                </button>
-                <button
-                  type="button"
-                  :class="{ active: settings.archiveFormat === '7z' }"
-                  :aria-pressed="settings.archiveFormat === '7z'"
-                  @click="update({ archiveFormat: '7z' })"
-                >
-                  7Z
-                </button>
-              </div>
+                @update="value => update({ archiveFormat: value as ArchiveFormat })"
+              />
             </div>
             <div class="settings-row">
               <span class="settings-label">截图目录</span>
@@ -953,7 +938,6 @@ function onEscape(): void {
 }
 .settings-nav button:focus-visible,
 .settings-action:focus-visible,
-.settings-segmented button:focus-visible,
 .settings-switch:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
@@ -1260,31 +1244,6 @@ function onEscape(): void {
   align-items: center;
   gap: 12px;
 }
-.settings-segmented {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
-}
-.settings-segmented button {
-  min-height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: calc(var(--radius-control) - 3px);
-  background: transparent;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
-  transition:
-    background-color var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
-}
-.settings-segmented button.active {
-  background: var(--color-surface);
-  color: var(--color-brand-ink);
-  box-shadow: var(--shadow-control);
-  font-weight: 600;
-}
 .settings-switch {
   position: relative;
   flex: none;
@@ -1411,7 +1370,6 @@ function onEscape(): void {
 }
 @media (prefers-reduced-motion: reduce) {
   .settings-nav button,
-  .settings-segmented button,
   .settings-switch,
   .settings-switch-thumb {
     transition: none;

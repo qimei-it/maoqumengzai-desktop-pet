@@ -541,7 +541,8 @@ watch(
   background: transparent;
   color: var(--color-muted);
   font: inherit;
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-label);
+  font-weight: 600;
   cursor: pointer;
 }
 .mail-provider img {
@@ -551,7 +552,6 @@ watch(
 }
 .mail-provider.active {
   color: var(--color-brand-ink);
-  font-weight: 600;
 }
 .mail-provider:disabled {
   cursor: default;
