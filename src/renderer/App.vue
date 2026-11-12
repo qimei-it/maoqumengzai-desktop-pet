@@ -57,6 +57,7 @@ import FilePocket from "./FilePocket.vue";
 import FocusBadge from "./FocusBadge.vue";
 import PomodoroPanel from "./PomodoroPanel.vue";
 import WaterPanel from "./WaterPanel.vue";
+import SelectField from "./SelectField.vue";
 import BreakPanel from "./BreakPanel.vue";
 import ProfilePanel from "./ProfilePanel.vue";
 import ClipboardPanel from "./ClipboardPanel.vue";
@@ -1771,8 +1772,10 @@ onUnmounted(() => {
         <label class="field-label" for="marker-scale"
           >显示比例 <span>仅用于技术验证</span></label
         >
-        <select
+        <SelectField
           id="marker-scale"
+          wide
+          size="md"
           :value="state?.scale || 1"
           @change="
             command({
@@ -1785,7 +1788,7 @@ onUnmounted(() => {
           <option :value="1">1 倍</option>
           <option :value="1.5">1.5 倍</option>
           <option :value="2">2 倍</option>
-        </select>
+        </SelectField>
         <button
           class="primary full"
           data-testid="drop-mode"

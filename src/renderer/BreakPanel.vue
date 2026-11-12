@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Armchair, ChevronDown, Eye } from '@lucide/vue'
+import { Armchair, Eye } from '@lucide/vue'
 import type { BreakKind, Command, Snapshot } from '../shared/protocol'
 import PanelHeader from './PanelHeader.vue'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -162,28 +163,20 @@ function close(): void {
 
         <div class="break-row">
           <span>提醒间隔</span>
-          <span class="break-select-wrap">
-            <select
-              class="break-select"
-              :value="interval"
-              :aria-label="`${tabLabel}间隔分钟`"
-              @change="changeInterval"
+          <SelectField
+            :value="interval"
+            min-width="92px"
+            :aria-label="`${tabLabel}间隔分钟`"
+            @change="changeInterval"
+          >
+            <option
+              v-for="minutes in intervalOptions"
+              :key="minutes"
+              :value="minutes"
             >
-              <option
-                v-for="minutes in intervalOptions"
-                :key="minutes"
-                :value="minutes"
-              >
-                {{ minutes }} 分钟
-              </option>
-            </select>
-            <ChevronDown
-              class="break-select-icon"
-              :size="14"
-              :stroke-width="2"
-              aria-hidden="true"
-            />
-          </span>
+              {{ minutes }} 分钟
+            </option>
+          </SelectField>
         </div>
 
         <div class="break-row">
@@ -220,45 +213,29 @@ function close(): void {
           <div class="break-row" :class="{ muted: !dnd }">
             <span>免打扰时段</span>
             <span class="break-config">
-              <span class="break-select-wrap">
-                <select
-                  class="break-select"
-                  :value="dndStart"
-                  :disabled="!dnd"
-                  aria-label="免打扰开始时间"
-                  @change="changeDndStart"
-                >
-                  <option v-for="hour in 24" :key="hour" :value="hour - 1">
-                    {{ hourLabel(hour - 1) }}
-                  </option>
-                </select>
-                <ChevronDown
-                  class="break-select-icon"
-                  :size="14"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </span>
+              <SelectField
+                :value="dndStart"
+                :disabled="!dnd"
+                min-width="92px"
+                aria-label="免打扰开始时间"
+                @change="changeDndStart"
+              >
+                <option v-for="hour in 24" :key="hour" :value="hour - 1">
+                  {{ hourLabel(hour - 1) }}
+                </option>
+              </SelectField>
               <span class="break-value">–</span>
-              <span class="break-select-wrap">
-                <select
-                  class="break-select"
-                  :value="dndEnd"
-                  :disabled="!dnd"
-                  aria-label="免打扰结束时间"
-                  @change="changeDndEnd"
-                >
-                  <option v-for="hour in 24" :key="hour + 1" :value="hour">
-                    {{ hourLabel(hour) }}
-                  </option>
-                </select>
-                <ChevronDown
-                  class="break-select-icon"
-                  :size="14"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </span>
+              <SelectField
+                :value="dndEnd"
+                :disabled="!dnd"
+                min-width="92px"
+                aria-label="免打扰结束时间"
+                @change="changeDndEnd"
+              >
+                <option v-for="hour in 24" :key="hour + 1" :value="hour">
+                  {{ hourLabel(hour) }}
+                </option>
+              </SelectField>
             </span>
           </div>
         </div>
@@ -362,36 +339,6 @@ function close(): void {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.break-select {
-  height: 30px;
-  min-width: 92px;
-  padding: 0 26px 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  appearance: none;
-  -webkit-appearance: none;
-}
-.break-select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.break-select-icon {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  pointer-events: none;
-  color: var(--color-muted);
-  transform: translateY(-50%);
-}
-.break-select:focus-visible {
-  outline: 2px solid var(--color-brand-ink);
-  outline-offset: 2px;
 }
 .break-switch {
   position: relative;

@@ -21,6 +21,7 @@ import {
 import qqIcon from './assets/mail/qq.svg'
 import mail163Icon from './assets/mail/163.svg'
 import gmailIcon from './assets/mail/gmail.svg'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ mail?: MailState }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -295,10 +296,10 @@ watch(
 
     <div class="mail-row">
       <span class="mail-label">同步间隔</span>
-      <select
-        class="mail-select"
+      <SelectField
         :value="config.syncMinutes"
         :disabled="busy"
+        wide
         @change="onSyncChange"
       >
         <option
@@ -308,7 +309,7 @@ watch(
         >
           {{ option.label }}
         </option>
-      </select>
+      </SelectField>
     </div>
     <div class="mail-row">
       <span class="mail-label">新邮件通知</span>
@@ -354,10 +355,10 @@ watch(
     </div>
     <div class="mail-row mail-row-last">
       <span class="mail-label">缓存保留</span>
-      <select
-        class="mail-select"
+      <SelectField
         :value="config.retentionDays"
         :disabled="busy"
+        wide
         @change="onRetentionChange"
       >
         <option
@@ -367,7 +368,7 @@ watch(
         >
           {{ option.label }}
         </option>
-      </select>
+      </SelectField>
     </div>
   </div>
 </template>
@@ -554,8 +555,7 @@ watch(
   color: var(--color-ink);
   font: inherit;
 }
-.mail-field input:focus-visible,
-.mail-select:focus-visible {
+.mail-field input:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
 }
@@ -584,16 +584,6 @@ watch(
   margin: 0;
   color: var(--color-danger);
   font-size: var(--font-size-caption);
-}
-.mail-select {
-  min-height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
 }
 .mail-switch {
   position: relative;

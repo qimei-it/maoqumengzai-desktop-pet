@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ChevronDown, Droplets, GlassWater, Settings } from '@lucide/vue'
+import { Droplets, GlassWater, Settings } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   countToday,
@@ -8,6 +8,7 @@ import {
   groupByDay,
 } from '../shared/focus'
 import PanelHeader from './PanelHeader.vue'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -207,43 +208,27 @@ function close(): void {
         <div class="water-row">
           <span>生效时段</span>
           <span class="water-config">
-            <span class="water-select-wrap">
-              <select
-                class="water-select"
-                :value="waterStart"
-                aria-label="喝水提醒开始时间"
-                @change="changeWaterStart"
-              >
-                <option v-for="hour in 24" :key="hour" :value="hour - 1">
-                  {{ hourLabel(hour - 1) }}
-                </option>
-              </select>
-              <ChevronDown
-                class="water-select-icon"
-                :size="14"
-                :stroke-width="2"
-                aria-hidden="true"
-              />
-            </span>
+            <SelectField
+              :value="waterStart"
+              min-width="72px"
+              aria-label="喝水提醒开始时间"
+              @change="changeWaterStart"
+            >
+              <option v-for="hour in 24" :key="hour" :value="hour - 1">
+                {{ hourLabel(hour - 1) }}
+              </option>
+            </SelectField>
             <span class="water-value">–</span>
-            <span class="water-select-wrap">
-              <select
-                class="water-select"
-                :value="waterEnd"
-                aria-label="喝水提醒结束时间"
-                @change="changeWaterEnd"
-              >
-                <option v-for="hour in 24" :key="hour + 1" :value="hour">
-                  {{ hourLabel(hour) }}
-                </option>
-              </select>
-              <ChevronDown
-                class="water-select-icon"
-                :size="14"
-                :stroke-width="2"
-                aria-hidden="true"
-              />
-            </span>
+            <SelectField
+              :value="waterEnd"
+              min-width="72px"
+              aria-label="喝水提醒结束时间"
+              @change="changeWaterEnd"
+            >
+              <option v-for="hour in 24" :key="hour + 1" :value="hour">
+                {{ hourLabel(hour) }}
+              </option>
+            </SelectField>
           </span>
         </div>
       </div>
@@ -391,8 +376,7 @@ function close(): void {
   align-items: center;
   gap: 6px;
 }
-.water-number,
-.water-select {
+.water-number {
   height: 30px;
   padding: 0 6px;
   border: 1px solid var(--color-line);
@@ -406,27 +390,7 @@ function close(): void {
   width: 58px;
   text-align: right;
 }
-.water-select {
-  min-width: 72px;
-  padding-right: 26px;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.water-select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.water-select-icon {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  pointer-events: none;
-  color: var(--color-muted);
-  transform: translateY(-50%);
-}
-.water-number:focus-visible,
-.water-select:focus-visible {
+.water-number:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
 }

@@ -10,6 +10,7 @@ import {
   type RenamePosition,
 } from '../shared/rename'
 import PanelHeader from './PanelHeader.vue'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -118,28 +119,28 @@ function apply(): void {
         </label>
         <label>
           <span>位置</span>
-          <select v-model="addPosition">
+          <SelectField v-model="addPosition" size="md" wide>
             <option value="before">名称之前</option>
             <option value="after">名称之后</option>
-          </select>
+          </SelectField>
         </label>
       </div>
 
       <div v-else class="rename-fields rename-format">
         <label>
           <span>名称格式</span>
-          <select v-model="format">
+          <SelectField v-model="format" size="md" wide>
             <option value="index">名称和索引</option>
             <option value="counter">名称和计数</option>
             <option value="date">名称和日期</option>
-          </select>
+          </SelectField>
         </label>
         <label>
           <span>位置</span>
-          <select v-model="formatPosition">
+          <SelectField v-model="formatPosition" size="md" wide>
             <option value="before">名称之前</option>
             <option value="after">名称之后</option>
-          </select>
+          </SelectField>
         </label>
         <label class="rename-wide">
           <span>自定义格式</span>
@@ -248,8 +249,7 @@ function apply(): void {
 .rename-fields label.rename-wide {
   flex-basis: 100%;
 }
-.rename-fields input,
-.rename-fields select {
+.rename-fields input {
   height: var(--tap-min);
   padding: 0 10px;
   border: 1px solid var(--color-line);
@@ -259,8 +259,7 @@ function apply(): void {
   font: inherit;
   font-size: var(--font-size-body);
 }
-.rename-fields input:focus-visible,
-.rename-fields select:focus-visible {
+.rename-fields input:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
 }

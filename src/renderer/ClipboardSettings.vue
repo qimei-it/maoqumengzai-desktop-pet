@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ChevronDown } from '@lucide/vue'
 import { clipboardTextLimit } from '../shared/clipboard'
 import type { ClipboardConfig } from '../shared/clipboard'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ config: ClipboardConfig }>()
 const emit = defineEmits<{ update: [patch: Partial<ClipboardConfig>] }>()
@@ -51,49 +51,33 @@ function changeRetention(event: Event): void {
     </div>
     <div class="clip-setting-row">
       <span>记录上限</span>
-      <span class="clip-setting-select-wrap">
-        <select
-          class="clip-setting-select"
-          :value="config.maxItems"
-          aria-label="剪贴板记录上限"
-          @change="changeMax"
-        >
-          <option v-for="value in maxOptions" :key="value" :value="value">
-            {{ value }} 条
-          </option>
-        </select>
-        <ChevronDown
-          class="clip-setting-select-icon"
-          :size="14"
-          :stroke-width="2"
-          aria-hidden="true"
-        />
-      </span>
+      <SelectField
+        :value="config.maxItems"
+        min-width="96px"
+        aria-label="剪贴板记录上限"
+        @change="changeMax"
+      >
+        <option v-for="value in maxOptions" :key="value" :value="value">
+          {{ value }} 条
+        </option>
+      </SelectField>
     </div>
     <div class="clip-setting-row">
       <span>保留期限</span>
-      <span class="clip-setting-select-wrap">
-        <select
-          class="clip-setting-select"
-          :value="config.retentionDays"
-          aria-label="剪贴板保留期限"
-          @change="changeRetention"
+      <SelectField
+        :value="config.retentionDays"
+        min-width="96px"
+        aria-label="剪贴板保留期限"
+        @change="changeRetention"
+      >
+        <option
+          v-for="option in retentionOptions"
+          :key="option.value"
+          :value="option.value"
         >
-          <option
-            v-for="option in retentionOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-        <ChevronDown
-          class="clip-setting-select-icon"
-          :size="14"
-          :stroke-width="2"
-          aria-hidden="true"
-        />
-      </span>
+          {{ option.label }}
+        </option>
+      </SelectField>
     </div>
     <div class="clip-setting-row">
       <span>忽略敏感内容</span>
@@ -160,36 +144,6 @@ function changeRetention(event: Event): void {
 }
 .clip-setting-switch[aria-checked='true'] .clip-setting-switch-thumb {
   transform: translateX(17px);
-}
-.clip-setting-select-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.clip-setting-select {
-  height: 30px;
-  min-width: 96px;
-  padding: 0 26px 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  appearance: none;
-  -webkit-appearance: none;
-}
-.clip-setting-select-icon {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  pointer-events: none;
-  color: var(--color-muted);
-  transform: translateY(-50%);
-}
-.clip-setting-select:focus-visible {
-  outline: 2px solid var(--color-brand-ink);
-  outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
   .clip-setting-switch-thumb {

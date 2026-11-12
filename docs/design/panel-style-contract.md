@@ -22,6 +22,7 @@
 | 字体与间距 | 使用同名语义 token，按桌面实际阅读尺寸与窗口空间布局 |
 | 圆角 | 面板使用 `--radius-sheet`，交互行使用 `--radius-control`，主要按钮使用 `--radius-pill` |
 | 双按钮行 | `button-pair` 等宽布局，次操作 `button-soft`，主操作 `button-glass`；统一高度与字阶 |
+| 下拉选择 | 统一使用 `SelectField`：原生 `select` + Lucide `ChevronDown` 14px，图标距右侧固定 8px，禁止依赖浏览器默认下拉箭头 |
 | 状态 | 成功、警告、错误及禁用使用小程序的功能语义色 |
 | 图标 | 使用 Lucide 功能性 SVG 与 Firefox Emoji 素材方案，见 [图标规范](icon-system.md) |
 | 主题 | 保留 default / halloween / christmas 三套 token；文字与功能色遵守源项目主题不变规则 |
