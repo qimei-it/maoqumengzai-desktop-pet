@@ -2774,6 +2774,11 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "附件保存目录",
     "缓存保留",
   ]);
+  await expect(
+    settings
+      .locator(".mail-row", { hasText: "附件保存目录" })
+      .getByRole("button"),
+  ).toHaveText(["选择", "打开"]);
   await expect(settings.locator(".mail-switch").first()).toHaveCSS(
     "height",
     "22px",

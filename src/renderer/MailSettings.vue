@@ -364,11 +364,11 @@ watch(
       <span class="mail-path" :title="config.attachmentDir">
         {{ config.attachmentDir }}
       </span>
-      <button type="button" class="settings-button primary" @click="openAttachmentDir">
-        打开
-      </button>
       <button type="button" class="settings-button" @click="chooseAttachmentDir">
         选择
+      </button>
+      <button type="button" class="settings-button primary" @click="openAttachmentDir">
+        打开
       </button>
     </div>
     <div class="mail-row mail-row-last">
