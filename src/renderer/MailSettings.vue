@@ -188,7 +188,7 @@ watch(
       <button
         v-if="!formOpen"
         type="button"
-        class="mail-action"
+        class="settings-button primary"
         :disabled="busy"
         @click="openAdd"
       >
@@ -302,7 +302,7 @@ watch(
       <div class="mail-form-actions">
         <button
           type="button"
-          class="mail-action"
+          class="settings-button"
           :disabled="busy"
           @click="closeForm"
         >
@@ -310,7 +310,7 @@ watch(
         </button>
         <button
           type="submit"
-          class="mail-submit"
+          class="settings-button primary"
           :disabled="busy"
         >
           {{ reauthorizeId ? '重新授权' : '测试并添加' }}
@@ -364,10 +364,10 @@ watch(
       <span class="mail-path" :title="config.attachmentDir">
         {{ config.attachmentDir }}
       </span>
-      <button type="button" class="mail-action" @click="openAttachmentDir">
+      <button type="button" class="settings-button primary" @click="openAttachmentDir">
         打开
       </button>
-      <button type="button" class="mail-action" @click="chooseAttachmentDir">
+      <button type="button" class="settings-button" @click="chooseAttachmentDir">
         选择
       </button>
     </div>
@@ -412,28 +412,6 @@ watch(
   color: var(--color-ink);
   font-size: var(--font-size-body);
 }
-.mail-action {
-  min-height: 30px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  cursor: pointer;
-}
-.mail-action:hover:not(:disabled) {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-}
-.mail-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-.mail-action:focus-visible,
-.mail-submit:focus-visible,
 .mail-icon-action:focus-visible,
 .mail-provider:focus-visible,
 .mail-switch:focus-visible {
@@ -601,22 +579,6 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.mail-submit {
-  min-height: 30px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  cursor: pointer;
-}
-.mail-submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
 }
 .mail-switch {
   position: relative;

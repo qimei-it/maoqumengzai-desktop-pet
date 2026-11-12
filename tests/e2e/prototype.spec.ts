@@ -281,12 +281,24 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   ).toHaveText("内置引擎");
   const ffmpegCard = settings.locator(".engine-card", { hasText: "FFmpeg" });
   await expect(ffmpegCard).toContainText("来源");
-  await expect(
-    ffmpegCard.getByRole("button", { name: "安装", exact: true }),
-  ).toBeVisible();
+  const installButton = ffmpegCard.getByRole("button", {
+    name: "安装",
+    exact: true,
+  });
+  await expect(installButton).toBeVisible();
+  await expect(installButton).toHaveCSS("height", "28px");
+  await expect(installButton).toHaveCSS("font-size", "12px");
+  await expect(installButton).toHaveCSS("font-weight", "600");
   await expect(
     ffmpegCard.getByRole("button", { name: "使用本地程序…", exact: true }),
-  ).toBeVisible();
+  ).toHaveCSS("height", "28px");
+  const recheckButton = settings.getByRole("button", {
+    name: "重新检查",
+    exact: true,
+  });
+  await expect(recheckButton).toHaveCSS("height", "26px");
+  await expect(recheckButton).toHaveCSS("font-size", "12px");
+  await expect(recheckButton).toHaveCSS("font-weight", "600");
   await expect(
     settings.locator(".engine-card", { hasText: "sharp" }),
   ).toContainText("可用");
@@ -2793,6 +2805,16 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "授权码 / 应用专用密码",
     "显示名称",
   ]);
+  await expect(
+    settings.getByRole("button", { name: "取消", exact: true }),
+  ).toHaveCSS("height", "28px");
+  const submitButton = settings.getByRole("button", {
+    name: "测试并添加",
+    exact: true,
+  });
+  await expect(submitButton).toHaveCSS("height", "28px");
+  await expect(submitButton).toHaveCSS("font-size", "12px");
+  await expect(submitButton).toHaveCSS("font-weight", "600");
   await settings
     .getByRole("button", { name: "测试并添加", exact: true })
     .click();

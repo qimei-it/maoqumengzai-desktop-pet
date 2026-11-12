@@ -322,7 +322,7 @@ function onEscape(): void {
                   <span class="settings-label">悬停轮盘</span>
                   <button
                     type="button"
-                    class="settings-action"
+                    class="settings-button primary"
                     @click="wheelEditor = 'hover'"
                   >
                     配置
@@ -343,7 +343,7 @@ function onEscape(): void {
                   <span class="settings-label">文件轮盘</span>
                   <button
                     type="button"
-                    class="settings-action"
+                    class="settings-button primary"
                     @click="wheelEditor = 'file'"
                   >
                     配置
@@ -412,7 +412,7 @@ function onEscape(): void {
               <span class="settings-label">数据目录</span>
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button primary"
                 @click="emit('command', { type: 'settings-open-data' })"
               >
                 打开
@@ -424,7 +424,7 @@ function onEscape(): void {
                 <span class="settings-value">{{ shelfInvalidCount }} 项</span>
                 <button
                   type="button"
-                  class="settings-action"
+                  class="settings-button danger"
                   :disabled="shelfInvalidCount === 0"
                   @click="emit('command', { type: 'shelf-clear-invalid' })"
                 >
@@ -436,7 +436,7 @@ function onEscape(): void {
               <span class="settings-label">缓存</span>
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button danger"
                 @click="emit('command', { type: 'settings-clear-cache' })"
               >
                 清理
@@ -448,7 +448,7 @@ function onEscape(): void {
                 <span class="settings-value">{{ clipboardUnpinnedCount }} 项</span>
                 <button
                   type="button"
-                  class="settings-action"
+                  class="settings-button danger"
                   :disabled="clipboardUnpinnedCount === 0"
                   @click="emit('command', { type: 'clipboard-clear' })"
                 >
@@ -462,7 +462,7 @@ function onEscape(): void {
                 <span class="settings-value">{{ bellyCount }} 项</span>
                 <button
                   type="button"
-                  class="settings-action"
+                  class="settings-button danger"
                   @click="emit('command', { type: 'settings-clear-belly' })"
                 >
                   清空
@@ -573,7 +573,7 @@ function onEscape(): void {
               <h3 class="engine-section-title">内置引擎</h3>
               <button
                 type="button"
-                class="engine-button engine-check"
+                class="settings-button engine-check"
                 @click="checkBuiltin"
               >
                 重新检查
@@ -667,7 +667,7 @@ function onEscape(): void {
                     <button
                       v-if="ffmpegStatus === 'missing'"
                       type="button"
-                      class="engine-button primary"
+                      class="settings-button primary"
                       @click="installFfmpeg"
                     >
                       安装
@@ -675,7 +675,7 @@ function onEscape(): void {
                     <button
                       v-else-if="ffmpegStatus === 'error'"
                       type="button"
-                      class="engine-button primary"
+                      class="settings-button primary"
                       @click="installFfmpeg"
                     >
                       重试
@@ -683,7 +683,7 @@ function onEscape(): void {
                     <button
                       v-else-if="ffmpegStatus === 'downloading'"
                       type="button"
-                      class="engine-button"
+                      class="settings-button"
                       disabled
                     >
                       安装中
@@ -691,14 +691,14 @@ function onEscape(): void {
                     <template v-else-if="ffmpegStatus === 'installed'">
                       <button
                         type="button"
-                        class="engine-button"
+                        class="settings-button"
                         @click="recheckFfmpeg"
                       >
                         重新检查
                       </button>
                       <button
                         type="button"
-                        class="engine-button"
+                        class="settings-button danger"
                         title="删除应用内 FFmpeg 与临时文件"
                         @click="removeEngine('ffmpeg')"
                       >
@@ -708,7 +708,7 @@ function onEscape(): void {
                     <button
                       v-if="ffmpegStatus === 'downloading'"
                       type="button"
-                      class="engine-button"
+                      class="settings-button"
                       @click="cancelFfmpeg"
                     >
                       取消
@@ -716,7 +716,7 @@ function onEscape(): void {
                     <button
                       v-if="ffmpegStatus !== 'downloading'"
                       type="button"
-                      class="engine-button"
+                      class="settings-button"
                       @click="useLocalFfmpeg"
                     >
                       使用本地程序…
@@ -725,7 +725,7 @@ function onEscape(): void {
                   <template v-else-if="engine.id === 'libreoffice'">
                     <button
                       type="button"
-                      class="engine-button"
+                      class="settings-button"
                       @click="useLocalLibreOffice"
                     >
                       使用本地程序…
@@ -733,7 +733,7 @@ function onEscape(): void {
                     <button
                       v-if="libreOfficeReady"
                       type="button"
-                      class="engine-button"
+                      class="settings-button danger"
                       title="清除应用内选择，不删除系统程序"
                       @click="removeEngine('libreoffice')"
                     >
@@ -763,7 +763,7 @@ function onEscape(): void {
               <span class="settings-label">第三方许可</span>
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button primary"
                 @click="emit('command', { type: 'settings-open-licenses' })"
               >
                 查看
@@ -817,7 +817,7 @@ function onEscape(): void {
               />
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button primary"
                 :disabled="!apiKey.trim()"
                 @click="saveKey"
               >
@@ -826,7 +826,7 @@ function onEscape(): void {
               <button
                 v-if="editingKey"
                 type="button"
-                class="settings-action"
+                class="settings-button"
                 @click="
                   editingKey = false;
                   apiKey = '';
@@ -838,14 +838,14 @@ function onEscape(): void {
             <div v-else class="settings-field settings-field-end">
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button primary"
                 @click="editingKey = true"
               >
                 替换
               </button>
               <button
                 type="button"
-                class="settings-action danger"
+                class="settings-button danger"
                 @click="emit('command', { type: 'ai-clear' })"
               >
                 删除
@@ -864,7 +864,7 @@ function onEscape(): void {
               <span class="settings-label">第三方许可</span>
               <button
                 type="button"
-                class="settings-action"
+                class="settings-button primary"
                 @click="emit('command', { type: 'settings-open-licenses' })"
               >
                 打开
@@ -937,7 +937,6 @@ function onEscape(): void {
   font-weight: 600;
 }
 .settings-nav button:focus-visible,
-.settings-action:focus-visible,
 .settings-switch:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
@@ -955,11 +954,9 @@ function onEscape(): void {
   gap: 8px;
   margin-bottom: 10px;
 }
-.engine-button.engine-check {
+.settings-button.engine-check {
   min-height: 26px;
   padding: 0 10px;
-  font-size: var(--font-size-caption);
-  font-weight: 500;
 }
 .engine-section-head .engine-section-title {
   margin: 0;
@@ -1053,55 +1050,6 @@ function onEscape(): void {
   border-radius: inherit;
   background: var(--color-brand-ink);
   transition: width var(--motion-fast) var(--ease-standard);
-}
-.engine-button {
-  min-height: 32px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  transition:
-    background var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
-}
-.engine-button:hover:not(:disabled) {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-}
-.engine-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-.engine-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-.engine-button:focus-visible {
-  outline: 2px solid var(--color-brand-ink);
-  outline-offset: 2px;
-}
-.engine-button.primary {
-  background: var(--color-brand-ink);
-  color: var(--color-on-brand);
-}
-.engine-button.primary:hover:not(:disabled) {
-  border-color: var(--color-brand-ink);
-  background: color-mix(
-    in srgb,
-    var(--color-brand-ink) 92%,
-    var(--color-ink)
-  );
-  color: var(--color-on-brand);
-}
-.engine-error {
-  margin: 8px 0 0;
-  color: var(--color-danger);
-  font-size: var(--font-size-label);
 }
 .engine-status {
   display: inline-flex;
@@ -1275,29 +1223,6 @@ function onEscape(): void {
 }
 .settings-switch[aria-checked='true'] .settings-switch-thumb {
   transform: translateX(17px);
-}
-.settings-action {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-brand-ink);
-  font-size: var(--font-size-label);
-  font-weight: 600;
-}
-.settings-action:hover:not(:disabled) {
-  background: var(--color-brand-soft);
-}
-.settings-action:disabled {
-  color: var(--color-muted);
-  cursor: default;
-}
-.settings-action.danger {
-  color: var(--color-danger);
-}
-.settings-action.danger:hover {
-  background: var(--color-danger-soft);
 }
 .settings-field {
   display: flex;

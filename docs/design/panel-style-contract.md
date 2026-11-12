@@ -22,6 +22,7 @@
 | 字体与间距 | 使用同名语义 token，按桌面实际阅读尺寸与窗口空间布局 |
 | 圆角 | 面板使用 `--radius-sheet`，交互行使用 `--radius-control`，主要按钮使用 `--radius-pill` |
 | 双按钮行 | `button-pair` 等宽布局，次操作 `button-soft`，主操作 `button-glass`；统一高度与字阶 |
+| 设置操作按钮 | 统一使用 `settings-button`：确认/打开/添加加 `primary` 主题实底，取消与辅助操作使用默认填充；28px 高、12px/600 文案、`--radius-control` 圆角，禁用和危险操作使用功能语义色 |
 | 下拉选择 | 统一使用 `SelectField`：原生 `select` + Lucide `ChevronDown` 14px，图标距右侧固定 8px，禁止依赖浏览器默认下拉箭头 |
 | 设置项 | 左侧标题统一使用 `--font-size-body`；每个设置入口的最后一项不绘制底部分割线 |
 | 状态 | 成功、警告、错误及禁用使用小程序的功能语义色 |
