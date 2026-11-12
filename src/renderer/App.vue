@@ -314,18 +314,6 @@ function updateWheelHint(): void {
     return;
   }
   const action = donutActive.value;
-  if (action === "audio") {
-    const status = state.value?.engines.ffmpeg.status;
-    wheelHint.value =
-      status === "installed"
-        ? ""
-        : status === "downloading"
-          ? "FFmpeg 正在安装，请稍候"
-          : status === "unsupported"
-            ? "当前平台无法安装 FFmpeg"
-            : "提取音频需要先安装 FFmpeg，松开后打开设置";
-    return;
-  }
   if (action !== "convert" || !dragFileKinds.length) {
     wheelHint.value = "";
     return;
@@ -553,7 +541,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     });
     return;
   }
-  if (action === "audio") {
+  if (action === "mail") {
     await attempt(async () => {
       if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
       const snapshot = unwrap(await api.receiveFiles(files));
@@ -561,9 +549,10 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       const ids = snapshot.received?.fileIds ?? [];
       if (!ids.length) return;
       state.value = unwrap(
-        await api.command({ type: "extract-audio", fileIds: ids }),
+        await api.command({ type: "settings-section", section: "mail" }),
       );
     });
+    flash("邮件发送功能尚未接入");
     return;
   }
   if (action === "rename") {
@@ -793,6 +782,11 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     await command({ type: "settings-section", section: "profile" });
     return;
   }
+  if (action === "mail") {
+    await command({ type: "settings-section", section: "mail" });
+    return;
+  }
+  if (action === "blank") return;
   if (action === "clipboard") {
     await command({ type: "clipboard-open" });
     return;

@@ -34,7 +34,7 @@ export const sliceActions = [
   'shrink',
   'eat',
   'copy',
-  'audio',
+  'mail',
   'rename',
   'ask',
 ] as const
@@ -52,7 +52,7 @@ export const sliceLabelColumns: Record<DropAction, string[]> = {
   shrink: ['压缩', '大小'],
   eat: ['吃掉'],
   copy: ['另存', '副本'],
-  audio: ['提取', '音频'],
+  mail: ['发送', '邮件'],
   rename: ['批量', '重命名'],
   ask: ['智能', '问答'],
 }
@@ -65,7 +65,7 @@ export const sliceLabels: Record<DropAction, string> = {
   shrink: '压缩大小',
   eat: '吃掉',
   copy: '另存副本',
-  audio: '提取音频',
+  mail: '发送邮件',
   rename: '批量重命名',
   ask: '智能问答',
 }
@@ -561,6 +561,8 @@ export const hoverActions = [
   'water',
   'focus',
   'shelf',
+  'mail',
+  'blank',
 ] as const
 export type HoverAction = (typeof hoverActions)[number]
 
@@ -573,4 +575,6 @@ export const hoverLabels: Record<HoverAction, readonly string[]> = {
   water: ['喝水提醒'],
   focus: ['番茄时钟'],
   shelf: ['置物架'],
+  mail: ['邮件'],
+  blank: [],
 }
