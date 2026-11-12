@@ -21,6 +21,12 @@ async function packageVersion(name: string): Promise<string | undefined> {
 }
 
 describe('conversion engine manifest', () => {
+  it('ships qpdf as a bundled engine', () => {
+    expect(builtinEngines.find((engine) => engine.id === 'qpdf')?.version).toBe(
+      '12.4.2',
+    )
+  })
+
   it('pins exact versions for npm engines', async () => {
     const exact = new Map([
       ['sharp', '0.35.5'],
@@ -82,7 +88,6 @@ describe('conversion engine manifest', () => {
     expect(optionalEngines.map((engine) => engine.id)).toEqual([
       'ffmpeg',
       'libreoffice',
-      'qpdf',
     ])
     for (const engine of optionalEngines)
       expect(engine.platforms.length, engine.id).toBeGreaterThan(0)

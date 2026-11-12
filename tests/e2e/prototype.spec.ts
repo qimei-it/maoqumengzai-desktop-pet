@@ -1,7 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -300,7 +299,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   ).toBeEnabled();
   await expect(
     settings.locator(".engine-card", { hasText: "qpdf" }),
-  ).toContainText("未选择");
+  ).toContainText("可用");
   await settings.getByRole("button", { name: "外观", exact: true }).click();
   await settings.getByRole("button", { name: "万圣节", exact: true }).click();
   await expect
@@ -2517,21 +2516,33 @@ test("透明图片转 JPG 使用白色背景", async () => {
 });
 
 test("qpdf 可以加密并解除 PDF 密码", async () => {
-  const qpdf = "/opt/homebrew/bin/qpdf";
-  test.skip(!existsSync(qpdf), "本机未安装 qpdf");
-  await application.evaluate(({ dialog }, path) => {
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [path],
-    });
-  }, qpdf);
-  await pet.evaluate(() =>
-    window.mqmz!.command({ type: "engine-use-local", id: "qpdf" }),
+  const qpdf = resolve(
+    "resources",
+    "engines",
+    "qpdf",
+    `${process.platform}-${process.arch}`,
+    process.platform === "win32" ? "qpdf.exe" : "bin/qpdf",
   );
+  const qpdfEnv = {
+    ...process.env,
+    ...(process.platform === "darwin"
+      ? {
+          DYLD_LIBRARY_PATH: join(
+            resolve(
+              "resources",
+              "engines",
+              "qpdf",
+              `${process.platform}-${process.arch}`,
+            ),
+            "lib",
+          ),
+        }
+      : {}),
+  };
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.engines.qpdf.status : "missing";
+      return snapshot.ok ? snapshot.value.engines.builtin.qpdf?.status : "missing";
     })
     .toBe("ready");
   const source = join(directory, "qpdf加密.pdf");
@@ -2552,11 +2563,11 @@ test("qpdf 可以加密并解除 PDF 密码", async () => {
     })
     .toBe(1);
   const encrypted = join(directory, "qpdf加密-加密.pdf");
-  const encryptedInfo = await promisify(execFile)(qpdf, [
-    "--password=secret123",
-    "--show-encryption",
-    encrypted,
-  ]);
+  const encryptedInfo = await promisify(execFile)(
+    qpdf,
+    ["--password=secret123", "--show-encryption", encrypted],
+    { env: qpdfEnv },
+  );
   expect(encryptedInfo.stdout).toContain("R = 6");
   await convert.getByRole("button", { name: "完成", exact: true }).click();
 
@@ -2585,29 +2596,13 @@ test("qpdf 可以加密并解除 PDF 密码", async () => {
       return snapshot.ok ? snapshot.value.convert.outcome?.converted : 0;
     })
     .toBe(1);
-  const decryptedInfo = await promisify(execFile)(qpdf, [
-    "--show-encryption",
-    join(directory, "qpdf加密-加密-解密.pdf"),
-  ]);
+  const decryptedInfo = await promisify(execFile)(
+    qpdf,
+    ["--show-encryption", join(directory, "qpdf加密-加密-解密.pdf")],
+    { env: qpdfEnv },
+  );
   expect(decryptedInfo.stdout).toContain("File is not encrypted");
   await convert.getByRole("button", { name: "完成", exact: true }).click();
-
-  await pet.evaluate(() =>
-    window.mqmz!.command({ type: "engine-remove", id: "qpdf" }),
-  );
-  await expect
-    .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.engines.qpdf.status : "ready";
-    })
-    .toBe("missing");
-  await dropOnPet(source, "convert");
-  await expect(
-    convert.getByRole("button", { name: "加密 PDF", exact: true }),
-  ).toHaveCount(0);
-  await convert.evaluate(() =>
-    window.mqmz!.command({ type: "convert-close" }),
-  );
 });
 
 test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
@@ -2649,10 +2644,8 @@ test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
       .getByRole("button", { name: "卸载", exact: true }),
   ).toBeVisible();
   await expect(
-    settings
-      .locator(".engine-card", { hasText: "qpdf" })
-      .getByRole("button", { name: "使用本地程序…", exact: true }),
-  ).toBeVisible();
+    settings.locator(".engine-card", { hasText: "qpdf" }),
+  ).toContainText("可用");
   await pet.evaluate(() =>
     window.mqmz!.command({ type: "settings-close" }),
   );
