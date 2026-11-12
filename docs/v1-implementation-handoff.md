@@ -292,7 +292,7 @@
 
 - [ ] 四款播放器按双平台兼容矩阵接入控制、歌曲状态和歌词。
 - [ ] 实现本地歌词导入、匹配校验、缓存、偏移、超时与限流退避。
-- [ ] QQ、163、Outlook、Gmail 实现多账户收件、未读、正文和附件。
+- [ ] QQ、163、Gmail 多账户收件、未读、正文和附件：SQLite/safeStorage/IMAP 探测/设置页账户与偏好底座已实现；Outlook 暂缓，真实授权码收件待验证。
 - [ ] 完成大号数字验证码识别与复制，验证误识别、过期、重复邮件和敏感内容处理。
 - [ ] OpenAI / Claude 本地订阅额度与 DeepSeek 余额实接，区分未登录、过期、不可读取和网络异常。
 - [ ] 验证上述凭据和本地历史不经过自家云端。
@@ -305,7 +305,7 @@
 - [x] 引擎来源、版本、校验、平台差异与许可材料已记录；内置引擎随包自检并在打包应用断网首用通过；可选引擎支持安装/选择与卸载清理，Windows x64 按用户要求暂缓。
 - [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows x64 按用户要求暂缓。
 - [x] 缺引擎、组件损坏、不支持、损坏文件、加密 PDF、权限不足、磁盘不足、密码错误与取消均有独立反馈；批量部分失败保留成功结果。
-- 当前证据（2026-11-12）：129 项单元测试、完整 Electron 套件 42 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
+- 当前证据（2026-11-12）：132 项单元测试、完整 Electron 套件 43 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
 
 ### P6：宠物档案与账号（交友延后）
 
