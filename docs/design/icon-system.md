@@ -82,5 +82,5 @@ Firefox Emoji 用于适合的情绪、活动或业务插画型图标，沿用小
 
 - Lucide 来源与许可：[Lucide](https://lucide.dev/license)。完整上游许可证已保留在 [lucide-ISC.txt](../../resources/licenses/lucide-ISC.txt)，包括源文件中的 ISC 与 Feather 派生图标 MIT 声明，并随安装包分发。
 - Firefox Emoji 来源：[Mozilla FxEmojis](https://github.com/mozilla/fxemoji)。视觉设计采用 CC BY 4.0，代码采用 Apache-2.0；许可证原文保存在 [fxemoji-LICENSE.md](../../resources/licenses/fxemoji-LICENSE.md)，成品中仅保留清单图标所需的官方 SVG 并记录于 `manifest.json`。
-- 本轮验证包含 SVG 来源/属性、图标随三套主题着色、原生图标资源、透明命中、文件卡片拖动事件及原有文件功能回归。原生拖出落地与 Windows/Intel/最低系统仍按 P0 原记录待验收。
+- 本轮验证包含 SVG 来源/属性、图标随三套主题着色、原生图标资源、透明命中、文件卡片拖动事件及原有文件功能回归。原生拖出落地与 Windows x64/最低系统仍按 P0 原记录待验收。
 - 实测结果：构建、图标/主题检查、84 项单元测试与 30 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。

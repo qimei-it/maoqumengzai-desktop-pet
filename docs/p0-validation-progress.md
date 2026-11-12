@@ -8,16 +8,16 @@
 - 2026-11-08 接管时：`README.md` 有未提交修改，`docs/` 未跟踪；当时保留原有内容，未提交或推送。
 - 接管时未发现适用的 `AGENTS.md`。2026-11-09 已读取小程序前后端的 `AGENTS.md`，并按用户要求将 Git 提交、双远端推送规范记录到本项目根目录 `AGENTS.md`；未修改小程序前后端仓库。
 - 接管时仓库只有文档和参考图片；当前已实现 P0 第 3 项的 Electron + Vue 窗口交互原型，完整首版尚未交付。
-- 当前执行环境命令返回 macOS 27.0.1、arm64；这不构成最低系统版本、Intel 或 Windows 的兼容证据。
+- 当前执行环境命令返回 macOS 27.0.1、arm64；这不构成最低系统版本或 Windows 的兼容证据。
 - 未读取邮箱或 AI 登录凭据、未调用付费生成；第 3 项已安装项目本地依赖与校验后的 Electron 开发运行时，没有安装系统级应用。
 
 ## 验证矩阵
 
 | 项目 | 当前证据/状态 | 下一步与外部条件 |
 | --- | --- | --- |
-| 双平台支持矩阵 | 支持目标与环境缺口已定案，见[支持矩阵](platform-support-matrix.md)：Windows 10 22H2 / Windows 11 x64，macOS 13+ Intel / Apple Silicon；均未完成应用兼容验收 | 第 1 项的范围确认完成；后续原型和功能实测逐格补证据，缺少设备保持待验证 |
+| 双平台支持矩阵 | 支持目标与环境缺口已定案，见[支持矩阵](platform-support-matrix.md)：Windows 10 22H2 / Windows 11 x64，macOS 13+ Apple Silicon；均未完成应用兼容验收 | 第 1 项的范围确认完成；后续原型和功能实测逐格补证据，缺少设备保持待验证 |
 | 技术方案与验收清单 | [技术方案](technical-architecture.md)、[57 项验收映射](v1-acceptance-matrix.md)已形成；第 3 项已安装窗口原型依赖并生成 lockfile；用户已确定安装渠道、全量内置引擎与系统数据目录 | 第 2 项的方案记录完成；完整 P1、数据库原生模块、引擎制品与全量离线运行仍待实现及实测 |
-| 透明窗口与交互 | [可运行原型与验证记录](p0-window-prototype.md)已建立；用户确认文件投递可用；拖入时出现 Filee 式十等分圆环（置物架、格式转换、打包归档、解压缩、压缩大小、吃掉、另存副本、提取音频、批量重命名、智能问答），中心为宠物、环外取消；84 项单元与 30 项 Electron 集成通过 | 原生拖出落地、真实 Finder 拖放落点、物理拖动、插拔/唤醒/权限拒绝及 Windows/Intel/最低系统证据仍待补；H-P0-05 保持未完成。退出/销毁守卫已补，辅助窗口销毁后关闭轮盘不再抛异常 |
+| 透明窗口与交互 | [可运行原型与验证记录](p0-window-prototype.md)已建立；用户确认文件投递可用；拖入时出现 Filee 式十等分圆环（置物架、格式转换、打包归档、解压缩、压缩大小、吃掉、另存副本、提取音频、批量重命名、智能问答），中心为宠物、环外取消；84 项单元与 30 项 Electron 集成通过 | 原生拖出落地、真实 Finder 拖放落点、物理拖动、插拔/唤醒/权限拒绝及 Windows x64/最低系统证据仍待补；H-P0-05 保持未完成。退出/销毁守卫已补，辅助窗口销毁后关闭轮盘不再抛异常 |
 | 播放器 | macOS 已完成 QQ 音乐 11.11.0、酷狗 20.3.8、网易云 3.1.9 的真实播放实测：三款均可播放/暂停/上一首/下一首并读取歌名、歌手、专辑、时长；QQ 与酷狗无进度，网易云只有快照。Apple Music 仍只有 AppleScript 静态摸底，见[能力记录](research/player-control-probe.md) | 复验 Apple Music 真实播放与进度；Windows 四款按 SMTC 逐格验证；macOS 不承诺四款均有歌词 |
 | 邮箱 | 用户拥有 QQ、163、Outlook、Gmail 邮箱；授权路径未验证 | 核实官方授权方式及 OAuth 应用注册情况；本地录入凭据，执行真实收件、正文、附件与验证码验证 |
 | 订阅额度与余额 | 已通过本机 Codex CLI 0.156.1 的 `account/rateLimits/read` 真实读取 OpenAI 订阅额度（plus，5 小时/7 天窗口），见[验证记录](research/codex-quota-probe.md)；DeepSeek 余额与 Claude 仍未实测 | 补 Windows 复验；DeepSeek 需本地录入 Key 后调用真实余额接口；Claude 仍需安装与登录环境 |
@@ -28,13 +28,12 @@
 | 平台 | 架构 | 当前证据 | 验收状态 |
 | --- | --- | --- | --- |
 | Windows | x64 目标 | 用户提供 Windows 11 测试环境；具体版本、构建号与设备架构待核实；Windows 10 22H2 环境尚未确认 | 待验证 |
-| macOS | Intel / x64 | 尚无该架构测试设备的证据 | 待验证 |
 | macOS | Apple Silicon / arm64 | macOS 27.0.1 已运行 Electron 45.2.3 原型；实际两屏为 1470×956 DIP / 2× 和 1920×1080 DIP / 1×，含负坐标 | 部分原型集成通过；完整交互、macOS 13 及发布验收仍待验证 |
 
 ## 2026-11-09 已确认安排
 
-- 已确认最低系统：Windows 10 22H2 x64（覆盖 Windows 11），macOS 13+（Intel / Apple Silicon）；用户提供 Windows 11 与 macOS 27 测试环境，设备与最低系统缺口见支持矩阵。
-- 已确认直接分发 Windows 安装程序、macOS DMG；每个安装包内置该平台/架构全部首版转换引擎，安装后首次使用即可离线转换，替代此前按需下载的建议。
+- 已确认最低系统：Windows 10 22H2 x64（覆盖 Windows 11），macOS 13+（Apple Silicon）；用户提供 Windows 11 与 macOS 27 测试环境，设备与最低系统缺口见支持矩阵。
+- 已确认直接分发 Windows 安装程序、macOS DMG；内置引擎与 qpdf 随安装包分发；FFmpeg 与 LibreOffice 保持可选安装/选择，安装后内置方向可离线转换。
 - 已确认系统应用数据目录保存历史/缓存/素材，设置提供清理和打开目录；转换结果、截图等导出文件由用户选择保存位置。
 - 用户明确将桌面项目标识统一更新为 `mqmz`，已同步 IPC、环境变量、配置/数据目录、应用 ID 与项目文档规范。
 - 用户确认文件投递可用，并纠正产品交互：文件拖到桌宠后就近选择放入置物架、保存副本或转换，拖出时按住文件本身。已移除“拖出”按钮与诊断台默认入口；图片转换已接入；Office、PDF 和音视频仍待后续阶段。
@@ -59,16 +58,17 @@
 - 文件置物架新增设置分区（Archive 图标，位于剪贴板下方）：截图自动放入置物架（默认开）、剪贴板图片自动放入置物架（默认关，避免把普通复制图片误当截图）、入架气泡提示（默认开）、只读截图目录。macOS 读取系统截图保存目录并监听新增截图，Windows 监听图片\屏幕截图与视频\Captures；启动后新增的截图按路径和写入稳定性去重后登记到置物架，不移动源文件，成功弹“截图已放入置物架”；剪贴板图片开关开启后另存为应用数据图片并提示“图片已放入置物架”。109 项单元测试通过，截图、剪贴板、设置与待办相关 Electron 用例通过。
 - P3 设置与清理收口：文件置物架新增记录上限（50/100/200/500）与失效记录扫描/清理；数据页显示失效置物架记录数和剪贴板未固定记录数，支持分别清理，原有缓存、回收区清理保留；清理只删除索引或未固定记录，不移动、不删除源文件。109 项单元测试与 32 项 Electron 集成（31 通过、1 跳过）通过；P3 本地效率工具功能实现收口，原生拖出与双平台实测仍后置。
 - 设置面板新增“格式转换”分区（Boxes 图标，位于文件置物架下方）：展示 sharp、pdf-lib、fflate 的可用状态与版本，LibreOffice、qpdf/OFD、FFmpeg 标记为未接入，并提供第三方许可入口；为 P5 引擎状态与后续格式矩阵提供入口。109 项单元测试与格式转换设置 Electron 用例通过。
-- FFmpeg 改为可选的用户手动安装：设置“格式转换”页提供 FFmpeg 6.0（ffmpeg-static b6.1.1，npmmirror 镜像）下载卡片，显示来源、下载/安装体积、进度、取消和重新检查；安装前校验固定 SHA-256，解压后写入应用数据目录并设为可执行，不随安装包分发；支持 macOS arm64/x64 与 Windows x64，其他平台显示不可用。111 项单元测试与格式转换设置用例通过，本机完成真实下载、校验、安装和 `ffmpeg -version` 验证。
+- FFmpeg 改为可选的用户手动安装：设置“格式转换”页提供 FFmpeg 6.0（ffmpeg-static b6.1.1，npmmirror 镜像）下载卡片，显示来源、下载/安装体积、进度、取消和重新检查；安装前校验固定 SHA-256，解压后写入应用数据目录并设为可执行，不随安装包分发；支持 macOS arm64 与 Windows x64，其他平台显示不可用。111 项单元测试与格式转换设置用例通过，本机完成真实下载、校验、安装和 `ffmpeg -version` 验证。
 - “格式转换”改为 Filee 式引擎卡片：可选引擎 FFmpeg、LibreOffice、qpdf/OFD 均为独立卡片，显示版本、用途、支持格式、来源与体积，并提供“安装”和“使用本地程序…”按钮；FFmpeg 支持安装、取消、进度与重新检查，LibreOffice 与 qpdf/OFD 在接入前按钮置灰并标注原因。sharp、pdf-lib、fflate 单独列为“内置引擎”卡片，显示版本、用途与格式。111 项单元测试、设计/图标检查和格式转换设置 Electron 用例通过，已实测 FFmpeg 未安装与已安装两种界面状态。
 - 调整“格式转换”顺序为内置引擎在前、可选引擎在后。轮盘“格式转换”在拖拽悬停时按文件类型提示所需引擎，缺少 FFmpeg 时松开自动打开设置并定位到格式转换，不再进入空转换面板；Office 方向提示尚未接入。接入 FFmpeg 音视频转换：视频分组提供 MP4、MOV、MKV、WebM、GIF、动态 WebP，提取音频分组提供 MP3、WAV、M4A、FLAC；同容器输入也可重编码（如 MP4 → `名字 (2).mp4`），音频输入提供 MP3、WAV、M4A、FLAC；输出使用临时文件后原子发布，不覆盖已有文件。轮盘“提取音频”同步接入。转换面板改用统一 PanelHeader，标题居中、移除左侧文件图标，文件名完整换行显示；面板高度按目标组和转换结果调整，内容区可滚动，开始按钮固定在底部。除设置面板外，功能面板底部操作行到面板底边统一为 12px 固定间距（实测转换、置物架、批量重命名、番茄时钟一致）。转换结果预览的格式药丸移到卡片右上角。FFmpeg 转换通过 `-progress` 和输入时长回显真实百分比，文件级进度最高 99%，完成后再更新总进度，避免提前闪 100%；图片/PDF 使用流光式不确定进度，渲染层百分比单调不回退。文件卡片提供 Lucide X 移除当前批次文件，列表展示全部文件，移除全部后关闭面板。转换完成新增横向结果预览：图片/动图直接显示缩略或动图，视频截取首帧，音频使用音乐图标，点击预览打开输出文件；预览区单独固定在统计文本和操作按钮之间并横向滚动，最多展示 24 个。成功后隐藏顶部源文件列表，结果面板固定为 360px 高。115 项单元测试、设置/格式转换/轮盘 Electron 用例通过，本机真实样例完成视频转 MP4/MOV/MKV/WebM/GIF/WebP、提取 MP3/WAV/M4A/FLAC，以及音频转 MP3/WAV/M4A/FLAC。
-- 扩展格式转换矩阵：图片输入新增 HEIC/HEIF、BMP、TIFF、GIF，统一输出 JPG/PNG/WEBP/PDF；PDF 新增转 PNG/JPG/TXT（PDF.js + pdf-to-img / @napi-rs/canvas）；Office 通过本地 LibreOffice 转 PDF，并新增旧 Office → DOCX/XLSX/PPTX；CSV 可转 PDF/XLSX，TXT/Markdown/HTML 通过隐藏 Chromium 打印为 PDF；视频输入新增 FLV/WMV/MPEG/TS/3GP，音频输出新增 OGG/Opus；OFD 通过 EasyOFD 渲染为 PDF/PNG/JPG；归档支持 ZIP/7Z 打包、ZIP/7Z/RAR 解压。`conversionMap` 已同步音视频、图片、PDF、Office、文档和 OFD 目标。119 项单元测试、设置/图片/PDF/文档 Electron 用例通过；真实样例完成 HEIC/BMP/TIFF/GIF、两页 PDF、CSV/TXT/MD/HTML、CSV→XLSX、OFD 单页、FLV→MP4/OGG、7Z 打包解压、公共 RAR 样例解压；本机 LibreOffice 26.8.2.2 完成 DOCX→PDF 与 DOC→DOCX；CSV→XLSX 经 LibreOffice 回读一致；macOS arm64 未签名 dir 包实测 OFD 转 PNG、7Z 打包/解压与 RAR 解压。扫描版 PDF OCR、PDF→可编辑 DOCX/PPTX、RAR 创建、Windows/Intel 实机验收已记录在 `docs/format-conversion-todo.md`。
+- 扩展格式转换矩阵：图片输入新增 HEIC/HEIF、BMP、TIFF、GIF，统一输出 JPG/PNG/WEBP/PDF；PDF 新增转 PNG/JPG/TXT（PDF.js + pdf-to-img / @napi-rs/canvas）；Office 通过本地 LibreOffice 转 PDF，并新增旧 Office → DOCX/XLSX/PPTX；CSV 可转 PDF/XLSX，TXT/Markdown/HTML 通过隐藏 Chromium 打印为 PDF；视频输入新增 FLV/WMV/MPEG/TS/3GP，音频输出新增 OGG/Opus；OFD 通过 EasyOFD 渲染为 PDF/PNG/JPG；归档支持 ZIP/7Z 打包、ZIP/7Z/RAR 解压。`conversionMap` 已同步音视频、图片、PDF、Office、文档和 OFD 目标。119 项单元测试、设置/图片/PDF/文档 Electron 用例通过；真实样例完成 HEIC/BMP/TIFF/GIF、两页 PDF、CSV/TXT/MD/HTML、CSV→XLSX、OFD 单页、FLV→MP4/OGG、7Z 打包解压、公共 RAR 样例解压；本机 LibreOffice 26.8.2.2 完成 DOCX→PDF 与 DOC→DOCX；CSV→XLSX 经 LibreOffice 回读一致；macOS arm64 未签名 dir 包实测 OFD 转 PNG、7Z 打包/解压与 RAR 解压。扫描版 PDF OCR、PDF→可编辑 DOCX/PPTX、RAR 创建、Windows x64 实机验收已记录在 `docs/format-conversion-todo.md`。
 - 工作区清理与回归：删除 asar 诊断残留 `index.js`；GitHub 远端确认为 `git@github.com:qimei-it/mqyh-maoqumengzai.git`，GitLab 为 `git@gitlab.qimei.com:electron-project/maoqumengzai-desktop-pet.git`；`AGENTS.md` 远端表已同步。120 项单元测试通过，完整 Electron 套件 34 通过、1 跳过；全量回归中仅修正解压缩错误文案用例。
 - 转换取消与结果交付：转换中底部按钮切换为“取消转换”，通过 AbortController 终止 FFmpeg、LibreOffice 进程树和文档/OFD 隐藏窗口，并清理临时目录、`.part` 文件及本次未完成的 PDF/OFD 页面；批量取消保留已完成输出。转换结果不自动进入置物架，不支持结果拖出，交付方式固定为点击预览打开文件和“打开所在位置”。长视频 WebM 转换取消后无输出残留，Office 取消后子进程未继续执行；120 项单元测试、完整 Electron 套件 34 通过/1 跳过。H-P5-01～06 与实施交接 P5 已按实际证据更新。
 - P5 收口补充：轮盘“提取音频”改为打开独立面板并自动抽取 MP3，成功后复用转换结果面板（360px 高、预览条、打开所在位置、完成），不再只弹提示并打开目录。合并 PDF 支持用上下按钮调整文件顺序，合并结果按界面顺序写入。批量转换部分失败时保留成功输出并分别显示成功/失败数与错误原因。新增 5 项 Electron 用例覆盖合并排序、提取音频成功面板、取消进程与临时文件清理、部分失败和透明图白底；完整套件 39 通过、1 跳过。真实样例补齐复杂 XLSX（合并单元格、长中文、数字）→ PDF，中文字体正常且 PDF→TXT 可抽取原文；损坏 MP4 返回“无法读取这个文件”。修复 macOS 27 上 LibreOffice headless 导出中文为空白的问题：macOS 改用 `--invisible` 调用本地程序，Windows 保持 `--headless`。
 - P5 引擎与失败收口：内置引擎改为运行时自检，设置页显示“可用/组件损坏”，并新增清单版本、许可与 asarUnpack 一致性检查（127 项单元测试）。FFmpeg 安装后冒烟测试、卸载与临时文件清理；LibreOffice 支持本地选择与卸载清理。接入 qpdf 12.4.2：PDF 加密与解除密码、错误密码提示，密码只随单次命令传递。打包 macOS arm64 应用在 sandbox-exec 断网环境完成内置图片转换，FFmpeg 下载提示检查网络。失败注入实测：只读目录提示“没有写入权限”，满载磁盘映像提示“磁盘不足”，加密 PDF 提示“已加密，暂不支持”，移走 7-Zip 二进制后自检显示组件损坏。完整 Electron 套件 41 通过、1 跳过。
 - FFmpeg 许可收口：下载源从 `ffmpeg-static` GPL/nonfree 构建切换为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 9.0.2 构建，安装前校验 SHA-256，下载使用独立 session 以走系统代理；安装包包含动态库与许可，运行时通过 `DYLD_LIBRARY_PATH`/`PATH` 加载。macOS 使用 VideoToolbox，Windows 使用 Media Foundation；动态 WebP 改为 FFmpeg 生成 GIF 后由 sharp 转 WebP。真实回归通过 MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG、视频首帧预览与提取音频，输出分别确认 H.264、VP9、WebP 动画 36 帧等格式；`ffmpeg -version` 无 `--enable-gpl`/`--enable-nonfree`。127 项单元测试通过。
-- qpdf 内置：qpdf 12.4.2 官方 macOS arm64/x64 与 Windows x64 二进制移入 `resources/engines/qpdf`，启动自检按平台检查二进制与动态库，PDF 加密/解密不再需要用户本机安装或手动选择。设置页内置引擎列表显示 qpdf 可用状态；打包配置通过 `extraResources` 分发。开发环境 E2E 完成加密、错误密码与解除密码，PDF 目标仅在自检可用时出现。
+- qpdf 内置：qpdf 12.4.2 官方 macOS arm64 与 Windows x64 二进制移入 `resources/engines/qpdf`，启动自检按平台检查二进制与动态库，PDF 加密/解密不再需要用户本机安装或手动选择。设置页内置引擎列表显示 qpdf 可用状态；打包配置通过 `extraResources` 分发。开发环境 E2E 完成加密、错误密码与解除密码，PDF 目标仅在自检可用时出现。
+- 架构与体积收口：发行目标收敛为 Windows x64 与 macOS arm64，macOS Intel 取消构建与验收。打包按平台裁剪 qpdf 与 7-Zip 二进制，删除 PDF.js source map 和 viewer 资源，并从 asar 排除渲染层已打包的 Vue、Lucide 与编译期依赖；图标资源不再携带概念图。macOS arm64 应用从约 467MB 降到约 385MB，DMG 实测约 164MB；打包应用完成图片、PDF、OFD、7Z、RAR 与 qpdf 加密回归，内置引擎自检全部可用。
 - 本轮先整理并提交当前资料，按 GitHub → GitLab 顺序同步；两个远端已在本地配置。
 - 默认角色先验证布偶猫，继续遵守 2.5D 像素风、无衣物与透明背景要求。
 - 当前样例改为用户先在 ChatGPT App 制作，不启动火山方舟付费生成；生产端火山方舟、积分与资源包交付方案仍按需求基线保留，尚未验证。
@@ -81,7 +81,7 @@
 
 ## 待沟通事项
 
-1. 最低系统版本已定案；待后续测试时补 Windows 11 具体版本/架构、Intel Mac 与最低版本测试环境；Windows ARM 尚未纳入已确认的三类架构。
+1. 最低系统版本已定案；待后续测试时补 Windows 11 具体版本/架构与最低版本测试环境；Windows ARM 尚未纳入已确认的双架构。
 2. 四款播放器实际版本及多屏/缩放环境；安装后再逐格实测。
 3. 邮箱协议开通、Google / Microsoft OAuth 应用注册情况及本地授权步骤。
 4. Codex / ChatGPT 的可用登录状态、DeepSeek 本地 Key 配置与 Claude 测试环境。
@@ -90,8 +90,8 @@
 ## 第 2 项方案核实结果
 
 - 公开证据：查询 npm 官方 registry 并保存 [依赖版本及 peer 约束快照](research/tech-dependency-metadata.json)；核对 Electron 安全/凭据/进程 API、electron-vite 与 electron-builder 官方文档。
-- 分发规则：核对 FFmpeg、LibreOffice、qpdf、7-Zip 的官方许可起点；实际构建配置、依赖许可、三架构制品、校验和、完整离线行为与最终体积尚未验收。
-- 文档验收：57 项实施任务全部映射；保留三架构和最低系统缺口；统一全量引擎交付规则；仅方案任务 H-P0-03/04 标记完成，未标记运行或外部接口通过。
+- 分发规则：核对 FFmpeg、LibreOffice、qpdf、7-Zip 的官方许可起点；实际构建配置、依赖许可、双架构制品、校验和、完整离线行为与最终体积尚未验收。
+- 文档验收：57 项实施任务全部映射；保留双架构和最低系统缺口；统一全量引擎交付规则；仅方案任务 H-P0-03/04 标记完成，未标记运行或外部接口通过。
 - 第 2 项方案记录阶段没有安装依赖、生成安装包、运行转换、读取账户凭据或调用模型；第 3 项窗口原型的实际实现与安装另见下方链接，公开资料核实不等于真实服务验收。
 
 ## P0 完成判定

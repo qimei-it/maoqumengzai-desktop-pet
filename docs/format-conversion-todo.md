@@ -23,11 +23,11 @@
 - 验收：Windows/macOS 命令行编码器、文件名校验、分卷/密码策略确认。
 - 当前状态：仅支持 RAR 解压，不支持创建。
 
-## 4. Windows / Intel 实机验收
+## 4. Windows x64 实机验收
 
-- 目标：在 Windows 10/11 x64、macOS Intel 上验证全部转换方向。
+- 目标：在 Windows 10/11 x64 上验证全部转换方向；macOS Intel 已取消支持。
 - 需要补：真实安装包、PDF 渲染原生依赖、LibreOffice、7-Zip/UnRAR、FFmpeg、HEIC/OFD 样例。
-- 当前状态：macOS arm64 已完成主要样例；按用户要求暂缓 Windows/Intel 与 macOS 13 低版本实测，先完成 macOS 当前环境。
+- 当前状态：macOS arm64 已完成主要样例；按用户要求暂缓 Windows x64 与 macOS 13 低版本实测，先完成 macOS 当前环境。
 
 ## 5. 其他未纳入首版的方向
 

@@ -125,7 +125,7 @@ tests/
 
 ## 7. 全量引擎交付
 
-Windows x64、macOS x64、macOS arm64 各自构建独立安装包，使用 electron-builder 的普通 NSIS 与 DMG 目标，不采用需要联网取主载荷的 Web installer。引擎及其动态库、资源、必要运行时放到 `extraResources`，避免放进只读 ASAR 后无法直接执行；打包设置依据见 [electron-builder 配置](https://www.electron.build/v26/docs/configuration/)。
+Windows x64、macOS arm64 各自构建独立安装包，使用 electron-builder 的普通 NSIS 与 DMG 目标，不采用需要联网取主载荷的 Web installer。引擎及其动态库、资源、必要运行时放到 `extraResources`，避免放进只读 ASAR 后无法直接执行；打包设置依据见 [electron-builder 配置](https://www.electron.build/v26/docs/configuration/)。
 
 每个引擎制品必须有清单：ID、版本、来源、适用系统/架构、支持的转换方向、SHA-256、入口、附带运行时/资源、许可/源码材料、签名状态、压缩与安装后体积。校验失败、错架构或组件缺失时显示具体错误，不在后台偷偷下载修复。
 
@@ -136,7 +136,7 @@ Windows x64、macOS x64、macOS arm64 各自构建独立安装包，使用 elect
 | FFmpeg / ffprobe | 影音转换、探测、提取音频 | [官方许可说明](https://ffmpeg.org/legal.html)区分 LGPL 与启用 GPL/nonfree 组件的构建；需记录实际编译配置、编解码器、对应源码与声明，不把任意下载的二进制视为可分发 |
 | LibreOffice | Office 转 PDF、旧格式转换候选 | [官方许可](https://www.libreoffice.org/licenses/)以 MPL 2.0 为基础并含其他许可组件；需检查具体制品 LICENSE、字体和附带组件，验证中文排版、无界面启动与最低系统 |
 | qpdf | PDF 合并、拆分等结构操作候选 | [官方许可](https://qpdf.readthedocs.io/en/stable/license.html)为 Apache 2.0；具体二进制及依赖仍需核验；它不覆盖所有 PDF 渲染、OCR 或文本提取能力 |
-| 7-Zip | 7Z/ZIP 打包及常见压缩包解压候选 | [官方许可](https://www.7-zip.org/license.txt)包含 LGPL、BSD 与部分 unRAR 限制；需按实际组件保留声明并核对三类制品 |
+| 7-Zip | 7Z/ZIP 打包及常见压缩包解压候选 | [官方许可](https://www.7-zip.org/license.txt)包含 LGPL、BSD 与部分 unRAR 限制；需按实际组件保留声明并核对两类制品 |
 | 图片/HEIC、PDF 渲染/文字、OFD、表格/文本 | 覆盖其余白名单方向 | 图片 JPG/PNG/WEBP 已用 sharp 接入，PDF 生成/合并/拆分用 pdf-lib；HEIC、PDF 渲染成图片、OFD、OCR 与复杂文档仍待选型与验证 |
 
 P5 的引擎安装任务改为全量内置与完整性管理。卸载本地历史不能删除安装目录内引擎而破坏全量离线能力；引擎更新通过校验后的应用更新交付，禁止生成内容或本地历史随更新上传。
@@ -145,9 +145,9 @@ P5 的引擎安装任务改为全量内置与完整性管理。卸载本地历�
 
 - 57 项原清单均有稳定 ID、负责模块、验收方法与当前缺口，见 [验收映射](v1-acceptance-matrix.md)。聊天中第 2 项对应原清单 H-P0-03、H-P0-04；编号不与七项讨论顺序混用。
 - 本轮完成文档方案、公开元数据核实、映射覆盖与一致性检查；不把它们计为 P1 构建或任何真实服务通过。
-- 全量离线验收：干净系统断网安装；不预装 Office/引擎/运行时；首次转换执行全部白名单方向，验证无下载、无外传、原件保留、失败可解释；三架构和最低系统分别留证。
+- 全量离线验收：干净系统断网安装；不预装 Office/引擎/运行时；首次转换执行全部白名单方向，验证无下载、无外传、原件保留、失败可解释；双架构和最低系统分别留证。
 - 安装包体积与空闲/转换资源预算待实际引擎组成和原型测量后确定，不能当前估算为已达标。
-- 仍缺 Windows 10、macOS 13、Intel Mac 的运行证据；Windows 11 细节待补；签名/公证材料、更新托管、各服务授权、引擎最终组合与许可清单待相应阶段落实。
+- 仍缺 Windows 10 与 macOS 13 的运行证据；Windows 11 细节待补；签名/公证材料、更新托管、各服务授权、引擎最终组合与许可清单待相应阶段落实。
 - 第 3 项已实现透明窗口与交互原型，实测范围和剩余项见 [窗口原型记录](p0-window-prototype.md)；播放器、邮箱、额度与动画按用户要求逐项推进。
 
 ## 9. 主要官方参考

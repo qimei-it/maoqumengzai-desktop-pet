@@ -252,12 +252,12 @@
 
 ## 6. 分阶段实施清单
 
-阶段用于降低集成风险，第一版最终验收仍覆盖上面的完整范围。每个阶段应留下可运行结果和验证记录。用户已确认：Windows / Intel / macOS 13 实测暂缓，当前以 macOS 本机实现与测试为准。
+阶段用于降低集成风险，第一版最终验收仍覆盖上面的完整范围。每个阶段应留下可运行结果和验证记录。用户已确认：Windows x64 / macOS 13 实测暂缓，当前以 macOS 本机实现与测试为准。
 
 ### P0：接管、规范与风险原型
 
 - [x] 阅读本文件、README、参考图和歌词调研；检查 Git 工作区与适用 AGENTS，保留已有改动。
-- [x] 确定最低系统版本、Windows 架构和 macOS Intel/Apple Silicon 支持矩阵：Windows 10 22H2 / Windows 11 x64，macOS 13+ Intel / Apple Silicon；[支持矩阵](platform-support-matrix.md)已记录环境缺口，应用兼容实测仍待完成。
+- [x] 确定最低系统版本、Windows 架构和 macOS Apple Silicon 支持矩阵：Windows 10 22H2 / Windows 11 x64，macOS 13+ Apple Silicon；[支持矩阵](platform-support-matrix.md)已记录环境缺口，应用兼容实测仍待完成。
 - [x] 记录依赖选型、目录边界、IPC/本地表/配置命名和密钥存储方案，见 [技术方案](technical-architecture.md)；安装、组合构建与原生模块运行待 P1 验证。
 - [x] 建立完整需求→模块→验收映射，见 [57 项验收映射](v1-acceptance-matrix.md)；明确待凭据、待平台、待用途/许可核实与未实现，功能验收尚未完成。
 - [ ] 贯通透明窗口、拖动、鼠标穿透、文件拖入/拖出、截图权限、多屏和缩放；[原型已实现且 macOS arm64 部分集成验证通过](p0-window-prototype.md)，原生拖放与跨平台完整验收待补。
@@ -302,8 +302,8 @@
 - [x] 固定首版输入→输出矩阵和各方向所需引擎。
 - [x] 完成拖给宠物→放入置物架→转换→结果交付流程；转换结果通过点击预览打开或打开所在位置交付，不自动进入置物架、不支持结果拖出。
 - [x] 批量顺序处理、PDF 合并排序、进度、重名、原件保护、取消（FFmpeg/LibreOffice/隐藏窗口/PDF 页面）、部分失败与临时清理已完成，并有 Electron 用例覆盖。
-- [x] 引擎来源、版本、校验、平台差异与许可材料已记录；内置引擎随包自检并在打包应用断网首用通过；可选引擎支持安装/选择与卸载清理，Windows/Intel 按用户要求暂缓。
-- [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows/Intel 按用户要求暂缓。
+- [x] 引擎来源、版本、校验、平台差异与许可材料已记录；内置引擎随包自检并在打包应用断网首用通过；可选引擎支持安装/选择与卸载清理，Windows x64 按用户要求暂缓。
+- [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows x64 按用户要求暂缓。
 - [x] 缺引擎、组件损坏、不支持、损坏文件、加密 PDF、权限不足、磁盘不足、密码错误与取消均有独立反馈；批量部分失败保留成功结果。
 - 当前证据（2026-11-12）：127 项单元测试、完整 Electron 套件 41 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
 
@@ -368,6 +368,6 @@
 - 文件转换最终白名单、全量内置引擎组合、分发许可、实际体积与质量标准。
 - 常驻性能预算、更新策略和本地存储默认上限。
 
-2026-11-09 补充：平台按 Windows x64、Mac Intel、Apple Silicon 分别记录，缺少设备保持待验证；用户将准备 macOS / Windows 四款播放器测试环境，已有四家邮箱、本机 Codex / ChatGPT App 与 DeepSeek API 账户。布偶猫样例由用户先在 ChatGPT App 生图，验证后再创建可复用制作 Skill；生产端火山方舟与积分方案仍保留，不能据此认定已通过验证。
+2026-11-09 补充：平台按 Windows x64 与 macOS Apple Silicon 分别记录，缺少设备保持待验证；用户将准备 macOS / Windows 四款播放器测试环境，已有四家邮箱、本机 Codex / ChatGPT App 与 DeepSeek API 账户。布偶猫样例由用户先在 ChatGPT App 生图，验证后再创建可复用制作 Skill；生产端火山方舟与积分方案仍保留，不能据此认定已通过验证。
 
 第 3 项已安装项目本地依赖与校验后的 Electron 开发运行时，完成窗口原型的部分真实测试；未执行素材生成、积分扣费、真实邮箱/AI 登录凭据读取或系统级应用安装。用户已授权按 GitHub → GitLab 顺序提交并同步现有资料；具体提交与推送结果以 Git 记录为准。

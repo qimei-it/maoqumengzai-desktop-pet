@@ -49,7 +49,7 @@ Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原�
 | LibreOffice | MPL-2.0 | https://www.libreoffice.org/ | 用户选择本地 `soffice`；许可证原文：`resources/licenses/libreoffice-MPL-2.0.txt` |
 | FFmpeg | LGPL-3.0 | https://ffmpeg.org/ | AgentDVR LGPL v3 构建（FFmpeg 9.0.2）；许可证与源码说明：`resources/licenses/ffmpeg-LGPL-3.0.txt`、`resources/licenses/ffmpeg-SOURCE.txt` |
 
-FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64/x64、Windows x64），安装前校验固定 SHA-256。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录安装，保持可替换性。上游源码与构建来源见 `resources/licenses/ffmpeg-SOURCE.txt`。
+FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64、Windows x64），安装前校验固定 SHA-256。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录安装，保持可替换性。上游源码与构建来源见 `resources/licenses/ffmpeg-SOURCE.txt`。
 
 ## Artwork
 
