@@ -53,9 +53,16 @@ describe('mail database', () => {
 
     const same = db.addAccount({ provider: 'qq', email: 'user@qq.com' })
     expect(same.id).toBe(account.id)
-    expect(db.listAccounts()).toHaveLength(1)
+    const secondQq = db.addAccount({ provider: 'qq', email: 'two@qq.com' })
+    const gmail = db.addAccount({ provider: 'gmail', email: 'user@gmail.com' })
+    expect(secondQq.id).not.toBe(account.id)
+    expect(gmail.id).not.toBe(account.id)
+    expect(db.listAccounts()).toHaveLength(3)
 
     db.removeAccount(account.id)
+    expect(db.listAccounts()).toHaveLength(2)
+    db.removeAccount(secondQq.id)
+    db.removeAccount(gmail.id)
     expect(db.listAccounts()).toHaveLength(0)
     db.close()
   })

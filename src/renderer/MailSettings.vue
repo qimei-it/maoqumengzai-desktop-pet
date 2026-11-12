@@ -52,6 +52,12 @@ function providerIcon(provider: MailProvider): string {
 
 const formOpen = ref(false)
 const formProvider = ref<MailProvider>('qq')
+const providerIndex = computed(() =>
+  Math.max(
+    0,
+    providerOptions.findIndex((item) => item.id === formProvider.value),
+  ),
+)
 const formEmail = ref('')
 const formSecret = ref('')
 const formName = ref('')
@@ -175,9 +181,9 @@ watch(
         type="button"
         class="mail-action"
         :disabled="busy"
-        @click="formOpen ? closeForm() : openAdd()"
+        @click="openAdd"
       >
-        {{ formOpen ? '取消' : '添加' }}
+        添加
       </button>
     </div>
 
@@ -235,7 +241,11 @@ watch(
     </div>
 
     <form v-if="formOpen" class="mail-form" @submit.prevent="submit">
-      <div class="mail-provider-row" role="group" aria-label="邮箱服务商">
+      <div class="mail-provider-track" role="radiogroup" aria-label="邮箱服务商">
+        <span
+          class="mail-provider-thumb"
+          :style="{ transform: `translateX(${providerIndex * 100}%)` }"
+        />
         <button
           v-for="provider in providerOptions"
           :key="provider.id"
@@ -497,21 +507,38 @@ watch(
   gap: 10px;
   padding: 12px 0 14px;
 }
-.mail-provider-row {
+.mail-provider-track {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 0;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
+}
+.mail-provider-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgb(39 32 28 / 8%);
+  transition: transform var(--motion-slow) var(--ease-out);
 }
 .mail-provider {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: 32px;
   padding: 0 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
   color: var(--color-muted);
   font: inherit;
   font-size: var(--font-size-caption);
@@ -523,13 +550,16 @@ watch(
   object-fit: contain;
 }
 .mail-provider.active {
-  border-color: var(--color-brand-ink);
-  background: var(--color-brand-soft);
   color: var(--color-brand-ink);
+  font-weight: 600;
 }
 .mail-provider:disabled {
   cursor: default;
-  opacity: 0.7;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-provider-thumb {
+    transition: none;
+  }
 }
 .mail-field {
   display: flex;
