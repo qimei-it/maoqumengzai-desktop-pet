@@ -26,6 +26,7 @@ let ask: Page;
 let convert: Page;
 let rename: Page;
 let settings: Page;
+let mail: Page;
 let pomodoro: Page;
 let water: Page;
 let breakPanel: Page;
@@ -89,7 +90,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(21);
+  await expect.poll(() => application.windows().length).toBe(22);
   const windows = await Promise.all(
     application
       .windows()
@@ -102,6 +103,7 @@ test.beforeAll(async () => {
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
+  mail = windows.find((item) => item.title.includes("邮件"))!.page;
   pomodoro = windows.find((item) => item.title.includes("番茄时钟"))!.page;
   water = windows.find((item) => item.title.includes("喝水提醒"))!.page;
   breakPanel = windows.find((item) => item.title.includes("休息提醒"))!.page;
@@ -117,7 +119,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings, pomodoro, water, breakPanel, profile, clipboard, focusBadge, todo, pill]) {
+  for (const page of [lab, pet, pocket, ask, convert, rename, settings, mail, pomodoro, water, breakPanel, profile, clipboard, focusBadge, todo, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -2782,7 +2784,7 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
   await settings
     .getByRole("button", { name: "测试并添加", exact: true })
     .click();
-  await expect(settings.locator(".mail-error")).toContainText(
+  await expect(settings.locator(".toast-item.toast-error")).toContainText(
     "请填写邮箱地址和授权码",
   );
   await settings.locator(".mail-form").getByRole("button", { name: "取消", exact: true }).click();
@@ -2798,6 +2800,25 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
       return snapshot.ok ? snapshot.value.mail.config.syncMinutes : 0;
     })
     .toBe(30);
+  await settings
+    .locator(".mail-row", { hasText: "同步间隔" })
+    .locator("select")
+    .selectOption("0");
+  const manualInterval = settings.locator(".mail-number");
+  await expect(manualInterval).toBeVisible();
+  await manualInterval.fill("0");
+  await manualInterval.blur();
+  await expect(settings.locator(".toast-item.toast-error").last()).toContainText(
+    "1–1440",
+  );
+  await manualInterval.fill("45");
+  await manualInterval.blur();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.mail.config.syncMinutes : 0;
+    })
+    .toBe(45);
   await settings
     .locator(".mail-row", { hasText: "新邮件通知" })
     .locator(".mail-switch")
@@ -3450,7 +3471,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(21);
+  await expect.poll(() => application.windows().length).toBe(22);
   pocket = (
     await Promise.all(
       application
@@ -3496,7 +3517,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(21);
+  await expect.poll(() => application.windows().length).toBe(22);
   const restarted = await Promise.all(
     application
       .windows()

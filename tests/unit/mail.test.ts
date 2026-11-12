@@ -59,6 +59,50 @@ describe('mail database', () => {
     expect(db.listAccounts()).toHaveLength(0)
     db.close()
   })
+
+  test('stores message summaries, details, codes and attachments', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: 'gmail', email: 'a@gmail.com' })
+    db.upsertMessages(account.id, 'INBOX', [
+      {
+        uid: 2,
+        subject: '验证码',
+        fromAddress: 'noreply@example.com',
+        date: 2,
+        unread: true,
+        hasAttachments: true,
+      },
+      {
+        uid: 1,
+        subject: '旧邮件',
+        date: 1,
+        unread: false,
+        hasAttachments: false,
+      },
+    ])
+    expect(db.listMessages(account.id).map((item) => item.uid)).toEqual([2, 1])
+    db.saveMessageDetail(account.id, 'INBOX', 2, {
+      bodyText: '验证码 123456',
+      code: '123456',
+      attachments: [
+        {
+          part: 'part-1',
+          filename: 'a.txt',
+          size: 3,
+          localPath: '/tmp/a.txt',
+        },
+      ],
+    })
+    expect(db.message(account.id, 'INBOX', 2)).toMatchObject({
+      bodyText: '验证码 123456',
+      code: '123456',
+      attachments: [{ filename: 'a.txt', localPath: '/tmp/a.txt' }],
+    })
+    db.setUnread(account.id, 'INBOX', 2, false)
+    expect(db.message(account.id, 'INBOX', 2)?.unread).toBe(false)
+    db.close()
+  })
 })
 
 describe('mail config', () => {
