@@ -10,6 +10,7 @@ import { unzipSync } from "fflate";
 import { promisify } from "node:util";
 import {
   donutMetrics,
+  hoverActions,
   midAngle,
   sliceActions,
   sliceCount,
@@ -456,10 +457,10 @@ test("hovering the pet centre opens companion tools", async () => {
     await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
   };
   await hoverRing();
-  await expect(pet.locator(".donut-segment")).toHaveCount(8);
+  await expect(pet.locator(".donut-segment")).toHaveCount(hoverActions.length);
   const labels = (await pet.locator(".donut-label").allTextContents()).join("");
   expect(labels).toContain(
-    "智能体剪贴板宠物档案待办清单休息提醒喝水提醒番茄时钟置物架",
+    "智能体剪贴板宠物档案待办清单休息提醒喝水提醒番茄时钟置物架邮件",
   );
   for (const label of [
     "番茄",
@@ -484,7 +485,7 @@ test("hovering the pet centre opens companion tools", async () => {
     const current = await pet.locator(".marker").boundingBox();
     if (!current) throw new Error("Marker is not rendered");
     const metrics = donutMetrics(1);
-    const angle = midAngle(index, 8);
+    const angle = midAngle(index, hoverActions.length);
     const x = current.x + current.width / 2 + metrics.mid * Math.sin(angle);
     const y = current.y + current.height / 2 - metrics.mid * Math.cos(angle);
     await pet.mouse.move(x, y);
@@ -2330,7 +2331,7 @@ test("合并 PDF 支持调整文件顺序", async () => {
   await convert.getByRole("button", { name: "完成", exact: true }).click();
 });
 
-test("提取音频打开专用成功面板并复用转换结果样式", async () => {
+test("视频转 MP3 复用转换成功面板", async () => {
   test.skip(process.platform === "win32", "fake FFmpeg 脚本仅在 POSIX 下可用");
   const fake = join(directory, "fake-ffmpeg-fast.sh");
   await writeFile(
@@ -2363,10 +2364,9 @@ exit 0
     .toBe("local");
   const video = join(directory, "提取音轨.mp4");
   await writeFile(video, "fake video");
-  await dropOnPet(video, "audio");
-  await expect(
-    convert.getByRole("heading", { name: "提取音频", exact: true }),
-  ).toBeVisible();
+  await dropOnPet(video, "convert");
+  await convert.getByRole("button", { name: "MP3", exact: true }).click();
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -2381,13 +2381,6 @@ exit 0
   expect(await readFile(join(directory, "提取音轨.mp3"), "utf8")).toBe(
     "ID3 fake audio",
   );
-  expect(
-    await application.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()
-        .find((window) => window.getTitle().includes("提取音频"))
-        ?.getBounds().height,
-    ),
-  ).toBe(360);
   await convert.getByRole("button", { name: "完成", exact: true }).click();
 });
 
@@ -2426,7 +2419,9 @@ exit 0
     .toBe("local");
   const video = join(directory, "取消长视频.mp4");
   await writeFile(video, "fake video");
-  await dropOnPet(video, "audio");
+  await dropOnPet(video, "convert");
+  await convert.getByRole("button", { name: "WEBM", exact: true }).click();
+  await convert.getByRole("button", { name: "开始转换", exact: true }).click();
   await expect(
     convert.getByRole("button", { name: "取消转换", exact: true }),
   ).toBeVisible();
@@ -2449,7 +2444,7 @@ exit 0
   expect((await readdir(directory)).some((name) => name.startsWith(".mqmz-"))).toBe(
     false,
   );
-  expect((await readdir(directory)).includes("取消长视频.mp3")).toBe(false);
+  expect((await readdir(directory)).includes("取消长视频.webm")).toBe(false);
   await convert.waitForTimeout(5500);
   expect((await readdir(directory)).includes("slow-ffmpeg-finished")).toBe(false);
   await convert.evaluate(() =>
@@ -2888,7 +2883,7 @@ test("canceling a file drag restores the hover wheel", async () => {
   await new Promise((resolve) => setTimeout(resolve, 160));
   await pet.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
-  await expect(pet.locator(".donut-segment")).toHaveCount(8);
+  await expect(pet.locator(".donut-segment")).toHaveCount(hoverActions.length);
   await pet.keyboard.press("Escape");
   await pet
     .locator("#mqmz-cancel-drag-input")

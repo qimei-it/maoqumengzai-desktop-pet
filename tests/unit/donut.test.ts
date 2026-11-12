@@ -7,12 +7,15 @@ import {
   donutMetrics,
   donutWindowSize,
   hitTest,
+  hoverActions,
+  hoverLabels,
   indexAt,
   midAngle,
   outlinePath,
   pointAt,
   sliceActions,
   sliceCount,
+  sliceLabels,
   sliceGap,
   span,
   subIndexAt,
@@ -21,6 +24,32 @@ import {
   wedge,
   type WedgeOutline,
 } from '../../src/shared/donut'
+
+describe('donut menu actions', () => {
+  test('file wheel sends mail instead of extracting audio', () => {
+    expect(sliceActions).toHaveLength(10)
+    expect(sliceActions).toContain('mail')
+    expect(sliceActions).not.toContain('audio')
+    expect(sliceLabels.mail).toBe('发送邮件')
+  })
+
+  test('hover wheel keeps eight tools and adds mail plus a blank slot', () => {
+    expect(hoverActions).toHaveLength(10)
+    expect(hoverActions.slice(0, 8)).toEqual([
+      'agent',
+      'clipboard',
+      'profile',
+      'todo',
+      'break',
+      'water',
+      'focus',
+      'shelf',
+    ])
+    expect(hoverActions.slice(8)).toEqual(['mail', 'blank'])
+    expect(hoverLabels.mail).toEqual(['邮件'])
+    expect(hoverLabels.blank).toEqual([])
+  })
+})
 
 describe('donut geometry (ported Filee cases)', () => {
   test('slices cover the circle exactly', () => {
