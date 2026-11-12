@@ -39,7 +39,17 @@
 
 Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。sharp 许可原文：`resources/licenses/sharp-Apache-2.0.txt`。pdf-lib 许可原文：`resources/licenses/pdf-lib-MIT.md`。fflate 许可原文：`resources/licenses/fflate-MIT.txt`。pdf-to-img 许可原文：`resources/licenses/pdf-to-img-MIT.txt`；PDF.js 许可原文：`resources/licenses/pdfjs-Apache-2.0.txt`；@napi-rs/canvas 许可原文：`resources/licenses/napi-rs-canvas-MIT.txt`；bmp-js 许可原文：`resources/licenses/bmp-js-MIT.txt`；marked 许可原文：`resources/licenses/marked-MIT.md`；heic-decode 许可原文：`resources/licenses/heic-decode-ISC.txt`；libheif-js 许可原文：`resources/licenses/libheif-js-LGPL-3.0.txt`。easyofd 许可原文：`resources/licenses/easyofd-Apache-2.0.txt`；7zip-min 许可原文：`resources/licenses/7zip-min-MIT.txt`；7zip-bin 许可原文：`resources/licenses/7zip-bin-LICENSE.txt`；node-unrar-js 许可原文：`resources/licenses/node-unrar-js-MIT.md`。easyofd 随附的 JSZip、X2JS、opentype.js 与 JB2 组件按各自上游许可使用。libvips 为动态链接的预编译运行时，许可与组件清单见 `@img/sharp-libvips-*` 包内 README。
 
-FFmpeg 不随安装包分发，由用户手动在设置中下载。当前可选源为 npmmirror 镜像的 `ffmpeg-static` b6.1.1 静态构建（macOS arm64/x64、Windows x64），安装前校验固定 SHA-256。该构建的配置包含 `--enable-gpl --enable-nonfree`；正式发行前需替换为可再分发构建或单独确认许可，并向用户展示对应 FFmpeg 许可证。
+## 可选本地引擎
+
+以下程序不随安装包分发，由用户在设置中选择本机安装或手动下载；应用只保存路径或应用数据目录内的引擎文件，卸载时清除对应选择与临时文件，不删除系统安装。
+
+| 组件 | 许可 | 来源 | 说明 |
+| --- | --- | --- | --- |
+| LibreOffice | MPL-2.0 | https://www.libreoffice.org/ | 用户选择本地 `soffice`；许可证原文：`resources/licenses/libreoffice-MPL-2.0.txt` |
+| qpdf | Apache-2.0 | https://qpdf.readthedocs.io/ | 用户选择本地 `qpdf`；用于 PDF 加密与解除密码；许可证原文：`resources/licenses/qpdf-Apache-2.0.txt` |
+| FFmpeg | GPL-3.0 / nonfree 构建 | https://ffmpeg.org/ | 由用户手动下载；许可证原文：`resources/licenses/ffmpeg-GPL-3.0.txt` |
+
+FFmpeg 当前可选源为 npmmirror 镜像的 `ffmpeg-static` b6.1.1 静态构建（macOS arm64/x64、Windows x64），安装前校验固定 SHA-256。该构建的配置包含 `--enable-gpl --enable-nonfree`；正式发行前需替换为可再分发构建或单独确认许可，并向用户展示对应 FFmpeg 许可证。
 
 ## Artwork
 
