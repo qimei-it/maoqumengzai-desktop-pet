@@ -1,5 +1,6 @@
 /** Pure naming and safety rules for ZIP archiving and image shrinking. */
 import { basename, dirname, extname, join } from 'node:path'
+import type { ArchiveFormat } from './settings'
 
 export const compressOutputFolder = 'compress_output'
 /** Total input cap for in-memory ZIP creation. */
@@ -41,9 +42,10 @@ export function archiveFileName(
   paths: readonly string[],
   attempt: number,
   now = new Date(),
+  format: ArchiveFormat = 'zip',
 ): string {
   const stem = archiveStem(paths, now)
-  return `${stem}${attempt === 1 ? '' : ` (${attempt})`}.zip`
+  return `${stem}${attempt === 1 ? '' : ` (${attempt})`}.${format}`
 }
 
 /** Entry names are flat and case-insensitively unique inside the archive. */
@@ -64,6 +66,18 @@ export function archiveEntryName(
 
 export function isZipFile(name: string): boolean {
   return extname(name).toLowerCase() === '.zip'
+}
+
+export function is7zFile(name: string): boolean {
+  return extname(name).toLowerCase() === '.7z'
+}
+
+export function isRarFile(name: string): boolean {
+  return extname(name).toLowerCase() === '.rar'
+}
+
+export function isArchiveFile(name: string): boolean {
+  return isZipFile(name) || is7zFile(name) || isRarFile(name)
 }
 
 export function extractedFolderName(

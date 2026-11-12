@@ -1,5 +1,7 @@
 import txt from './assets/file-icons/txt.svg'
 import pdf from './assets/file-icons/pdf.svg'
+import archive7z from './assets/file-icons/7z.svg'
+import archive from './assets/file-icons/archive.svg'
 import image from './assets/file-icons/image.svg'
 import video from './assets/file-icons/video.svg'
 import markdown from './assets/file-icons/markdown.svg'
@@ -33,11 +35,40 @@ const videoExtensions = new Set([
   'm4v',
   'flv',
   'wmv',
+  'mpg',
+  'mpeg',
+  'ts',
+  '3gp',
+])
+
+const archiveExtensions = new Set([
+  'zip',
+  'zipx',
+  'rar',
+  'tar',
+  'gz',
+  'tgz',
+  'bz2',
+  'tbz2',
+  'xz',
+  'txz',
+  'zst',
+  'lz',
+  'lzma',
+  'cab',
+  'iso',
+  'jar',
+  'war',
+  'ear',
+  'arj',
+  'lzh',
 ])
 
 /** File-type artwork chosen by extension; unknown documents use the blue sheet. */
 export function fileIconFor(name: string): string {
   const extension = extensionOf(name)
+  if (extension === '7z') return archive7z
+  if (archiveExtensions.has(extension)) return archive
   if (extension === 'md' || extension === 'markdown') return markdown
   if (extension === 'txt' || extension === 'text' || extension === 'log')
     return txt

@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'vitest'
 import {
   countToday,
+  focusCycleDone,
   focusDurations,
+  focusStats,
   formatCalendarDate,
   formatClockTime,
   formatFocus,
   groupByDay,
+  nextBreakAt,
   nextPhase,
   nextWaterAt,
   phaseSeconds,
@@ -30,6 +33,38 @@ describe('focus helpers', () => {
     expect(nextPhase('long', 4)).toEqual({ phase: 'focus', completed: 4 })
   })
 
+  test('cycle progress resets after the long break', () => {
+    expect(focusCycleDone(0, 'focus')).toBe(0)
+    expect(focusCycleDone(1, 'short')).toBe(1)
+    expect(focusCycleDone(3, 'long')).toBe(3)
+    expect(focusCycleDone(4, 'long')).toBe(4)
+    expect(focusCycleDone(4, 'focus')).toBe(0)
+    expect(focusCycleDone(5, 'focus')).toBe(1)
+    expect(focusCycleDone(8, 'short')).toBe(4)
+  })
+
+  test('break reminders skip the quiet window', () => {
+    const morning = new Date(2026, 10, 13, 10, 0).getTime()
+    expect(nextBreakAt(morning, 45)).toBe(
+      new Date(2026, 10, 13, 10, 45).getTime(),
+    )
+    const beforeQuiet = new Date(2026, 10, 13, 21, 30).getTime()
+    expect(nextBreakAt(beforeQuiet, 45)).toBe(
+      new Date(2026, 10, 14, 8, 0).getTime(),
+    )
+    const earlyMorning = new Date(2026, 10, 13, 3, 0).getTime()
+    expect(nextBreakAt(earlyMorning, 45)).toBe(
+      new Date(2026, 10, 13, 8, 0).getTime(),
+    )
+    expect(nextBreakAt(beforeQuiet, 45, false)).toBe(
+      new Date(2026, 10, 13, 22, 15).getTime(),
+    )
+    const lunch = new Date(2026, 10, 13, 13, 0).getTime()
+    expect(nextBreakAt(lunch, 30, true, 12, 14)).toBe(
+      new Date(2026, 10, 13, 14, 0).getTime(),
+    )
+  })
+
   test('water reminders stay inside 09:00–22:00', () => {
     const inside = new Date(2026, 10, 11, 10, 30).getTime()
     expect(nextWaterAt(inside)).toBe(inside + 60 * 60 * 1000)
@@ -52,6 +87,48 @@ describe('focus helpers', () => {
     const clamped = new Date(2026, 10, 11, 10, 0).getTime()
     expect(nextWaterAt(clamped, 1, 8, 21)).toBe(clamped + 5 * 60 * 1000)
     expect(nextWaterAt(clamped, 999, 8, 21)).toBe(clamped + 240 * 60 * 1000)
+  })
+
+  test('week and month summaries aggregate focus sessions', () => {
+    const now = new Date(2026, 10, 11, 15, 0).getTime()
+    const at = (month: number, day: number, hour = 9) =>
+      new Date(2026, month, day, hour).getTime()
+    const sessions = [
+      { endedAt: at(10, 9, 10), minutes: 25 },
+      { endedAt: at(10, 11, 11), minutes: 50 },
+      { endedAt: at(10, 15, 12), minutes: 25 },
+      { endedAt: at(10, 1, 8), minutes: 30 },
+      { endedAt: at(9, 31, 9), minutes: 60 },
+    ]
+    const week = focusStats(sessions, now, 'week')
+    expect(week.count).toBe(3)
+    expect(week.minutes).toBe(100)
+    expect(week.buckets.map((bucket) => bucket.label)).toEqual([
+      '一',
+      '二',
+      '三',
+      '四',
+      '五',
+      '六',
+      '日',
+    ])
+    expect(week.buckets.map((bucket) => bucket.minutes)).toEqual([
+      25, 0, 50, 0, 0, 0, 25,
+    ])
+
+    const month = focusStats(sessions, now, 'month')
+    expect(month.count).toBe(4)
+    expect(month.minutes).toBe(130)
+    expect(month.buckets.map((bucket) => bucket.title)).toEqual([
+      '1–7 日',
+      '8–14 日',
+      '15–21 日',
+      '22–28 日',
+      '29–30 日',
+    ])
+    expect(month.buckets.map((bucket) => bucket.minutes)).toEqual([
+      30, 75, 25, 0, 0,
+    ])
   })
 
   test('history groups by day, newest first', () => {

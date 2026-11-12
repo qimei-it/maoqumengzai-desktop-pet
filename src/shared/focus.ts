@@ -28,6 +28,145 @@ export function nextPhase(
   return { phase: count % 4 === 0 ? 'long' : 'short', completed: count }
 }
 
+/**
+ * Progress shown on the focus tab. The fourth focus keeps 4/4 during its long
+ * break, and the next focus starts a fresh round at 0/4.
+ */
+export function focusCycleDone(
+  completed: number,
+  phase: FocusPhaseKey,
+): number {
+  const inRound = completed % 4
+  if (inRound !== 0) return inRound
+  if (completed === 0) return 0
+  return phase === 'focus' ? 0 : 4
+}
+
+/**
+ * Next break reminder after `intervalMinutes`, shifted past the daily quiet
+ * window. Quiet hours may cross midnight (22:00–08:00 by default).
+ */
+export function nextBreakAt(
+  now: number,
+  intervalMinutes: number,
+  dndEnabled = true,
+  dndStart = 22,
+  dndEnd = 8,
+): number {
+  const interval = Math.min(240, Math.max(5, Math.round(intervalMinutes)))
+  const candidate = now + interval * 60 * 1000
+  if (!dndEnabled || dndStart === dndEnd) return candidate
+  const date = new Date(candidate)
+  const hour =
+    date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600
+  const quiet =
+    dndStart < dndEnd
+      ? hour >= dndStart && hour < dndEnd
+      : hour >= dndStart || hour < dndEnd
+  if (!quiet) return candidate
+  const resume = new Date(candidate)
+  if (resume.getHours() >= dndEnd) resume.setDate(resume.getDate() + 1)
+  resume.setHours(dndEnd, 0, 0, 0)
+  return resume.getTime()
+}
+
+export type FocusStatsPeriod = 'week' | 'month'
+export type FocusStatsBucket = {
+  key: string
+  label: string
+  title: string
+  minutes: number
+  count: number
+}
+export type FocusStats = {
+  period: FocusStatsPeriod
+  count: number
+  minutes: number
+  buckets: FocusStatsBucket[]
+}
+
+/** Week and month aggregates for the focus history card. */
+export function focusStats(
+  sessions: readonly { endedAt: number; minutes: number }[],
+  now: number,
+  period: FocusStatsPeriod,
+): FocusStats {
+  const date = new Date(now)
+  let buckets: (FocusStatsBucket & { start: number; end: number })[]
+  if (period === 'week') {
+    const monday = new Date(now)
+    monday.setHours(0, 0, 0, 0)
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+    const labels = ['一', '二', '三', '四', '五', '六', '日']
+    buckets = labels.map((label, index) => {
+      const start = new Date(monday)
+      start.setDate(monday.getDate() + index)
+      const end = new Date(monday)
+      end.setDate(monday.getDate() + index + 1)
+      return {
+        key: `week-${index}`,
+        label,
+        title: `周${label}`,
+        start: start.getTime(),
+        end: end.getTime(),
+        minutes: 0,
+        count: 0,
+      }
+    })
+  } else {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const starts = [1, 8, 15, 22, 29].filter((day) => day <= lastDay)
+    buckets = starts.map((day, index) => {
+      const start = new Date(year, month, day)
+      const next = starts[index + 1]
+      const end = next
+        ? new Date(year, month, next)
+        : new Date(year, month + 1, 1)
+      const endDay = new Date(end.getTime() - 1).getDate()
+      return {
+        key: `month-${index}`,
+        label: `${day}–${endDay}`,
+        title: `${day}–${endDay} 日`,
+        start: start.getTime(),
+        end: end.getTime(),
+        minutes: 0,
+        count: 0,
+      }
+    })
+  }
+  const start = buckets[0]?.start ?? now
+  const end = buckets[buckets.length - 1]?.end ?? now
+  const inPeriod = sessions.filter(
+    (session) => session.endedAt >= start && session.endedAt < end,
+  )
+  for (const session of inPeriod) {
+    const bucket = buckets.find(
+      (item) => session.endedAt >= item.start && session.endedAt < item.end,
+    )
+    if (bucket) {
+      bucket.minutes += Math.max(0, Math.round(session.minutes))
+      bucket.count += 1
+    }
+  }
+  return {
+    period,
+    count: inPeriod.length,
+    minutes: inPeriod.reduce(
+      (total, session) => total + Math.max(0, Math.round(session.minutes)),
+      0,
+    ),
+    buckets: buckets.map(({ key, label, title, minutes, count }) => ({
+      key,
+      label,
+      title,
+      minutes,
+      count,
+    })),
+  }
+}
+
 /** Water reminders repeat inside the configured hours, 60 minutes and 09:00–22:00 by default. */
 export function nextWaterAt(
   now: number,

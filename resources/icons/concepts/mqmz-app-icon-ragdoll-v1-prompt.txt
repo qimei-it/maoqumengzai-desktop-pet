@@ -1,0 +1,18 @@
+# mqmz App icon — Ragdoll v1
+
+生成日期：2026-11-10（Asia/Shanghai）
+生成方式：内置 image_gen，transparent_background: true。
+用途：App icon 首版视觉方案；尚未接入系统图标或替换现有素材。
+参考：用户提供的柯基 App icon（仅构图）、布偶猫（角色外观）。
+
+Use case: logo-brand
+Asset type: first concept for the 毛趣萌仔 / mqmz desktop companion app icon, single square PNG with genuine transparent alpha.
+Input images: Image 1 is a COMPOSITION reference only: approachable large mascot portrait and a raised paw. Image 2 is the PRIMARY CHARACTER reference: use this specific ragdoll cat's appearance.
+Primary request: Create ONE beautifully art-directed app icon of the ragdoll cat from image 2, recognizable as that cat: cream-white fluffy coat, warm light taupe ears and facial mask, white inverted-V blaze, bright natural blue eyes, small pink nose, fluffy cheeks. A large friendly face with slight curious head tilt, compact chest and one naturally formed cat forepaw gently raised in greeting, pale pink paw pads. Gentle affectionate expression, tiny relaxed smile, mouth closed. No clothing.
+Style/medium: sophisticated hand-painted character illustration with subtle sculpted volume, thoughtfully simplified shapes and a few deliberate fur tufts, matte gouache-like finish and restrained soft shading. Make it feel designed by an illustrator, with a strong readable silhouette at app-icon size. Keep the particular charm of image 2; do not imitate generic glossy 3D game mascots.
+Composition/framing: 1:1 square, a single centered head-and-chest mascot cutout occupying about 86% of canvas, both ears and raised paw completely visible, balanced weight, comfortable clear outer margin, no hard bottom crop, the chest finishes in a softly rounded coherent silhouette. Face is dominant; small paw is secondary. Small-size clarity.
+Lighting/mood: warm calm welcoming desktop companion, soft natural light, moderate contrast, clean blue eyes with restrained highlights, nuanced warm-white coat.
+Scene/backdrop: fully TRANSPARENT everywhere around the character, real alpha channel, no colored tile or backdrop, no simulated checkerboard, no white rectangle.
+Constraints: exactly one cat, correct feline anatomy and paw pads. No corgi/dog characteristics, no hoodie, no playback triangle, video symbol, film, screen, UI object, text, lettering, sparkles, floating decoration or watermark. No neon cyan/purple gradient, no plastic shine, no exaggerated glass eyes, no airbrushed glow, no detailed individual hair noise, no sticker border or drop shadow.
+Output: one high-resolution square transparent PNG.
+

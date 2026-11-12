@@ -68,9 +68,9 @@ function clearKey(): void {
 
 <template>
   <main class="ask-shell" @keydown.esc="close">
-    <section class="ask-surface" aria-label="智能问答">
+    <section class="ask-surface" aria-label="智能体">
       <PanelHeader
-        title="智能问答"
+        title="智能体"
         :platform="state?.runtime.platform"
         @minimize="emit('command', { type: 'panel-control', action: 'minimize' })"
         @close="emit('command', { type: 'panel-control', action: 'close' })"
@@ -161,7 +161,7 @@ function clearKey(): void {
           <span v-if="extraFiles" class="ask-file">+{{ extraFiles }}</span>
         </div>
 
-        <div ref="list" class="ask-messages" aria-live="polite">
+        <div ref="list" class="ask-messages panel-scroll" aria-live="polite">
           <article
             v-for="message in ai?.messages"
             :key="message.id"
@@ -179,7 +179,7 @@ function clearKey(): void {
             class="ask-input"
             rows="1"
             placeholder="问点什么"
-            aria-label="向智能问答提问"
+            aria-label="向智能体提问"
             @keydown.enter.exact.prevent="send"
           ></textarea>
           <button
@@ -319,8 +319,6 @@ function clearKey(): void {
   gap: 10px;
   padding: 8px 2px;
   overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-line) transparent;
 }
 .ask-bubble {
   max-width: 88%;

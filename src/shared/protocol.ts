@@ -1,6 +1,10 @@
+import type { ClipboardConfig, ClipboardState } from './clipboard'
+import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
+export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
+export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
 
 export const channels = {
   snapshot: 'mqmz:prototype:snapshot',
@@ -85,40 +89,171 @@ export type ConvertAction =
   | 'jpg'
   | 'png'
   | 'webp'
+  | 'mp4'
+  | 'mov'
+  | 'mkv'
+  | 'webm'
+  | 'gif'
+  | 'webp-anim'
+  | 'mp3'
+  | 'wav'
+  | 'm4a'
+  | 'flac'
+  | 'ogg'
+  | 'pdf-png'
+  | 'pdf-jpg'
+  | 'pdf-txt'
+  | 'office-pdf'
+  | 'office-docx'
+  | 'office-xlsx'
+  | 'office-pptx'
+  | 'ofd-pdf'
+  | 'ofd-png'
+  | 'ofd-jpg'
+  | 'csv-xlsx'
+  | 'document-pdf'
   | 'pdf'
   | 'merge-pdf'
   | 'split-pdf'
-export type ConvertTarget = { id: ConvertAction; label: string }
+export type ConvertTargetGroup = 'image' | 'video' | 'audio' | 'pdf'
+export type ConvertTarget = {
+  id: ConvertAction
+  label: string
+  group: ConvertTargetGroup
+}
+export type ConvertOutputKind =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'text'
+  | 'office'
+  | 'pdf'
+export type ConvertOutput = {
+  id: string
+  name: string
+  size: number
+  format: string
+  kind: ConvertOutputKind
+  preview?: string
+}
+export type ConvertProgress = {
+  done: number
+  total: number
+  percent?: number
+}
 export type ConvertOutcome = {
   converted: number
   failed: number
   messages: string[]
+  outputs: ConvertOutput[]
 }
 export type FocusPhase = 'focus' | 'short' | 'long'
+export type TodoListColor =
+  | 'red'
+  | 'orange'
+  | 'amber'
+  | 'yellow'
+  | 'green'
+  | 'teal'
+  | 'blue'
+  | 'sky'
+  | 'pink'
+  | 'brown'
+  | 'gray'
+  | 'slate'
+export const todoListColors: readonly TodoListColor[] = [
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'green',
+  'teal',
+  'blue',
+  'sky',
+  'pink',
+  'brown',
+  'gray',
+  'slate',
+]
+export const defaultTodoListIcon = 'u1F4CB-clipboard'
+export type TodoRepeat =
+  | 'none'
+  | 'daily'
+  | 'weekdays'
+  | 'weekly'
+  | 'monthly'
+  | 'yearly'
+export const todoRepeats: readonly TodoRepeat[] = [
+  'none',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'yearly',
+]
 export type FocusTodo = {
   id: string
   text: string
   done: boolean
   listId: string | null
-  today: boolean
+  dueAt: number | null
   urgent: boolean
   flagged: boolean
+  notes: string
+  tags: string[]
+  repeat: TodoRepeat
+  repeatFromId: string | null
 }
-export type TodoList = { id: string; name: string; groupId: string | null }
+export type TodoList = {
+  id: string
+  name: string
+  groupId: string | null
+  color: TodoListColor
+  icon: string
+}
 export type TodoGroup = { id: string; name: string }
+export type BreakKind = 'sitting' | 'eyes'
+export type SettingsSection =
+  | 'appearance'
+  | 'desktop'
+  | 'data'
+  | 'profile'
+  | 'clipboard'
+  | 'shelf'
+  | 'conversion'
+  | 'music'
+  | 'ai'
+  | 'about'
 export type FocusState = {
   phase: FocusPhase
   running: boolean
   remaining: number
   completed: number
+  focusMinutes: number
+  shortMinutes: number
+  longMinutes: number
+  focusSeconds: number
+  shortSeconds: number
+  longSeconds: number
   water: boolean
   waterInterval: number
   waterStart: number
   waterEnd: number
   waterNextAt?: number
+  waterGoal: number
+  breakSitting: boolean
+  breakSittingInterval: number
+  breakSittingNextAt?: number
+  breakEyes: boolean
+  breakEyesInterval: number
+  breakEyesNextAt?: number
+  breakDnd: boolean
+  breakDndStart: number
+  breakDndEnd: number
   todos: FocusTodo[]
   todoLists: TodoList[]
   todoGroups: TodoGroup[]
+  todoTags: string[]
   sessions: FocusSession[]
   waterLog: WaterEntry[]
 }
@@ -131,7 +266,7 @@ export type ConvertState = {
   busy: boolean
   files: ConvertFile[]
   targets: ConvertTarget[]
-  progress: { done: number; total: number }
+  progress: ConvertProgress
   outcome?: ConvertOutcome
   notice?: string
   canReveal: boolean
@@ -141,6 +276,12 @@ export type AiState = {
   busy: boolean
   files: AiFile[]
   messages: AiMessage[]
+}
+export type LocalEngineState = {
+  status: 'missing' | 'ready' | 'error'
+  source: string
+  version?: string
+  error?: string
 }
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
@@ -173,9 +314,20 @@ export type Snapshot = {
   rename: RenameState
   settingsOpen: boolean
   settings: SettingsState
+  settingsSection: SettingsSection
   pomodoroOpen: boolean
   waterOpen: boolean
+  breakOpen: boolean
   todoOpen: boolean
+  profileOpen: boolean
+  clipboardOpen: boolean
+  clipboard: ClipboardState
+  shelfFolders: string[]
+  shelfInvalidCount: number
+  engines: {
+    ffmpeg: FfmpegEngineState
+    libreoffice: LocalEngineState
+  }
   focus: FocusState
 }
 export type Command =
@@ -205,8 +357,12 @@ export type Command =
   | { type: 'ai-clear' }
   | { type: 'ai-send'; prompt: string }
   | { type: 'ai-keys' }
+  | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
   | { type: 'convert-start'; action: ConvertAction }
+  | { type: 'convert-cancel' }
+  | { type: 'convert-remove-file'; fileId: string }
+  | { type: 'convert-output-open'; outputId: string }
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
   | { type: 'notify'; text: string }
@@ -218,6 +374,7 @@ export type Command =
   | { type: 'shrink-files'; fileIds: string[] }
   | { type: 'settings-open' }
   | { type: 'settings-close' }
+  | { type: 'settings-section'; section: SettingsSection }
   | {
       type: 'settings-update'
       patch: Partial<SettingsState>
@@ -247,12 +404,51 @@ export type Command =
       end: number
     }
   | {
+      type: 'focus-durations'
+      focus: number
+      short: number
+      long: number
+      focusSeconds: number
+      shortSeconds: number
+      longSeconds: number
+    }
+  | {
+      type: 'focus-duration-bump'
+      unit: 'minutes' | 'seconds'
+      delta: number
+    }
+  | { type: 'water-goal'; goal: number }
+  | { type: 'water-snooze'; minutes?: number }
+  | { type: 'break-open' }
+  | { type: 'break-close' }
+  | { type: 'profile-open' }
+  | { type: 'profile-close' }
+  | { type: 'clipboard-open' }
+  | { type: 'clipboard-close' }
+  | { type: 'clipboard-copy'; id: string }
+  | { type: 'clipboard-pin'; id: string; pinned: boolean }
+  | { type: 'clipboard-remove'; id: string }
+  | { type: 'clipboard-clear' }
+  | { type: 'clipboard-config'; patch: Partial<ClipboardConfig> }
+  | { type: 'shelf-scan' }
+  | { type: 'shelf-clear-invalid' }
+  | { type: 'engine-install'; id: 'ffmpeg' }
+  | { type: 'engine-cancel'; id: 'ffmpeg' }
+  | { type: 'engine-recheck'; id: 'ffmpeg' }
+  | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' }
+  | { type: 'break-toggle'; kind: BreakKind; enabled: boolean }
+  | { type: 'break-interval'; kind: BreakKind; minutes: number }
+  | { type: 'break-snooze'; kind: BreakKind; minutes?: number }
+  | { type: 'break-dnd'; enabled: boolean; start: number; end: number }
+  | {
       type: 'todo-add'
       text: string
       listId?: string | null
-      today?: boolean
+      dueAt?: number | null
       urgent?: boolean
       flagged?: boolean
+      tags?: string[]
+      repeat?: TodoRepeat
     }
   | { type: 'todo-toggle'; id: string }
   | { type: 'todo-remove'; id: string }
@@ -260,11 +456,33 @@ export type Command =
   | {
       type: 'todo-update'
       id: string
-      patch: { today?: boolean; urgent?: boolean; flagged?: boolean }
+      patch: {
+        text?: string
+        dueAt?: number | null
+        urgent?: boolean
+        flagged?: boolean
+        notes?: string
+        tags?: string[]
+        repeat?: TodoRepeat
+      }
     }
-  | { type: 'todo-list-add'; name: string; groupId?: string | null }
+  | {
+      type: 'todo-list-add'
+      name: string
+      groupId?: string | null
+      color?: TodoListColor
+      icon?: string
+    }
+  | {
+      type: 'todo-list-update'
+      id: string
+      name?: string
+      color?: TodoListColor
+      icon?: string
+    }
   | { type: 'todo-list-remove'; id: string }
   | { type: 'todo-group-add'; name: string }
+  | { type: 'todo-group-update'; id: string; name: string }
   | { type: 'todo-group-remove'; id: string }
   | {
       type: 'panel-control'

@@ -2,7 +2,7 @@
  * Image conversion worker. Reads one registered file, writes a sibling file
  * with an exclusive flag so an existing file or the source is never replaced.
  */
-import sharp from 'sharp'
+import { imagePipeline } from './image-source'
 import {
   outputDirectory,
   outputName,
@@ -15,9 +15,7 @@ export async function convertImage(
   target: ImageTargetLower,
   batch: boolean,
 ): Promise<string> {
-  const pipeline = sharp(sourcePath, {
-    limitInputPixels: 100_000_000,
-  }).rotate()
+  const pipeline = (await imagePipeline(sourcePath)).rotate()
   const buffer =
     target === 'jpg'
       ? await pipeline

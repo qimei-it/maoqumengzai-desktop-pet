@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Droplets, GlassWater, Settings } from '@lucide/vue'
+import { ChevronDown, Droplets, GlassWater, Settings } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   countToday,
@@ -13,7 +13,7 @@ const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
 type WaterTab = 'settings' | 'log'
-const tab = ref<WaterTab>('settings')
+const tab = ref<WaterTab>('log')
 const now = ref(Date.now())
 let clock: number | undefined
 onMounted(() => {
@@ -29,6 +29,7 @@ const focus = computed(() => props.state?.focus)
 const waterInterval = computed(() => focus.value?.waterInterval ?? 60)
 const waterStart = computed(() => focus.value?.waterStart ?? 9)
 const waterEnd = computed(() => focus.value?.waterEnd ?? 22)
+const waterGoal = computed(() => focus.value?.waterGoal ?? 8)
 const waterNext = computed(() => {
   const timestamp = focus.value?.waterNextAt
   if (!timestamp) return '—'
@@ -65,6 +66,16 @@ function changeWaterInterval(event: Event): void {
     waterStart.value,
     waterEnd.value,
   )
+}
+function changeWaterGoal(event: Event): void {
+  const goal = Number((event.target as HTMLInputElement).value)
+  emit('command', {
+    type: 'water-goal',
+    goal: Math.min(30, Math.max(1, Math.round(goal || 1))),
+  })
+}
+function snoozeWater(): void {
+  emit('command', { type: 'water-snooze', minutes: 10 })
 }
 function changeWaterStart(event: Event): void {
   const start = Number((event.target as HTMLSelectElement).value)
@@ -109,22 +120,22 @@ function close(): void {
         <button
           type="button"
           role="tab"
-          :aria-selected="tab === 'settings'"
-          :class="{ active: tab === 'settings' }"
-          @click="tab = 'settings'"
-        >
-          <Settings :size="15" :stroke-width="2" aria-hidden="true" />
-          提醒设置
-        </button>
-        <button
-          type="button"
-          role="tab"
           :aria-selected="tab === 'log'"
           :class="{ active: tab === 'log' }"
           @click="tab = 'log'"
         >
           <GlassWater :size="15" :stroke-width="2" aria-hidden="true" />
-          喝水记录
+          记录
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="tab === 'settings'"
+          :class="{ active: tab === 'settings' }"
+          @click="tab = 'settings'"
+        >
+          <Settings :size="15" :stroke-width="2" aria-hidden="true" />
+          设置
         </button>
       </div>
 
@@ -146,7 +157,36 @@ function close(): void {
         </div>
         <div class="water-row">
           <span>下次提醒</span>
-          <span class="water-value">{{ focus?.water ? waterNext : '已关闭' }}</span>
+          <span class="water-next">
+            <span class="water-value">{{
+              focus?.water ? waterNext : '已关闭'
+            }}</span>
+            <button
+              v-if="focus?.water"
+              type="button"
+              class="snooze-chip"
+              title="延后 10 分钟"
+              aria-label="延后 10 分钟"
+              @click="snoozeWater"
+            >
+              延后 10 分钟
+            </button>
+          </span>
+        </div>
+        <div class="water-row">
+          <span>每日目标</span>
+          <span class="water-config">
+            <input
+              class="water-number"
+              type="number"
+              min="1"
+              max="30"
+              :value="waterGoal"
+              aria-label="喝水每日目标"
+              @change="changeWaterGoal"
+            />
+            <span class="water-value">次</span>
+          </span>
         </div>
         <div class="water-row">
           <span>提醒间隔</span>
@@ -167,34 +207,52 @@ function close(): void {
         <div class="water-row">
           <span>生效时段</span>
           <span class="water-config">
-            <select
-              class="water-select"
-              :value="waterStart"
-              aria-label="喝水提醒开始时间"
-              @change="changeWaterStart"
-            >
-              <option v-for="hour in 24" :key="hour" :value="hour - 1">
-                {{ hourLabel(hour - 1) }}
-              </option>
-            </select>
+            <span class="water-select-wrap">
+              <select
+                class="water-select"
+                :value="waterStart"
+                aria-label="喝水提醒开始时间"
+                @change="changeWaterStart"
+              >
+                <option v-for="hour in 24" :key="hour" :value="hour - 1">
+                  {{ hourLabel(hour - 1) }}
+                </option>
+              </select>
+              <ChevronDown
+                class="water-select-icon"
+                :size="14"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+            </span>
             <span class="water-value">–</span>
-            <select
-              class="water-select"
-              :value="waterEnd"
-              aria-label="喝水提醒结束时间"
-              @change="changeWaterEnd"
-            >
-              <option v-for="hour in 24" :key="hour + 1" :value="hour">
-                {{ hourLabel(hour) }}
-              </option>
-            </select>
+            <span class="water-select-wrap">
+              <select
+                class="water-select"
+                :value="waterEnd"
+                aria-label="喝水提醒结束时间"
+                @change="changeWaterEnd"
+              >
+                <option v-for="hour in 24" :key="hour + 1" :value="hour">
+                  {{ hourLabel(hour) }}
+                </option>
+              </select>
+              <ChevronDown
+                class="water-select-icon"
+                :size="14"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+            </span>
           </span>
         </div>
       </div>
 
       <div v-else class="water-body water-records">
         <div class="water-summary">
-          <span class="water-today">今日 {{ todayCount }} 次</span>
+          <span class="water-today"
+            >今日 {{ todayCount }} / {{ waterGoal }} 次</span
+          >
           <button
             type="button"
             class="button-glass water-drink"
@@ -204,23 +262,25 @@ function close(): void {
           </button>
         </div>
         <div class="water-history">
-          <div v-if="groups.length" class="water-history-list">
+          <div v-if="groups.length" class="water-history-list panel-scroll">
             <section v-for="group in groups" :key="group.key" class="water-day">
               <div class="water-day-title">
                 <span>{{ group.label }}</span>
                 <span>{{ group.count }} 次</span>
               </div>
-              <div
-                v-for="entry in group.items"
-                :key="entry.id"
-                class="water-entry"
-              >
-                <Droplets
-                  :size="13"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-                <span>{{ formatClockTime(entry.at) }}</span>
+              <div class="water-entry-grid">
+                <div
+                  v-for="entry in group.items"
+                  :key="entry.id"
+                  class="water-entry"
+                >
+                  <Droplets
+                    :size="13"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <span>{{ formatClockTime(entry.at) }}</span>
+                </div>
               </div>
             </section>
           </div>
@@ -272,7 +332,7 @@ function close(): void {
   transition: transform var(--motion-slide) var(--ease-spring);
   will-change: transform;
 }
-.water-tabs[data-active='log'] .water-tabs-thumb {
+.water-tabs[data-active='settings'] .water-tabs-thumb {
   transform: translateX(100%);
 }
 .water-tabs button {
@@ -314,9 +374,17 @@ function close(): void {
   border-bottom: 1px solid var(--color-line);
   font-size: var(--font-size-body);
 }
+.water-body > .water-row:last-child {
+  border-bottom: 0;
+}
 .water-value {
   color: var(--color-muted);
   font-size: var(--font-size-label);
+}
+.water-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .water-config {
   display: flex;
@@ -340,6 +408,22 @@ function close(): void {
 }
 .water-select {
   min-width: 72px;
+  padding-right: 26px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.water-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.water-select-icon {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  pointer-events: none;
+  color: var(--color-muted);
+  transform: translateY(-50%);
 }
 .water-number:focus-visible,
 .water-select:focus-visible {
@@ -421,16 +505,24 @@ function close(): void {
   font-size: var(--font-size-label);
   font-weight: 600;
 }
+.water-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px 6px;
+}
 .water-entry {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
+  gap: 4px;
+  min-width: 0;
+  min-height: 26px;
   color: var(--color-ink);
   font-size: var(--font-size-label);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .water-entry svg {
+  flex: none;
   color: var(--color-brand);
 }
 .water-empty {

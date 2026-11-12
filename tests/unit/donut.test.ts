@@ -193,9 +193,14 @@ describe('fan geometry (kept for the conversion sub-ring)', () => {
 
 describe('conversion targets', () => {
   test('keep the formats every file shares', () => {
-    expect(conversionTargets(['照片.heic'])).toEqual(['JPG', 'PNG', 'PDF'])
+    expect(conversionTargets(['照片.heic'])).toEqual([
+      'JPG',
+      'PNG',
+      'WEBP',
+      'PDF',
+    ])
     expect(conversionTargets(['a.png', 'b.pdf'])).toEqual(['JPG', 'PNG'])
-    expect(conversionTargets(['a.png', 'b.mp4'])).toEqual([])
+    expect(conversionTargets(['a.png', 'b.mp4'])).toEqual(['WEBP'])
     expect(conversionTargets([])).toEqual([])
   })
 })

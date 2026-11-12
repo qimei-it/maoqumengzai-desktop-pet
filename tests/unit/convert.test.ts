@@ -2,11 +2,14 @@ import { describe, expect, test } from 'vitest'
 import {
   availableConvertTargets,
   availableImageTargets,
+  availableMediaTargets,
   candidateOutputPath,
   isImageFile,
+  isMediaTarget,
   mergedOutputName,
   outputDirectory,
   outputName,
+  pdfPageName,
   splitOutputDirectory,
   splitPageName,
 } from '../../src/shared/convert'
@@ -37,17 +40,128 @@ describe('image conversion targets', () => {
 
   test('images also offer PDF; PDF batches merge or split', () => {
     expect(availableConvertTargets(['a.jpg'])).toEqual([
-      { id: 'png', label: 'PNG' },
-      { id: 'webp', label: 'WEBP' },
-      { id: 'pdf', label: 'PDF' },
+      { id: 'png', label: 'PNG', group: 'image' },
+      { id: 'webp', label: 'WEBP', group: 'image' },
+      { id: 'pdf', label: 'PDF', group: 'pdf' },
     ])
     expect(availableConvertTargets(['a.pdf'])).toEqual([
-      { id: 'split-pdf', label: '拆分 PDF' },
+      { id: 'split-pdf', label: '拆分 PDF', group: 'pdf' },
+      { id: 'pdf-png', label: 'PNG', group: 'pdf' },
+      { id: 'pdf-jpg', label: 'JPG', group: 'pdf' },
+      { id: 'pdf-txt', label: 'TXT', group: 'pdf' },
     ])
     expect(availableConvertTargets(['a.pdf', 'b.pdf'])).toEqual([
-      { id: 'merge-pdf', label: '合并 PDF' },
+      { id: 'merge-pdf', label: '合并 PDF', group: 'pdf' },
+      { id: 'pdf-png', label: 'PNG', group: 'pdf' },
+      { id: 'pdf-jpg', label: 'JPG', group: 'pdf' },
+      { id: 'pdf-txt', label: 'TXT', group: 'pdf' },
     ])
     expect(availableConvertTargets(['a.jpg', 'b.pdf'])).toEqual([])
+  })
+
+  test('new image inputs and document/office targets', () => {
+    expect(availableConvertTargets(['a.heic'])).toEqual([
+      { id: 'jpg', label: 'JPG', group: 'image' },
+      { id: 'png', label: 'PNG', group: 'image' },
+      { id: 'webp', label: 'WEBP', group: 'image' },
+      { id: 'pdf', label: 'PDF', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.bmp'])).toHaveLength(4)
+    expect(availableConvertTargets(['a.tiff'])).toHaveLength(4)
+    expect(availableConvertTargets(['a.gif'])).toHaveLength(4)
+    expect(availableConvertTargets(['a.csv'])).toEqual([
+      { id: 'document-pdf', label: 'PDF', group: 'pdf' },
+      { id: 'csv-xlsx', label: 'XLSX', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.txt'])).toEqual([
+      { id: 'document-pdf', label: 'PDF', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.md'])).toEqual([
+      { id: 'document-pdf', label: 'PDF', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.html'])).toEqual([
+      { id: 'document-pdf', label: 'PDF', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.docx'])).toEqual([
+      { id: 'office-pdf', label: 'PDF', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.doc'])).toEqual([
+      { id: 'office-pdf', label: 'PDF', group: 'pdf' },
+      { id: 'office-docx', label: 'DOCX', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.xls'])).toEqual([
+      { id: 'office-pdf', label: 'PDF', group: 'pdf' },
+      { id: 'office-xlsx', label: 'XLSX', group: 'pdf' },
+    ])
+    expect(availableConvertTargets(['a.ppt'])).toEqual([
+      { id: 'office-pdf', label: 'PDF', group: 'pdf' },
+      { id: 'office-pptx', label: 'PPTX', group: 'pdf' },
+    ])
+  })
+
+  test('media targets cover video containers and audio extraction', () => {
+    const allVideo = [
+      'mp4',
+      'mov',
+      'mkv',
+      'webm',
+      'gif',
+      'webp-anim',
+      'mp3',
+      'wav',
+      'm4a',
+      'flac',
+      'ogg',
+    ]
+    expect(availableMediaTargets(['clip.mov'])).toEqual(allVideo)
+    expect(availableMediaTargets(['clip.mp4'])).toEqual(allVideo)
+    expect(availableMediaTargets(['song.wav'])).toEqual([
+      'mp3',
+      'wav',
+      'm4a',
+      'flac',
+      'ogg',
+    ])
+    expect(availableMediaTargets(['song.mp3'])).toEqual([
+      'mp3',
+      'wav',
+      'm4a',
+      'flac',
+      'ogg',
+    ])
+    expect(availableMediaTargets(['clip.mp4', 'song.mp3'])).toEqual([
+      'mp3',
+      'wav',
+      'm4a',
+      'flac',
+      'ogg',
+    ])
+    expect(
+      availableConvertTargets(['clip.mov'], { ffmpeg: true }),
+    ).toEqual([
+      { id: 'mp4', label: 'MP4', group: 'video' },
+      { id: 'mov', label: 'MOV', group: 'video' },
+      { id: 'mkv', label: 'MKV', group: 'video' },
+      { id: 'webm', label: 'WEBM', group: 'video' },
+      { id: 'gif', label: 'GIF', group: 'video' },
+      { id: 'webp-anim', label: 'WEBP', group: 'video' },
+      { id: 'mp3', label: 'MP3', group: 'audio' },
+      { id: 'wav', label: 'WAV', group: 'audio' },
+      { id: 'm4a', label: 'M4A', group: 'audio' },
+      { id: 'flac', label: 'FLAC', group: 'audio' },
+      { id: 'ogg', label: 'OGG', group: 'audio' },
+    ])
+    expect(availableConvertTargets(['song.flac'], { ffmpeg: true })).toEqual([
+      { id: 'mp3', label: 'MP3', group: 'audio' },
+      { id: 'wav', label: 'WAV', group: 'audio' },
+      { id: 'm4a', label: 'M4A', group: 'audio' },
+      { id: 'flac', label: 'FLAC', group: 'audio' },
+      { id: 'ogg', label: 'OGG', group: 'audio' },
+    ])
+    expect(availableConvertTargets(['clip.mov'])).toEqual([])
+    expect(isMediaTarget('webp-anim')).toBe(true)
+    expect(isMediaTarget('webp')).toBe(false)
+    expect(isMediaTarget('pdf')).toBe(false)
   })
 })
 
@@ -90,5 +204,7 @@ describe('conversion output paths', () => {
     )
     expect(splitPageName(1, 1)).toBe('page-1.pdf')
     expect(splitPageName(3, 2)).toBe('page-3 (2).pdf')
+    expect(pdfPageName(1, 'png', 1)).toBe('page-1.png')
+    expect(pdfPageName(2, 'jpg', 2)).toBe('page-2 (2).jpg')
   })
 })

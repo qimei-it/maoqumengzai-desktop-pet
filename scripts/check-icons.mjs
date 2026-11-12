@@ -34,6 +34,41 @@ const license = await readFile(
   'utf8',
 )
 assert(license.includes('ISC License') && license.includes('The MIT License'))
+
+const emojiManifest = JSON.parse(
+  await readFile(
+    new URL('src/renderer/assets/fxemoji/manifest.json', root),
+    'utf8',
+  ),
+)
+assert(emojiManifest.length >= 100, 'FxEmoji set is unexpectedly small')
+const emojiIds = new Set()
+for (const entry of emojiManifest) {
+  assert(entry.id && entry.label && entry.category, 'Invalid FxEmoji entry')
+  assert(!emojiIds.has(entry.id), `Duplicate FxEmoji ${entry.id}`)
+  emojiIds.add(entry.id)
+  const svg = await readFile(
+    new URL(`src/renderer/assets/fxemoji/${entry.id}.svg`, root),
+    'utf8',
+  )
+  assert(
+    svg.startsWith('<svg') &&
+      /<(path|circle|rect|ellipse|polygon|line|text)\b/.test(svg),
+    `Invalid FxEmoji SVG ${entry.id}`,
+  )
+  assert(
+    !/nyt_|@font-face/i.test(svg),
+    `FxEmoji metadata was not stripped from ${entry.id}`,
+  )
+}
+const emojiLicense = await readFile(
+  new URL('resources/licenses/fxemoji-LICENSE.md', root),
+  'utf8',
+)
+assert(
+  emojiLicense.includes('Creative Commons Attribution 4.0'),
+  'Missing FxEmoji visual design license',
+)
 console.log(
-  'Icon check passed: official Lucide SVG components, no hand-authored/glyph icons, native assets and full license.',
+  'Icon check passed: official Lucide SVG components, local FxEmoji artwork and licenses, native assets.',
 )

@@ -151,7 +151,7 @@ function apply(): void {
         </label>
       </div>
 
-      <div class="rename-preview" aria-live="polite">
+      <div class="rename-preview panel-scroll" aria-live="polite">
         <div
           v-for="(file, index) in visible"
           :key="file.id"
@@ -271,7 +271,6 @@ function apply(): void {
   padding: 4px 0;
   border-top: 1px solid var(--color-line);
   overflow: auto;
-  scrollbar-width: thin;
 }
 .rename-row {
   display: grid;

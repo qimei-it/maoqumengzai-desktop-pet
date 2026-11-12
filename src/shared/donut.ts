@@ -493,35 +493,50 @@ const conversionMap: Record<string, readonly string[]> = {
   jpg: ['JPG', 'PNG', 'WEBP', 'PDF'],
   jpeg: ['JPG', 'PNG', 'WEBP', 'PDF'],
   webp: ['JPG', 'PNG', 'WEBP', 'PDF'],
-  heic: ['JPG', 'PNG', 'PDF'],
-  bmp: ['JPG', 'PNG', 'WEBP'],
-  tiff: ['JPG', 'PNG', 'PDF'],
-  gif: ['JPG', 'PNG', 'WEBP'],
+  heic: ['JPG', 'PNG', 'WEBP', 'PDF'],
+  heif: ['JPG', 'PNG', 'WEBP', 'PDF'],
+  bmp: ['JPG', 'PNG', 'WEBP', 'PDF'],
+  tiff: ['JPG', 'PNG', 'WEBP', 'PDF'],
+  tif: ['JPG', 'PNG', 'WEBP', 'PDF'],
+  gif: ['JPG', 'PNG', 'WEBP', 'PDF'],
   pdf: ['PNG', 'JPG', 'TXT'],
-  doc: ['PDF'],
+  ofd: ['PDF', 'PNG', 'JPG'],
+  doc: ['PDF', 'DOCX'],
   docx: ['PDF'],
-  xls: ['PDF'],
+  xls: ['PDF', 'XLSX'],
   xlsx: ['PDF'],
   csv: ['PDF', 'XLSX'],
-  ppt: ['PDF'],
+  ppt: ['PDF', 'PPTX'],
   pptx: ['PDF'],
-  mp4: ['MP4', 'GIF', 'MP3'],
-  mov: ['MP4', 'GIF', 'MP3'],
-  mkv: ['MP4', 'GIF', 'MP3'],
-  webm: ['MP4', 'GIF', 'MP3'],
-  avi: ['MP4', 'GIF', 'MP3'],
-  mp3: ['MP3', 'WAV'],
-  wav: ['MP3', 'WAV'],
-  flac: ['MP3', 'WAV'],
-  m4a: ['MP3', 'WAV'],
+  flv: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  wmv: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mpg: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mpeg: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  ts: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  '3gp': ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mp4: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mov: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mkv: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  webm: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  avi: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  m4v: ['MP4', 'MOV', 'MKV', 'WEBM', 'GIF', 'WEBP', 'MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  mp3: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  wav: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  flac: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  m4a: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  aac: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
+  ogg: ['MP3', 'WAV', 'M4A', 'OGG', 'FLAC'],
   txt: ['PDF'],
   md: ['PDF'],
+  markdown: ['PDF'],
+  html: ['PDF'],
+  htm: ['PDF'],
 }
 
 /** Intersection of planned targets so a mixed batch never promises one result. */
 export function conversionTargets(
   names: readonly string[],
-  limit = 4,
+  limit = 12,
 ): string[] {
   if (!names.length) return []
   let shared: readonly string[] | undefined
@@ -537,12 +552,25 @@ export function conversionTargets(
 }
 
 /** Hover menu opens without files and points at companion tools. */
-export const hoverActions = ['focus', 'water', 'todo', 'agent'] as const
+export const hoverActions = [
+  'agent',
+  'clipboard',
+  'profile',
+  'todo',
+  'break',
+  'water',
+  'focus',
+  'shelf',
+] as const
 export type HoverAction = (typeof hoverActions)[number]
 
 export const hoverLabels: Record<HoverAction, readonly string[]> = {
-  focus: ['番茄时钟'],
-  water: ['喝水提醒'],
-  todo: ['待办清单'],
   agent: ['智能体'],
+  profile: ['宠物档案'],
+  clipboard: ['剪贴板'],
+  todo: ['待办清单'],
+  break: ['休息提醒'],
+  water: ['喝水提醒'],
+  focus: ['番茄时钟'],
+  shelf: ['置物架'],
 }

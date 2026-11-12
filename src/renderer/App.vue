@@ -23,6 +23,12 @@ import type {
   Snapshot,
 } from "../shared/protocol";
 import {
+  conversionEngineForKinds,
+  fileKind,
+  fileKindFromMime,
+  type FileKind,
+} from "../shared/file-kinds";
+import {
   actionAt,
   donutMetrics,
   donutWindowSize,
@@ -51,9 +57,11 @@ import FilePocket from "./FilePocket.vue";
 import FocusBadge from "./FocusBadge.vue";
 import PomodoroPanel from "./PomodoroPanel.vue";
 import WaterPanel from "./WaterPanel.vue";
+import BreakPanel from "./BreakPanel.vue";
+import ProfilePanel from "./ProfilePanel.vue";
+import ClipboardPanel from "./ClipboardPanel.vue";
 import TodoPanel from "./TodoPanel.vue";
 import SettingsPanel from "./SettingsPanel.vue";
-import { focusDurations } from "../shared/focus";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
 const pocketView =
@@ -81,6 +89,10 @@ const focusView =
 const focusBadgeView =
   new URLSearchParams(location.search).get("view") === "focus-badge";
 const waterView = new URLSearchParams(location.search).get("view") === "water";
+const breakView = new URLSearchParams(location.search).get("view") === "break";
+const profileView = new URLSearchParams(location.search).get("view") === "profile";
+const clipboardView =
+  new URLSearchParams(location.search).get("view") === "clipboard";
 const todoView = new URLSearchParams(location.search).get("view") === "todo";
 document.body.classList.toggle("pet-view", petView);
 document.body.classList.toggle("pocket-view", pocketView);
@@ -98,6 +110,9 @@ document.body.classList.toggle("settings-view", settingsView);
 document.body.classList.toggle("focus-view", focusView);
 document.body.classList.toggle("focus-badge-view", focusBadgeView);
 document.body.classList.toggle("water-view", waterView);
+document.body.classList.toggle("break-view", breakView);
+document.body.classList.toggle("profile-view", profileView);
+document.body.classList.toggle("clipboard-view", clipboardView);
 document.body.classList.toggle("todo-view", todoView);
 if (petView) document.title = "毛趣萌仔 · 交互标记";
 if (pocketView) document.title = "毛趣萌仔 · 文件置物架";
@@ -115,6 +130,9 @@ if (settingsView) document.title = "毛趣萌仔 · 设置";
 if (focusView) document.title = "毛趣萌仔 · 番茄时钟";
 if (focusBadgeView) document.title = "毛趣萌仔 · 计时环";
 if (waterView) document.title = "毛趣萌仔 · 喝水提醒";
+if (breakView) document.title = "毛趣萌仔 · 休息提醒";
+if (profileView) document.title = "毛趣萌仔 · 宠物档案";
+if (clipboardView) document.title = "毛趣萌仔 · 剪贴板";
 if (todoView) document.title = "毛趣萌仔 · 待办清单";
 const api = window.mqmz;
 const state = ref<Snapshot>();
@@ -138,6 +156,10 @@ const donutOpen = ref(false);
 const donutClosing = ref(false);
 const donutActive = ref<string | null>(null);
 const donutMode = ref<"file" | "hover">("file");
+watch(
+  [donutActive, () => state.value?.engines.ffmpeg.status],
+  updateWheelHint,
+);
 const donutActions = computed(() =>
   donutMode.value === "hover" ? hoverActions : sliceActions,
 );
@@ -153,12 +175,11 @@ const poseSources: Record<PetPose, string> = {
   ponder: catPonder,
   focus: catFocus,
 };
-const petName = "麻薯";
+const petName = computed(() => state.value?.settings.petName || "麻薯");
 const petPose = ref<PetPose>("base");
 const focusActive = computed(() => {
   const focus = state.value?.focus;
-  if (!focus || focus.phase !== "focus") return false;
-  return focus.running || focus.remaining < focusDurations.focus;
+  return !!focus && focus.phase === "focus" && focus.running;
 });
 /** Interaction poses win over listening; the blink is only a frame of the base. */
 const displayPose = computed<PetPose>(() => {
@@ -170,6 +191,8 @@ const displayPose = computed<PetPose>(() => {
 });
 const poseSrc = computed(() => poseSources[displayPose.value]);
 const toast = ref("");
+const wheelHint = ref("");
+let dragFileKinds: FileKind[] = [];
 const markerScale = computed(() => state.value?.scale || 1);
 let unsubscribe: (() => void) | undefined;
 let unsubscribeHover: (() => void) | undefined;
@@ -185,6 +208,9 @@ let closeToken = 0;
 let donutOpening = false;
 let hoverTimer: ReturnType<typeof setTimeout> | undefined;
 let hoverSuppressedUntil = 0;
+let pokeTimer: ReturnType<typeof setTimeout> | undefined;
+let pointerStart: { x: number; y: number } | undefined;
+let pointerMoved = false;
 const dragPoint = { x: 0, y: 0 };
 
 function unwrap<T>(result: Result<T>): T {
@@ -254,13 +280,84 @@ function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
 }
+function kindsFromDrop(dataTransfer: DataTransfer | null): FileKind[] {
+  if (!dataTransfer) return [];
+  const kinds: FileKind[] = [];
+  for (const item of Array.from(dataTransfer.items)) {
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file?.name) kinds.push(fileKind(file.name));
+    else if (item.type) kinds.push(fileKindFromMime(item.type));
+  }
+  return kinds;
+}
+function updateWheelHint(): void {
+  if (
+    !donutOpen.value ||
+    donutClosing.value ||
+    donutMode.value !== "file"
+  ) {
+    wheelHint.value = "";
+    return;
+  }
+  const action = donutActive.value;
+  if (action === "audio") {
+    const status = state.value?.engines.ffmpeg.status;
+    wheelHint.value =
+      status === "installed"
+        ? ""
+        : status === "downloading"
+          ? "FFmpeg 正在安装，请稍候"
+          : status === "unsupported"
+            ? "当前平台无法安装 FFmpeg"
+            : "提取音频需要先安装 FFmpeg，松开后打开设置";
+    return;
+  }
+  if (action !== "convert" || !dragFileKinds.length) {
+    wheelHint.value = "";
+    return;
+  }
+  const engine = conversionEngineForKinds(dragFileKinds);
+  if (engine === "ffmpeg") {
+    const status = state.value?.engines.ffmpeg.status;
+    wheelHint.value =
+      status === "installed"
+        ? ""
+        : status === "downloading"
+          ? "FFmpeg 正在安装，请稍候"
+          : status === "unsupported"
+            ? "当前平台无法安装 FFmpeg"
+            : "音视频转换需要先安装 FFmpeg，松开后打开设置";
+    return;
+  }
+  if (engine === "libreoffice") {
+    const status = state.value?.engines.libreoffice.status;
+    wheelHint.value =
+      status === "ready"
+        ? ""
+        : status === "error"
+          ? "LibreOffice 不可用，请在设置中重新选择"
+          : "Office 转 PDF 需要先选择本机 LibreOffice，松开后打开设置";
+    return;
+  }
+  if (engine === "unsupported") {
+    wheelHint.value = "这批文件暂不支持格式转换";
+    return;
+  }
+  wheelHint.value = "";
+}
 function trackHover(event: DragEvent): void {
   // dragover already arrives at a human-scale rate; a direct update avoids
   // requestAnimationFrame throttling when the pet window is backgrounded.
   dragPoint.x = event.clientX;
   dragPoint.y = event.clientY;
   armWatchdog();
+  if (!dragFileKinds.length) {
+    const kinds = kindsFromDrop(event.dataTransfer);
+    if (kinds.length) dragFileKinds = kinds;
+  }
   donutActive.value = regionAt(dragPoint.x, dragPoint.y);
+  updateWheelHint();
 }
 /** Wait until the viewport has the wheel-sized window, so the ring is never clipped. */
 function viewportReady(width: number): Promise<void> {
@@ -300,6 +397,7 @@ async function openDonutSurface(mode: "file" | "hover"): Promise<void> {
   donutOpen.value = true;
   donutClosing.value = false;
   donutActive.value = null;
+  wheelHint.value = "";
 }
 async function closeDonut(send = true): Promise<void> {
   disarmWatchdog();
@@ -315,6 +413,8 @@ async function closeDonut(send = true): Promise<void> {
   donutClosing.value = false;
   petPose.value = "base";
   donutMode.value = "file";
+  wheelHint.value = "";
+  dragFileKinds = [];
   if (!send || !api) return;
   try {
     state.value = unwrap(await api.command({ type: "wheel", open: false }));
@@ -330,6 +430,8 @@ function enter(event: DragEvent): void {
   event.preventDefault();
   clearHoverTimer();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  dragFileKinds = kindsFromDrop(event.dataTransfer);
+  wheelHint.value = "";
   dragOver.value = true;
   if (!petView) return;
   petPose.value = "ponder";
@@ -361,6 +463,8 @@ function leave(event: DragEvent): void {
   )
     return;
   dragOver.value = false;
+  dragFileKinds = [];
+  wheelHint.value = "";
   if (!petView) return;
   void closeDonut();
   void command({ type: "drop-mode", enabled: false });
@@ -369,6 +473,7 @@ async function receive(event: DragEvent): Promise<void> {
   event.preventDefault();
   const action = petView ? regionAt(event.clientX, event.clientY) : null;
   const files = [...(event.dataTransfer?.files || [])];
+  if (files.length) dragFileKinds = files.map((file) => fileKind(file.name));
   disarmWatchdog();
   dragOver.value = false;
   if (petView) {
@@ -448,7 +553,16 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     return;
   }
   if (action === "audio") {
-    flash("提取音频需要 FFmpeg 引擎，待接入。");
+    await attempt(async () => {
+      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+      const snapshot = unwrap(await api.receiveFiles(files));
+      state.value = snapshot;
+      const ids = snapshot.received?.fileIds ?? [];
+      if (!ids.length) return;
+      state.value = unwrap(
+        await api.command({ type: "extract-audio", fileIds: ids }),
+      );
+    });
     return;
   }
   if (action === "rename") {
@@ -621,6 +735,15 @@ function petPointerMove(event: PointerEvent): void {
   }
   const rect = marker.value?.getBoundingClientRect();
   if (!rect) return;
+  if (pointerId !== undefined && pointerStart) {
+    if (
+      Math.hypot(
+        event.clientX - pointerStart.x,
+        event.clientY - pointerStart.y,
+      ) > 4
+    )
+      pointerMoved = true;
+  }
   const dx = event.clientX - (rect.x + rect.width / 2);
   const dy = event.clientY - (rect.y + rect.height / 2);
   const distance = Math.hypot(dx, dy);
@@ -631,7 +754,7 @@ function petPointerMove(event: PointerEvent): void {
       void closeDonut();
     return;
   }
-  if (distance <= 28 * markerScale.value) {
+  if (distance <= 48 * markerScale.value) {
     if (!hoverTimer)
       hoverTimer = setTimeout(() => {
         hoverTimer = undefined;
@@ -664,8 +787,24 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     await command({ type: "ai-open", fileIds: [] });
     return;
   }
+  if (action === "profile") {
+    await command({ type: "settings-section", section: "profile" });
+    return;
+  }
+  if (action === "clipboard") {
+    await command({ type: "clipboard-open" });
+    return;
+  }
+  if (action === "shelf") {
+    await command({ type: "show-pocket" });
+    return;
+  }
   if (action === "todo") {
     await command({ type: "todo-open" });
+    return;
+  }
+  if (action === "break") {
+    await command({ type: "break-open" });
     return;
   }
   if (action === "water") {
@@ -674,14 +813,45 @@ async function runHoverAction(action: HoverAction): Promise<void> {
   }
   await command({ type: "pomodoro-open" });
 }
-function petSurfaceClick(): void {
+function petSurfaceClick(event: MouseEvent): void {
   if (!donutOpen.value || donutMode.value !== "hover") return;
-  const action = donutActive.value as HoverAction | null;
+  // The hover window expands with a spring, so the stored hover region can be
+  // stale by the time the pointer is released. Re-hit-test at click time.
+  const action =
+    hoverRegionAt(event.clientX, event.clientY) ??
+    (donutActive.value as HoverAction | null);
   if (!action) {
     void closeDonut();
     return;
   }
   void runHoverAction(action);
+}
+const scrollTimers = new WeakMap<HTMLElement, number>();
+function markPanelScroll(event: Event): void {
+  const target = event.target;
+  if (
+    !(target instanceof HTMLElement) ||
+    !target.classList.contains("panel-scroll")
+  )
+    return;
+  target.classList.add("is-scrolling");
+  const existing = scrollTimers.get(target);
+  if (existing) window.clearTimeout(existing);
+  scrollTimers.set(
+    target,
+    window.setTimeout(() => {
+      target.classList.remove("is-scrolling");
+      scrollTimers.delete(target);
+    }, 900),
+  );
+}
+function triggerPoke(): void {
+  petPose.value = "ponder";
+  if (pokeTimer) clearTimeout(pokeTimer);
+  pokeTimer = setTimeout(() => {
+    pokeTimer = undefined;
+    if (petPose.value === "ponder") petPose.value = "base";
+  }, 550);
 }
 function pointerDown(event: PointerEvent): void {
   if (event.button !== 0 || !api || pointerId !== undefined || donutOpen.value)
@@ -691,6 +861,8 @@ function pointerDown(event: PointerEvent): void {
   event.preventDefault();
   petPose.value = "lifted";
   pointerId = event.pointerId;
+  pointerStart = { x: event.clientX, y: event.clientY };
+  pointerMoved = false;
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   void attempt(async () => {
     unwrap(await api.pointer("down"));
@@ -701,10 +873,14 @@ function pointerUp(event: PointerEvent): void {
   hoverSuppressedUntil = Date.now() + 600;
   clearHoverTimer();
   pointerId = undefined;
+  pointerStart = undefined;
+  const poked = !pointerMoved && event.type !== "pointercancel";
+  pointerMoved = false;
   petPose.value = "base";
   void attempt(async () => {
     unwrap(await api.pointer(event.type === "pointercancel" ? "cancel" : "up"));
   });
+  if (poked && !donutOpen.value) triggerPoke();
 }
 async function capture(): Promise<void> {
   captureBusy.value = true;
@@ -1067,6 +1243,7 @@ onMounted(async () => {
     displayId.value = state.value.displays[0]?.id;
   });
   await nextTick();
+  document.addEventListener("scroll", markPanelScroll, true);
   if (petView) {
     for (const src of [catBlink, catLifted, catPonder]) {
       const image = new Image();
@@ -1094,6 +1271,7 @@ onUnmounted(() => {
   if (toastTimer) clearTimeout(toastTimer);
   unsubscribe?.();
   unsubscribeHover?.();
+  document.removeEventListener("scroll", markPanelScroll, true);
   observer?.disconnect();
 });
 </script>
@@ -1110,7 +1288,7 @@ onUnmounted(() => {
     @pointermove="petPointerMove"
     @pointerleave="petPointerLeave"
     @click="petSurfaceClick"
-    @contextmenu.prevent="command({ type: 'show-pocket' })"
+    @contextmenu.prevent
   >
     <div class="marker-content">
       <div class="marker-anchor">
@@ -1143,7 +1321,7 @@ onUnmounted(() => {
           :error="error"
           :actions="donutActions"
           :labels="donutLabels"
-          :label-size="donutMode === 'hover' ? 12 : 11"
+          :label-size="11"
           :single-line="donutMode === 'hover'"
           :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"
         />
@@ -1163,6 +1341,13 @@ onUnmounted(() => {
       </div>
     </div>
     <span v-if="toast" class="pet-toast" role="status">{{ toast }}</span>
+    <p
+      v-if="wheelHint && donutOpen && !donutClosing"
+      class="wheel-hint"
+      role="status"
+    >
+      {{ wheelHint }}
+    </p>
     <span v-if="error" class="pet-error" role="alert">{{ error }}</span>
   </main>
 
@@ -1487,6 +1672,27 @@ onUnmounted(() => {
 
   <WaterPanel
     v-else-if="waterView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <BreakPanel
+    v-else-if="breakView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <ProfilePanel
+    v-else-if="profileView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <ClipboardPanel
+    v-else-if="clipboardView"
     :state="state"
     :error="error"
     @command="command"

@@ -1,0 +1,23 @@
+# mqmz App icon — Ragdoll v2
+
+生成日期：2026-11-10（Asia/Shanghai）
+生成方式：内置 image_gen，transparent_background: true。
+修订：珊瑚色圆角方形背景、外部透明、两只咖啡色前爪、Wink 表情；保留首版手绘画风。
+用途：App icon 视觉方案；尚未接入系统图标。
+圆角参考：macOS 图标模板比例，生成结果为视觉设计稿，尚未经过官方模板几何裁切。
+官方规范：https://developer.apple.com/design/human-interface-guidelines/app-icons
+模板比例参考实现：https://chromium.googlesource.com/chromium/src/+/4852d4ffeefa31265675175f00edcf84c5e30ecd/chrome/browser/web_applications/os_integration/mac/icon_utils.mm
+检查：PNG，1254 × 1254，含 Alpha；四角与圆角方形外部透明。
+
+Use case: precise-object-edit
+Asset type: revised macOS-style app icon for mqmz / 毛趣萌仔. One square PNG with transparent exterior.
+Input images: Image 1 is the previous icon concept, EDIT TARGET and approved painting-style reference. Image 2 is the user's original ragdoll cat reference, authoritative for fur pattern, the TWO coffee-brown forelegs and paws, and natural feline anatomy.
+Task: Revise image 1 into a COMPLETE app icon with a COLORED ROUNDED-SQUARE BACKPLATE, playful winking cat, and TWO CLEARLY VISIBLE attached brown front legs/paws.
+Background geometry: a perfectly front-facing centered warm coral/terracotta rounded-square app tile, macOS app-icon silhouette, flat frontal square, identical width and height, generous symmetric continuous-looking corners. Use the conventional macOS production-template proportions: on an imagined 1024-square canvas the tile bounds are (100,100) to (924,924), corner radius approximately 184 pixels. Scale proportionally to final square canvas. Keep its entire exterior transparent including the four outer corners and padding. Tile fill is opaque, warm muted coral #D7785E with a restrained lighter upper region #E69B80, elegant almost-solid color, no noisy texture. Crisp smooth silhouette. NOT just a transparent cat cutout. NOT a full-bleed square with sharp corners.
+Cat: preserve the gentle hand-painted creamy ragdoll personality and beautiful matte gouache illustration of image 1, cream-white fluffy head and bib, warm brown ear and eye mask, white inverted-V face blaze, small pink nose. One blue eye OPEN and the other eye unmistakably closed in a playful WINK, tiny happy smile, slight head tilt. Expressive and charming, not overexcited.
+Critical anatomy / fur correction: exactly TWO FRONT LEGS AND TWO FRONT PAWS, both visible simultaneously and connected naturally to their own shoulders at either side of the fluffy white chest. BOTH forelegs including BOTH paws have clearly COFFEE-BROWN / warm taupe-brown fur matching the brown forelegs of image 2; no white mittens. One small brown front paw lifted in a friendly greeting beside the chest with muted pink paw pads, while the OTHER brown front leg and resting brown paw are clearly visible on the opposite side at the base of the chest. This is a compact seated kitten upper-body portrait, enough body visible to understand both forelegs. No detached paws, no hidden second leg, no extra limbs.
+Composition: large cute cat face remains the focal point. Integrate the cat entirely INSIDE the coral rounded-square tile, including ears, fur and paws, no breaking the tile contour. Cat occupies most of tile with deliberate breathing room above ears and at sides. Chest and BOTH brown paws fully visible in lower half; no confusing crop. At small Dock size, a warm coral rounded square with a winking fluffy cat and two brown paws reads clearly.
+Keep the soft sophisticated hand-painted style from image 1; mild sculpted shading, modest eye highlights, subtle fur tufts, no plastic 3D, no airbrushed glow, no glossy mobile game style.
+Avoid: clothing, hoodie, video/play button, technology symbols, text, logos, stars, hearts, sticker outline, decorative objects, giant visible tongue, neon gradients, perspective tilted tile, odd unequal corners, transparent tile interior.
+Deliver ONE final image only, high-resolution 1:1 PNG, genuine transparent alpha outside the COLORED macOS-style rounded-square tile.
+

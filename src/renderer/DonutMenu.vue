@@ -61,6 +61,10 @@ const shadowOpacity = computed(
     Math.max(1, count.value),
 )
 
+function normalizeDegrees(degrees: number): number {
+  return ((((degrees + 90) % 180) + 180) % 180) - 90
+}
+
 const wedges = computed(() => {
   const m = metrics.value
   const step = span(count.value)
@@ -76,24 +80,41 @@ const wedges = computed(() => {
     const charWidth = fontSize * 1.08
     const center = pointAt(m.mid, mid)
     const chars = Array.from(columns.join(''))
-    const horizontal = Math.abs(Math.cos(mid)) >= 0.5
+    // Hover labels curve along their ring slice. Each glyph sits on the arc
+    // and rotates with the local tangent; bottom-half labels flip so they stay
+    // upright while still reading in order.
+    const rawDegrees = (mid * 180) / Math.PI
+    const normalized = normalizeDegrees(rawDegrees)
+    let flipped =
+      Math.abs(Math.abs(normalized - rawDegrees) - 180) < 0.5
+    let fixed: number | null = null
+    // Exact right/left labels sit on a vertical sector. Keep the glyphs
+    // upright and stack them downward along the arc; a 90° glyph rotation
+    // would force the reader to tilt their head.
+    if (Math.abs(rawDegrees - 90) < 0.5) {
+      fixed = 0
+      flipped = false
+    } else if (Math.abs(rawDegrees - 270) < 0.5) {
+      fixed = 0
+      flipped = true
+    }
+    const charStep = (charWidth * 1.12) / Math.max(1, m.mid)
     const glyphs = props.singleLine
-      ? horizontal
-        ? chars.map((char, charIndex) => ({
+      ? chars.map((char, charIndex) => {
+          const delta = (charIndex - (chars.length - 1) / 2) * charStep
+          const theta = flipped ? mid - delta : mid + delta
+          const position = pointAt(m.mid, theta)
+          return {
             char,
-            x:
-              center.x -
-              ((chars.length - 1) * charWidth) / 2 +
-              charIndex * charWidth,
-            y: center.y,
-          }))
-        : chars.map((char, charIndex) => ({
-            char,
-            x: center.x,
-            y:
-              center.y +
-              (charIndex - (chars.length - 1) / 2) * lineHeight,
-          }))
+            x: position.x,
+            y: position.y,
+            rotate:
+              fixed ??
+              normalizeDegrees(
+                (theta * 180) / Math.PI + (flipped ? 180 : 0),
+              ),
+          }
+        })
       : columns.length === 1
         ? Array.from(columns[0]).map((char, charIndex) => ({
             char,
@@ -101,6 +122,7 @@ const wedges = computed(() => {
             y:
               center.y +
               (charIndex - (columns[0].length - 1) / 2) * lineHeight,
+            rotate: 0,
           }))
         : columns.flatMap((row, rowIndex) => {
             const rowChars = Array.from(row)
@@ -109,6 +131,7 @@ const wedges = computed(() => {
               char,
               x: center.x - width / 2 + charIndex * charWidth,
               y: center.y + (rowIndex - (columns.length - 1) / 2) * lineHeight,
+              rotate: 0,
             }))
           })
     return {
@@ -315,6 +338,11 @@ onUnmounted(() => {
           :class="{ hot: isHot(index) }"
           :x="glyph.x"
           :y="glyph.y"
+          :transform="
+            glyph.rotate
+              ? `rotate(${glyph.rotate} ${glyph.x} ${glyph.y})`
+              : undefined
+          "
           :style="{ fontSize: `${(labelSize ?? 11) * scale}px` }"
           text-anchor="middle"
           dominant-baseline="central"

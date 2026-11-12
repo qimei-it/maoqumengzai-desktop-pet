@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Database, Info, Monitor, Palette, Settings, SixteenthNotes } from '@lucide/vue'
-import type { Command, Snapshot } from '../shared/protocol'
+import { Archive, Boxes, ClipboardList, Database, Info, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
+import type { Command, SettingsSection, Snapshot } from '../shared/protocol'
+import type { ClipboardConfig } from '../shared/clipboard'
+import { clipboardDefaults } from '../shared/clipboard'
+import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import {
   defaultSettings,
   musicBarStyleLabels,
@@ -12,6 +15,8 @@ import {
   type SettingsState,
 } from '../shared/settings'
 import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
+import ClipboardSettings from './ClipboardSettings.vue'
+import catBase from './assets/pet/ragdoll/base.png'
 import MusicBarPreview from './MusicBarPreview.vue'
 import PanelHeader from './PanelHeader.vue'
 
@@ -22,33 +27,139 @@ const nav = [
   { id: 'appearance', label: '外观', icon: Palette },
   { id: 'desktop', label: '桌面', icon: Monitor },
   { id: 'data', label: '数据', icon: Database },
+  { id: 'profile', label: '宠物档案', icon: PawPrint },
+  { id: 'clipboard', label: '剪贴板', icon: ClipboardList },
+  { id: 'shelf', label: '文件置物架', icon: Archive },
+  { id: 'conversion', label: '格式转换', icon: Boxes },
   { id: 'music', label: '音乐播放器', icon: SixteenthNotes },
   { id: 'ai', label: '智能体', icon: DeepSeekAgentMark },
   { id: 'about', label: '关于', icon: Info },
 ] as const
-const section = ref<(typeof nav)[number]['id']>('appearance')
+const section = computed<SettingsSection>(
+  () => props.state?.settingsSection ?? 'appearance',
+)
 const apiKey = ref('')
 const editingKey = ref(false)
 
 const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
+const clipboardConfig = computed<ClipboardConfig>(
+  () => props.state?.clipboard ?? clipboardDefaults,
+)
 const themes = themeIds.map((id) => ({ id, label: themeLabels[id] }))
+const petProfiles = computed(() => [
+  { id: 'ragdoll', name: settings.value.petName, cover: catBase },
+])
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const bellyCount = computed(() => props.state?.belly.length ?? 0)
+const shelfInvalidCount = computed(
+  () => props.state?.shelfInvalidCount ?? 0,
+)
+const ffmpeg = computed(() => props.state?.engines.ffmpeg)
+const libreOffice = computed(() => props.state?.engines.libreoffice)
+const libreOfficeReady = computed(
+  () => libreOffice.value?.status === 'ready',
+)
+const libreOfficeStatusLabel = computed(() => {
+  if (libreOfficeReady.value) return '可用'
+  if (libreOffice.value?.status === 'error') return '不可用'
+  return '未选择'
+})
+const ffmpegStatus = computed(() => ffmpeg.value?.status ?? 'missing')
+const ffmpegStatusLabel = computed(() => {
+  switch (ffmpegStatus.value) {
+    case 'downloading':
+      return `下载中 ${ffmpeg.value?.progress ?? 0}%`
+    case 'installed':
+      return '可用'
+    case 'error':
+      return '安装失败'
+    case 'unsupported':
+      return '平台不支持'
+    default:
+      return '未安装'
+  }
+})
+const ffmpegSource = computed(() => {
+  if (ffmpeg.value?.origin === 'local') return '本地程序'
+  return ffmpeg.value?.source ?? 'npmmirror 镜像'
+})
+function formatEngineSize(bytes: number): string {
+  if (!bytes) return '—'
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+}
+function installFfmpeg(): void {
+  emit('command', { type: 'engine-install', id: 'ffmpeg' })
+}
+function cancelFfmpeg(): void {
+  emit('command', { type: 'engine-cancel', id: 'ffmpeg' })
+}
+function recheckFfmpeg(): void {
+  emit('command', { type: 'engine-recheck', id: 'ffmpeg' })
+}
+function useLocalFfmpeg(): void {
+  emit('command', { type: 'engine-use-local', id: 'ffmpeg' })
+}
+function useLocalLibreOffice(): void {
+  emit('command', { type: 'engine-use-local', id: 'libreoffice' })
+}
+function engineStatusClass(id: string): string {
+  if (id === 'ffmpeg') return ffmpegStatus.value
+  if (id === 'libreoffice')
+    return libreOfficeReady.value ? 'installed' : 'idle'
+  return 'idle'
+}
+function engineStatusText(id: string): string {
+  if (id === 'ffmpeg') return ffmpegStatusLabel.value
+  if (id === 'libreoffice') return libreOfficeStatusLabel.value
+  return '未接入'
+}
+const clipboardUnpinnedCount = computed(
+  () =>
+    props.state?.clipboard.entries.filter((entry) => !entry.pinned).length ??
+    0,
+)
+const shelfMaxOptions = [50, 100, 200, 500]
 
 watch(configured, (value) => {
   if (!value) return
   editingKey.value = false
   apiKey.value = ''
 })
+watch(
+  section,
+  (value) => {
+    if (value === 'data' || value === 'shelf')
+      emit('command', { type: 'shelf-scan' })
+  },
+  { immediate: true },
+)
 
+function selectSection(section: SettingsSection): void {
+  emit('command', { type: 'settings-section', section })
+}
 function update(patch: Partial<SettingsState>): void {
   emit('command', { type: 'settings-update', patch })
 }
-function toggle(key: 'launchAtLogin' | 'statusBubbles' | 'musicBubbles'): void {
+function updateClipboardConfig(patch: Partial<ClipboardConfig>): void {
+  emit('command', { type: 'clipboard-config', patch })
+}
+function toggle(
+  key:
+    | 'launchAtLogin'
+    | 'statusBubbles'
+    | 'musicBubbles'
+    | 'shelfAutoScreenshots'
+    | 'shelfClipboardImages'
+    | 'shelfScreenshotBubble',
+): void {
   update({ [key]: !settings.value[key] })
 }
+const shelfFolderLabel = computed(() => {
+  const folders = props.state?.shelfFolders ?? []
+  return folders.length ? folders.join('  ·  ') : '读取中'
+})
 function saveKey(): void {
   const value = apiKey.value.trim()
   if (!value) return
@@ -70,16 +181,7 @@ function close(): void {
           emit('command', { type: 'panel-control', action: 'minimize' })
         "
         @close="emit('command', { type: 'panel-control', action: 'close' })"
-      >
-        <template #icon>
-          <Settings
-            :size="17"
-            :stroke-width="2"
-            aria-hidden="true"
-            focusable="false"
-          />
-        </template>
-      </PanelHeader>
+      />
 
       <div class="settings-body">
         <nav class="settings-nav" aria-label="设置分类">
@@ -89,7 +191,7 @@ function close(): void {
             type="button"
             :class="{ active: section === item.id }"
             :aria-current="section === item.id ? 'page' : undefined"
-            @click="section = item.id"
+            @click="selectSection(item.id)"
           >
             <component
               :is="item.icon"
@@ -102,7 +204,7 @@ function close(): void {
           </button>
         </nav>
 
-        <div class="settings-content">
+        <div class="settings-content panel-scroll">
           <template v-if="section === 'appearance'">
             <div class="settings-row">
               <span class="settings-label">主题</span>
@@ -192,6 +294,20 @@ function close(): void {
               </button>
             </div>
             <div class="settings-row">
+              <span class="settings-label">失效置物架记录</span>
+              <span class="settings-inline">
+                <span class="settings-value">{{ shelfInvalidCount }} 项</span>
+                <button
+                  type="button"
+                  class="settings-action"
+                  :disabled="shelfInvalidCount === 0"
+                  @click="emit('command', { type: 'shelf-clear-invalid' })"
+                >
+                  清理
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
               <span class="settings-label">缓存</span>
               <button
                 type="button"
@@ -200,6 +316,20 @@ function close(): void {
               >
                 清理
               </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">剪贴板</span>
+              <span class="settings-inline">
+                <span class="settings-value">{{ clipboardUnpinnedCount }} 项</span>
+                <button
+                  type="button"
+                  class="settings-action"
+                  :disabled="clipboardUnpinnedCount === 0"
+                  @click="emit('command', { type: 'clipboard-clear' })"
+                >
+                  清空
+                </button>
+              </span>
             </div>
             <div class="settings-row">
               <span class="settings-label">回收区</span>
@@ -213,6 +343,305 @@ function close(): void {
                   清空
                 </button>
               </span>
+            </div>
+          </template>
+
+          <template v-else-if="section === 'profile'">
+            <div class="pet-grid">
+              <button
+                v-for="pet in petProfiles"
+                :key="pet.id"
+                type="button"
+                class="pet-card"
+                :aria-label="`打开${pet.name}的宠物档案`"
+                @click="emit('command', { type: 'profile-open' })"
+              >
+                <span class="pet-cover">
+                  <img :src="pet.cover" alt="" draggable="false" />
+                </span>
+                <span class="pet-card-name">{{ pet.name }}</span>
+              </button>
+            </div>
+          </template>
+
+          <template v-else-if="section === 'clipboard'">
+            <ClipboardSettings
+              :config="clipboardConfig"
+              @update="updateClipboardConfig"
+            />
+          </template>
+
+          <template v-else-if="section === 'shelf'">
+            <div class="settings-row">
+              <span id="setting-shelf-screenshots" class="settings-label"
+                >截图自动放入置物架</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-shelf-screenshots"
+                :aria-checked="settings.shelfAutoScreenshots"
+                @click="toggle('shelfAutoScreenshots')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span id="setting-shelf-clipboard" class="settings-label"
+                >剪贴板图片自动放入置物架</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-shelf-clipboard"
+                :aria-checked="settings.shelfClipboardImages"
+                @click="toggle('shelfClipboardImages')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span id="setting-shelf-bubble" class="settings-label"
+                >入架气泡提示</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-shelf-bubble"
+                :aria-checked="settings.shelfScreenshotBubble"
+                @click="toggle('shelfScreenshotBubble')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">记录上限</span>
+              <div
+                class="settings-segmented"
+                role="group"
+                aria-label="置物架记录上限"
+              >
+                <button
+                  v-for="value in shelfMaxOptions"
+                  :key="value"
+                  type="button"
+                  :class="{ active: settings.shelfMaxRecords === value }"
+                  :aria-pressed="settings.shelfMaxRecords === value"
+                  @click="update({ shelfMaxRecords: value })"
+                >
+                  {{ value }}
+                </button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">归档格式</span>
+              <div
+                class="settings-segmented"
+                role="group"
+                aria-label="归档格式"
+              >
+                <button
+                  type="button"
+                  :class="{ active: settings.archiveFormat === 'zip' }"
+                  :aria-pressed="settings.archiveFormat === 'zip'"
+                  @click="update({ archiveFormat: 'zip' })"
+                >
+                  ZIP
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: settings.archiveFormat === '7z' }"
+                  :aria-pressed="settings.archiveFormat === '7z'"
+                  @click="update({ archiveFormat: '7z' })"
+                >
+                  7Z
+                </button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">截图目录</span>
+              <span class="settings-value settings-path" :title="shelfFolderLabel">
+                {{ shelfFolderLabel }}
+              </span>
+            </div>
+          </template>
+
+          <template v-else-if="section === 'conversion'">
+            <h3 class="engine-section-title">内置引擎</h3>
+            <div class="engine-cards">
+              <article
+                v-for="engine in builtinEngines"
+                :key="engine.id"
+                class="engine-card builtin"
+              >
+                <div class="engine-card-head">
+                  <span class="engine-card-title">
+                    {{ engine.name }}
+                    <span class="engine-version">v{{ engine.version }}</span>
+                    <span class="engine-role">{{ engine.role }}</span>
+                  </span>
+                  <span class="engine-status installed">已内置</span>
+                </div>
+                <p class="engine-card-line">支持 {{ engine.formats }}</p>
+              </article>
+            </div>
+            <h3 class="engine-section-title spaced">可选引擎</h3>
+            <div class="engine-cards">
+              <article
+                v-for="engine in optionalEngines"
+                :key="engine.id"
+                class="engine-card"
+                :class="engineStatusClass(engine.id)"
+              >
+                <div class="engine-card-head">
+                  <span class="engine-card-title">
+                    {{ engine.name }}
+                    <span
+                      v-if="engine.id === 'ffmpeg'"
+                      class="engine-version"
+                      >v{{ ffmpeg?.version ?? '6.0' }}</span
+                    >
+                    <span class="engine-role">{{ engine.role }}</span>
+                  </span>
+                  <span
+                    class="engine-status"
+                    :class="engineStatusClass(engine.id)"
+                  >
+                    {{ engineStatusText(engine.id) }}
+                  </span>
+                </div>
+                <p class="engine-card-desc">{{ engine.description }}</p>
+                <p class="engine-card-line">支持 {{ engine.formats }}</p>
+                <p class="engine-card-line">
+                  <template v-if="engine.id === 'ffmpeg'">
+                    来源 {{ ffmpegSource }} · 下载
+                    {{ formatEngineSize(ffmpeg?.downloadBytes ?? 0) }} · 占用
+                    {{ formatEngineSize(ffmpeg?.installedBytes ?? 0) }}
+                  </template>
+                  <template v-else-if="engine.id === 'libreoffice'">
+                    {{
+                      libreOfficeReady
+                        ? `来源 本地程序${libreOffice?.version ? ` · v${libreOffice.version}` : ''}`
+                        : '安装源尚未配置'
+                    }}
+                  </template>
+                  <template v-else>安装源尚未配置</template>
+                </p>
+                <div class="engine-card-footer">
+                  <div
+                    v-if="
+                      engine.id === 'ffmpeg' && ffmpegStatus === 'downloading'
+                    "
+                    class="engine-progress"
+                  >
+                    <span :style="{ width: `${ffmpeg?.progress ?? 0}%` }" />
+                  </div>
+                  <template v-if="engine.id === 'ffmpeg'">
+                    <button
+                      v-if="ffmpegStatus === 'missing'"
+                      type="button"
+                      class="engine-button primary"
+                      @click="installFfmpeg"
+                    >
+                      安装
+                    </button>
+                    <button
+                      v-else-if="ffmpegStatus === 'error'"
+                      type="button"
+                      class="engine-button primary"
+                      @click="installFfmpeg"
+                    >
+                      重试
+                    </button>
+                    <button
+                      v-else-if="ffmpegStatus === 'downloading'"
+                      type="button"
+                      class="engine-button"
+                      disabled
+                    >
+                      安装中
+                    </button>
+                    <button
+                      v-else-if="ffmpegStatus === 'installed'"
+                      type="button"
+                      class="engine-button"
+                      @click="recheckFfmpeg"
+                    >
+                      重新检查
+                    </button>
+                    <button
+                      v-if="ffmpegStatus === 'downloading'"
+                      type="button"
+                      class="engine-button"
+                      @click="cancelFfmpeg"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      class="engine-button"
+                      @click="useLocalFfmpeg"
+                    >
+                      使用本地程序…
+                    </button>
+                  </template>
+                  <template v-else-if="engine.id === 'libreoffice'">
+                    <button
+                      type="button"
+                      class="engine-button"
+                      disabled
+                      title="安装源尚未配置"
+                    >
+                      安装
+                    </button>
+                    <button
+                      type="button"
+                      class="engine-button"
+                      @click="useLocalLibreOffice"
+                    >
+                      使用本地程序…
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button
+                      type="button"
+                      class="engine-button"
+                      disabled
+                      title="安装源尚未配置"
+                    >
+                      安装
+                    </button>
+                    <button
+                      type="button"
+                      class="engine-button"
+                      disabled
+                      title="该引擎尚未接入"
+                    >
+                      使用本地程序…
+                    </button>
+                  </template>
+                </div>
+                <p
+                  v-if="engine.id === 'ffmpeg' && ffmpeg?.error"
+                  class="engine-error"
+                  role="alert"
+                >
+                  {{ ffmpeg.error }}
+                </p>
+              </article>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">第三方许可</span>
+              <button
+                type="button"
+                class="settings-action"
+                @click="emit('command', { type: 'settings-open-licenses' })"
+              >
+                查看
+              </button>
             </div>
           </template>
 
@@ -386,7 +815,176 @@ function close(): void {
   min-width: 0;
   overflow: auto;
   padding-right: 4px;
-  scrollbar-width: thin;
+}
+.engine-section-title {
+  margin: 0 0 10px;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+.engine-section-title.spaced {
+  margin-top: 24px;
+}
+.engine-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.engine-card {
+  padding: 14px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+.engine-card.installed {
+  border-color: color-mix(
+    in srgb,
+    var(--color-success) 36%,
+    var(--color-line)
+  );
+}
+.engine-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.engine-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+.engine-version {
+  color: var(--color-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.engine-role {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+.engine-card-desc {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  line-height: 1.55;
+}
+.engine-card-line {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.engine-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.engine-progress {
+  flex: 1;
+  height: 6px;
+  min-width: 80px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-fill-secondary);
+}
+.engine-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand-ink);
+  transition: width var(--motion-fast) var(--ease-standard);
+}
+.engine-button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.engine-button:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.engine-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.engine-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.engine-button:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+.engine-button.primary {
+  background: var(--color-brand-ink);
+  color: var(--color-on-brand);
+}
+.engine-button.primary:hover:not(:disabled) {
+  border-color: var(--color-brand-ink);
+  background: color-mix(
+    in srgb,
+    var(--color-brand-ink) 92%,
+    var(--color-ink)
+  );
+  color: var(--color-on-brand);
+}
+.engine-error {
+  margin: 8px 0 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-label);
+}
+.engine-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--color-fill-secondary);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  line-height: 1.5;
+}
+.engine-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.engine-status.installed {
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success);
+}
+.engine-status.downloading {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.engine-status.error {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
 }
 .settings-row {
   display: flex;
@@ -396,12 +994,76 @@ function close(): void {
   min-height: 56px;
   border-bottom: 1px solid var(--color-line);
 }
+.pet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 160px));
+  gap: 16px;
+}
+.pet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+}
+.pet-cover {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+.pet-cover img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+}
+.pet-card:hover .pet-cover {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+.pet-card:focus-visible .pet-cover {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+}
+.pet-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pet-cover {
+    transition: none;
+  }
+}
+.settings-label-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .settings-label {
   font-size: var(--font-size-body);
 }
 .settings-value {
   color: var(--color-muted);
   font-size: var(--font-size-label);
+}
+.settings-path {
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .settings-inline {
   display: flex;

@@ -1,6 +1,8 @@
 import {
   app,
   BrowserWindow,
+  clipboard as electronClipboard,
+  ClipboardItem,
   desktopCapturer,
   dialog,
   globalShortcut,
@@ -17,10 +19,12 @@ import {
 } from 'electron'
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import {
+  chmod,
   copyFile,
   lstat,
   mkdir,
   readFile,
+  readdir,
   rename,
   realpath,
   rm,
@@ -29,21 +33,47 @@ import {
 } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
-import { basename, dirname, extname, isAbsolute, join } from 'node:path'
+import { gunzip } from 'node:zlib'
+import { promisify } from 'node:util'
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
+import { detectClockJump } from '../shared/scheduler'
 import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
 import { coverKey, loadCover } from './cover-art'
 import { defaultFocus, loadFocusFile, saveFocusFile, type FocusData } from './focus-store'
 import {
+  defaultClipboard,
+  loadClipboardFile,
+  saveClipboardFile,
+  type ClipboardData,
+} from './clipboard-store'
+import {
+  loadEnginePrefs,
+  saveEnginePrefs,
+  type EnginePrefs,
+} from './engine-store'
+import {
   formatFocus,
+  nextBreakAt,
   nextPhase,
   nextWaterAt,
-  phaseSeconds,
 } from '../shared/focus'
+import {
+  dueTodosToNotify,
+  endOfLocalDay,
+  nextRepeatDueAt,
+} from '../shared/todo-time'
+import {
+  clipboardTextLimit,
+  looksSensitive,
+  pruneClipboardEntries,
+} from '../shared/clipboard'
+import { isScreenshotCandidate } from '../shared/screenshot'
+import { ffmpegBuild, emptyFfmpegState } from '../shared/ffmpeg'
 import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   bubbleCategories,
@@ -65,6 +95,7 @@ import type {
   BellyEntry,
   ConvertFile,
   ConvertOutcome,
+  ConvertOutput,
   ConvertState,
   ConvertTarget,
   CapturePreview,
@@ -77,8 +108,14 @@ import type {
   RenameState,
   Rect,
   Result,
+  BreakKind,
+  SettingsSection,
   Snapshot,
+  ClipboardConfig,
+  TodoListColor,
+  TodoRepeat,
 } from '../shared/protocol'
+import { defaultTodoListIcon } from '../shared/protocol'
 import {
   fitToDisplays,
   hitOpaquePixel,
@@ -88,10 +125,27 @@ import { basePetSize, donutWindowSize, petSprite } from '../shared/donut'
 import {
   availableConvertTargets,
   isImageFile,
+  isMediaTarget,
+  isOfficeTarget,
   isPdfFile,
+  isPdfTarget,
   type ConvertAction,
 } from '../shared/convert'
-import { isZipFile } from '../shared/archive'
+import {
+  conversionEngineFor,
+  isAudioFile,
+  isDocumentFile,
+  isOfdFile,
+  isOfficeFile,
+  isVideoFile,
+} from '../shared/file-kinds'
+import { convertMedia } from './convert-media'
+import { buildConvertOutput } from './convert-preview'
+import { convertOffice } from './convert-office'
+import { convertDocumentToPdf } from './convert-document'
+import { ofdToImages, ofdToPdf } from './convert-ofd'
+import { csvToXlsx } from './convert-spreadsheet'
+import { isArchiveFile } from '../shared/archive'
 import {
   defaultSettings,
   type PetScale,
@@ -105,7 +159,13 @@ import {
   previewRename,
   type RenameConfig,
 } from '../shared/rename'
-import { imageToPdf, mergePdfs, splitPdf } from './convert-pdf'
+import {
+  imageToPdf,
+  mergePdfs,
+  pdfToImages,
+  pdfToText,
+  splitPdf,
+} from './convert-pdf'
 import {
   captureIdSchema,
   commandSchema,
@@ -140,11 +200,9 @@ app.setPath('sessionData', join(dataRoot, 'session'))
 
 let pet: BrowserWindow
 let pocket: BrowserWindow
-let pocketOpenAtPointerDown = false
 // A click on the pet first steals focus, which blurs and hides the pocket
 // before the pointer-down IPC arrives. Remember the recent hide so the same
 // click does not immediately reopen the panel.
-let pocketHiddenAt = 0
 let pocketRequestedVisible = false
 let pocketBlurTimer: NodeJS.Timeout | undefined
 let pocketDialogOpen = false
@@ -160,10 +218,43 @@ let scale = 1
 let settings: Settings = { ...defaultSettings }
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
+let clipboardData: ClipboardData = defaultClipboard()
+let clipboardTimer: ReturnType<typeof setInterval> | undefined
+let screenshotTimer: ReturnType<typeof setInterval> | undefined
+let screenshotFolders: string[] = []
+let screenshotSince = 0
+let screenshotScanning = false
+const screenshotSeen = new Set<string>()
+const ffmpegRelease = ffmpegBuild(process.platform, process.arch)
+const engineRoot = join(dataRoot, 'engines')
+let enginePrefs: EnginePrefs = { version: 1, localPaths: {} }
+let ffmpegInstalled = false
+let ffmpegOrigin: 'none' | 'download' | 'local' = 'none'
+let libreOfficeReady = false
+let libreOfficeVersion: string | undefined
+let libreOfficeError: string | undefined
+let ffmpegInstalling = false
+let ffmpegProgress = 0
+let ffmpegError: string | undefined
+let ffmpegAbort: AbortController | undefined
+const gunzipAsync = promisify(gunzip)
+let lastClipboardText = ''
+let lastClipboardImageKey = ''
+let settingsSection: SettingsSection = 'appearance'
 let petHoverMode = false
 let hoverCenterSince = 0
 let hoverSent = false
 let focusTimer: ReturnType<typeof setInterval> | undefined
+let todoReminderCheck = Date.now()
+let schedulerBusy = false
+let lastSchedulerWall = 0
+let lastSchedulerMono = 0
+let lastTimezoneOffset = new Date().getTimezoneOffset()
+let lastFocusRemaining = 0
+let lastWaterRemaining: number | null = null
+let lastSittingRemaining: number | null = null
+let lastEyesRemaining: number | null = null
+const notifiedReminderDues = new Map<string, number>()
 let dropMode = false
 let wheelOpen = false
 let baseBounds: Rect | undefined
@@ -200,6 +291,9 @@ let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
 let pomodoroWindow: BrowserWindow | undefined
 let waterWindow: BrowserWindow | undefined
+let breakWindow: BrowserWindow | undefined
+let profileWindow: BrowserWindow | undefined
+let clipboardWindow: BrowserWindow | undefined
 let todoWindow: BrowserWindow | undefined
 let focusBadge: BrowserWindow | undefined
 let aiKey: string | undefined
@@ -210,11 +304,18 @@ let aiToken = 0
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
-let convertProgress = { done: 0, total: 0 }
+let convertProgress: { done: number; total: number; percent?: number } = {
+  done: 0,
+  total: 0,
+}
 let convertOutcome: ConvertOutcome | undefined
+let convertOutputs: ConvertOutput[] = []
+let convertOutputPaths = new Map<string, string>()
 let convertNotice: string | undefined
 let convertFolders = new Set<string>()
 let convertToken = 0
+let convertProgressAt = 0
+let convertAbort: AbortController | undefined
 let renameFiles: RenameFile[] = []
 let renameBusy = false
 let lyricsWidth = 240
@@ -242,12 +343,16 @@ const files = new Map<
   string,
   LocalFile & { path: string; device: number; inode: number }
 >()
+let shelfInvalidCount = 0
 const previews = new Map<string, CapturePreview>()
 const statePath = join(dataRoot, 'mqmz.window-state.json')
 const shelfPath = join(dataRoot, 'mqmz.file-shelf.json')
 const bellyPath = join(dataRoot, 'mqmz.belly.json')
 const settingsPath = join(dataRoot, 'mqmz.settings.json')
 const focusPath = join(dataRoot, 'mqmz.focus.json')
+const clipboardPath = join(dataRoot, 'mqmz.clipboard.json')
+const enginePrefsPath = join(dataRoot, 'mqmz.engines.json')
+const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
@@ -331,9 +436,20 @@ function snapshot(): Snapshot {
     rename: renameState(),
     settingsOpen: windowVisible(settingsWindow),
     settings: settingsState(),
+    settingsSection,
     pomodoroOpen: windowVisible(pomodoroWindow),
     waterOpen: windowVisible(waterWindow),
+    breakOpen: windowVisible(breakWindow),
     todoOpen: windowVisible(todoWindow),
+    profileOpen: windowVisible(profileWindow),
+    clipboardOpen: windowVisible(clipboardWindow),
+    clipboard: clipboardState(),
+    shelfFolders: windowVisible(settingsWindow) ? screenshotFolders : [],
+    shelfInvalidCount,
+    engines: {
+      ffmpeg: ffmpegState(),
+      libreoffice: libreOfficeState(),
+    },
     focus: {
       phase: focusData.phase,
       running: focusData.running,
@@ -342,14 +458,31 @@ function snapshot(): Snapshot {
           ? Math.max(0, Math.ceil((focusData.endsAt - Date.now()) / 1000))
           : focusData.remaining,
       completed: focusData.completed,
+      focusMinutes: focusData.focusMinutes,
+      shortMinutes: focusData.shortMinutes,
+      longMinutes: focusData.longMinutes,
+      focusSeconds: focusData.focusSeconds,
+      shortSeconds: focusData.shortSeconds,
+      longSeconds: focusData.longSeconds,
       water: focusData.water,
       waterInterval: focusData.waterInterval,
       waterStart: focusData.waterStart,
       waterEnd: focusData.waterEnd,
       waterNextAt: focusData.waterNextAt ?? undefined,
+      waterGoal: focusData.waterGoal,
+      breakSitting: focusData.breakSitting,
+      breakSittingInterval: focusData.breakSittingInterval,
+      breakSittingNextAt: focusData.breakSittingNextAt ?? undefined,
+      breakEyes: focusData.breakEyes,
+      breakEyesInterval: focusData.breakEyesInterval,
+      breakEyesNextAt: focusData.breakEyesNextAt ?? undefined,
+      breakDnd: focusData.breakDnd,
+      breakDndStart: focusData.breakDndStart,
+      breakDndEnd: focusData.breakDndEnd,
       todos: focusData.todos,
       todoLists: focusData.todoLists,
       todoGroups: focusData.todoGroups,
+      todoTags: focusData.todoTags,
       sessions: focusData.sessions,
       waterLog: focusData.waterLog,
     },
@@ -380,6 +513,9 @@ function broadcast(): void {
       settingsWindow,
       pomodoroWindow,
       waterWindow,
+      breakWindow,
+      profileWindow,
+      clipboardWindow,
       todoWindow,
       focusBadge,
     ])
@@ -651,12 +787,29 @@ function convertState(): ConvertState {
     canReveal: convertFolders.size > 0,
   }
 }
+function convertPanelHeight(): number {
+  if (convertOutcome) return 360
+  const videoRows = Math.ceil(
+    convertTargets.filter((target) => target.group === 'video').length / 3,
+  )
+  const audioRows = Math.ceil(
+    convertTargets.filter((target) => target.group === 'audio').length / 3,
+  )
+  const fileRows = Math.max(1, Math.min(3, convertFiles.length))
+  if (!videoRows && !audioRows)
+    return Math.min(620, 480 + (fileRows - 1) * 42)
+  const rows = videoRows + audioRows
+  return Math.min(
+    720,
+    436 + Math.max(0, rows - 2) * 50 + (fileRows - 1) * 42,
+  )
+}
 function positionConvert(): void {
   if (!convertWindow || convertWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 400
-  const height = 460
+  const height = convertPanelHeight()
   let x = b.x + b.width + 16
   if (x + width > a.x + a.width) x = b.x - width - 16
   if (x < a.x) x = a.x + 8
@@ -666,27 +819,132 @@ function positionConvert(): void {
   )
   convertWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-function openConvert(fileIds: string[]): void {
+async function extractAudio(fileIds: string[]): Promise<void> {
   const selected = fileIds
     .map((id) => files.get(id))
     .filter((file): file is NonNullable<typeof file> => Boolean(file))
-  const supported = selected.filter(
-    (file) => isImageFile(file.name) || isPdfFile(file.name),
+  if (!selected.length) {
+    showToast('没有可用的文件')
+    return
+  }
+  const ffmpeg = await ffmpegExecutable()
+  if (!ffmpeg) {
+    settingsSection = 'conversion'
+    openSettings()
+    showToast('提取音频需要先安装 FFmpeg')
+    addEvent('提取音频缺少 FFmpeg，已打开格式转换设置。')
+    return
+  }
+  const media = selected.filter(
+    (file) => isVideoFile(file.name) || isAudioFile(file.name),
   )
+  if (!media.length) {
+    showToast('只能从视频或音频中提取音轨')
+    return
+  }
+  const batch = media.length > 1
+  const folders = new Set<string>()
+  let converted = 0
+  for (const file of media) {
+    try {
+      const source = await registeredFile(file.id)
+      const output = await convertMedia(ffmpeg, source, 'mp3', batch)
+      folders.add(dirname(output))
+      converted += 1
+    } catch (error) {
+      addEvent(`${file.name}：${convertFailureMessage(error)}`)
+    }
+  }
+  if (!converted) {
+    showToast('提取音频失败')
+    return
+  }
+  const folder = [...folders][0]
+  if (folder) await shell.openPath(folder).catch(() => {})
+  showToast(`已提取 ${converted} 个音频`)
+  addEvent(`已从 ${converted} 个文件提取 MP3 音轨。`)
+}
+const convertOutputLimit = 24
+
+async function recordConvertOutput(
+  outputPath: string,
+  ffmpeg: string | null,
+): Promise<void> {
+  if (convertOutputs.length >= convertOutputLimit) return
+  try {
+    const output = await buildConvertOutput(
+      ffmpeg,
+      outputPath,
+      convertOutputs.length < 6,
+    )
+    convertOutputs.push(output)
+    convertOutputPaths.set(output.id, outputPath)
+  } catch {
+    addEvent('转换结果预览生成失败；文件仍已写入。')
+  }
+}
+async function openConvert(fileIds: string[]): Promise<void> {
+  const selected = fileIds
+    .map((id) => files.get(id))
+    .filter((file): file is NonNullable<typeof file> => Boolean(file))
+  if (!selected.length) {
+    showToast('没有可用的文件')
+    return
+  }
+  const engine = conversionEngineFor(selected.map((file) => file.name))
+  if (engine === 'ffmpeg') {
+    await refreshFfmpegState()
+    if (!ffmpegInstalled) {
+      settingsSection = 'conversion'
+      openSettings()
+      showToast('音视频转换需要先安装 FFmpeg')
+      addEvent('音视频转换缺少 FFmpeg，已打开格式转换设置。')
+      return
+    }
+  } else if (engine === 'libreoffice') {
+    if (!(await libreOfficeExecutable())) {
+      settingsSection = 'conversion'
+      openSettings()
+      showToast('Office 转 PDF 需要先选择本机 LibreOffice')
+      return
+    }
+  } else if (engine === 'unsupported') {
+    showToast('请把不同类型的文件分开转换')
+    return
+  }
+  const supported = selected.filter((file) => {
+    if (engine === 'ffmpeg')
+      return isVideoFile(file.name) || isAudioFile(file.name)
+    if (engine === 'libreoffice') return isOfficeFile(file.name)
+    return (
+      isImageFile(file.name) ||
+      isPdfFile(file.name) ||
+      isDocumentFile(file.name) ||
+      isOfdFile(file.name)
+    )
+  })
   const skipped = selected.length - supported.length
   convertToken += 1
   convertBusy = false
   convertFiles = supported.map(({ id, name, size }) => ({ id, name, size }))
   convertTargets = availableConvertTargets(
     supported.map((file) => file.name),
+    { ffmpeg: engine === 'ffmpeg' },
   )
   convertProgress = { done: 0, total: supported.length }
   convertOutcome = undefined
+  convertOutputs = []
+  convertOutputPaths.clear()
+  convertProgressAt = 0
   convertFolders = new Set<string>()
   convertNotice = !supported.length
-    ? '目前支持 JPG、PNG、WEBP 图片和 PDF。'
+    ? '目前支持 JPG、PNG、WEBP 图片、PDF 和音视频。'
     : !convertTargets.length
-      ? '图片和 PDF 请分开转换。'
+      ? engine === 'ffmpeg'
+        ? '没有可用的音视频转换目标。'
+        : engine === 'libreoffice'
+          ? '没有可用的 Office 转换目标。'
+          : '图片、PDF、文档和 OFD 请分开转换。'
       : skipped
         ? `已跳过 ${skipped} 个不支持的文件。`
         : undefined
@@ -704,92 +962,482 @@ function openConvert(fileIds: string[]): void {
   broadcast()
 }
 function closeConvert(): void {
+  cancelConvert()
   convertWindow?.hide()
   broadcast()
+}
+function removeConvertFile(fileId: string): void {
+  if (convertBusy) return
+  const next = convertFiles.filter((file) => file.id !== fileId)
+  if (next.length === convertFiles.length) return
+  convertFiles = next
+  if (!convertFiles.length) {
+    closeConvert()
+    return
+  }
+  convertToken += 1
+  convertProgress = { done: 0, total: convertFiles.length }
+  convertOutcome = undefined
+  convertOutputs = []
+  convertOutputPaths.clear()
+  convertFolders = new Set<string>()
+  const engine = conversionEngineFor(convertFiles.map((file) => file.name))
+  convertTargets = availableConvertTargets(
+    convertFiles.map((file) => file.name),
+    { ffmpeg: engine === 'ffmpeg' },
+  )
+  convertNotice = !convertTargets.length
+    ? engine === 'ffmpeg'
+      ? '没有可用的音视频转换目标。'
+      : '图片和 PDF 请分开转换。'
+    : undefined
+  positionConvert()
+  broadcast()
+}
+async function openConvertOutput(outputId: string): Promise<void> {
+  const path = convertOutputPaths.get(outputId)
+  if (!path) throw new Error('转换结果已失效，请重新转换。')
+  const error = await shell.openPath(path)
+  if (error) throw new Error('无法打开转换结果。')
 }
 function convertFailureMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : ''
   if (/unsupported image format|not a valid|invalid image/i.test(text))
     return '不是有效的图片'
-  if (/encrypt/i.test(text)) return 'PDF 已加密，暂不支持'
+  if (/encrypt|passwordexception|password/i.test(text))
+    return 'PDF 已加密，暂不支持'
+  if (/没有可提取的文字/.test(text)) return text
+  if (/LibreOffice|soffice/i.test(text)) return 'LibreOffice 转换失败'
   if (/failed to parse|invalid pdf|pdf.*corrupt/i.test(text))
     return 'PDF 文件损坏'
   if (/ENOENT|missing|no such file/i.test(text)) return '源文件不存在'
   if (/EACCES|EPERM|permission/i.test(text)) return '没有写入权限'
+  if (/no space left/i.test(text)) return '磁盘空间不足'
+  if (/invalid data found|error opening input|could not find codec/i.test(text))
+    return '无法读取这个文件'
+  if (/does not contain any stream|no audio|matches no streams/i.test(text))
+    return '没有可用的音轨'
+  if (/unknown encoder|encoder.*not found/i.test(text))
+    return 'FFmpeg 缺少所需编码器'
   if (/输出目录里没有可用的文件名/.test(text)) return text
   return '转换失败'
 }
+function convertAbortError(): Error {
+  const error = new Error('转换已取消')
+  error.name = 'AbortError'
+  return error
+}
+
+function isConvertAbort(error: unknown, signal: AbortSignal): boolean {
+  return (
+    signal.aborted ||
+    (error instanceof Error && error.name === 'AbortError')
+  )
+}
+
+function cancelConvert(): void {
+  convertAbort?.abort()
+}
+
 async function startConvert(action: ConvertAction): Promise<void> {
   if (convertBusy) throw new Error('正在转换，请稍候。')
   if (!convertFiles.length) throw new Error('没有可转换的文件。')
   if (!convertTargets.some((target) => target.id === action))
     throw new Error('这个目标格式不可用。')
   const token = ++convertToken
+  const controller = new AbortController()
+  const signal = controller.signal
+  convertAbort = controller
   convertBusy = true
   convertOutcome = undefined
+  convertNotice = undefined
+  convertOutputs = []
+  convertOutputPaths.clear()
+  convertProgressAt = 0
   convertFolders = new Set<string>()
   const singleOperation = action === 'merge-pdf' || action === 'split-pdf'
-  convertProgress = {
-    done: 0,
-    total: singleOperation ? 1 : convertFiles.length,
-  }
+  const total = singleOperation ? 1 : convertFiles.length
+  convertProgress = { done: 0, total }
   broadcast()
   const batch = convertFiles.length > 1
   const messages: string[] = []
   let converted = 0
   let failed = 0
+  let cancelled = false
 
   if (action === 'merge-pdf') {
     try {
+      if (signal.aborted) throw convertAbortError()
       const paths: string[] = []
-      for (const file of convertFiles) paths.push(await registeredFile(file.id))
-      const output = await mergePdfs(paths)
+      for (const file of convertFiles) {
+        if (signal.aborted) throw convertAbortError()
+        paths.push(await registeredFile(file.id))
+      }
+      const output = await mergePdfs(paths, signal)
       convertFolders.add(dirname(output))
+      await recordConvertOutput(output, null)
       converted = 1
     } catch (error) {
-      failed = convertFiles.length
-      messages.push(`合并 PDF：${convertFailureMessage(error)}`)
+      if (isConvertAbort(error, signal)) cancelled = true
+      else {
+        failed = convertFiles.length
+        messages.push(`合并 PDF：${convertFailureMessage(error)}`)
+      }
     }
-    convertProgress = { done: 1, total: 1 }
+    if (!cancelled) convertProgress = { done: 1, total: 1 }
   } else if (action === 'split-pdf') {
     try {
+      if (signal.aborted) throw convertAbortError()
       const source = await registeredFile(convertFiles[0].id)
-      const result = await splitPdf(source)
+      const result = await splitPdf(source, signal)
       convertFolders.add(result.folder)
+      for (const file of result.files) await recordConvertOutput(file, null)
       converted = result.pages
     } catch (error) {
-      failed = 1
-      messages.push(`拆分 PDF：${convertFailureMessage(error)}`)
+      if (isConvertAbort(error, signal)) cancelled = true
+      else {
+        failed = 1
+        messages.push(`拆分 PDF：${convertFailureMessage(error)}`)
+      }
     }
-    convertProgress = { done: 1, total: 1 }
+    if (!cancelled) convertProgress = { done: 1, total: 1 }
+  } else if (isPdfTarget(action)) {
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        if (action === 'pdf-txt') {
+          const output = await pdfToText(source, batch, signal)
+          convertFolders.add(dirname(output))
+          converted += 1
+          if (token !== convertToken) return
+          convertProgress = { done: index + 1, total }
+          broadcast()
+          await recordConvertOutput(output, null)
+        } else {
+          const result = await pdfToImages(
+            source,
+            action === 'pdf-png' ? 'png' : 'jpg',
+            signal,
+          )
+          convertFolders.add(result.folder)
+          converted += result.pages
+          if (token !== convertToken) return
+          convertProgress = { done: index + 1, total }
+          broadcast()
+          for (const output of result.files)
+            await recordConvertOutput(output, null)
+        }
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
+  } else if (isOfficeTarget(action)) {
+    const soffice = await libreOfficeExecutable()
+    if (!soffice) {
+      convertBusy = false
+      convertAbort = undefined
+      convertNotice = 'LibreOffice 不可用，请在设置中选择本地程序。'
+      broadcast()
+      return
+    }
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        const format =
+          action === 'office-pdf'
+            ? 'pdf'
+            : (action.replace('office-', '') as 'docx' | 'xlsx' | 'pptx')
+        const output = await convertOffice(
+          soffice,
+          source,
+          format,
+          batch,
+          signal,
+        )
+        convertFolders.add(dirname(output))
+        converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: index + 1, total }
+        broadcast()
+        await recordConvertOutput(output, null)
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
+  } else if (action === 'ofd-pdf' || action === 'ofd-png' || action === 'ofd-jpg') {
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        if (action === 'ofd-pdf') {
+          const output = await ofdToPdf(source, batch, signal)
+          convertFolders.add(dirname(output))
+          converted += 1
+          if (token !== convertToken) return
+          convertProgress = { done: index + 1, total }
+          broadcast()
+          await recordConvertOutput(output, null)
+        } else {
+          const result = await ofdToImages(
+            source,
+            action === 'ofd-png' ? 'png' : 'jpg',
+            signal,
+          )
+          convertFolders.add(result.folder)
+          converted += result.pages
+          if (token !== convertToken) return
+          convertProgress = { done: index + 1, total }
+          broadcast()
+          for (const output of result.files)
+            await recordConvertOutput(output, null)
+        }
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
+  } else if (action === 'csv-xlsx') {
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        const output = await csvToXlsx(source, batch)
+        if (signal.aborted) throw convertAbortError()
+        convertFolders.add(dirname(output))
+        converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: index + 1, total }
+        broadcast()
+        await recordConvertOutput(output, null)
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
+  } else if (action === 'document-pdf') {
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        const output = await convertDocumentToPdf(source, batch, signal)
+        convertFolders.add(dirname(output))
+        converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: index + 1, total }
+        broadcast()
+        await recordConvertOutput(output, null)
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
+  } else if (isMediaTarget(action)) {
+    const ffmpeg = await ffmpegExecutable()
+    if (!ffmpeg) {
+      convertBusy = false
+      convertAbort = undefined
+      convertNotice = 'FFmpeg 不可用，请在设置中安装或选择本地程序。'
+      broadcast()
+      return
+    }
+    for (const file of convertFiles) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: converted + failed, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        const output = await convertMedia(
+          ffmpeg,
+          source,
+          action,
+          batch,
+          (fraction) => {
+            convertProgress = {
+              done: converted + failed,
+              total,
+              percent: Math.round(fraction * 100),
+            }
+            const now = Date.now()
+            if (now - convertProgressAt < 120) return
+            convertProgressAt = now
+            broadcast()
+          },
+          signal,
+        )
+        convertFolders.add(dirname(output))
+        converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: converted + failed, total }
+        broadcast()
+        await recordConvertOutput(output, ffmpeg)
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: converted + failed, total }
+      broadcast()
+    }
   } else {
     for (const file of convertFiles) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: converted + failed, total }
+      broadcast()
       try {
         const source = await registeredFile(file.id)
         const output =
           action === 'pdf'
             ? await imageToPdf(source, batch)
             : await convertImage(source, action, batch)
+        if (signal.aborted) throw convertAbortError()
         convertFolders.add(dirname(output))
         converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: converted + failed, total }
+        broadcast()
+        await recordConvertOutput(output, null)
       } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
         failed += 1
         messages.push(`${file.name}：${convertFailureMessage(error)}`)
       }
-      if (token !== convertToken) return
-      convertProgress = {
-        done: converted + failed,
-        total: convertFiles.length,
+      if (signal.aborted) {
+        cancelled = true
+        break
       }
+      convertProgress = { done: converted + failed, total }
       broadcast()
     }
   }
 
   if (token !== convertToken) return
-  convertOutcome = { converted, failed, messages }
   convertBusy = false
+  if (convertAbort === controller) convertAbort = undefined
+  if (cancelled) {
+    convertProgress = { done: converted + failed, total }
+    if (converted > 0) {
+      convertOutcome = {
+        converted,
+        failed,
+        messages,
+        outputs: [...convertOutputs],
+      }
+      convertNotice = '已取消剩余转换'
+    } else {
+      convertOutcome = undefined
+      convertProgress = { done: 0, total }
+      convertNotice = '已取消转换'
+    }
+    positionConvert()
+    broadcast()
+    return
+  }
+  convertOutcome = {
+    converted,
+    failed,
+    messages,
+    outputs: [...convertOutputs],
+  }
+  convertNotice = undefined
+  positionConvert()
   broadcast()
 }
+
 async function revealConvert(): Promise<void> {
   const folder = [...convertFolders][0]
   if (!folder) throw new Error('还没有可打开的输出目录。')
@@ -842,13 +1490,660 @@ function closeRename(): void {
 }
 function settingsState(): SettingsState {
   return {
+    petName: settings.petName,
     theme: settings.theme,
     scale: settings.scale,
     launchAtLogin: settings.launchAtLogin,
     statusBubbles: settings.statusBubbles,
     musicBubbles: settings.musicBubbles,
     musicBarStyle: settings.musicBarStyle,
+    shelfAutoScreenshots: settings.shelfAutoScreenshots,
+    shelfClipboardImages: settings.shelfClipboardImages,
+    shelfScreenshotBubble: settings.shelfScreenshotBubble,
+    shelfMaxRecords: settings.shelfMaxRecords,
+    archiveFormat: settings.archiveFormat,
   }
+}
+function clipboardState() {
+  const entries = [...clipboardData.entries].sort(
+    (left, right) =>
+      Number(right.pinned) - Number(left.pinned) ||
+      right.createdAt - left.createdAt,
+  )
+  return {
+    ...clipboardData.config,
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      ...(entry.kind === 'text'
+        ? { text: entry.text }
+        : { thumbnail: entry.thumbnail }),
+      createdAt: entry.createdAt,
+      pinned: entry.pinned,
+    })),
+  }
+}
+function persistClipboard(): void {
+  void saveClipboardFile(clipboardPath, clipboardData).catch(() => {
+    addEvent('剪贴板历史保存失败；当前记录仍可使用。')
+  })
+}
+function pruneClipboard(): void {
+  const kept = pruneClipboardEntries(
+    clipboardData.entries,
+    clipboardData.config,
+  )
+  const keptIds = new Set(kept.map((entry) => entry.id))
+  const removed = clipboardData.entries.filter(
+    (entry) => !keptIds.has(entry.id),
+  )
+  for (const entry of removed) {
+    if (entry.imagePath)
+      void rm(entry.imagePath, { force: true }).catch(() => {})
+  }
+  clipboardData = { ...clipboardData, entries: kept }
+}
+function clipboardHash(value: string | Uint8Array): string {
+  return createHash('sha256').update(value).digest('hex')
+}
+function reorderClipboardEntry(id: string, createdAt = Date.now()): boolean {
+  const existing = clipboardData.entries.find((entry) => entry.id === id)
+  if (!existing) return false
+  clipboardData = {
+    ...clipboardData,
+    entries: [
+      { ...existing, createdAt },
+      ...clipboardData.entries.filter((entry) => entry.id !== id),
+    ],
+  }
+  return true
+}
+function addClipboardText(text: string): void {
+  const value = text.slice(0, clipboardTextLimit)
+  if (!value.trim()) return
+  if (clipboardData.config.ignoreSensitive && looksSensitive(value)) return
+  const hash = clipboardHash(value)
+  const existing = clipboardData.entries.find((entry) => entry.hash === hash)
+  if (existing) {
+    reorderClipboardEntry(existing.id)
+  } else {
+    clipboardData = {
+      ...clipboardData,
+      entries: [
+        {
+          id: randomUUID(),
+          kind: 'text',
+          text: value,
+          thumbnail: '',
+          imagePath: null,
+          hash,
+          createdAt: Date.now(),
+          pinned: false,
+        },
+        ...clipboardData.entries,
+      ],
+    }
+  }
+  pruneClipboard()
+  persistClipboard()
+  broadcast()
+}
+async function readClipboardImage(): Promise<{
+  image: Electron.NativeImage
+  png: Buffer
+  hash: string
+} | null> {
+  let items: Electron.ClipboardItem[]
+  try {
+    items = await electronClipboard.read()
+  } catch {
+    return null
+  }
+  for (const item of items) {
+    const mime = item.types.find((type) => type.startsWith('image/'))
+    if (!mime) continue
+    const blob = (await item.getType(mime)) as Blob | undefined
+    if (!blob) continue
+    const png = Buffer.from(await blob.arrayBuffer())
+    const image = nativeImage.createFromBuffer(png)
+    if (image.isEmpty()) continue
+    const normalized = image.toPNG()
+    return { image, png: normalized, hash: clipboardHash(normalized) }
+  }
+  return null
+}
+async function addClipboardImage(
+  image: Electron.NativeImage,
+  png: Buffer,
+  hash: string,
+): Promise<void> {
+  const existing = clipboardData.entries.find((entry) => entry.hash === hash)
+  if (existing) {
+    reorderClipboardEntry(existing.id)
+    persistClipboard()
+    broadcast()
+    return
+  }
+  const id = randomUUID()
+  await mkdir(clipboardDirectory, { recursive: true, mode: 0o700 })
+  const imagePath = join(clipboardDirectory, `${id}.png`)
+  await writeFile(imagePath, png, { mode: 0o600 })
+  if (!clipboardData.config.enabled) {
+    await rm(imagePath, { force: true })
+    return
+  }
+  const thumbnail = image
+    .resize({ width: 160, height: 160, quality: 'good' })
+    .toDataURL()
+  clipboardData = {
+    ...clipboardData,
+    entries: [
+      {
+        id,
+        kind: 'image',
+        text: '',
+        thumbnail,
+        imagePath,
+        hash,
+        createdAt: Date.now(),
+        pinned: false,
+      },
+      ...clipboardData.entries,
+    ],
+  }
+  pruneClipboard()
+  persistClipboard()
+  broadcast()
+  await addClipboardImageToShelf(png, hash)
+}
+async function copyClipboardEntry(id: string): Promise<void> {
+  const entry = clipboardData.entries.find((item) => item.id === id)
+  if (!entry) return
+  if (entry.kind === 'text') {
+    lastClipboardText = entry.text
+    lastClipboardImageKey = ''
+    await electronClipboard.writeText(entry.text)
+  } else if (entry.imagePath) {
+    const png = await readFile(entry.imagePath)
+    const image = nativeImage.createFromBuffer(png)
+    if (image.isEmpty()) throw new Error('剪贴板图片已不存在。')
+    lastClipboardImageKey = entry.hash
+    lastClipboardText = ''
+    await electronClipboard.write([
+      new ClipboardItem({
+        'image/png': new Blob([png], { type: 'image/png' }),
+      }),
+    ])
+  }
+  showToast('已复制')
+}
+function setClipboardPinned(id: string, pinned: boolean): void {
+  clipboardData = {
+    ...clipboardData,
+    entries: clipboardData.entries.map((entry) =>
+      entry.id === id ? { ...entry, pinned } : entry,
+    ),
+  }
+  persistClipboard()
+  broadcast()
+}
+function removeClipboardEntry(id: string): void {
+  const entry = clipboardData.entries.find((item) => item.id === id)
+  if (entry?.imagePath)
+    void rm(entry.imagePath, { force: true }).catch(() => {})
+  clipboardData = {
+    ...clipboardData,
+    entries: clipboardData.entries.filter((item) => item.id !== id),
+  }
+  persistClipboard()
+  broadcast()
+}
+function clearClipboard(): void {
+  const removed = clipboardData.entries.filter((entry) => !entry.pinned)
+  for (const entry of removed) {
+    if (entry.imagePath)
+      void rm(entry.imagePath, { force: true }).catch(() => {})
+  }
+  clipboardData = {
+    ...clipboardData,
+    entries: clipboardData.entries.filter((entry) => entry.pinned),
+  }
+  persistClipboard()
+  broadcast()
+}
+async function updateClipboardConfig(
+  patch: Partial<ClipboardConfig>,
+): Promise<void> {
+  const enabling =
+    patch.enabled === true && clipboardData.config.enabled === false
+  clipboardData = {
+    ...clipboardData,
+    config: { ...clipboardData.config, ...patch },
+  }
+  if (enabling) {
+    lastClipboardText = await electronClipboard.readText()
+    const image = await readClipboardImage()
+    lastClipboardImageKey = image?.hash ?? ''
+  }
+  pruneClipboard()
+  persistClipboard()
+  broadcast()
+}
+let clipboardPolling = false
+async function clipboardPoll(): Promise<void> {
+  if (shuttingDown || clipboardPolling || !clipboardData.config.enabled) return
+  clipboardPolling = true
+  try {
+    const image = await readClipboardImage()
+    if (image) {
+      lastClipboardText = await electronClipboard.readText()
+      if (image.hash !== lastClipboardImageKey) {
+        lastClipboardImageKey = image.hash
+        await addClipboardImage(image.image, image.png, image.hash)
+      }
+      return
+    }
+    lastClipboardImageKey = ''
+    const text = await electronClipboard.readText()
+    if (!text || text === lastClipboardText) return
+    lastClipboardText = text
+    if (text.trim()) addClipboardText(text)
+  } finally {
+    clipboardPolling = false
+  }
+}
+async function initClipboardWatch(): Promise<void> {
+  lastClipboardText = await electronClipboard.readText()
+  const image = await readClipboardImage()
+  lastClipboardImageKey = image?.hash ?? ''
+  clipboardTimer = setInterval(() => {
+    void clipboardPoll()
+  }, 900)
+}
+async function addPathToShelf(path: string): Promise<boolean> {
+  let real: string
+  try {
+    real = await realpath(path)
+  } catch {
+    return false
+  }
+  if ([...files.values()].some((file) => file.path === real)) return false
+  try {
+    await registerOutputs([path])
+  } catch {
+    return false
+  }
+  return [...files.values()].some((file) => file.path === real)
+}
+function macScreenshotLocation(): Promise<string> {
+  return new Promise((done) => {
+    execFile(
+      'defaults',
+      ['read', 'com.apple.screencapture', 'location'],
+      (error, stdout) => done(error ? '' : stdout.trim()),
+    )
+  })
+}
+async function resolveScreenshotFolders(): Promise<string[]> {
+  const override = !app.isPackaged
+    ? process.env.MQMZ_SCREENSHOT_DIR
+    : undefined
+  if (override && isAbsolute(override)) return [override]
+  if (process.platform === 'darwin') {
+    const location = await macScreenshotLocation()
+    let folder = location || app.getPath('desktop')
+    if (folder.startsWith('~/'))
+      folder = join(app.getPath('home'), folder.slice(2))
+    return [resolve(folder)]
+  }
+  if (process.platform === 'win32')
+    return [
+      join(app.getPath('pictures'), 'Screenshots'),
+      join(app.getPath('videos'), 'Captures'),
+    ]
+  return [app.getPath('desktop')]
+}
+async function scanScreenshots(): Promise<void> {
+  if (screenshotScanning || !settings.shelfAutoScreenshots) return
+  screenshotScanning = true
+  try {
+    const desktop = app.getPath('desktop')
+    for (const folder of screenshotFolders) {
+      let entries
+      try {
+        entries = await readdir(folder, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      const dedicated = folder !== desktop
+      for (const entry of entries) {
+        if (
+          !entry.isFile() ||
+          !isScreenshotCandidate(entry.name, dedicated)
+        )
+          continue
+        const path = join(folder, entry.name)
+        if (screenshotSeen.has(path)) continue
+        let before
+        try {
+          before = await lstat(path)
+        } catch {
+          continue
+        }
+        if (before.mtimeMs < screenshotSince - 1000) {
+          screenshotSeen.add(path)
+          continue
+        }
+        screenshotSeen.add(path)
+        await new Promise((done) => setTimeout(done, 400))
+        let after
+        try {
+          after = await lstat(path)
+        } catch {
+          continue
+        }
+        if (after.size !== before.size || after.mtimeMs !== before.mtimeMs) {
+          screenshotSeen.delete(path)
+          continue
+        }
+        if (!settings.shelfAutoScreenshots) return
+        const added = await addPathToShelf(path)
+        if (added) {
+          addEvent('截图已放入置物架。')
+          if (settings.shelfScreenshotBubble)
+            showToast('截图已放入置物架')
+        }
+      }
+    }
+  } finally {
+    screenshotScanning = false
+  }
+}
+async function startScreenshotWatcher(): Promise<void> {
+  screenshotFolders = await resolveScreenshotFolders()
+  screenshotSince = Date.now()
+  screenshotTimer = setInterval(() => {
+    void scanScreenshots()
+  }, 2000)
+  broadcast()
+}
+async function addClipboardImageToShelf(
+  png: Buffer,
+  hash: string,
+): Promise<void> {
+  if (!settings.shelfClipboardImages) return
+  const directory = join(dataRoot, 'shelf-images')
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  const path = join(directory, `剪贴板图片-${hash.slice(0, 12)}.png`)
+  try {
+    await writeFile(path, png, { mode: 0o600, flag: 'wx' })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') return
+  }
+  const added = await addPathToShelf(path)
+  if (!added) return
+  addEvent('剪贴板图片已放入置物架。')
+  if (settings.shelfScreenshotBubble) showToast('图片已放入置物架')
+}
+async function validateExecutable(path: string): Promise<void> {
+  await new Promise<void>((done, fail) => {
+    execFile(path, ['-version'], { timeout: 5000 }, (error) =>
+      error ? fail(new Error('无法运行所选程序。')) : done(),
+    )
+  })
+}
+async function chooseLocalFfmpeg(): Promise<void> {
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择 FFmpeg 可执行文件',
+    properties: ['openFile'],
+    filters: process.platform === 'win32' ? [{ name: '程序', extensions: ['exe'] }] : [],
+  })
+  const path = result.filePaths[0]
+  if (result.canceled || !path) return
+  try {
+    await validateExecutable(path)
+  } catch {
+    showToast('所选程序无法运行')
+    return
+  }
+  enginePrefs = {
+    ...enginePrefs,
+    localPaths: { ...enginePrefs.localPaths, ffmpeg: path },
+  }
+  await saveEnginePrefs(enginePrefsPath, enginePrefs)
+  ffmpegError = undefined
+  await refreshFfmpegState()
+  broadcast()
+  showToast('已使用本地 FFmpeg')
+}
+function ffmpegTargetPath(): string | null {
+  if (!ffmpegRelease) return null
+  return join(
+    engineRoot,
+    'ffmpeg',
+    ffmpegRelease.version,
+    ffmpegRelease.binaryName,
+  )
+}
+function ffmpegState() {
+  const base = emptyFfmpegState(ffmpegRelease)
+  if (!ffmpegRelease) return base
+  if (ffmpegInstalling)
+    return { ...base, status: 'downloading' as const, progress: ffmpegProgress }
+  if (ffmpegInstalled) {
+    return {
+      ...base,
+      status: 'installed' as const,
+      progress: 100,
+      origin: ffmpegOrigin,
+      source: ffmpegOrigin === 'local' ? '本地程序' : base.source,
+    }
+  }
+  if (ffmpegError)
+    return { ...base, status: 'error' as const, error: ffmpegError }
+  return base
+}
+async function refreshFfmpegState(): Promise<void> {
+  const local = enginePrefs.localPaths.ffmpeg
+  if (local) {
+    try {
+      const info = await lstat(local)
+      if (info.isFile() && info.size > 0) {
+        ffmpegInstalled = true
+        ffmpegOrigin = 'local'
+        return
+      }
+    } catch {
+      /* fall back to the downloaded copy */
+    }
+  }
+  const target = ffmpegTargetPath()
+  if (!target) {
+    ffmpegInstalled = false
+    ffmpegOrigin = 'none'
+    return
+  }
+  try {
+    const info = await lstat(target)
+    ffmpegInstalled = info.isFile() && info.size > 0
+    ffmpegOrigin = ffmpegInstalled ? 'download' : 'none'
+  } catch {
+    ffmpegInstalled = false
+    ffmpegOrigin = 'none'
+  }
+}
+function libreOfficeState() {
+  return {
+    status: libreOfficeReady
+      ? ('ready' as const)
+      : libreOfficeError
+        ? ('error' as const)
+        : ('missing' as const),
+    source: libreOfficeReady ? '本地程序' : '未选择',
+    ...(libreOfficeVersion ? { version: libreOfficeVersion } : {}),
+    ...(libreOfficeError ? { error: libreOfficeError } : {}),
+  }
+}
+async function refreshLibreOfficeState(): Promise<void> {
+  const local = enginePrefs.localPaths.libreoffice
+  libreOfficeError = undefined
+  if (!local) {
+    libreOfficeReady = false
+    libreOfficeVersion = undefined
+    return
+  }
+  try {
+    const info = await lstat(local)
+    libreOfficeReady = info.isFile() && info.size > 0
+    if (!libreOfficeReady) libreOfficeError = '本地程序不存在。'
+  } catch {
+    libreOfficeReady = false
+    libreOfficeError = '本地程序不存在。'
+  }
+}
+async function libreOfficeExecutable(): Promise<string | null> {
+  await refreshLibreOfficeState()
+  return libreOfficeReady
+    ? enginePrefs.localPaths.libreoffice ?? null
+    : null
+}
+function validateLibreOffice(path: string): Promise<string | undefined> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      path,
+      ['--headless', '--version'],
+      { timeout: 15_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error('无法运行所选 LibreOffice。'))
+          return
+        }
+        const version = /LibreOffice\s+([\d.]+)/i.exec(
+          `${stdout}\n${stderr}`,
+        )?.[1]
+        resolve(version)
+      },
+    )
+  })
+}
+async function chooseLocalLibreOffice(): Promise<void> {
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择 LibreOffice 的 soffice 程序',
+    properties:
+      process.platform === 'darwin'
+        ? ['openFile', 'openDirectory']
+        : ['openFile'],
+    filters:
+      process.platform === 'win32'
+        ? [{ name: '程序', extensions: ['exe'] }]
+        : [],
+  })
+  let path = result.filePaths[0]
+  if (result.canceled || !path) return
+  if (process.platform === 'darwin' && path.endsWith('.app'))
+    path = join(path, 'Contents', 'MacOS', 'soffice')
+  try {
+    libreOfficeVersion = await validateLibreOffice(path)
+  } catch {
+    showToast('所选程序无法运行')
+    return
+  }
+  enginePrefs = {
+    ...enginePrefs,
+    localPaths: { ...enginePrefs.localPaths, libreoffice: path },
+  }
+  await saveEnginePrefs(enginePrefsPath, enginePrefs)
+  libreOfficeError = undefined
+  await refreshLibreOfficeState()
+  broadcast()
+  showToast('已使用本地 LibreOffice')
+}
+async function ffmpegExecutable(): Promise<string | null> {
+  await refreshFfmpegState()
+  if (!ffmpegInstalled) return null
+  if (ffmpegOrigin === 'local') return enginePrefs.localPaths.ffmpeg ?? null
+  return ffmpegTargetPath()
+}
+async function installFfmpeg(): Promise<void> {
+  if (!ffmpegRelease || ffmpegInstalling) return
+  await refreshFfmpegState()
+  if (ffmpegInstalled) return
+  const target = ffmpegTargetPath()
+  if (!target) throw new Error('当前平台没有可用的 FFmpeg 下载源。')
+  const part = `${target}.part`
+  ffmpegInstalling = true
+  ffmpegProgress = 0
+  ffmpegError = undefined
+  const controller = new AbortController()
+  ffmpegAbort = controller
+  broadcast()
+  try {
+    await mkdir(dirname(target), { recursive: true, mode: 0o700 })
+    const response = await fetch(ffmpegRelease.url, {
+      signal: controller.signal,
+    })
+    if (!response.ok)
+      throw new Error(`下载失败：HTTP ${response.status}`)
+    const total =
+      Number(response.headers.get('content-length')) ||
+      ffmpegRelease.compressedBytes
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('下载响应为空。')
+    const chunks: Uint8Array[] = []
+    let received = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      chunks.push(value)
+      received += value.length
+      const percent = Math.min(99, Math.round((received / total) * 100))
+      if (percent !== ffmpegProgress) {
+        ffmpegProgress = percent
+        broadcast()
+      }
+    }
+    const compressed = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+    const hash = createHash('sha256').update(compressed).digest('hex')
+    if (hash !== ffmpegRelease.sha256)
+      throw new Error('下载文件校验失败，已停止安装。')
+    const binary = await gunzipAsync(compressed)
+    if (binary.length !== ffmpegRelease.installedBytes)
+      throw new Error('引擎解压大小异常，已停止安装。')
+    await writeFile(part, binary, { mode: 0o755 })
+    if (process.platform !== 'win32') await chmod(part, 0o755)
+    await rename(part, target)
+    ffmpegInstalled = true
+    ffmpegOrigin = 'download'
+    ffmpegProgress = 100
+    ffmpegError = undefined
+    addEvent(`FFmpeg ${ffmpegRelease.version} 已安装。`)
+    showToast('FFmpeg 已安装')
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      ffmpegError = undefined
+      addEvent('FFmpeg 下载已取消。')
+    } else {
+      ffmpegError =
+        error instanceof Error ? error.message : 'FFmpeg 安装失败。'
+      addEvent(ffmpegError)
+      showToast('FFmpeg 安装失败')
+    }
+    await rm(part, { force: true }).catch(() => {})
+  } finally {
+    ffmpegInstalling = false
+    ffmpegAbort = undefined
+    broadcast()
+  }
+}
+function cancelFfmpegInstall(): void {
+  ffmpegAbort?.abort()
+}
+async function recheckFfmpeg(): Promise<void> {
+  ffmpegError = undefined
+  await refreshFfmpegState()
+  broadcast()
+  showToast(ffmpegInstalled ? 'FFmpeg 可用' : 'FFmpeg 尚未安装')
 }
 function positionSettings(): void {
   if (!settingsWindow || settingsWindow.isDestroyed()) return
@@ -864,8 +2159,8 @@ function positionTodo(): void {
   if (!todoWindow || todoWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
-  const width = 760
-  const height = 640
+  const width = 1000
+  const height = 800
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
@@ -874,6 +2169,9 @@ function openTodo(): void {
   const wasVisible = windowVisible(todoWindow)
   if (windowVisible(pomodoroWindow)) closePomodoro()
   if (windowVisible(waterWindow)) closeWater()
+  if (windowVisible(breakWindow)) closeBreak()
+  if (windowVisible(profileWindow)) closeProfile()
+  if (windowVisible(clipboardWindow)) closeClipboard()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
@@ -944,6 +2242,13 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
     if (scaleChanged) setPetScale(previous.scale)
     throw error
   }
+  if (
+    patch.shelfAutoScreenshots === true &&
+    previous.shelfAutoScreenshots === false
+  ) {
+    screenshotSince = Date.now()
+    screenshotSeen.clear()
+  }
   if (!settings.statusBubbles) hideToast()
   if (!settings.musicBubbles) hideBubble()
   if (patch.musicBarStyle !== undefined) syncOverlays()
@@ -994,6 +2299,13 @@ async function openLicenses(): Promise<void> {
   const error = await shell.openPath(path)
   if (error) throw new Error('无法打开第三方许可目录。')
 }
+function phaseDurationSeconds(phase: FocusData['phase']): number {
+  if (phase === 'focus')
+    return focusData.focusMinutes * 60 + focusData.focusSeconds
+  if (phase === 'short')
+    return focusData.shortMinutes * 60 + focusData.shortSeconds
+  return focusData.longMinutes * 60 + focusData.longSeconds
+}
 function focusSnapshotRemaining(): number {
   return focusData.running && focusData.endsAt
     ? Math.max(0, Math.ceil((focusData.endsAt - Date.now()) / 1000))
@@ -1010,6 +2322,14 @@ function notifyFocus(title: string, body: string): void {
     new Notification({ title, body, silent: false }).show()
   showToast(body)
 }
+function checkTodoReminders(now: number): void {
+  const due = dueTodosToNotify(focusData.todos, todoReminderCheck, now)
+  todoReminderCheck = now
+  if (!due.length) return
+  const body =
+    due.length === 1 ? due[0].text : `${due[0].text} 等 ${due.length} 项`
+  notifyFocus('待办提醒', body)
+}
 function completeFocus(): void {
   const previous = focusData.phase
   const next = nextPhase(focusData.phase, focusData.completed)
@@ -1019,8 +2339,11 @@ function completeFocus(): void {
           ...focusData.sessions,
           {
             id: randomUUID(),
-            endedAt: Date.now(),
-            minutes: Math.round(phaseSeconds('focus') / 60),
+            endedAt: focusData.endsAt ?? Date.now(),
+            minutes: Math.max(
+              1,
+              Math.round(phaseDurationSeconds('focus') / 60),
+            ),
           },
         ].slice(-300)
       : focusData.sessions
@@ -1030,59 +2353,198 @@ function completeFocus(): void {
     completed: next.completed,
     running: false,
     endsAt: null,
-    remaining: phaseSeconds(next.phase),
+    remaining: phaseDurationSeconds(next.phase),
     sessions,
   }
+  persistFocus()
+  syncOverlays()
+  broadcast()
   notifyFocus(
     '番茄时钟',
     previous === 'focus' ? '专注结束，休息一下' : '休息结束，继续专注',
   )
-  persistFocus()
-  syncOverlays()
-  broadcast()
 }
-function focusTick(): void {
-  if (shuttingDown) return
-  let changed = false
-  if (focusData.running && focusData.endsAt) {
-    const remaining = focusSnapshotRemaining()
-    if (remaining !== focusData.remaining) {
-      focusData.remaining = remaining
-      changed = true
-    }
-    if (remaining <= 0) {
-      completeFocus()
-      return
-    }
+function reminderDue(key: string, dueAt: number): boolean {
+  if (notifiedReminderDues.get(key) === dueAt) return false
+  notifiedReminderDues.set(key, dueAt)
+  return true
+}
+function updateSchedulerRemaining(now: number): void {
+  lastFocusRemaining = focusData.running ? focusSnapshotRemaining() : 0
+  lastWaterRemaining =
+    focusData.water && focusData.waterNextAt
+      ? Math.max(0, focusData.waterNextAt - now)
+      : null
+  lastSittingRemaining =
+    focusData.breakSitting && focusData.breakSittingNextAt
+      ? Math.max(0, focusData.breakSittingNextAt - now)
+      : null
+  lastEyesRemaining =
+    focusData.breakEyes && focusData.breakEyesNextAt
+      ? Math.max(0, focusData.breakEyesNextAt - now)
+      : null
+}
+/** Keeps elapsed time unchanged after a manual clock change. */
+function rebaseRunningTimers(now: number): void {
+  focusData = {
+    ...focusData,
+    ...(focusData.running && focusData.endsAt && lastFocusRemaining > 0
+      ? { endsAt: now + lastFocusRemaining * 1000 }
+      : {}),
+    ...(focusData.water &&
+    focusData.waterNextAt &&
+    lastWaterRemaining !== null
+      ? { waterNextAt: now + lastWaterRemaining }
+      : {}),
+    ...(focusData.breakSitting &&
+    focusData.breakSittingNextAt &&
+    lastSittingRemaining !== null
+      ? { breakSittingNextAt: now + lastSittingRemaining }
+      : {}),
+    ...(focusData.breakEyes &&
+    focusData.breakEyesNextAt &&
+    lastEyesRemaining !== null
+      ? { breakEyesNextAt: now + lastEyesRemaining }
+      : {}),
   }
-  if (focusData.water) {
+  persistFocus()
+}
+/** Recomputes local-hour schedules after the timezone changes. */
+function rescheduleDailyTimers(now: number): void {
+  focusData = {
+    ...focusData,
+    waterNextAt: focusData.water
+      ? nextWaterAt(
+          now,
+          focusData.waterInterval,
+          focusData.waterStart,
+          focusData.waterEnd,
+        )
+      : null,
+    breakSittingNextAt: focusData.breakSitting
+      ? nextBreakAt(
+          now,
+          focusData.breakSittingInterval,
+          focusData.breakDnd,
+          focusData.breakDndStart,
+          focusData.breakDndEnd,
+        )
+      : null,
+    breakEyesNextAt: focusData.breakEyes
+      ? nextBreakAt(
+          now,
+          focusData.breakEyesInterval,
+          focusData.breakDnd,
+          focusData.breakDndStart,
+          focusData.breakDndEnd,
+        )
+      : null,
+  }
+  persistFocus()
+}
+function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
+  if (shuttingDown || schedulerBusy) return
+  schedulerBusy = true
+  try {
     const now = Date.now()
-    if (!focusData.waterNextAt) {
-      focusData.waterNextAt = nextWaterAt(
+    const monotonic = performance.now()
+    if (lastSchedulerWall && lastSchedulerMono) {
+      const jump = detectClockJump(
+        lastSchedulerWall,
+        lastSchedulerMono,
         now,
-        focusData.waterInterval,
-        focusData.waterStart,
-        focusData.waterEnd,
+        monotonic,
       )
-      persistFocus()
-      changed = true
-    } else if (focusData.waterNextAt <= now) {
-      notifyFocus('喝水提醒', '该喝水了')
-      focusData.waterNextAt = nextWaterAt(
-        now,
-        focusData.waterInterval,
-        focusData.waterStart,
-        focusData.waterEnd,
-      )
-      persistFocus()
-      changed = true
+      if (jump !== 'none') {
+        rebaseRunningTimers(now)
+        addEvent(
+          jump === 'forward'
+            ? '检测到系统时间向前调整，已重新校准计时。'
+            : '检测到系统时间向后调整，已重新校准计时。',
+        )
+      }
     }
+    const timezoneOffset = new Date(now).getTimezoneOffset()
+    if (timezoneOffset !== lastTimezoneOffset) {
+      rescheduleDailyTimers(now)
+      addEvent('检测到时区变化，已重新安排喝水与休息提醒。')
+      lastTimezoneOffset = timezoneOffset
+    }
+    checkTodoReminders(now)
+    let changed = false
+    if (focusData.running && focusData.endsAt) {
+      const remaining = focusSnapshotRemaining()
+      if (remaining !== focusData.remaining) {
+        focusData.remaining = remaining
+        changed = true
+      }
+      if (remaining <= 0) {
+        completeFocus()
+        changed = true
+      }
+    }
+    if (focusData.water) {
+      if (!focusData.waterNextAt) {
+        focusData.waterNextAt = nextWaterAt(
+          now,
+          focusData.waterInterval,
+          focusData.waterStart,
+          focusData.waterEnd,
+        )
+        persistFocus()
+        changed = true
+      } else if (focusData.waterNextAt <= now) {
+        const dueAt = focusData.waterNextAt
+        focusData.waterNextAt = nextWaterAt(
+          now,
+          focusData.waterInterval,
+          focusData.waterStart,
+          focusData.waterEnd,
+        )
+        persistFocus()
+        if (reminderDue('water', dueAt)) notifyFocus('喝水提醒', '该喝水了')
+        changed = true
+      }
+    }
+    if (focusData.breakSitting) {
+      if (!focusData.breakSittingNextAt) {
+        focusData.breakSittingNextAt = scheduleBreak('sitting')
+        persistFocus()
+        changed = true
+      } else if (focusData.breakSittingNextAt <= now) {
+        const dueAt = focusData.breakSittingNextAt
+        focusData.breakSittingNextAt = scheduleBreak('sitting')
+        persistFocus()
+        if (reminderDue('sitting', dueAt))
+          notifyFocus('久坐提醒', '起来活动一下吧')
+        changed = true
+      }
+    }
+    if (focusData.breakEyes) {
+      if (!focusData.breakEyesNextAt) {
+        focusData.breakEyesNextAt = scheduleBreak('eyes')
+        persistFocus()
+        changed = true
+      } else if (focusData.breakEyesNextAt <= now) {
+        const dueAt = focusData.breakEyesNextAt
+        focusData.breakEyesNextAt = scheduleBreak('eyes')
+        persistFocus()
+        if (reminderDue('eyes', dueAt))
+          notifyFocus('用眼提醒', '看看远处，放松一下眼睛')
+        changed = true
+      }
+    }
+    lastSchedulerWall = now
+    lastSchedulerMono = monotonic
+    updateSchedulerRemaining(now)
+    if (changed) broadcast()
+  } finally {
+    schedulerBusy = false
   }
-  if (changed) broadcast()
 }
 function startFocus(): void {
   if (focusData.running) return
-  if (focusData.remaining <= 0) focusData.remaining = phaseSeconds(focusData.phase)
+  if (focusData.remaining <= 0) focusData.remaining = phaseDurationSeconds(focusData.phase)
   focusData = {
     ...focusData,
     running: true,
@@ -1109,7 +2571,7 @@ function resetFocusTimer(): void {
     ...focusData,
     running: false,
     endsAt: null,
-    remaining: phaseSeconds(focusData.phase),
+    remaining: phaseDurationSeconds(focusData.phase),
   }
   persistFocus()
   syncOverlays()
@@ -1123,7 +2585,7 @@ function skipFocusTimer(): void {
     completed: next.completed,
     running: false,
     endsAt: null,
-    remaining: phaseSeconds(next.phase),
+    remaining: phaseDurationSeconds(next.phase),
   }
   persistFocus()
   syncOverlays()
@@ -1135,11 +2597,87 @@ function setFocusPhase(phase: FocusData['phase']): void {
     phase,
     running: false,
     endsAt: null,
-    remaining: phaseSeconds(phase),
+    remaining: phaseDurationSeconds(phase),
   }
   persistFocus()
   syncOverlays()
   broadcast()
+}
+function setFocusDurations(
+  focus: number,
+  short: number,
+  long: number,
+  focusSeconds: number,
+  shortSeconds: number,
+  longSeconds: number,
+): void {
+  const clampMinutes = (value: number) =>
+    Math.min(180, Math.max(1, Math.round(value)))
+  const clampSeconds = (value: number) =>
+    Math.min(59, Math.max(0, Math.round(value)))
+  const next = {
+    focusMinutes: clampMinutes(focus),
+    shortMinutes: clampMinutes(short),
+    longMinutes: clampMinutes(long),
+    focusSeconds: clampSeconds(focusSeconds),
+    shortSeconds: clampSeconds(shortSeconds),
+    longSeconds: clampSeconds(longSeconds),
+  }
+  const before =
+    focusData.phase === 'focus'
+      ? focusData.focusMinutes * 60 + focusData.focusSeconds
+      : focusData.phase === 'short'
+        ? focusData.shortMinutes * 60 + focusData.shortSeconds
+        : focusData.longMinutes * 60 + focusData.longSeconds
+  const current =
+    focusData.phase === 'focus'
+      ? next.focusMinutes * 60 + next.focusSeconds
+      : focusData.phase === 'short'
+        ? next.shortMinutes * 60 + next.shortSeconds
+        : next.longMinutes * 60 + next.longSeconds
+  // Arrows can adjust the current phase while it is running; shift the
+  // deadline by the same delta so the countdown reacts immediately.
+  const endsAt =
+    focusData.running && focusData.endsAt
+      ? Math.max(Date.now() + 1000, focusData.endsAt + (current - before) * 1000)
+      : focusData.endsAt
+  focusData = {
+    ...focusData,
+    ...next,
+    endsAt,
+    remaining: focusData.running
+      ? focusData.remaining
+      : Math.max(0, focusData.remaining + (current - before)),
+  }
+  persistFocus()
+  broadcast()
+}
+function bumpFocusDuration(
+  unit: 'minutes' | 'seconds',
+  delta: number,
+): void {
+  const minuteDelta = unit === 'minutes' ? delta : 0
+  const secondDelta = unit === 'seconds' ? delta : 0
+  setFocusDurations(
+    focusData.phase === 'focus'
+      ? focusData.focusMinutes + minuteDelta
+      : focusData.focusMinutes,
+    focusData.phase === 'short'
+      ? focusData.shortMinutes + minuteDelta
+      : focusData.shortMinutes,
+    focusData.phase === 'long'
+      ? focusData.longMinutes + minuteDelta
+      : focusData.longMinutes,
+    focusData.phase === 'focus'
+      ? focusData.focusSeconds + secondDelta
+      : focusData.focusSeconds,
+    focusData.phase === 'short'
+      ? focusData.shortSeconds + secondDelta
+      : focusData.shortSeconds,
+    focusData.phase === 'long'
+      ? focusData.longSeconds + secondDelta
+      : focusData.longSeconds,
+  )
 }
 function addWaterDrink(): void {
   const now = Date.now()
@@ -1194,10 +2732,137 @@ function setWaterConfig(
   persistFocus()
   broadcast()
 }
+function setWaterGoal(goal: number): void {
+  focusData = {
+    ...focusData,
+    waterGoal: Math.min(30, Math.max(1, Math.round(goal))),
+  }
+  persistFocus()
+  broadcast()
+}
+function snoozeWater(minutes = 10): void {
+  if (!focusData.water) return
+  const delay = Math.min(60, Math.max(1, Math.round(minutes)))
+  focusData = {
+    ...focusData,
+    waterNextAt: Date.now() + delay * 60_000,
+  }
+  showToast(`喝水提醒已延后 ${delay} 分钟`)
+  persistFocus()
+  broadcast()
+}
+function breakIntervalOf(kind: BreakKind): number {
+  return kind === 'sitting'
+    ? focusData.breakSittingInterval
+    : focusData.breakEyesInterval
+}
+function scheduleBreak(kind: BreakKind, minutes = breakIntervalOf(kind)): number {
+  return nextBreakAt(
+    Date.now(),
+    minutes,
+    focusData.breakDnd,
+    focusData.breakDndStart,
+    focusData.breakDndEnd,
+  )
+}
+function setBreakEnabled(kind: BreakKind, enabled: boolean): void {
+  const next = enabled ? scheduleBreak(kind) : null
+  focusData =
+    kind === 'sitting'
+      ? { ...focusData, breakSitting: enabled, breakSittingNextAt: next }
+      : { ...focusData, breakEyes: enabled, breakEyesNextAt: next }
+  persistFocus()
+  broadcast()
+}
+function setBreakInterval(kind: BreakKind, minutes: number): void {
+  const value = Math.min(240, Math.max(5, Math.round(minutes)))
+  const enabled = kind === 'sitting' ? focusData.breakSitting : focusData.breakEyes
+  const next = enabled ? scheduleBreak(kind, value) : null
+  focusData =
+    kind === 'sitting'
+      ? {
+          ...focusData,
+          breakSittingInterval: value,
+          breakSittingNextAt: next,
+        }
+      : { ...focusData, breakEyesInterval: value, breakEyesNextAt: next }
+  persistFocus()
+  broadcast()
+}
+function snoozeBreak(kind: BreakKind, minutes = 10): void {
+  if (!(kind === 'sitting' ? focusData.breakSitting : focusData.breakEyes))
+    return
+  const delay = Math.min(60, Math.max(1, Math.round(minutes)))
+  const next = scheduleBreak(kind, delay)
+  focusData =
+    kind === 'sitting'
+      ? { ...focusData, breakSittingNextAt: next }
+      : { ...focusData, breakEyesNextAt: next }
+  showToast(
+    `${kind === 'sitting' ? '久坐提醒' : '用眼提醒'}已延后 ${delay} 分钟`,
+  )
+  persistFocus()
+  broadcast()
+}
+function setBreakDnd(enabled: boolean, start: number, end: number): void {
+  const safeStart = Math.min(23, Math.max(0, Math.round(start)))
+  const safeEnd = Math.min(24, Math.max(1, Math.round(end)))
+  focusData = {
+    ...focusData,
+    breakDnd: enabled,
+    breakDndStart: safeStart,
+    breakDndEnd: safeEnd,
+    breakSittingNextAt: focusData.breakSitting
+      ? nextBreakAt(
+          Date.now(),
+          focusData.breakSittingInterval,
+          enabled,
+          safeStart,
+          safeEnd,
+        )
+      : null,
+    breakEyesNextAt: focusData.breakEyes
+      ? nextBreakAt(
+          Date.now(),
+          focusData.breakEyesInterval,
+          enabled,
+          safeStart,
+          safeEnd,
+        )
+      : null,
+  }
+  persistFocus()
+  broadcast()
+}
+function normalizeTags(values: string[] | undefined): string[] {
+  if (!values) return []
+  return [
+    ...new Set(
+      values
+        .map((value) => value.trim().replace(/^#+/, '').slice(0, 20))
+        .filter(Boolean),
+    ),
+  ].slice(0, 10)
+}
+function mergeTodoTags(tags: string[]): void {
+  if (!tags.length) return
+  focusData = {
+    ...focusData,
+    todoTags: [
+      ...new Set([...focusData.todoTags, ...tags]),
+    ].slice(0, 100),
+  }
+}
 function addTodo(
   text: string,
   listId?: string | null,
-  flags?: { today?: boolean; urgent?: boolean; flagged?: boolean },
+  flags?: {
+    dueAt?: number | null
+    urgent?: boolean
+    flagged?: boolean
+    tags?: string[]
+    repeat?: TodoRepeat
+  },
 ): void {
   const value = text.trim()
   if (!value) return
@@ -1205,6 +2870,7 @@ function addTodo(
     listId && focusData.todoLists.some((list) => list.id === listId)
       ? listId
       : null
+  const tags = normalizeTags(flags?.tags)
   focusData = {
     ...focusData,
     todos: [
@@ -1214,47 +2880,138 @@ function addTodo(
         text: value,
         done: false,
         listId: target,
-        today: flags?.today === true,
+        dueAt: flags?.dueAt ?? null,
         urgent: flags?.urgent === true,
         flagged: flags?.flagged === true,
+        notes: '',
+        tags,
+        repeat: flags?.repeat ?? 'none',
+        repeatFromId: null,
       },
     ].slice(-500),
   }
+  mergeTodoTags(tags)
   persistFocus()
   broadcast()
 }
 function toggleTodo(id: string): void {
+  const source = focusData.todos.find((todo) => todo.id === id)
+  if (!source) return
+  const completing = !source.done
+  const nextDue =
+    completing && source.repeat !== 'none'
+      ? nextRepeatDueAt(source.dueAt, source.repeat)
+      : null
+  // Undoing a recurring occurrence also drops the unticked next occurrence it
+  // generated, so toggling back does not leave duplicates behind.
+  const dropIds = new Set(
+    completing
+      ? []
+      : focusData.todos
+          .filter((todo) => todo.repeatFromId === source.id && !todo.done)
+          .map((todo) => todo.id),
+  )
+  const spawned =
+    nextDue === null
+      ? null
+      : {
+          ...source,
+          id: randomUUID(),
+          done: false,
+          dueAt: nextDue,
+          repeatFromId: source.id,
+        }
   focusData = {
     ...focusData,
-    todos: focusData.todos.map((todo) =>
-      todo.id === id ? { ...todo, done: !todo.done } : todo,
-    ),
+    todos: [
+      ...focusData.todos
+        .filter((todo) => !dropIds.has(todo.id))
+        .map((todo) =>
+          todo.id === id ? { ...todo, done: completing } : todo,
+        ),
+      ...(spawned ? [spawned] : []),
+    ].slice(-500),
   }
   persistFocus()
   broadcast()
 }
 function updateTodo(
   id: string,
-  patch: { today?: boolean; urgent?: boolean; flagged?: boolean },
+  patch: {
+    text?: string
+    dueAt?: number | null
+    urgent?: boolean
+    flagged?: boolean
+    notes?: string
+    tags?: string[]
+    repeat?: TodoRepeat
+  },
 ): void {
   if (
-    patch.today === undefined &&
+    patch.text === undefined &&
+    patch.dueAt === undefined &&
     patch.urgent === undefined &&
-    patch.flagged === undefined
+    patch.flagged === undefined &&
+    patch.notes === undefined &&
+    patch.tags === undefined &&
+    patch.repeat === undefined
   )
     return
+  const text = patch.text?.trim()
+  const notes =
+    patch.notes === undefined ? undefined : patch.notes.slice(0, 2000)
+  const tags = patch.tags === undefined ? undefined : normalizeTags(patch.tags)
   focusData = {
     ...focusData,
-    todos: focusData.todos.map((todo) =>
-      todo.id === id ? { ...todo, ...patch } : todo,
-    ),
+    todos: focusData.todos.map((todo) => {
+      if (todo.id !== id) return todo
+      const repeatNeedsDate =
+        patch.repeat !== undefined &&
+        patch.repeat !== 'none' &&
+        patch.dueAt === undefined &&
+        todo.dueAt === null
+      return {
+        ...todo,
+        ...(text ? { text: text.slice(0, 200) } : {}),
+        ...(patch.dueAt !== undefined ? { dueAt: patch.dueAt } : {}),
+        ...(repeatNeedsDate ? { dueAt: endOfLocalDay(Date.now()) } : {}),
+        ...(patch.urgent !== undefined ? { urgent: patch.urgent } : {}),
+        ...(patch.flagged !== undefined ? { flagged: patch.flagged } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+        ...(tags !== undefined ? { tags } : {}),
+        ...(patch.repeat !== undefined ? { repeat: patch.repeat } : {}),
+      }
+    }),
   }
+  if (tags) mergeTodoTags(tags)
   persistFocus()
   broadcast()
 }
-function addTodoList(name: string, groupId?: string | null): void {
+function todoNameTaken(
+  name: string,
+  exceptListId?: string,
+  exceptGroupId?: string,
+): boolean {
+  const value = name.trim().toLowerCase()
+  if (!value) return false
+  return [
+    ...focusData.todoGroups
+      .filter((group) => group.id !== exceptGroupId)
+      .map((group) => group.name),
+    ...focusData.todoLists
+      .filter((list) => list.id !== exceptListId)
+      .map((list) => list.name),
+  ].some((existing) => existing.trim().toLowerCase() === value)
+}
+function addTodoList(
+  name: string,
+  groupId?: string | null,
+  color: TodoListColor = 'blue',
+  icon: string = defaultTodoListIcon,
+): void {
   const value = name.trim()
   if (!value || focusData.todoLists.length >= 100) return
+  if (todoNameTaken(value)) return
   const target =
     groupId && focusData.todoGroups.some((group) => group.id === groupId)
       ? groupId
@@ -1263,8 +3020,36 @@ function addTodoList(name: string, groupId?: string | null): void {
     ...focusData,
     todoLists: [
       ...focusData.todoLists,
-      { id: randomUUID(), name: value, groupId: target },
+      {
+        id: randomUUID(),
+        name: value,
+        groupId: target,
+        color,
+        icon: icon.trim() || defaultTodoListIcon,
+      },
     ],
+  }
+  persistFocus()
+  broadcast()
+}
+function updateTodoList(
+  id: string,
+  patch: { name?: string; color?: TodoListColor; icon?: string },
+): void {
+  const value = patch.name?.trim()
+  if (value && todoNameTaken(value, id)) return
+  focusData = {
+    ...focusData,
+    todoLists: focusData.todoLists.map((list) =>
+      list.id === id
+        ? {
+            ...list,
+            name: value || list.name,
+            color: patch.color ?? list.color,
+            icon: patch.icon?.trim() || list.icon,
+          }
+        : list,
+    ),
   }
   persistFocus()
   broadcast()
@@ -1284,9 +3069,23 @@ function removeTodoList(id: string): void {
 function addTodoGroup(name: string): void {
   const value = name.trim()
   if (!value || focusData.todoGroups.length >= 40) return
+  if (todoNameTaken(value)) return
   focusData = {
     ...focusData,
     todoGroups: [...focusData.todoGroups, { id: randomUUID(), name: value }],
+  }
+  persistFocus()
+  broadcast()
+}
+function updateTodoGroup(id: string, name: string): void {
+  const value = name.trim()
+  if (!value) return
+  if (todoNameTaken(value, undefined, id)) return
+  focusData = {
+    ...focusData,
+    todoGroups: focusData.todoGroups.map((group) =>
+      group.id === id ? { ...group, name: value } : group,
+    ),
   }
   persistFocus()
   broadcast()
@@ -1326,7 +3125,7 @@ function positionPomodoro(): void {
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 360
-  const height = 520
+  const height = 600
   let x = b.x + b.width + 16
   if (x + width > a.x + a.width) x = b.x - width - 16
   if (x < a.x) x = a.x + 8
@@ -1351,6 +3150,130 @@ function positionWater(): void {
   )
   waterWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function positionProfile(): void {
+  if (!profileWindow || profileWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 400
+  const height = 520
+  const x = a.x + Math.round((a.width - width) / 2)
+  const y = a.y + Math.round((a.height - height) / 2)
+  profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openProfile(): void {
+  const wasVisible = windowVisible(profileWindow)
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (todoWindow?.isVisible()) todoWindow.hide()
+  if (windowVisible(pomodoroWindow)) closePomodoro()
+  if (windowVisible(waterWindow)) closeWater()
+  if (windowVisible(breakWindow)) closeBreak()
+  if (windowVisible(clipboardWindow)) closeClipboard()
+  if (profileWindow && !profileWindow.isDestroyed()) {
+    if (!wasVisible) positionProfile()
+    if (process.platform === 'darwin' || profileWindow.isMinimized())
+      profileWindow.restore()
+    profileWindow.show()
+    profileWindow.moveTop()
+    profileWindow.focus()
+  }
+  syncOverlays()
+  broadcast()
+}
+function closeProfile(): void {
+  profileWindow?.hide()
+  syncOverlays()
+  broadcast()
+}
+function positionClipboard(): void {
+  if (!clipboardWindow || clipboardWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 400
+  const height = 520
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  clipboardWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openClipboard(): void {
+  const wasVisible = windowVisible(clipboardWindow)
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (todoWindow?.isVisible()) todoWindow.hide()
+  if (windowVisible(pomodoroWindow)) closePomodoro()
+  if (windowVisible(waterWindow)) closeWater()
+  if (windowVisible(breakWindow)) closeBreak()
+  if (windowVisible(profileWindow)) closeProfile()
+  if (clipboardWindow && !clipboardWindow.isDestroyed()) {
+    if (!wasVisible) positionClipboard()
+    if (process.platform === 'darwin' || clipboardWindow.isMinimized())
+      clipboardWindow.restore()
+    clipboardWindow.show()
+    clipboardWindow.moveTop()
+    clipboardWindow.focus()
+  }
+  syncOverlays()
+  broadcast()
+}
+function closeClipboard(): void {
+  clipboardWindow?.hide()
+  syncOverlays()
+  broadcast()
+}
+function positionBreak(): void {
+  if (!breakWindow || breakWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 360
+  const height = 430
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  breakWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openBreak(): void {
+  const wasVisible = windowVisible(breakWindow)
+  if (pocket?.isVisible()) hidePocket()
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  if (settingsWindow?.isVisible()) settingsWindow.hide()
+  if (todoWindow?.isVisible()) todoWindow.hide()
+  if (windowVisible(pomodoroWindow)) closePomodoro()
+  if (windowVisible(waterWindow)) closeWater()
+  if (windowVisible(profileWindow)) closeProfile()
+  if (windowVisible(clipboardWindow)) closeClipboard()
+  if (breakWindow && !breakWindow.isDestroyed()) {
+    if (!wasVisible) positionBreak()
+    if (process.platform === 'darwin' || breakWindow.isMinimized())
+      breakWindow.restore()
+    breakWindow.show()
+    breakWindow.moveTop()
+    breakWindow.focus()
+  }
+  syncOverlays()
+  broadcast()
+}
+function closeBreak(): void {
+  breakWindow?.hide()
+  syncOverlays()
+  broadcast()
+}
 function openWater(): void {
   const wasVisible = windowVisible(waterWindow)
   if (pocket?.isVisible()) hidePocket()
@@ -1359,6 +3282,9 @@ function openWater(): void {
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
+  if (windowVisible(breakWindow)) closeBreak()
+  if (windowVisible(profileWindow)) closeProfile()
+  if (windowVisible(clipboardWindow)) closeClipboard()
   if (windowVisible(pomodoroWindow)) closePomodoro()
   if (waterWindow && !waterWindow.isDestroyed()) {
     if (!wasVisible) positionWater()
@@ -1419,6 +3345,9 @@ function openPomodoro(): void {
   if (settingsWindow?.isVisible()) settingsWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (waterWindow?.isVisible()) waterWindow.hide()
+  if (breakWindow?.isVisible()) breakWindow.hide()
+  if (profileWindow?.isVisible()) profileWindow.hide()
+  if (clipboardWindow?.isVisible()) clipboardWindow.hide()
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
     if (!wasVisible) positionPomodoro()
     if (process.platform === 'darwin' || pomodoroWindow.isMinimized())
@@ -1541,7 +3470,7 @@ async function registerOutputs(paths: readonly string[]): Promise<void> {
   const known = new Set([...files.values()].map((file) => file.path))
   let added = false
   for (const path of paths) {
-    if (files.size >= 100 || known.has(path)) continue
+    if (files.size >= settings.shelfMaxRecords || known.has(path)) continue
     const item = await inspectFile(path)
     if (known.has(item.path)) continue
     const id = randomUUID()
@@ -1565,7 +3494,7 @@ function shortSize(value: number): string {
 async function archiveSelected(fileIds: string[]): Promise<void> {
   const paths: string[] = []
   for (const id of fileIds) paths.push(await registeredFile(id))
-  const destination = await createArchive(paths)
+  const destination = await createArchive(paths, settings.archiveFormat)
   await registerOutputs([destination])
   showToast(`已打包 ${paths.length} 个文件`)
   addEvent(`已创建压缩包「${basename(destination)}」。`)
@@ -1575,7 +3504,7 @@ async function extractSelected(fileIds: string[]): Promise<void> {
   const folders: string[] = []
   for (const id of fileIds) {
     const path = await registeredFile(id)
-    if (!isZipFile(path)) throw new Error('目前只支持 ZIP 压缩包。')
+    if (!isArchiveFile(path)) throw new Error('目前支持 ZIP、7Z 和 RAR 压缩包。')
     const result = await extractArchive(path)
     count += result.count
     folders.push(basename(result.folder))
@@ -1747,7 +3676,6 @@ function showPocket(): void {
     pocket.restore()
   pocket.show()
   pocket.focus()
-  pocketHiddenAt = 0
   broadcast()
 }
 function hidePocket(): void {
@@ -1755,7 +3683,6 @@ function hidePocket(): void {
   pocketRequestedVisible = false
   if (!pocket || pocket.isDestroyed() || !pocket.isVisible()) return
   pocket.hide()
-  pocketHiddenAt = Date.now()
   // macOS can finish a pending show after hide() and make the panel visible
   // again. Enforce the requested state once the show transition settles.
   setTimeout(() => {
@@ -1939,6 +3866,37 @@ async function saveShelf(): Promise<void> {
   })
   shelfQueue = operation.catch(() => {})
   await operation
+}
+async function scanShelfValidity(): Promise<void> {
+  let missing = 0
+  for (const file of files.values()) {
+    if (file.status !== 'shelved') continue
+    try {
+      await lstat(file.path)
+    } catch {
+      missing += 1
+    }
+  }
+  shelfInvalidCount = missing
+}
+async function clearInvalidShelf(): Promise<number> {
+  const invalid: string[] = []
+  for (const [id, file] of files) {
+    if (file.status !== 'shelved') continue
+    try {
+      await lstat(file.path)
+    } catch {
+      invalid.push(id)
+    }
+  }
+  for (const id of invalid) files.delete(id)
+  if (invalid.length) {
+    await saveShelf()
+    refreshPocketLayout()
+  }
+  shelfInvalidCount = 0
+  broadcast()
+  return invalid.length
 }
 async function restoreShelf(): Promise<void> {
   try {
@@ -2672,6 +4630,9 @@ function authorized(
       window !== settingsWindow &&
       window !== pomodoroWindow &&
       window !== waterWindow &&
+      window !== breakWindow &&
+      window !== profileWindow &&
+      window !== clipboardWindow &&
       window !== todoWindow &&
       window !== toastWindow) ||
     event.senderFrame !== event.sender.mainFrame
@@ -2737,8 +4698,10 @@ async function receivePaths(paths: string[]): Promise<void> {
     known.add(item.path)
     return true
   })
-  if (files.size + additions.length > 100)
-    throw new Error('当前原型最多保留 100 条文件记录，请先移除记录。')
+  if (files.size + additions.length > settings.shelfMaxRecords)
+    throw new Error(
+      `置物架最多保留 ${settings.shelfMaxRecords} 条记录，请先移除记录。`,
+    )
   for (const item of additions) {
     const id = randomUUID()
     files.set(id, {
@@ -2849,8 +4812,6 @@ function setupIpc(): void {
     const phase = pointerSchema.parse(payload)
     if (phase === 'down') {
       if (dropMode) return
-      pocketOpenAtPointerDown =
-        pocket.isVisible() || Date.now() - pocketHiddenAt < 120
       drag = {
         origin: screen.getCursorScreenPoint(),
         bounds: pet.getBounds(),
@@ -2879,14 +4840,6 @@ function setupIpc(): void {
         addEvent('拖动结束，位置已保存。')
       }
       drag = undefined
-      if (click) {
-        // A click on the pet is a toggle. If the pocket was open when the
-        // pointer went down, ignore the click when focus already closed it.
-        const wasOpen = pocketOpenAtPointerDown
-        if (pocket.isVisible()) hidePocket()
-        else if (!wasOpen) showPocket()
-      }
-      pocketOpenAtPointerDown = false
     }
   })
   handle(channels.command, 'either', async (event, payload) => {
@@ -2914,8 +4867,12 @@ function setupIpc(): void {
       'ai-clear',
       'ai-send',
       'ai-keys',
+      'extract-audio',
       'convert-open',
       'convert-start',
+      'convert-cancel',
+      'convert-remove-file',
+      'convert-output-open',
       'convert-close',
       'convert-reveal',
       'notify',
@@ -2928,6 +4885,7 @@ function setupIpc(): void {
       'shrink-files',
       'settings-open',
       'settings-close',
+      'settings-section',
       'settings-update',
       'settings-open-data',
       'settings-clear-cache',
@@ -2939,6 +4897,27 @@ function setupIpc(): void {
       'water-open',
       'water-close',
       'water-drink',
+      'break-open',
+      'break-close',
+      'break-toggle',
+      'break-interval',
+      'break-snooze',
+      'break-dnd',
+      'profile-open',
+      'profile-close',
+      'clipboard-open',
+      'clipboard-close',
+      'clipboard-copy',
+      'clipboard-pin',
+      'clipboard-remove',
+      'clipboard-clear',
+      'clipboard-config',
+      'shelf-scan',
+      'shelf-clear-invalid',
+      'engine-install',
+      'engine-cancel',
+      'engine-recheck',
+      'engine-use-local',
       'todo-open',
       'todo-close',
       'focus-start',
@@ -2948,14 +4927,20 @@ function setupIpc(): void {
       'focus-phase',
       'focus-water',
       'focus-water-config',
+      'focus-durations',
+      'focus-duration-bump',
+      'water-goal',
+      'water-snooze',
       'todo-add',
       'todo-toggle',
       'todo-update',
       'todo-remove',
       'todo-clear-done',
       'todo-list-add',
+      'todo-list-update',
       'todo-list-remove',
       'todo-group-add',
+      'todo-group-update',
       'todo-group-remove',
     ]
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
@@ -3082,8 +5067,11 @@ function setupIpc(): void {
       case 'ai-keys':
         await shell.openExternal('https://platform.deepseek.com/api_keys')
         break
+      case 'extract-audio':
+        await extractAudio(command.fileIds)
+        break
       case 'convert-open':
-        openConvert(command.fileIds)
+        await openConvert(command.fileIds)
         break
       case 'convert-start':
         void startConvert(command.action).catch((error) => {
@@ -3092,6 +5080,15 @@ function setupIpc(): void {
             error instanceof Error ? error.message : '转换失败，请重试。'
           broadcast()
         })
+        break
+      case 'convert-cancel':
+        cancelConvert()
+        break
+      case 'convert-remove-file':
+        removeConvertFile(command.fileId)
+        break
+      case 'convert-output-open':
+        await openConvertOutput(command.outputId)
         break
       case 'convert-close':
         closeConvert()
@@ -3133,6 +5130,11 @@ function setupIpc(): void {
       case 'settings-close':
         closeSettings()
         break
+      case 'settings-section':
+        settingsSection = command.section
+        if (!windowVisible(settingsWindow)) openSettings()
+        broadcast()
+        break
       case 'settings-update':
         await updateSettings(command.patch)
         break
@@ -3170,6 +5172,74 @@ function setupIpc(): void {
       case 'water-drink':
         addWaterDrink()
         break
+      case 'break-open':
+        openBreak()
+        break
+      case 'break-close':
+        closeBreak()
+        break
+      case 'break-toggle':
+        setBreakEnabled(command.kind, command.enabled)
+        break
+      case 'break-interval':
+        setBreakInterval(command.kind, command.minutes)
+        break
+      case 'break-snooze':
+        snoozeBreak(command.kind, command.minutes)
+        break
+      case 'break-dnd':
+        setBreakDnd(command.enabled, command.start, command.end)
+        break
+      case 'profile-open':
+        openProfile()
+        break
+      case 'profile-close':
+        closeProfile()
+        break
+      case 'clipboard-open':
+        openClipboard()
+        break
+      case 'clipboard-close':
+        closeClipboard()
+        break
+      case 'clipboard-copy':
+        await copyClipboardEntry(command.id)
+        break
+      case 'clipboard-pin':
+        setClipboardPinned(command.id, command.pinned)
+        break
+      case 'clipboard-remove':
+        removeClipboardEntry(command.id)
+        break
+      case 'clipboard-clear':
+        clearClipboard()
+        break
+      case 'clipboard-config':
+        await updateClipboardConfig(command.patch)
+        break
+      case 'shelf-scan':
+        await scanShelfValidity()
+        broadcast()
+        break
+      case 'shelf-clear-invalid': {
+        const count = await clearInvalidShelf()
+        if (count > 0) showToast(`已清理 ${count} 条失效记录`)
+        else showToast('没有失效的置物架记录')
+        break
+      }
+      case 'engine-install':
+        await installFfmpeg()
+        break
+      case 'engine-cancel':
+        cancelFfmpegInstall()
+        break
+      case 'engine-recheck':
+        await recheckFfmpeg()
+        break
+      case 'engine-use-local':
+        if (command.id === 'libreoffice') await chooseLocalLibreOffice()
+        else await chooseLocalFfmpeg()
+        break
       case 'todo-open':
         openTodo()
         break
@@ -3197,11 +5267,32 @@ function setupIpc(): void {
       case 'focus-water-config':
         setWaterConfig(command.interval, command.start, command.end)
         break
+      case 'focus-durations':
+        setFocusDurations(
+          command.focus,
+          command.short,
+          command.long,
+          command.focusSeconds,
+          command.shortSeconds,
+          command.longSeconds,
+        )
+        break
+      case 'focus-duration-bump':
+        bumpFocusDuration(command.unit, command.delta)
+        break
+      case 'water-goal':
+        setWaterGoal(command.goal)
+        break
+      case 'water-snooze':
+        snoozeWater(command.minutes)
+        break
       case 'todo-add':
         addTodo(command.text, command.listId, {
-          today: command.today,
+          dueAt: command.dueAt,
           urgent: command.urgent,
           flagged: command.flagged,
+          tags: command.tags,
+          repeat: command.repeat,
         })
         break
       case 'todo-toggle':
@@ -3217,13 +5308,23 @@ function setupIpc(): void {
         clearDoneTodos(command.ids)
         break
       case 'todo-list-add':
-        addTodoList(command.name, command.groupId)
+        addTodoList(command.name, command.groupId, command.color, command.icon)
+        break
+      case 'todo-list-update':
+        updateTodoList(command.id, {
+          name: command.name,
+          color: command.color,
+          icon: command.icon,
+        })
         break
       case 'todo-list-remove':
         removeTodoList(command.id)
         break
       case 'todo-group-add':
         addTodoGroup(command.name)
+        break
+      case 'todo-group-update':
+        updateTodoGroup(command.id, command.name)
         break
       case 'todo-group-remove':
         removeTodoGroup(command.id)
@@ -3246,6 +5347,9 @@ function setupIpc(): void {
           else if (owner === settingsWindow) closeSettings()
           else if (owner === pomodoroWindow) closePomodoro()
           else if (owner === waterWindow) closeWater()
+          else if (owner === breakWindow) closeBreak()
+          else if (owner === profileWindow) closeProfile()
+          else if (owner === clipboardWindow) closeClipboard()
           else owner.hide()
         }
         break
@@ -3828,7 +5932,7 @@ async function createWindows(): Promise<void> {
   })
   pomodoroWindow = new BrowserWindow({
     width: 360,
-    height: 520,
+    height: 600,
     title: '毛趣萌仔 · 番茄时钟',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -3868,9 +5972,72 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
+  breakWindow = new BrowserWindow({
+    width: 360,
+    height: 430,
+    title: '毛趣萌仔 · 休息提醒',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  profileWindow = new BrowserWindow({
+    width: 400,
+    height: 520,
+    title: '毛趣萌仔 · 宠物档案',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  clipboardWindow = new BrowserWindow({
+    width: 400,
+    height: 520,
+    title: '毛趣萌仔 · 剪贴板',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
   todoWindow = new BrowserWindow({
-    width: 760,
-    height: 640,
+    width: 1000,
+    height: 800,
     title: '毛趣萌仔 · 待办清单',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -3897,6 +6064,9 @@ async function createWindows(): Promise<void> {
     settingsWindow,
     pomodoroWindow,
     waterWindow,
+    breakWindow,
+    profileWindow,
+    clipboardWindow,
     todoWindow,
   ])
     configurePanelChrome(panel)
@@ -3944,7 +6114,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, pomodoroWindow, waterWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -3997,6 +6167,30 @@ async function createWindows(): Promise<void> {
       closeWater()
     }
   })
+  breakWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeBreak()
+    }
+  })
+  profileWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeProfile()
+    }
+  })
+  clipboardWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeClipboard()
+    }
+  })
+  todoWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeTodo()
+    }
+  })
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -4019,6 +6213,9 @@ async function createWindows(): Promise<void> {
     if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(todoWindow)) positionTodo()
     if (windowVisible(waterWindow)) positionWater()
+    if (windowVisible(breakWindow)) positionBreak()
+    if (windowVisible(profileWindow)) positionProfile()
+    if (windowVisible(clipboardWindow)) positionClipboard()
     if (windowVisible(focusBadge)) positionFocusBadge()
     if (windowVisible(toastWindow)) positionToast()
   })
@@ -4040,6 +6237,11 @@ async function createWindows(): Promise<void> {
     if (windowVisible(toastWindow)) positionToast()
   })
   await restoreShelf()
+  await scanShelfValidity()
+  await refreshFfmpegState()
+  const ffmpegPart = ffmpegTargetPath()
+  if (ffmpegPart)
+    await rm(`${ffmpegPart}.part`, { force: true }).catch(() => {})
   await restoreBelly()
   await purgeBelly()
   setupIpc()
@@ -4059,6 +6261,9 @@ async function createWindows(): Promise<void> {
     load(settingsWindow, 'settings'),
     load(pomodoroWindow, 'focus'),
     load(waterWindow, 'water'),
+    load(breakWindow, 'break'),
+    load(profileWindow, 'profile'),
+    load(clipboardWindow, 'clipboard'),
     load(todoWindow, 'todo'),
     load(focusBadge, 'focus-badge'),
     ...(lab ? [load(lab, 'lab')] : []),
@@ -4080,6 +6285,7 @@ async function createWindows(): Promise<void> {
       },
       { label: '番茄时钟', click: openPomodoro },
       { label: '喝水提醒', click: openWater },
+      { label: '休息提醒', click: openBreak },
       { label: '待办清单', click: openTodo },
       { label: '智能问答', click: () => openAsk([]) },
       { label: '设置…', click: openSettings },
@@ -4103,10 +6309,21 @@ async function createWindows(): Promise<void> {
   screen.on('display-added', reconcileDisplays)
   screen.on('display-removed', reconcileDisplays)
   screen.on('display-metrics-changed', reconcileDisplays)
+  powerMonitor.on('suspend', () => {
+    persistFocus()
+    addEvent('系统即将休眠，计时状态已保存。')
+  })
   powerMonitor.on('resume', () => {
     reconcileDisplays()
+    lastSchedulerWall = 0
+    lastSchedulerMono = 0
+    focusTick('resume')
     addEvent('系统唤醒，已恢复交互。')
   })
+  lastSchedulerWall = Date.now()
+  lastSchedulerMono = performance.now()
+  lastTimezoneOffset = new Date().getTimezoneOffset()
+  updateSchedulerRemaining(lastSchedulerWall)
   // ~60fps while dragging: the window follows the cursor from this loop, so a
   // slower tick reads as a low frame rate.
   focusTimer = setInterval(focusTick, 1000)
@@ -4198,6 +6415,12 @@ else {
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
+      clipboardData = await loadClipboardFile(clipboardPath)
+      enginePrefs = await loadEnginePrefs(enginePrefsPath)
+      await refreshLibreOfficeState()
+      pruneClipboard()
+      await saveClipboardFile(clipboardPath, clipboardData)
+      await initClipboardWatch()
       if (focusData.water && !focusData.waterNextAt)
         focusData.waterNextAt = nextWaterAt(
           Date.now(),
@@ -4205,12 +6428,29 @@ else {
           focusData.waterStart,
           focusData.waterEnd,
         )
+      if (focusData.breakSitting && !focusData.breakSittingNextAt)
+        focusData.breakSittingNextAt = nextBreakAt(
+          Date.now(),
+          focusData.breakSittingInterval,
+          focusData.breakDnd,
+          focusData.breakDndStart,
+          focusData.breakDndEnd,
+        )
+      if (focusData.breakEyes && !focusData.breakEyesNextAt)
+        focusData.breakEyesNextAt = nextBreakAt(
+          Date.now(),
+          focusData.breakEyesInterval,
+          focusData.breakDnd,
+          focusData.breakDndStart,
+          focusData.breakDndEnd,
+        )
       await saveFocusFile(focusPath, focusData)
       if (app.isPackaged)
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
       applyDockIcon()
       aiKey = await loadStoredKey()
       await createWindows()
+      await startScreenshotWatcher()
     })
     .catch(() => {
       dialog.showErrorBox('毛趣萌仔启动失败', '请检查本地资源与数据目录权限。')
@@ -4225,6 +6465,15 @@ else {
       clearInterval(focusTimer)
       focusTimer = undefined
     }
+    if (clipboardTimer) {
+      clearInterval(clipboardTimer)
+      clipboardTimer = undefined
+    }
+    if (screenshotTimer) {
+      clearInterval(screenshotTimer)
+      screenshotTimer = undefined
+    }
+    ffmpegAbort?.abort()
     clearPocketBlurTimer()
     if (broadcastTimer) {
       clearTimeout(broadcastTimer)
@@ -4256,6 +6505,9 @@ else {
     settingsWindow?.destroy()
     pomodoroWindow?.destroy()
     waterWindow?.destroy()
+    breakWindow?.destroy()
+    profileWindow?.destroy()
+    clipboardWindow?.destroy()
     todoWindow?.destroy()
     focusBadge?.destroy()
     askWindow?.destroy()

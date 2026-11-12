@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { musicBarStyles, petScales, themeIds } from '../shared/settings'
+import { todoListColors, todoRepeats } from '../shared/protocol'
+import {
+  archiveFormats,
+  musicBarStyles,
+  petScales,
+  themeIds,
+} from '../shared/settings'
 
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const rect = z
@@ -90,6 +96,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ai-keys') }).strict(),
   z
     .object({
+      type: z.literal('extract-audio'),
+      fileIds: z.array(z.string().uuid()).max(32),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('convert-open'),
       fileIds: z.array(z.string().uuid()).max(32),
     })
@@ -97,9 +109,52 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('convert-start'),
-      action: z.enum(['jpg', 'png', 'webp', 'pdf', 'merge-pdf', 'split-pdf']),
+      action: z.enum([
+        'jpg',
+        'png',
+        'webp',
+        'mp4',
+        'mov',
+        'mkv',
+        'webm',
+        'gif',
+        'webp-anim',
+        'mp3',
+        'wav',
+        'm4a',
+        'flac',
+        'ogg',
+        'pdf-png',
+        'pdf-jpg',
+        'pdf-txt',
+        'office-pdf',
+        'office-docx',
+        'office-xlsx',
+        'office-pptx',
+        'ofd-pdf',
+        'ofd-png',
+        'ofd-jpg',
+        'csv-xlsx',
+        'document-pdf',
+        'pdf',
+        'merge-pdf',
+        'split-pdf',
+      ]),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('convert-remove-file'),
+      fileId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('convert-output-open'),
+      outputId: z.string().uuid(),
+    })
+    .strict(),
+  z.object({ type: z.literal('convert-cancel') }).strict(),
   z.object({ type: z.literal('convert-close') }).strict(),
   z.object({ type: z.literal('convert-reveal') }).strict(),
   z
@@ -153,15 +208,38 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('settings-close') }).strict(),
   z
     .object({
+      type: z.literal('settings-section'),
+      section: z.enum([
+        'appearance',
+        'desktop',
+        'data',
+        'profile',
+        'clipboard',
+        'shelf',
+        'conversion',
+        'music',
+        'ai',
+        'about',
+      ]),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('settings-update'),
       patch: z
         .object({
+          petName: z.string().trim().min(1).max(20).optional(),
           theme: z.enum(themeIds).optional(),
           scale: z.union(petScales.map((value) => z.literal(value))).optional(),
           launchAtLogin: z.boolean().optional(),
           statusBubbles: z.boolean().optional(),
           musicBubbles: z.boolean().optional(),
           musicBarStyle: z.enum(musicBarStyles).optional(),
+          shelfAutoScreenshots: z.boolean().optional(),
+          shelfClipboardImages: z.boolean().optional(),
+          shelfScreenshotBubble: z.boolean().optional(),
+          shelfMaxRecords: z.number().int().min(50).max(500).optional(),
+          archiveFormat: z.enum(archiveFormats).optional(),
         })
         .strict(),
     })
@@ -209,12 +287,135 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('focus-durations'),
+      focus: z.number().int().min(1).max(180),
+      short: z.number().int().min(1).max(180),
+      long: z.number().int().min(1).max(180),
+      focusSeconds: z.number().int().min(0).max(59),
+      shortSeconds: z.number().int().min(0).max(59),
+      longSeconds: z.number().int().min(0).max(59),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('focus-duration-bump'),
+      unit: z.enum(['minutes', 'seconds']),
+      delta: z.number().int().min(-60).max(60),
+    })
+    .strict(),
+  z
+    .object({ type: z.literal('water-goal'), goal: z.number().int().min(1).max(30) })
+    .strict(),
+  z
+    .object({
+      type: z.literal('water-snooze'),
+      minutes: z.number().int().min(1).max(60).optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal('break-open') }).strict(),
+  z.object({ type: z.literal('break-close') }).strict(),
+  z.object({ type: z.literal('profile-open') }).strict(),
+  z.object({ type: z.literal('profile-close') }).strict(),
+  z.object({ type: z.literal('clipboard-open') }).strict(),
+  z.object({ type: z.literal('clipboard-close') }).strict(),
+  z
+    .object({
+      type: z.literal('clipboard-copy'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('clipboard-pin'),
+      id: z.string().uuid(),
+      pinned: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('clipboard-remove'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z.object({ type: z.literal('clipboard-clear') }).strict(),
+  z.object({ type: z.literal('shelf-scan') }).strict(),
+  z.object({ type: z.literal('shelf-clear-invalid') }).strict(),
+  z
+    .object({
+      type: z.literal('engine-install'),
+      id: z.literal('ffmpeg'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('engine-cancel'),
+      id: z.literal('ffmpeg'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('engine-recheck'),
+      id: z.literal('ffmpeg'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('engine-use-local'),
+      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('clipboard-config'),
+      patch: z
+        .object({
+          enabled: z.boolean().optional(),
+          maxItems: z.number().int().min(10).max(500).optional(),
+          retentionDays: z.number().int().min(0).max(3650).optional(),
+          ignoreSensitive: z.boolean().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('break-toggle'),
+      kind: z.enum(['sitting', 'eyes']),
+      enabled: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('break-interval'),
+      kind: z.enum(['sitting', 'eyes']),
+      minutes: z.number().int().min(5).max(240),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('break-snooze'),
+      kind: z.enum(['sitting', 'eyes']),
+      minutes: z.number().int().min(1).max(60).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('break-dnd'),
+      enabled: z.boolean(),
+      start: z.number().int().min(0).max(23),
+      end: z.number().int().min(1).max(24),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('todo-add'),
       text: z.string().trim().min(1).max(200),
       listId: z.string().uuid().nullable().optional(),
-      today: z.boolean().optional(),
+      dueAt: z.number().finite().nullable().optional(),
       urgent: z.boolean().optional(),
       flagged: z.boolean().optional(),
+      tags: z.array(z.string().trim().min(1).max(20)).max(10).optional(),
+      repeat: z.enum(todoRepeats).optional(),
     })
     .strict(),
   z.object({ type: z.literal('todo-toggle'), id: z.string().uuid() }).strict(),
@@ -224,9 +425,13 @@ export const commandSchema = z.discriminatedUnion('type', [
       id: z.string().uuid(),
       patch: z
         .object({
-          today: z.boolean().optional(),
+          text: z.string().trim().min(1).max(200).optional(),
+          dueAt: z.number().finite().nullable().optional(),
           urgent: z.boolean().optional(),
           flagged: z.boolean().optional(),
+          notes: z.string().max(2000).optional(),
+          tags: z.array(z.string().trim().min(1).max(20)).max(10).optional(),
+          repeat: z.enum(todoRepeats).optional(),
         })
         .strict(),
     })
@@ -243,6 +448,17 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('todo-list-add'),
       name: z.string().trim().min(1).max(40),
       groupId: z.string().uuid().nullable().optional(),
+      color: z.enum(todoListColors).optional(),
+      icon: z.string().trim().min(1).max(80).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-list-update'),
+      id: z.string().uuid(),
+      name: z.string().trim().min(1).max(40).optional(),
+      color: z.enum(todoListColors).optional(),
+      icon: z.string().trim().min(1).max(80).optional(),
     })
     .strict(),
   z
@@ -251,6 +467,13 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('todo-group-add'),
+      name: z.string().trim().min(1).max(40),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-group-update'),
+      id: z.string().uuid(),
       name: z.string().trim().min(1).max(40),
     })
     .strict(),
