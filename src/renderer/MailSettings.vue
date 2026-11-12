@@ -58,6 +58,14 @@ const providerIndex = computed(() =>
     providerOptions.findIndex((item) => item.id === formProvider.value),
   ),
 )
+const emailPlaceholders: Record<MailProvider, string> = {
+  qq: 'name@qq.com',
+  '163': 'name@126.com 或 name@163.com',
+  gmail: 'name@gmail.com',
+}
+const emailPlaceholder = computed(
+  () => emailPlaceholders[formProvider.value],
+)
 const formEmail = ref('')
 const formSecret = ref('')
 const formName = ref('')
@@ -178,6 +186,7 @@ watch(
     <div class="mail-row">
       <span class="mail-label">邮箱账户</span>
       <button
+        v-if="!formOpen"
         type="button"
         class="mail-action"
         :disabled="busy"
@@ -267,7 +276,7 @@ watch(
           type="email"
           autocomplete="username"
           :disabled="Boolean(reauthorizeId) || busy"
-          placeholder="name@example.com"
+          :placeholder="emailPlaceholder"
         />
       </label>
       <label class="mail-field">

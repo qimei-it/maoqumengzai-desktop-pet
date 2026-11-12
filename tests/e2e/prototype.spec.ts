@@ -2775,9 +2775,19 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
   await expect(settings.locator(".mail-provider")).toHaveCount(3);
   await expect(settings.locator(".mail-provider")).toHaveText([
     "QQ 邮箱",
-    "163 邮箱",
+    "网易邮箱",
     "Gmail",
   ]);
+  await expect(
+    settings
+      .locator(".mail-row", { hasText: "邮箱账户" })
+      .getByRole("button", { name: "添加", exact: true }),
+  ).toHaveCount(0);
+  await settings.locator(".mail-provider", { hasText: "网易邮箱" }).click();
+  await expect(settings.locator(".mail-field input").first()).toHaveAttribute(
+    "placeholder",
+    "name@126.com 或 name@163.com",
+  );
   await expect(settings.locator(".mail-field span")).toHaveText([
     "邮箱地址",
     "授权码 / 应用专用密码",

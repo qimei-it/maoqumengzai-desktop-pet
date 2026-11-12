@@ -33,7 +33,7 @@ export type MailState = {
 
 export const mailProviderLabels: Record<MailProvider, string> = {
   qq: 'QQ 邮箱',
-  '163': '163 邮箱',
+  '163': '网易邮箱',
   gmail: 'Gmail',
 }
 
