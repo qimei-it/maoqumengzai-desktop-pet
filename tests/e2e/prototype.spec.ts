@@ -318,6 +318,104 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toBe(99);
 
+  await expect(settings.locator(".wheel-preview")).toHaveCount(2);
+  await expect(settings.locator(".wheel-preview-pet")).toHaveCount(2);
+  await settings
+    .locator(".wheel-setting", { hasText: "悬停轮盘" })
+    .getByRole("button", { name: "配置", exact: true })
+    .click();
+  const hoverRegion = settings.getByRole("region", { name: "悬停轮盘" });
+  await expect(hoverRegion.locator(".wheel-hit")).toHaveCount(10);
+  await hoverRegion
+    .getByLabel("第 10 项 设置")
+    .dragTo(hoverRegion.locator(".wheel-palette"));
+  await expect(hoverRegion.locator(".wheel-hit")).toHaveCount(9);
+  await expect(
+    hoverRegion.getByRole("button", { name: "添加设置", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settings.hoverWheelActions : [];
+    })
+    .toEqual(hoverActions.filter((action) => action !== "settings"));
+  await hoverRegion
+    .getByRole("button", { name: "添加设置", exact: true })
+    .dragTo(hoverRegion.locator('[data-gap="0"]'));
+  await expect(hoverRegion.locator(".wheel-hit")).toHaveCount(10);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? snapshot.value.settings.hoverWheelActions.slice(0, 2)
+        : [];
+    })
+    .toEqual(["settings", "agent"]);
+  await hoverRegion
+    .getByLabel("第 1 项 设置")
+    .dragTo(hoverRegion.locator(".wheel-palette"));
+  await expect(hoverRegion.locator(".wheel-hit")).toHaveCount(9);
+  await hoverRegion
+    .getByRole("button", { name: "添加设置", exact: true })
+    .click();
+  await expect(hoverRegion.locator(".wheel-hit")).toHaveCount(10);
+  await hoverRegion
+    .getByLabel("第 1 项 智能体")
+    .dragTo(hoverRegion.locator('[data-gap="2"]'));
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? snapshot.value.settings.hoverWheelActions.slice(0, 2)
+        : [];
+    })
+    .toEqual(["clipboard", "agent"]);
+  await hoverRegion
+    .getByRole("button", { name: "恢复默认", exact: true })
+    .click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settings.hoverWheelActions : [];
+    })
+    .toEqual([...hoverActions]);
+  await hoverRegion
+    .getByRole("button", { name: "完成", exact: true })
+    .click();
+  await expect(hoverRegion).toBeHidden();
+
+  await settings
+    .locator(".wheel-setting", { hasText: "文件轮盘" })
+    .getByRole("button", { name: "配置", exact: true })
+    .click();
+  const fileRegion = settings.getByRole("region", { name: "文件轮盘" });
+  await expect(fileRegion.locator(".wheel-hit")).toHaveCount(10);
+  for (let index = 0; index < 6; index += 1) {
+    const hit = fileRegion.locator(".wheel-hit").first();
+    await hit.focus();
+    await hit.press("Delete");
+  }
+  await expect(fileRegion.locator(".wheel-hit")).toHaveCount(4);
+  const firstFileHit = fileRegion.locator(".wheel-hit").first();
+  await firstFileHit.focus();
+  await firstFileHit.press("Delete");
+  await expect(fileRegion.locator(".wheel-hit")).toHaveCount(4);
+  await fileRegion
+    .getByRole("button", { name: "恢复默认", exact: true })
+    .click();
+  await expect(fileRegion.locator(".wheel-hit")).toHaveCount(10);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settings.fileWheelActions : [];
+    })
+    .toEqual([...sliceActions]);
+  await fileRegion
+    .getByRole("button", { name: "完成", exact: true })
+    .click();
+  await expect(fileRegion).toBeHidden();
+  await expect(settings.locator(".wheel-preview")).toHaveCount(2);
+
   await settings.getByRole("button", { name: "桌面", exact: true }).click();
   await settings.getByRole("switch", { name: "状态提示气泡" }).click();
   await pet.evaluate(() =>
@@ -460,7 +558,7 @@ test("hovering the pet centre opens companion tools", async () => {
   await expect(pet.locator(".donut-segment")).toHaveCount(hoverActions.length);
   const labels = (await pet.locator(".donut-label").allTextContents()).join("");
   expect(labels).toContain(
-    "智能体剪贴板宠物档案待办清单休息提醒喝水提醒番茄时钟置物架邮件",
+    "智能体剪贴板置物架宠物档案休息提醒待办清单喝水提醒番茄时钟邮件设置",
   );
   for (const label of [
     "番茄",
@@ -511,7 +609,7 @@ test("hovering the pet centre opens companion tools", async () => {
     .toBe(false);
 
   await hoverRing();
-  await openAt(3);
+  await openAt(5);
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());

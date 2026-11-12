@@ -6,6 +6,22 @@ import {
   petScales,
   themeIds,
 } from '../shared/settings'
+import {
+  hoverActions,
+  maxWheelActions,
+  minWheelActions,
+  sliceActions,
+} from '../shared/donut'
+
+const wheelActions = <T extends string>(catalog: readonly T[]) =>
+  z
+    .array(z.enum(catalog))
+    .min(minWheelActions)
+    .max(maxWheelActions)
+    .refine(
+      (actions) => new Set(actions).size === actions.length,
+      '轮盘选项不能重复',
+    )
 
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const rect = z
@@ -251,6 +267,8 @@ export const commandSchema = z.discriminatedUnion('type', [
           shelfScreenshotBubble: z.boolean().optional(),
           shelfMaxRecords: z.number().int().min(50).max(500).optional(),
           archiveFormat: z.enum(archiveFormats).optional(),
+          hoverWheelActions: wheelActions(hoverActions).optional(),
+          fileWheelActions: wheelActions(sliceActions).optional(),
         })
         .strict(),
     })

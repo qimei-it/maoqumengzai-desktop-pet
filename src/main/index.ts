@@ -1631,6 +1631,8 @@ function settingsState(): SettingsState {
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
     archiveFormat: settings.archiveFormat,
+    hoverWheelActions: settings.hoverWheelActions,
+    fileWheelActions: settings.fileWheelActions,
   }
 }
 function clipboardState() {

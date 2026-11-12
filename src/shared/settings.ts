@@ -1,5 +1,12 @@
 /** User-facing settings shared by the main process and the settings panel. */
 
+import {
+  hoverActions,
+  sliceActions,
+  type DropAction,
+  type HoverAction,
+} from './donut'
+
 export const themeIds = ['default', 'halloween', 'christmas'] as const
 export type ThemeId = (typeof themeIds)[number]
 
@@ -37,6 +44,8 @@ export type Settings = {
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
   archiveFormat: ArchiveFormat
+  hoverWheelActions: HoverAction[]
+  fileWheelActions: DropAction[]
 }
 
 export type SettingsState = Omit<Settings, 'version'>
@@ -55,6 +64,8 @@ export const defaultSettings: Settings = {
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
   archiveFormat: 'zip',
+  hoverWheelActions: [...hoverActions],
+  fileWheelActions: [...sliceActions],
 }
 
 export function isThemeId(value: string): value is ThemeId {

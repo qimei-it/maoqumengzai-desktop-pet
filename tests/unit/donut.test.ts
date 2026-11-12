@@ -10,7 +10,10 @@ import {
   hoverActions,
   hoverLabels,
   indexAt,
+  maxWheelActions,
   midAngle,
+  minWheelActions,
+  normalizeWheelActions,
   outlinePath,
   pointAt,
   sliceActions,
@@ -33,21 +36,44 @@ describe('donut menu actions', () => {
     expect(sliceLabels.mail).toBe('发送邮件')
   })
 
-  test('hover wheel keeps eight tools and adds mail plus a blank slot', () => {
+  test('hover wheel keeps eight tools and adds mail plus settings', () => {
     expect(hoverActions).toHaveLength(10)
     expect(hoverActions.slice(0, 8)).toEqual([
       'agent',
       'clipboard',
+      'shelf',
       'profile',
-      'todo',
       'break',
+      'todo',
       'water',
       'focus',
-      'shelf',
     ])
-    expect(hoverActions.slice(8)).toEqual(['mail', 'blank'])
+    expect(hoverActions.slice(8)).toEqual(['mail', 'settings'])
     expect(hoverLabels.mail).toEqual(['邮件'])
-    expect(hoverLabels.blank).toEqual([])
+    expect(hoverLabels.settings).toEqual(['设置'])
+  })
+
+  test('wheel action lists stay between four and ten unique actions', () => {
+    expect(minWheelActions).toBe(4)
+    expect(maxWheelActions).toBe(10)
+    expect(normalizeWheelActions(['agent', 'agent', 'todo'], hoverActions)).toEqual(
+      [...hoverActions],
+    )
+    expect(
+      normalizeWheelActions(['agent', 'todo', 'water', 'settings'], hoverActions),
+    ).toEqual(['agent', 'todo', 'water', 'settings'])
+    expect(
+      normalizeWheelActions(
+        ['agent', 'todo', 'water', 'settings', 'mail'],
+        hoverActions,
+      ),
+    ).toHaveLength(5)
+    expect(
+      normalizeWheelActions(
+        ['unknown', 'agent', 'todo', 'water', 'settings'],
+        hoverActions,
+      ),
+    ).toEqual(['agent', 'todo', 'water', 'settings'])
   })
 })
 
@@ -106,6 +132,16 @@ describe('donut geometry (ported Filee cases)', () => {
       const point = pointAt(mid, midAngle(index, sliceCount))
       expect(actionAt(point.x, point.y, 1)).toBe(sliceActions[index])
     }
+  })
+
+  test('a custom action list changes both the division and the result', () => {
+    const actions = ['agent', 'todo', 'water', 'settings'] as const
+    const { mid } = donutMetrics(1)
+    for (let index = 0; index < actions.length; index += 1) {
+      const point = pointAt(mid, midAngle(index, actions.length))
+      expect(actionAt(point.x, point.y, 1, actions)).toBe(actions[index])
+    }
+    expect(actionAt(0, -mid, 1, ['settings'] as const)).toBe('settings')
   })
 })
 

@@ -14,12 +14,26 @@ import {
   themeLabels,
   type SettingsState,
 } from '../shared/settings'
+import {
+  hoverActionLabels,
+  hoverActions,
+  hoverLabels,
+  maxWheelActions,
+  minWheelActions,
+  sliceActions,
+  sliceLabelColumns,
+  sliceLabels,
+  type DropAction,
+  type HoverAction,
+} from '../shared/donut'
 import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
 import ClipboardSettings from './ClipboardSettings.vue'
 import catBase from './assets/pet/ragdoll/base.png'
 import MusicBarPreview from './MusicBarPreview.vue'
 import MailSettings from './MailSettings.vue'
 import PanelHeader from './PanelHeader.vue'
+import WheelConfigurator from './WheelConfigurator.vue'
+import WheelPreview from './WheelPreview.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -42,6 +56,7 @@ const section = computed<SettingsSection>(
 )
 const apiKey = ref('')
 const editingKey = ref(false)
+const wheelEditor = ref<'hover' | 'file' | null>(null)
 
 const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
@@ -152,10 +167,17 @@ watch(
 )
 
 function selectSection(section: SettingsSection): void {
+  wheelEditor.value = null
   emit('command', { type: 'settings-section', section })
 }
 function update(patch: Partial<SettingsState>): void {
   emit('command', { type: 'settings-update', patch })
+}
+function updateHoverWheel(actions: string[]): void {
+  update({ hoverWheelActions: actions as HoverAction[] })
+}
+function updateFileWheel(actions: string[]): void {
+  update({ fileWheelActions: actions as DropAction[] })
 }
 function updateClipboardConfig(patch: Partial<ClipboardConfig>): void {
   emit('command', { type: 'clipboard-config', patch })
@@ -184,10 +206,17 @@ function saveKey(): void {
 function close(): void {
   emit('command', { type: 'settings-close' })
 }
+function onEscape(): void {
+  if (wheelEditor.value) {
+    wheelEditor.value = null
+    return
+  }
+  close()
+}
 </script>
 
 <template>
-  <main class="settings-shell" @keydown.esc="close">
+  <main class="settings-shell" @keydown.esc="onEscape">
     <section class="settings-surface" aria-label="设置">
       <PanelHeader
         title="设置"
@@ -220,7 +249,34 @@ function close(): void {
         </nav>
 
         <div class="settings-content panel-scroll">
-          <template v-if="section === 'appearance'">
+          <WheelConfigurator
+            v-if="wheelEditor === 'hover'"
+            title="悬停轮盘"
+            :actions="settings.hoverWheelActions"
+            :catalog="hoverActions"
+            :labels="hoverActionLabels"
+            :wheel-labels="hoverLabels"
+            :min="minWheelActions"
+            :max="maxWheelActions"
+            single-line
+            :pet-image="catBase"
+            @update="updateHoverWheel"
+            @close="wheelEditor = null"
+          />
+          <WheelConfigurator
+            v-else-if="wheelEditor === 'file'"
+            title="文件轮盘"
+            :actions="settings.fileWheelActions"
+            :catalog="sliceActions"
+            :labels="sliceLabels"
+            :wheel-labels="sliceLabelColumns"
+            :min="minWheelActions"
+            :max="maxWheelActions"
+            :pet-image="catBase"
+            @update="updateFileWheel"
+            @close="wheelEditor = null"
+          />
+          <template v-else-if="section === 'appearance'">
             <div class="settings-row">
               <span class="settings-label">主题</span>
               <div class="settings-segmented" role="group" aria-label="主题">
@@ -248,6 +304,49 @@ function close(): void {
                   {{ value }}×
                 </button>
               </div>
+            </div>
+            <div class="wheel-settings-grid">
+              <section class="wheel-setting">
+                <div class="wheel-setting-head">
+                  <span class="settings-label">悬停轮盘</span>
+                  <button
+                    type="button"
+                    class="settings-action"
+                    @click="wheelEditor = 'hover'"
+                  >
+                    配置
+                  </button>
+                </div>
+                <WheelPreview
+                  :scale="0.75"
+                  :actions="settings.hoverWheelActions"
+                  :labels="hoverLabels"
+                  :label-size="11"
+                  single-line
+                  :pet-image="catBase"
+                  aria-label="悬停轮盘预览"
+                />
+              </section>
+              <section class="wheel-setting">
+                <div class="wheel-setting-head">
+                  <span class="settings-label">文件轮盘</span>
+                  <button
+                    type="button"
+                    class="settings-action"
+                    @click="wheelEditor = 'file'"
+                  >
+                    配置
+                  </button>
+                </div>
+                <WheelPreview
+                  :scale="0.75"
+                  :actions="settings.fileWheelActions"
+                  :labels="sliceLabelColumns"
+                  :label-size="11"
+                  :pet-image="catBase"
+                  aria-label="文件轮盘预览"
+                />
+              </section>
             </div>
           </template>
 
@@ -1061,6 +1160,29 @@ function close(): void {
 }
 .settings-row-last {
   border-bottom: 0;
+}
+.settings-content > .settings-row:last-child {
+  border-bottom: 0;
+}
+.wheel-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 8px 0 18px;
+}
+.wheel-setting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.wheel-setting-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
 }
 .pet-grid {
   display: grid;

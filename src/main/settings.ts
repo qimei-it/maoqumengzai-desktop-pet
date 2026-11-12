@@ -8,6 +8,51 @@ import {
   themeIds,
   type Settings,
 } from '../shared/settings'
+import {
+  hoverActions,
+  maxWheelActions,
+  minWheelActions,
+  sliceActions,
+} from '../shared/donut'
+
+const wheelActions = <T extends string>(catalog: readonly T[]) =>
+  z
+    .array(z.enum(catalog))
+    .min(minWheelActions)
+    .max(maxWheelActions)
+    .refine(
+      (actions) => new Set(actions).size === actions.length,
+      '轮盘选项不能重复',
+    )
+    .default([...catalog])
+    .catch([...catalog])
+
+/** The hover order shipped before the shelf moved up beside the clipboard. */
+const previousHoverActions = [
+  'agent',
+  'clipboard',
+  'profile',
+  'todo',
+  'break',
+  'water',
+  'focus',
+  'shelf',
+  'mail',
+  'settings',
+] as const
+
+function migrateSettings(value: Settings): Settings {
+  const matchesPrevious =
+    value.hoverWheelActions.length === previousHoverActions.length &&
+    value.hoverWheelActions.every(
+      (action, index) => action === previousHoverActions[index],
+    )
+  if (!matchesPrevious) return value
+  return {
+    ...value,
+    hoverWheelActions: [...defaultSettings.hoverWheelActions],
+  }
+}
 
 const settingsSchema = z
   .object({
@@ -24,6 +69,8 @@ const settingsSchema = z
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
     archiveFormat: z.enum(archiveFormats).default('zip'),
+    hoverWheelActions: wheelActions(hoverActions),
+    fileWheelActions: wheelActions(sliceActions),
   })
   .strict()
 
@@ -34,8 +81,8 @@ export type LoadedSettings = {
 
 export async function loadSettingsFile(path: string): Promise<LoadedSettings> {
   try {
-    const settings = settingsSchema.parse(
-      JSON.parse(await readFile(path, 'utf8')),
+    const settings = migrateSettings(
+      settingsSchema.parse(JSON.parse(await readFile(path, 'utf8'))),
     )
     return { settings, existed: true }
   } catch (error) {

@@ -27,6 +27,7 @@ const props = defineProps<{
   labelSize?: number
   ariaLabel?: string
   singleLine?: boolean
+  preview?: boolean
 }>()
 const actions = computed(() => props.actions ?? sliceActions)
 const labels = computed<Record<string, readonly string[]>>(
@@ -167,7 +168,9 @@ const wedges = computed(() => {
   })
 })
 
-const open = ref<number[]>(new Array(count.value).fill(reducedMotion ? 1 : 0))
+const open = ref<number[]>(
+  new Array(count.value).fill(reducedMotion || props.preview ? 1 : 0),
+)
 const hover = ref<number[]>(new Array(count.value).fill(0))
 const channels = Array.from({ length: count.value }, () => createChannel(0))
 
@@ -196,7 +199,9 @@ function tick(now: number): void {
   clock += delta
 
   let busy = false
-  if (props.closing) {
+  if (props.preview) {
+    // The preview shows the settled wheel; only hover targets animate.
+  } else if (props.closing) {
     open.value = openAtClose.map((value, index) => {
       const delay = index * closeStagger
       const progress = clamp(
@@ -280,7 +285,7 @@ function sliceTransform(index: number): string {
 watch(
   () => props.closing,
   (closing) => {
-    if (!closing) return
+    if (!closing || props.preview) return
     openAtClose.splice(0, count.value, ...open.value)
     closeStartedAt = clock
     start()

@@ -11,6 +11,8 @@ describe('settings store', () => {
     expect(petScales).toContain(defaultSettings.scale)
     expect(defaultSettings.statusBubbles).toBe(true)
     expect(defaultSettings.musicBubbles).toBe(true)
+    expect(defaultSettings.hoverWheelActions).toHaveLength(10)
+    expect(defaultSettings.fileWheelActions).toHaveLength(10)
   })
 
   test('round-trips a saved file atomically', async () => {
@@ -22,6 +24,8 @@ describe('settings store', () => {
       scale: 1.5,
       launchAtLogin: true,
       statusBubbles: false,
+      hoverWheelActions: ['agent', 'todo', 'water', 'settings'],
+      fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
     })
     const loaded = await loadSettingsFile(path)
     expect(loaded.existed).toBe(true)
@@ -30,8 +34,73 @@ describe('settings store', () => {
       scale: 1.5,
       launchAtLogin: true,
       statusBubbles: false,
+      hoverWheelActions: ['agent', 'todo', 'water', 'settings'],
+      fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
     })
     expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(1)
+  })
+
+  test('invalid wheel lists fall back without losing other settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        petName: '团子',
+        hoverWheelActions: ['agent', 'agent', 'todo'],
+        fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.petName).toBe('团子')
+    expect(loaded.settings.hoverWheelActions).toEqual(defaultSettings.hoverWheelActions)
+    expect(loaded.settings.fileWheelActions).toEqual([
+      'stash',
+      'convert',
+      'eat',
+      'ask',
+    ])
+  })
+
+  test('migrates the previous hover wheel order without touching other settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        petName: '团子',
+        hoverWheelActions: [
+          'agent',
+          'clipboard',
+          'profile',
+          'todo',
+          'break',
+          'water',
+          'focus',
+          'shelf',
+          'mail',
+          'settings',
+        ],
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.petName).toBe('团子')
+    expect(loaded.settings.hoverWheelActions).toEqual([
+      'agent',
+      'clipboard',
+      'shelf',
+      'profile',
+      'break',
+      'todo',
+      'water',
+      'focus',
+      'mail',
+      'settings',
+    ])
   })
 
   test('a missing or corrupt file falls back to defaults', async () => {

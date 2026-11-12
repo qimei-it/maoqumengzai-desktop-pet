@@ -26,6 +26,16 @@ export const sliceCornerRadius = 6
 /** Filee's PopOut: how far a hovered slice slides outward. */
 export const popOut = 7
 
+/**
+ * Users choose which actions each wheel shows. Four is the smallest count that
+ * still reads as quadrants rather than large, hard-to-aim wedges; ten is the
+ * most that keeps the two-column Chinese labels legible at the current ring
+ * thickness.
+ */
+export const minWheelActions = 4
+export const maxWheelActions = 10
+
+/** Every action the file wheel can offer, in the default ring order. */
 export const sliceActions = [
   'stash',
   'convert',
@@ -39,6 +49,20 @@ export const sliceActions = [
   'ask',
 ] as const
 export type DropAction = (typeof sliceActions)[number]
+/** Every action the hover wheel can offer, in the default ring order. */
+export const hoverActions = [
+  'agent',
+  'clipboard',
+  'shelf',
+  'profile',
+  'break',
+  'todo',
+  'water',
+  'focus',
+  'mail',
+  'settings',
+] as const
+export type HoverAction = (typeof hoverActions)[number]
 
 /**
  * Labels longer than three characters are split into two vertical columns;
@@ -154,21 +178,23 @@ export function hitTest(
 }
 
 /** The action under a client point measured from the donut centre. */
-export function actionAt(
+export function actionAt<T extends string>(
   x: number,
   y: number,
   scale: number,
-): DropAction | null {
+  actions?: readonly T[],
+): T | null {
+  const list = actions ?? (sliceActions as unknown as readonly T[])
   const metrics = donutMetrics(scale)
   const hit = hitTest(
     x,
     y,
     metrics.inner,
     metrics.outer,
-    sliceCount,
+    list.length,
     Math.round(popOut * scale),
   )
-  return hit.kind === 'segment' ? sliceActions[hit.index] : null
+  return hit.kind === 'segment' ? (list[hit.index] ?? null) : null
 }
 
 export type OutlineStep =
@@ -551,21 +577,6 @@ export function conversionTargets(
   return (shared ?? []).slice(0, limit)
 }
 
-/** Hover menu opens without files and points at companion tools. */
-export const hoverActions = [
-  'agent',
-  'clipboard',
-  'profile',
-  'todo',
-  'break',
-  'water',
-  'focus',
-  'shelf',
-  'mail',
-  'blank',
-] as const
-export type HoverAction = (typeof hoverActions)[number]
-
 export const hoverLabels: Record<HoverAction, readonly string[]> = {
   agent: ['智能体'],
   profile: ['宠物', '档案'],
@@ -576,5 +587,45 @@ export const hoverLabels: Record<HoverAction, readonly string[]> = {
   focus: ['番茄', '时钟'],
   shelf: ['置物架'],
   mail: ['邮件'],
-  blank: [],
+  settings: ['设置'],
+}
+
+/** One-line names for the settings editor. */
+export const hoverActionLabels: Record<HoverAction, string> = {
+  agent: '智能体',
+  clipboard: '剪贴板',
+  profile: '宠物档案',
+  todo: '待办清单',
+  break: '休息提醒',
+  water: '喝水提醒',
+  focus: '番茄时钟',
+  shelf: '置物架',
+  mail: '邮件',
+  settings: '设置',
+}
+
+/**
+ * Keeps a persisted or incoming list usable: unknown and duplicate ids are
+ * dropped, and an out-of-range or empty list falls back to the catalog.
+ */
+export function normalizeWheelActions<T extends string>(
+  value: unknown,
+  catalog: readonly T[],
+  fallback: readonly T[] = catalog,
+  min = minWheelActions,
+  max = maxWheelActions,
+): T[] {
+  if (!Array.isArray(value)) return [...fallback]
+  const allowed = new Set<string>(catalog)
+  const seen = new Set<T>()
+  const actions: T[] = []
+  for (const item of value) {
+    if (typeof item !== 'string' || !allowed.has(item)) continue
+    const action = item as T
+    if (seen.has(action)) continue
+    seen.add(action)
+    actions.push(action)
+  }
+  if (actions.length < min || actions.length > max) return [...fallback]
+  return actions
 }

@@ -35,6 +35,7 @@ import {
   hitTest,
   hoverActions,
   hoverLabels,
+  normalizeWheelActions,
   petSprite,
   popOut,
   sliceActions,
@@ -161,10 +162,16 @@ watch(
   [donutActive, () => state.value?.engines.ffmpeg.status],
   updateWheelHint,
 );
-const donutActions = computed(() =>
-  donutMode.value === "hover" ? hoverActions : sliceActions,
+const fileWheelActions = computed<readonly DropAction[]>(() =>
+  normalizeWheelActions(state.value?.settings.fileWheelActions, sliceActions),
 );
-const donutLabels = computed(() =>
+const hoverWheelActions = computed<readonly HoverAction[]>(() =>
+  normalizeWheelActions(state.value?.settings.hoverWheelActions, hoverActions),
+);
+const donutActions = computed<readonly string[]>(() =>
+  donutMode.value === "hover" ? hoverWheelActions.value : fileWheelActions.value,
+);
+const donutLabels = computed<Record<string, readonly string[]>>(() =>
   donutMode.value === "hover" ? hoverLabels : sliceLabelColumns,
 );
 type PetPose = "base" | "blink" | "lifted" | "music" | "ponder" | "focus";
@@ -264,6 +271,7 @@ function regionAt(clientX: number, clientY: number): DropAction | null {
     clientX - (rect.x + rect.width / 2),
     clientY - (rect.y + rect.height / 2),
     markerScale.value,
+    fileWheelActions.value,
   );
 }
 function armWatchdog(): void {
@@ -693,10 +701,12 @@ function hoverRegionAt(clientX: number, clientY: number): HoverAction | null {
     clientY - (rect.y + rect.height / 2),
     m.inner,
     m.outer,
-    hoverActions.length,
+    hoverWheelActions.value.length,
     Math.round(popOut * markerScale.value),
   );
-  return hit.kind === "segment" ? hoverActions[hit.index] : null;
+  return hit.kind === "segment"
+    ? (hoverWheelActions.value[hit.index] ?? null)
+    : null;
 }
 async function openHoverDonut(): Promise<void> {
   if (
@@ -787,7 +797,10 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     await command({ type: "settings-section", section: "mail" });
     return;
   }
-  if (action === "blank") return;
+  if (action === "settings") {
+    await command({ type: "settings-open" });
+    return;
+  }
   if (action === "clipboard") {
     await command({ type: "clipboard-open" });
     return;
