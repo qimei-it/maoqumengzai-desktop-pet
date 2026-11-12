@@ -2,6 +2,7 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import sanitizeHtml from 'sanitize-html'
+import { detectVerificationCode } from '../shared/mail-code'
 import {
   mailProviderHosts,
   type MailAttachmentInfo,
@@ -21,6 +22,7 @@ export type MailFetchedDetail = {
   bodyHtml?: string
   snippet?: string
   code?: string
+  codeExpiresAt?: number
   attachments: Array<MailAttachmentInfo & { data: Buffer }>
 }
 
@@ -100,21 +102,6 @@ function snippetOf(text: string | undefined): string | undefined {
   return value ? value.slice(0, 160) : undefined
 }
 
-function detectCode(subject: string, text: string): string | undefined {
-  const source = `${subject}\n${text}`
-  if (
-    !/验证码|校验码|动态码|verification code|security code|one-time code|otp/i.test(
-      source,
-    )
-  )
-    return undefined
-  const match =
-    /(?:验证码|校验码|动态码|verification code|security code|one-time code|otp)[^\d]{0,16}(\d{4,8})/i.exec(
-      source,
-    ) ?? /\b(\d{6})\b/.exec(source)
-  return match?.[1]
-}
-
 export async function syncMailInbox(
   provider: MailProvider,
   email: string,
@@ -175,6 +162,7 @@ export async function fetchMailDetail(
       throw new Error('邮件内容为空。')
     const parsed = await simpleParser(message.source)
     const from = parsed.from?.value?.[0]
+    const subject = parsed.subject || '(无主题)'
     const text = parsed.text || ''
     const html = parsed.html
       ? sanitizeHtml(parsed.html, {
@@ -187,6 +175,16 @@ export async function fetchMailDetail(
           disallowedTagsMode: 'discard',
         })
       : undefined
+    const detectionText =
+      text ||
+      (html
+        ? sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+        : '')
+    const detected = detectVerificationCode(
+      subject,
+      detectionText,
+      parsed.date?.getTime() ?? Date.now(),
+    )
     const attachments = parsed.attachments.map((attachment, index) => ({
       part: attachment.cid || `part-${index + 1}`,
       filename:
@@ -198,16 +196,23 @@ export async function fetchMailDetail(
     }))
     await client.messageFlagsAdd(String(uid), ['\\Seen'])
     return {
-      subject: parsed.subject || '(无主题)',
+      subject,
       ...(from?.name ? { fromName: from.name } : {}),
       ...(from?.address ? { fromAddress: from.address } : {}),
       ...(parsed.date ? { date: parsed.date.getTime() } : {}),
       unread: false,
       ...(text ? { bodyText: text } : {}),
       ...(html ? { bodyHtml: html } : {}),
-      ...(snippetOf(text) ? { snippet: snippetOf(text) } : {}),
-      ...(detectCode(parsed.subject || '', text)
-        ? { code: detectCode(parsed.subject || '', text) }
+      ...(snippetOf(detectionText)
+        ? { snippet: snippetOf(detectionText) }
+        : {}),
+      ...(detected
+        ? {
+            code: detected.code,
+            ...(detected.expiresAt
+              ? { codeExpiresAt: detected.expiresAt }
+              : {}),
+          }
         : {}),
       attachments,
     }

@@ -63,10 +63,10 @@ import { dismissToast, toastItems } from './toasts'
 }
 .toast-enter-from {
   opacity: 0;
-  transform: translateY(12px) scale(0.98);
+  transform: translateY(-12px) scale(0.98);
 }
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
+  transform: translateY(-8px) scale(0.98);
 }
 </style>

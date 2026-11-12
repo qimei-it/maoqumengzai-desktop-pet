@@ -226,6 +226,49 @@ export class MailDatabase {
     this.db.prepare('DELETE FROM mail_accounts WHERE id = ?').run(id)
   }
 
+  /** Removes cached messages older than the cutoff and returns their keys. */
+  pruneMessages(
+    olderThan: number,
+  ): Array<{ accountId: string; folder: string; uid: number }> {
+    const rows = this.db
+      .prepare(
+        `SELECT account_id, folder, uid FROM mail_messages
+         WHERE COALESCE(date, cached_at) < ?`,
+      )
+      .all(olderThan) as unknown as Array<{
+      account_id: string
+      folder: string
+      uid: number
+    }>
+    if (!rows.length) return []
+    const deleteAttachments = this.db.prepare(
+      'DELETE FROM mail_attachments WHERE account_id = ? AND folder = ? AND uid = ?',
+    )
+    const deleteCodes = this.db.prepare(
+      'DELETE FROM mail_codes WHERE account_id = ? AND folder = ? AND uid = ?',
+    )
+    const deleteMessage = this.db.prepare(
+      'DELETE FROM mail_messages WHERE account_id = ? AND folder = ? AND uid = ?',
+    )
+    this.db.exec('BEGIN')
+    try {
+      for (const row of rows) {
+        deleteAttachments.run(row.account_id, row.folder, row.uid)
+        deleteCodes.run(row.account_id, row.folder, row.uid)
+        deleteMessage.run(row.account_id, row.folder, row.uid)
+      }
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+    return rows.map((row) => ({
+      accountId: row.account_id,
+      folder: row.folder,
+      uid: row.uid,
+    }))
+  }
+
   upsertMessages(
     accountId: string,
     folder: string,
@@ -342,13 +385,39 @@ export class MailDatabase {
     }>
     const codeRow = this.db
       .prepare(
-        `SELECT code FROM mail_codes
+        `SELECT code, expires_at FROM mail_codes
          WHERE account_id = ? AND folder = ? AND uid = ?
          ORDER BY detected_at DESC LIMIT 1`,
       )
       .get(accountId, folder, uid) as unknown as
-      | { code: string }
+      | { code: string; expires_at: number | null }
       | undefined
+    const superseded =
+      Boolean(codeRow?.code) && row.from_address && row.date
+        ? Boolean(
+            this.db
+              .prepare(
+                `SELECT 1 FROM mail_codes newer
+                 JOIN mail_messages newer_message
+                   ON newer_message.account_id = newer.account_id
+                  AND newer_message.folder = newer.folder
+                  AND newer_message.uid = newer.uid
+                 WHERE newer.account_id = ? AND newer.folder = ?
+                   AND LOWER(newer_message.from_address) = LOWER(?)
+                   AND (newer_message.date > ? OR
+                        (newer_message.date = ? AND newer.uid > ?))
+                 LIMIT 1`,
+              )
+              .get(
+                accountId,
+                folder,
+                row.from_address,
+                row.date,
+                row.date,
+                uid,
+              ),
+          )
+        : false
     return {
       uid: row.uid,
       subject: row.subject || '(无主题)',
@@ -360,7 +429,15 @@ export class MailDatabase {
       hasAttachments: Boolean(row.has_attachments),
       ...(row.body_text ? { bodyText: row.body_text } : {}),
       ...(row.body_html ? { bodyHtml: row.body_html } : {}),
-      ...(codeRow?.code ? { code: codeRow.code } : {}),
+      ...(codeRow?.code
+        ? {
+            code: codeRow.code,
+            ...(codeRow.expires_at
+              ? { codeExpiresAt: codeRow.expires_at }
+              : {}),
+            ...(superseded ? { codeSuperseded: true } : {}),
+          }
+        : {}),
       attachments: attachments.map((item) => ({
         part: item.part,
         filename: item.filename,
@@ -380,6 +457,7 @@ export class MailDatabase {
       bodyHtml?: string
       snippet?: string
       code?: string
+      codeExpiresAt?: number
       attachments: MailAttachmentInfo[]
     },
   ): void {
@@ -429,9 +507,16 @@ export class MailDatabase {
         .prepare(
           `INSERT INTO mail_codes
             (account_id, folder, uid, code, detected_at, expires_at, copied_at)
-           VALUES (?, ?, ?, ?, ?, NULL, NULL)`,
+           VALUES (?, ?, ?, ?, ?, ?, NULL)`,
         )
-        .run(accountId, folder, uid, detail.code, Date.now())
+        .run(
+          accountId,
+          folder,
+          uid,
+          detail.code,
+          Date.now(),
+          detail.codeExpiresAt ?? null,
+        )
   }
 
   setUnread(

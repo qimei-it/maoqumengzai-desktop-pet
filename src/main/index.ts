@@ -160,6 +160,7 @@ import {
   probeMailAccount,
   syncMailInbox,
 } from './mail-sync'
+import { mailUnreadTotal } from '../shared/mail'
 import type {
   MailConfig,
   MailMessageDetail,
@@ -274,9 +275,13 @@ let mailSyncing = false
 let mailError: string | undefined
 let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let mailWindow: BrowserWindow | undefined
+let mailBadgeImage: ReturnType<typeof nativeImage.createFromPath> | undefined
+let mailBadgeTotal = -1
+let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelLoading = false
 let mailPanelError: string | undefined
+let mailPanelErrorKind: 'sync' | 'detail' | undefined
 let mailPanelNotice: string | undefined
 let mailPanelNoticeId = 0
 let mailPanelMessages: MailMessageSummary[] = []
@@ -2252,6 +2257,7 @@ async function openMail(accountId?: string): Promise<void> {
   mailPanelAccountId = account.id
   mailPanelSelected = undefined
   mailPanelError = undefined
+  mailPanelErrorKind = undefined
   mailPanelNotice = undefined
   loadMailMessages(account.id)
   if (settingsWindow?.isVisible()) settingsWindow.hide()
@@ -2279,15 +2285,20 @@ async function refreshMailPanel(): Promise<void> {
   const accountId = mailPanelAccountId
   mailPanelLoading = true
   mailPanelError = undefined
+  mailPanelErrorKind = undefined
   broadcast()
   try {
     await syncMailAccount(accountId, true)
     loadMailMessages(accountId)
     const account = mailDb.account(accountId)
-    if (account?.status === 'error') mailPanelError = account.error
+    if (account?.status === 'error') {
+      mailPanelError = account.error
+      mailPanelErrorKind = 'sync'
+    }
   } catch (error) {
     mailPanelError =
       error instanceof Error ? error.message : '邮件同步失败。'
+    mailPanelErrorKind = 'sync'
   } finally {
     mailPanelLoading = false
     broadcast()
@@ -2340,6 +2351,9 @@ async function ensureMailDetail(
     ...(detail.bodyHtml ? { bodyHtml: detail.bodyHtml } : {}),
     ...(detail.snippet ? { snippet: detail.snippet } : {}),
     ...(detail.code ? { code: detail.code } : {}),
+    ...(detail.codeExpiresAt
+      ? { codeExpiresAt: detail.codeExpiresAt }
+      : {}),
     attachments,
   })
   return mailDb.message(accountId, 'INBOX', uid)
@@ -2348,7 +2362,6 @@ async function selectMail(uid: number): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
   mailPanelLoading = true
-  mailPanelError = undefined
   broadcast()
   try {
     const before = mailDb.message(accountId, 'INBOX', uid)
@@ -2357,15 +2370,22 @@ async function selectMail(uid: number): Promise<void> {
     if (before?.unread) {
       mailDb.setUnread(accountId, 'INBOX', uid, false)
       const account = mailDb.account(accountId)
-      if (account)
+      if (account) {
         mailDb.updateAccount(accountId, {
           unread: Math.max(0, account.unread - 1),
         })
+        void updateMailBadge()
+      }
+    }
+    if (mailPanelErrorKind !== 'sync') {
+      mailPanelError = undefined
+      mailPanelErrorKind = undefined
     }
     mailPanelSelected = detail
   } catch (error) {
     mailPanelError =
       error instanceof Error ? error.message : '无法读取邮件。'
+    mailPanelErrorKind = 'detail'
   } finally {
     mailPanelLoading = false
     broadcast()
@@ -2418,17 +2438,80 @@ function scheduleMailSync(): void {
     void syncAllMail(true)
   }, mailConfig.syncMinutes * 60_000)
 }
-function notifyMail(account: { email: string; displayName?: string }, unread: number): void {
+async function pruneMailCache(): Promise<void> {
+  if (!mailDb || mailConfig.retentionDays <= 0 || mailPruning) return
+  mailPruning = true
+  try {
+    const cutoff = Date.now() - mailConfig.retentionDays * 86_400_000
+    const removed = mailDb.pruneMessages(cutoff)
+    if (!removed.length) return
+    for (const item of removed) {
+      await rm(
+        join(dataRoot, 'mail-cache', item.accountId, item.folder, String(item.uid)),
+        { recursive: true, force: true },
+      ).catch(() => {})
+    }
+    if (
+      mailPanelSelected &&
+      removed.some(
+        (item) =>
+          item.accountId === mailPanelAccountId &&
+          item.uid === mailPanelSelected?.uid,
+      )
+    )
+      mailPanelSelected = undefined
+  } finally {
+    mailPruning = false
+  }
+}
+async function updateMailBadge(): Promise<void> {
+  if (!mailDb) return
+  const total = mailConfig.unreadBadge
+    ? mailUnreadTotal(mailDb.listAccounts())
+    : 0
+  if (process.platform === 'win32' && (!pet || pet.isDestroyed())) return
+  if (total === mailBadgeTotal) return
+  mailBadgeTotal = total
+  if (process.platform === 'darwin') {
+    app.dock?.setBadge(total > 0 ? String(total) : '')
+    return
+  }
+  if (process.platform === 'win32') {
+    if (!total) {
+      pet.setOverlayIcon(null, '')
+      return
+    }
+    mailBadgeImage ??= nativeImage.createFromPath(
+      iconPath('mail-badge.png'),
+    )
+    if (!mailBadgeImage.isEmpty())
+      pet.setOverlayIcon(mailBadgeImage, `${total} 封未读邮件`)
+    return
+  }
+  app.setBadgeCount(total)
+}
+function notifyMail(
+  account: { id: string; email: string; displayName?: string },
+  unread: number,
+): void {
   if (!mailConfig.notify || !Notification.isSupported()) return
-  new Notification({
+  const notification = new Notification({
     title: '新邮件',
     body: `${account.displayName || account.email} 有 ${unread} 封未读`,
-  }).show()
+  })
+  notification.on('click', () => {
+    void openMail(account.id)
+  })
+  notification.show()
 }
 async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
+  const prune = patch.retentionDays !== undefined
   mailConfig = { ...mailConfig, ...patch }
   await saveMailConfig(mailConfigPath, mailConfig)
   scheduleMailSync()
+  if (prune) await pruneMailCache()
+  if (mailPanelAccountId) loadMailMessages(mailPanelAccountId)
+  void updateMailBadge()
   broadcast()
 }
 async function addMailAccount(
@@ -2454,6 +2537,7 @@ async function addMailAccount(
       lastSyncAt: Date.now(),
       error: null,
     })
+    void updateMailBadge()
     addEvent(`邮件账户 ${email} 已添加。`)
     showToast('邮箱账户已添加')
   } catch (error) {
@@ -2485,6 +2569,7 @@ async function reauthorizeMail(accountId: string, secret: string): Promise<void>
       lastSyncAt: Date.now(),
       error: null,
     })
+    void updateMailBadge()
     showToast('邮箱授权已更新')
   } catch (error) {
     mailError = error instanceof Error ? error.message : '邮箱授权更新失败。'
@@ -2498,7 +2583,12 @@ async function removeMailAccount(accountId: string): Promise<void> {
   if (!mailDb) return
   mailDb.removeAccount(accountId)
   await removeMailSecret(mailSecretsPath, accountId).catch(() => {})
+  await rm(join(dataRoot, 'mail-cache', accountId), {
+    recursive: true,
+    force: true,
+  }).catch(() => {})
   mailError = undefined
+  void updateMailBadge()
   broadcast()
   showToast('邮箱账户已删除')
 }
@@ -2532,7 +2622,9 @@ async function syncMailAccount(
       lastSyncAt: Date.now(),
       error: null,
     })
+    await pruneMailCache()
     if (mailPanelAccountId === accountId) loadMailMessages(accountId)
+    void updateMailBadge()
     if (probe.unread > account.unread) notifyMail(account, probe.unread)
     mailError = undefined
   } catch (error) {
@@ -7044,6 +7136,7 @@ async function createWindows(): Promise<void> {
       }
     }
   }, 16)
+  void updateMailBadge()
   addEvent('真实 Electron 窗口已启动；交互标记不代表正式角色素材。')
 }
 
@@ -7090,6 +7183,8 @@ else {
         mailConfigPath,
         app.getPath('downloads'),
       )
+      await pruneMailCache()
+      void updateMailBadge()
       scheduleMailSync()
       setTimeout(() => {
         void syncAllMail(true)

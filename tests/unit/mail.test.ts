@@ -8,6 +8,7 @@ import {
   loadMailConfig,
   saveMailConfig,
 } from '../../src/main/mail-config'
+import { mailUnreadTotal } from '../../src/shared/mail'
 
 const directories: string[] = []
 
@@ -67,6 +68,89 @@ describe('mail database', () => {
     db.close()
   })
 
+
+  test('prunes cached messages older than the retention window', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: 'qq', email: 'old@qq.com' })
+    const now = Date.now()
+    db.upsertMessages(account.id, 'INBOX', [
+      {
+        uid: 1,
+        subject: '旧缓存',
+        date: now - 40 * 86_400_000,
+        unread: false,
+        hasAttachments: true,
+      },
+      {
+        uid: 2,
+        subject: '新缓存',
+        date: now - 2 * 86_400_000,
+        unread: false,
+        hasAttachments: false,
+      },
+    ])
+    db.saveMessageDetail(account.id, 'INBOX', 1, {
+      bodyText: '旧正文',
+      code: '123456',
+      attachments: [
+        {
+          part: 'part-1',
+          filename: 'old.txt',
+          size: 3,
+          localPath: '/tmp/old.txt',
+        },
+      ],
+    })
+    expect(db.pruneMessages(now - 30 * 86_400_000)).toEqual([
+      { accountId: account.id, folder: 'INBOX', uid: 1 },
+    ])
+    expect(db.listMessages(account.id).map((item) => item.uid)).toEqual([2])
+    expect(db.message(account.id, 'INBOX', 1)).toBeUndefined()
+    db.close()
+  })
+
+  test('marks older codes from the same sender as superseded', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: 'gmail', email: 'b@gmail.com' })
+    db.upsertMessages(account.id, 'INBOX', [
+      {
+        uid: 1,
+        subject: '验证码 111111',
+        fromAddress: 'security@example.com',
+        date: 1000,
+        unread: false,
+        hasAttachments: false,
+      },
+      {
+        uid: 2,
+        subject: '验证码 222222',
+        fromAddress: 'security@example.com',
+        date: 2000,
+        unread: false,
+        hasAttachments: false,
+      },
+    ])
+    db.saveMessageDetail(account.id, 'INBOX', 1, {
+      bodyText: '验证码 111111',
+      code: '111111',
+      attachments: [],
+    })
+    db.saveMessageDetail(account.id, 'INBOX', 2, {
+      bodyText: '验证码 222222',
+      code: '222222',
+      codeExpiresAt: Date.now() + 60_000,
+      attachments: [],
+    })
+    expect(db.message(account.id, 'INBOX', 1)?.codeSuperseded).toBe(true)
+    expect(db.message(account.id, 'INBOX', 2)?.codeSuperseded).toBeUndefined()
+    expect(db.message(account.id, 'INBOX', 2)?.codeExpiresAt).toBeGreaterThan(
+      Date.now(),
+    )
+    db.close()
+  })
+
   test('stores message summaries, details, codes and attachments', async () => {
     const directory = await tempDirectory()
     const db = new MailDatabase(join(directory, 'mail.db'))
@@ -109,6 +193,13 @@ describe('mail database', () => {
     db.setUnread(account.id, 'INBOX', 2, false)
     expect(db.message(account.id, 'INBOX', 2)?.unread).toBe(false)
     db.close()
+  })
+})
+
+describe('mail unread total', () => {
+  test('sums unread counts across accounts', () => {
+    expect(mailUnreadTotal([{ unread: 2 }, { unread: 3 }])).toBe(5)
+    expect(mailUnreadTotal([])).toBe(0)
   })
 })
 

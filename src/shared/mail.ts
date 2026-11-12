@@ -49,6 +49,15 @@ export const mailProviderHosts: Record<
 export const mailSyncOptions = [5, 10, 15, 30, 45, 60] as const
 export const mailRetentionOptions = [30, 90, 180, 0] as const
 
+export function mailUnreadTotal(
+  accounts: ReadonlyArray<Pick<MailAccount, 'unread'>>,
+): number {
+  return accounts.reduce(
+    (total, account) => total + Math.max(0, account.unread),
+    0,
+  )
+}
+
 export type MailMessageSummary = {
   uid: number
   subject: string
@@ -73,6 +82,8 @@ export type MailMessageDetail = MailMessageSummary & {
   bodyHtml?: string
   attachments: MailAttachmentInfo[]
   code?: string
+  codeExpiresAt?: number
+  codeSuperseded?: boolean
 }
 
 export type MailPanelState = {

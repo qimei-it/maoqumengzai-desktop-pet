@@ -2870,6 +2870,26 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
       return snapshot.ok ? snapshot.value.mail.config.notify : true;
     })
     .toBe(false);
+  await settings
+    .locator(".mail-row", { hasText: "未读角标" })
+    .locator(".mail-switch")
+    .click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.mail.config.unreadBadge : true;
+    })
+    .toBe(false);
+  await settings
+    .locator(".mail-row", { hasText: "缓存保留" })
+    .locator("select")
+    .selectOption("30");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.mail.config.retentionDays : 0;
+    })
+    .toBe(30);
   await pet.evaluate(() =>
     window.mqmz!.command({ type: "settings-close" }),
   );
