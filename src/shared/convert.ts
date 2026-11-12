@@ -31,6 +31,7 @@ export const mediaTargets = [
 ] as const
 export type MediaTarget = (typeof mediaTargets)[number]
 export type PdfConversionTarget = 'pdf-png' | 'pdf-jpg' | 'pdf-txt'
+export type PdfSecurityTarget = 'pdf-encrypt' | 'pdf-decrypt'
 export type ConvertOutputExtension =
   | ImageTargetLower
   | MediaTarget
@@ -43,6 +44,7 @@ export type ConvertAction =
   | ImageTargetLower
   | MediaTarget
   | PdfConversionTarget
+  | PdfSecurityTarget
   | 'office-pdf'
   | 'office-docx'
   | 'office-xlsx'
@@ -75,6 +77,12 @@ export function isMediaTarget(value: string): value is MediaTarget {
 
 export function isPdfTarget(value: string): value is PdfConversionTarget {
   return ['pdf-png', 'pdf-jpg', 'pdf-txt'].includes(value)
+}
+
+export function isPdfSecurityTarget(
+  value: string,
+): value is PdfSecurityTarget {
+  return value === 'pdf-encrypt' || value === 'pdf-decrypt'
 }
 
 export function isOfficeTarget(
@@ -194,7 +202,7 @@ export function candidateOutputPath(
 /** Targets offered by the panel for this batch. */
 export function availableConvertTargets(
   names: readonly string[],
-  options: { ffmpeg?: boolean } = {},
+  options: { ffmpeg?: boolean; qpdf?: boolean } = {},
 ): ConvertTarget[] {
   if (!names.length) return []
   if (names.every(isImageFile)) {
@@ -215,6 +223,20 @@ export function availableConvertTargets(
       { id: 'pdf-png', label: 'PNG', group: 'pdf' },
       { id: 'pdf-jpg', label: 'JPG', group: 'pdf' },
       { id: 'pdf-txt', label: 'TXT', group: 'pdf' },
+      ...(options.qpdf
+        ? [
+            {
+              id: 'pdf-encrypt' as const,
+              label: '加密 PDF',
+              group: 'pdf' as const,
+            },
+            {
+              id: 'pdf-decrypt' as const,
+              label: '解除密码',
+              group: 'pdf' as const,
+            },
+          ]
+        : []),
     ]
   }
   if (options.ffmpeg && names.every((name) => isVideoFile(name) || isAudioFile(name))) {
@@ -275,6 +297,18 @@ export function mergedOutputName(sourcePath: string, attempt: number): string {
 
 export function splitPageName(page: number, attempt: number): string {
   return `page-${page}${attempt === 1 ? '' : ` (${attempt})`}.pdf`
+}
+
+export function securedOutputName(
+  sourcePath: string,
+  action: 'pdf-encrypt' | 'pdf-decrypt',
+  attempt: number,
+): string {
+  const name = basename(sourcePath)
+  const ext = extname(name)
+  const stem = ext ? name.slice(0, -ext.length) : name
+  const suffix = action === 'pdf-encrypt' ? '加密' : '解密'
+  return `${stem}-${suffix}${attempt === 1 ? '' : ` (${attempt})`}.pdf`
 }
 
 export function pdfPageName(

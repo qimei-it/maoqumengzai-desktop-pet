@@ -28,11 +28,13 @@ import {
   rename,
   realpath,
   rm,
+  stat,
   unlink,
   writeFile,
 } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { gunzip } from 'node:zlib'
 import { promisify } from 'node:util'
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
@@ -128,6 +130,7 @@ import {
   isMediaTarget,
   isOfficeTarget,
   isPdfFile,
+  isPdfSecurityTarget,
   isPdfTarget,
   type ConvertAction,
 } from '../shared/convert'
@@ -142,6 +145,7 @@ import {
 import { convertMedia } from './convert-media'
 import { buildConvertOutput } from './convert-preview'
 import { convertOffice } from './convert-office'
+import { convertPdfSecurity } from './convert-qpdf'
 import { convertDocumentToPdf } from './convert-document'
 import { ofdToImages, ofdToPdf } from './convert-ofd'
 import { csvToXlsx } from './convert-spreadsheet'
@@ -153,6 +157,8 @@ import {
   type SettingsState,
 } from '../shared/settings'
 import { createArchive, extractArchive } from './archive-zip'
+import { checkBuiltinEngines, type BuiltinEngineHealth } from './engine-health'
+import { builtinEngine } from '../shared/conversion-engines'
 import { shrinkImage } from './compress-images'
 import { convertImage } from './convert-images'
 import {
@@ -189,7 +195,7 @@ const base =
     : app.getPath('appData')
 if (!base || !isAbsolute(base))
   throw new Error('Local application data directory unavailable')
-const override = !app.isPackaged ? process.env.MQMZ_DATA_DIR : undefined
+const override = process.env.MQMZ_DATA_DIR
 if (override && !isAbsolute(override))
   throw new Error('MQMZ_DATA_DIR must be absolute')
 const dataRoot = override || join(base, 'mqmz-desktop')
@@ -233,6 +239,10 @@ let ffmpegOrigin: 'none' | 'download' | 'local' = 'none'
 let libreOfficeReady = false
 let libreOfficeVersion: string | undefined
 let libreOfficeError: string | undefined
+let qpdfReady = false
+let qpdfVersion: string | undefined
+let qpdfError: string | undefined
+let builtinHealth: Record<string, BuiltinEngineHealth> = {}
 let ffmpegInstalling = false
 let ffmpegProgress = 0
 let ffmpegError: string | undefined
@@ -450,6 +460,8 @@ function snapshot(): Snapshot {
     engines: {
       ffmpeg: ffmpegState(),
       libreoffice: libreOfficeState(),
+      qpdf: qpdfState(),
+      builtin: builtinHealth,
     },
     focus: {
       phase: focusData.phase,
@@ -918,6 +930,8 @@ async function openConvert(
           )
         })
   const skipped = selected.length - supported.length
+  if (engine === 'builtin' && supported.some((file) => isPdfFile(file.name)))
+    await refreshQpdfState()
   cancelConvert()
   convertToken += 1
   convertBusy = false
@@ -926,7 +940,7 @@ async function openConvert(
   convertFiles = supported.map(({ id, name, size }) => ({ id, name, size }))
   convertTargets = availableConvertTargets(
     supported.map((file) => file.name),
-    { ffmpeg: engine === 'ffmpeg' },
+    { ffmpeg: engine === 'ffmpeg', qpdf: engine === 'builtin' && qpdfReady },
   ).filter((target) => mode !== 'audio' || target.group === 'audio')
   convertProgress = { done: 0, total: supported.length }
   convertOutcome = undefined
@@ -991,7 +1005,7 @@ function removeConvertFile(fileId: string): void {
   const engine = conversionEngineFor(convertFiles.map((file) => file.name))
   convertTargets = availableConvertTargets(
     convertFiles.map((file) => file.name),
-    { ffmpeg: engine === 'ffmpeg' },
+    { ffmpeg: engine === 'ffmpeg', qpdf: engine === 'builtin' && qpdfReady },
   )
   convertNotice = !convertTargets.length
     ? engine === 'ffmpeg'
@@ -1024,8 +1038,12 @@ async function openConvertOutput(outputId: string): Promise<void> {
 }
 function convertFailureMessage(error: unknown): string {
   const text = error instanceof Error ? error.message : ''
+  if (/请输入 PDF 密码/.test(text)) return text
+  if (/invalid password|incorrect password|password.*(incorrect|invalid)/i.test(text))
+    return 'PDF 密码不正确'
   if (/unsupported image format|not a valid|invalid image/i.test(text))
     return '不是有效的图片'
+  if (/超时|timed out/i.test(text)) return '转换超时'
   if (/encrypt|passwordexception|password/i.test(text))
     return 'PDF 已加密，暂不支持'
   if (/没有可提取的文字/.test(text)) return text
@@ -1041,8 +1059,31 @@ function convertFailureMessage(error: unknown): string {
     return '没有可用的音轨'
   if (/unknown encoder|encoder.*not found/i.test(text))
     return 'FFmpeg 缺少所需编码器'
+  if (/qpdf/i.test(text)) return 'qpdf 处理失败'
+  if (/组件损坏|组件文件缺失|二进制路径缺失|无法生成/.test(text)) return text
   if (/输出目录里没有可用的文件名/.test(text)) return text
   return '转换失败'
+}
+
+function requiredBuiltinEngines(action: ConvertAction): string[] {
+  if (action === 'jpg' || action === 'png' || action === 'webp') return ['sharp']
+  if (action === 'pdf') return ['sharp', 'pdf-lib']
+  if (action === 'merge-pdf' || action === 'split-pdf') return ['pdf-lib']
+  if (action === 'pdf-png' || action === 'pdf-jpg') return ['pdfjs', 'sharp']
+  if (action === 'pdf-txt') return ['pdfjs']
+  if (action === 'ofd-pdf') return ['easyofd', 'pdf-lib']
+  if (action === 'ofd-png' || action === 'ofd-jpg') return ['easyofd', 'sharp']
+  if (action === 'csv-xlsx') return ['fflate']
+  if (action === 'document-pdf') return ['chromium']
+  return []
+}
+
+function assertBuiltinEngines(action: ConvertAction): void {
+  for (const id of requiredBuiltinEngines(action)) {
+    if (builtinHealth[id]?.status !== 'error') continue
+    const name = builtinEngine(id)?.name ?? id
+    throw new Error(`${name} 组件损坏，请重新安装应用。`)
+  }
 }
 function convertAbortError(): Error {
   const error = new Error('转换已取消')
@@ -1061,11 +1102,17 @@ function cancelConvert(): void {
   convertAbort?.abort()
 }
 
-async function startConvert(action: ConvertAction): Promise<void> {
+async function startConvert(
+  action: ConvertAction,
+  password?: string,
+): Promise<void> {
   if (convertBusy) throw new Error('正在转换，请稍候。')
   if (!convertFiles.length) throw new Error('没有可转换的文件。')
   if (!convertTargets.some((target) => target.id === action))
     throw new Error('这个目标格式不可用。')
+  if (isPdfSecurityTarget(action) && !password)
+    throw new Error('请输入 PDF 密码。')
+  assertBuiltinEngines(action)
   const token = ++convertToken
   const controller = new AbortController()
   const signal = controller.signal
@@ -1123,6 +1170,53 @@ async function startConvert(action: ConvertAction): Promise<void> {
       }
     }
     if (!cancelled) convertProgress = { done: 1, total: 1 }
+  } else if (isPdfSecurityTarget(action)) {
+    const qpdf = await qpdfExecutable()
+    if (!qpdf) {
+      convertBusy = false
+      convertAbort = undefined
+      convertNotice = 'PDF 加密与解密需要先在设置中选择本地 qpdf。'
+      broadcast()
+      return
+    }
+    for (const [index, file] of convertFiles.entries()) {
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index, total }
+      broadcast()
+      try {
+        const source = await registeredFile(file.id)
+        const output = await convertPdfSecurity(
+          qpdf,
+          source,
+          action,
+          password ?? '',
+          batch,
+          signal,
+        )
+        convertFolders.add(dirname(output))
+        converted += 1
+        if (token !== convertToken) return
+        convertProgress = { done: index + 1, total }
+        broadcast()
+        await recordConvertOutput(output, null)
+      } catch (error) {
+        if (isConvertAbort(error, signal)) {
+          cancelled = true
+          break
+        }
+        failed += 1
+        messages.push(`${file.name}：${convertFailureMessage(error)}`)
+      }
+      if (signal.aborted) {
+        cancelled = true
+        break
+      }
+      convertProgress = { done: index + 1, total }
+      broadcast()
+    }
   } else if (isPdfTarget(action)) {
     for (const [index, file] of convertFiles.entries()) {
       if (signal.aborted) {
@@ -1969,7 +2063,7 @@ async function refreshFfmpegState(): Promise<void> {
   const local = enginePrefs.localPaths.ffmpeg
   if (local) {
     try {
-      const info = await lstat(local)
+      const info = await stat(local)
       if (info.isFile() && info.size > 0) {
         ffmpegInstalled = true
         ffmpegOrigin = 'local'
@@ -2015,7 +2109,7 @@ async function refreshLibreOfficeState(): Promise<void> {
     return
   }
   try {
-    const info = await lstat(local)
+    const info = await stat(local)
     libreOfficeReady = info.isFile() && info.size > 0
     if (!libreOfficeReady) libreOfficeError = '本地程序不存在。'
   } catch {
@@ -2079,6 +2173,138 @@ async function chooseLocalLibreOffice(): Promise<void> {
   await refreshLibreOfficeState()
   broadcast()
   showToast('已使用本地 LibreOffice')
+}
+function qpdfState() {
+  return {
+    status: qpdfReady
+      ? ('ready' as const)
+      : qpdfError
+        ? ('error' as const)
+        : ('missing' as const),
+    source: qpdfReady ? '本地程序' : '未选择',
+    ...(qpdfVersion ? { version: qpdfVersion } : {}),
+    ...(qpdfError ? { error: qpdfError } : {}),
+  }
+}
+async function refreshQpdfState(): Promise<void> {
+  const local = enginePrefs.localPaths.qpdf
+  qpdfError = undefined
+  if (!local) {
+    qpdfReady = false
+    qpdfVersion = undefined
+    return
+  }
+  try {
+    const info = await stat(local)
+    qpdfReady = info.isFile() && info.size > 0
+    if (!qpdfReady) qpdfError = '本地程序不存在。'
+  } catch {
+    qpdfReady = false
+    qpdfError = '本地程序不存在。'
+  }
+}
+async function qpdfExecutable(): Promise<string | null> {
+  await refreshQpdfState()
+  return qpdfReady ? enginePrefs.localPaths.qpdf ?? null : null
+}
+function validateQpdf(path: string): Promise<string | undefined> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      path,
+      ['--version'],
+      { timeout: 10_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error('无法运行所选 qpdf。'))
+          return
+        }
+        const version = /qpdf version\s+([\d.]+)/i.exec(
+          `${stdout}\n${stderr}`,
+        )?.[1]
+        resolve(version)
+      },
+    )
+  })
+}
+async function chooseLocalQpdf(): Promise<void> {
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择 qpdf 可执行文件',
+    properties: ['openFile'],
+    filters:
+      process.platform === 'win32'
+        ? [{ name: '程序', extensions: ['exe'] }]
+        : [],
+  })
+  const path = result.filePaths[0]
+  if (result.canceled || !path) return
+  try {
+    qpdfVersion = await validateQpdf(path)
+  } catch {
+    showToast('所选程序无法运行')
+    return
+  }
+  enginePrefs = {
+    ...enginePrefs,
+    localPaths: { ...enginePrefs.localPaths, qpdf: path },
+  }
+  await saveEnginePrefs(enginePrefsPath, enginePrefs)
+  qpdfError = undefined
+  await refreshQpdfState()
+  broadcast()
+  showToast('已使用本地 qpdf')
+}
+async function cleanConversionTemp(): Promise<void> {
+  try {
+    const entries = await readdir(tmpdir())
+    await Promise.all(
+      entries
+        .filter((name) =>
+          /^mqmz-(office|ofd|document)-/.test(name),
+        )
+        .map((name) =>
+          rm(join(tmpdir(), name), { recursive: true, force: true }).catch(
+            () => {},
+          ),
+        ),
+    )
+  } catch {
+    /* temp cleanup is best effort */
+  }
+}
+async function removeEngine(
+  id: 'ffmpeg' | 'libreoffice' | 'qpdf',
+): Promise<void> {
+  if (convertBusy) throw new Error('正在转换，请先取消。')
+  if (id === 'ffmpeg') {
+    cancelFfmpegInstall()
+    await rm(join(engineRoot, 'ffmpeg'), {
+      recursive: true,
+      force: true,
+    }).catch(() => {})
+    ffmpegInstalled = false
+    ffmpegOrigin = 'none'
+    ffmpegError = undefined
+    ffmpegProgress = 0
+  } else if (id === 'libreoffice') {
+    libreOfficeReady = false
+    libreOfficeVersion = undefined
+    libreOfficeError = undefined
+  } else {
+    qpdfReady = false
+    qpdfVersion = undefined
+    qpdfError = undefined
+  }
+  const localPaths = { ...enginePrefs.localPaths }
+  delete localPaths[id]
+  enginePrefs = { ...enginePrefs, localPaths }
+  await saveEnginePrefs(enginePrefsPath, enginePrefs)
+  await cleanConversionTemp()
+  broadcast()
+  showToast(
+    id === 'ffmpeg'
+      ? 'FFmpeg 已卸载'
+      : `${id === 'libreoffice' ? 'LibreOffice' : 'qpdf'} 选择已清除`,
+  )
 }
 async function ffmpegExecutable(): Promise<string | null> {
   await refreshFfmpegState()
@@ -2146,8 +2372,10 @@ async function installFfmpeg(): Promise<void> {
       ffmpegError = undefined
       addEvent('FFmpeg 下载已取消。')
     } else {
-      ffmpegError =
-        error instanceof Error ? error.message : 'FFmpeg 安装失败。'
+      const message = error instanceof Error ? error.message : ''
+      ffmpegError = /fetch failed|network|ECONN|ENOTFOUND/i.test(message)
+        ? '无法连接下载源，请检查网络后重试。'
+        : message || 'FFmpeg 安装失败。'
       addEvent(ffmpegError)
       showToast('FFmpeg 安装失败')
     }
@@ -4941,6 +5169,8 @@ function setupIpc(): void {
       'engine-cancel',
       'engine-recheck',
       'engine-use-local',
+      'engine-remove',
+      'engine-self-check',
       'todo-open',
       'todo-close',
       'focus-start',
@@ -5097,7 +5327,7 @@ function setupIpc(): void {
         await openConvert(command.fileIds)
         break
       case 'convert-start':
-        void startConvert(command.action).catch((error) => {
+        void startConvert(command.action, command.password).catch((error) => {
           convertBusy = false
           convertNotice =
             error instanceof Error ? error.message : '转换失败，请重试。'
@@ -5264,7 +5494,22 @@ function setupIpc(): void {
         break
       case 'engine-use-local':
         if (command.id === 'libreoffice') await chooseLocalLibreOffice()
+        else if (command.id === 'qpdf') await chooseLocalQpdf()
         else await chooseLocalFfmpeg()
+        break
+      case 'engine-remove':
+        await removeEngine(command.id)
+        break
+      case 'engine-self-check':
+        builtinHealth = await checkBuiltinEngines(true)
+        broadcast()
+        showToast(
+          Object.values(builtinHealth).every(
+            (engine) => engine.status === 'ready',
+          )
+            ? '内置引擎正常'
+            : '有内置引擎不可用',
+        )
         break
       case 'todo-open':
         openTodo()
@@ -6444,6 +6689,8 @@ else {
       clipboardData = await loadClipboardFile(clipboardPath)
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
       await refreshLibreOfficeState()
+      await refreshQpdfState()
+      builtinHealth = await checkBuiltinEngines(true)
       pruneClipboard()
       await saveClipboardFile(clipboardPath, clipboardData)
       await initClipboardWatch()

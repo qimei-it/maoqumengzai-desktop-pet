@@ -27,6 +27,10 @@ watch(
 )
 const target = ref<ConvertAction | ''>('')
 const busy = computed(() => Boolean(convert.value?.busy))
+const password = ref('')
+const needsPassword = computed(
+  () => target.value === 'pdf-encrypt' || target.value === 'pdf-decrypt',
+)
 const files = computed(() => convert.value?.files ?? [])
 const targets = computed(() => convert.value?.targets ?? [])
 const outcome = computed(() => convert.value?.outcome)
@@ -91,6 +95,8 @@ watch(
 const outputHint = computed(() => {
   if (target.value === 'merge-pdf') return '合并输出到 convert_output'
   if (target.value === 'split-pdf') return '拆分到 convert_output/<文件名>'
+  if (target.value === 'pdf-encrypt') return '生成带打开密码的 PDF'
+  if (target.value === 'pdf-decrypt') return '移除 PDF 打开密码'
   return batch.value ? '批量输出到 convert_output' : '输出到原目录'
 })
 const groupLabel: Record<ConvertTargetGroup, string> = {
@@ -125,9 +131,17 @@ const mediaGroups = computed(() =>
 function close(): void {
   emit('command', { type: 'convert-close' })
 }
+watch(target, () => {
+  password.value = ''
+})
 function start(): void {
   if (!target.value) return
-  emit('command', { type: 'convert-start', action: target.value })
+  if (needsPassword.value && !password.value) return
+  emit('command', {
+    type: 'convert-start',
+    action: target.value,
+    ...(needsPassword.value ? { password: password.value } : {}),
+  })
 }
 function cancel(): void {
   emit('command', { type: 'convert-cancel' })
@@ -264,6 +278,17 @@ function openOutput(outputId: string): void {
               </button>
             </div>
           </template>
+          <label v-if="needsPassword" class="convert-password">
+            <span>PDF 密码</span>
+            <input
+              v-model="password"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              :disabled="busy"
+              placeholder="输入打开密码"
+            />
+          </label>
           <p class="convert-output">{{ outputHint }}</p>
         </template>
 
@@ -352,7 +377,9 @@ function openOutput(outputId: string): void {
         type="button"
         class="convert-start"
         :class="busy ? 'button-soft' : 'button-glass'"
-        :disabled="!busy && !target"
+        :disabled="
+          !busy && (!target || (needsPassword && !password))
+        "
         @click="busy ? cancel() : start()"
       >
         {{ busy ? "取消转换" : "开始转换" }}
@@ -477,6 +504,29 @@ function openOutput(outputId: string): void {
 }
 .convert-group + .convert-group {
   margin-top: 14px;
+}
+.convert-password {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.convert-password input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+}
+.convert-password input:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
 }
 .convert-output {
   margin: 12px 0 0;

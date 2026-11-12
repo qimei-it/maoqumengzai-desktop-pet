@@ -59,6 +59,8 @@ const builds: Record<string, Omit<FfmpegBuild, 'version' | 'source'>> = {
   },
 }
 
+export const ffmpegBuildPlatforms = Object.keys(builds)
+
 export function ffmpegBuild(
   platform: string,
   arch: string,

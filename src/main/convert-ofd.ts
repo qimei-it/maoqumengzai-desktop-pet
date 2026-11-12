@@ -14,10 +14,14 @@ import {
 } from '../shared/convert'
 import { writeExclusive } from './write-output'
 
-function easyOfdHtml(): string {
-  const base = app.isPackaged
+export function easyOfdBase(): string {
+  return app.isPackaged
     ? join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'easyofd')
     : join(app.getAppPath(), 'node_modules', 'easyofd')
+}
+
+function easyOfdHtml(): string {
+  const base = easyOfdBase()
   const script = (path: string) => pathToFileURL(path).href
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;padding:0;background:#fff}

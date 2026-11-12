@@ -139,7 +139,10 @@ export const commandSchema = z.discriminatedUnion('type', [
         'pdf',
         'merge-pdf',
         'split-pdf',
+        'pdf-encrypt',
+        'pdf-decrypt',
       ]),
+      password: z.string().max(256).optional(),
     })
     .strict(),
   z
@@ -368,9 +371,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('engine-use-local'),
-      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
+      id: z.union([
+        z.literal('ffmpeg'),
+        z.literal('libreoffice'),
+        z.literal('qpdf'),
+      ]),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('engine-remove'),
+      id: z.union([
+        z.literal('ffmpeg'),
+        z.literal('libreoffice'),
+        z.literal('qpdf'),
+      ]),
+    })
+    .strict(),
+  z.object({ type: z.literal('engine-self-check') }).strict(),
   z
     .object({
       type: z.literal('clipboard-config'),

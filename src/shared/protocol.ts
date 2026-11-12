@@ -115,6 +115,8 @@ export type ConvertAction =
   | 'pdf'
   | 'merge-pdf'
   | 'split-pdf'
+  | 'pdf-encrypt'
+  | 'pdf-decrypt'
 export type ConvertTargetGroup = 'image' | 'video' | 'audio' | 'pdf'
 export type ConvertTarget = {
   id: ConvertAction
@@ -328,6 +330,11 @@ export type Snapshot = {
   engines: {
     ffmpeg: FfmpegEngineState
     libreoffice: LocalEngineState
+    qpdf: LocalEngineState
+    builtin: Record<
+      string,
+      { status: 'ready' | 'error'; version: string; error?: string }
+    >
   }
   focus: FocusState
 }
@@ -360,7 +367,7 @@ export type Command =
   | { type: 'ai-keys' }
   | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
-  | { type: 'convert-start'; action: ConvertAction }
+  | { type: 'convert-start'; action: ConvertAction; password?: string }
   | { type: 'convert-cancel' }
   | { type: 'convert-move-file'; fileId: string; direction: 'up' | 'down' }
   | { type: 'convert-remove-file'; fileId: string }
@@ -437,7 +444,9 @@ export type Command =
   | { type: 'engine-install'; id: 'ffmpeg' }
   | { type: 'engine-cancel'; id: 'ffmpeg' }
   | { type: 'engine-recheck'; id: 'ffmpeg' }
-  | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' }
+  | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' | 'qpdf' }
+  | { type: 'engine-remove'; id: 'ffmpeg' | 'libreoffice' | 'qpdf' }
+  | { type: 'engine-self-check' }
   | { type: 'break-toggle'; kind: BreakKind; enabled: boolean }
   | { type: 'break-interval'; kind: BreakKind; minutes: number }
   | { type: 'break-snooze'; kind: BreakKind; minutes?: number }

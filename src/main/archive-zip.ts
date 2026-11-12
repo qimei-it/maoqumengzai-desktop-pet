@@ -33,6 +33,10 @@ const sevenZipBinary = _7z
   .binaryPath?.replace(/app\.asar(?!\.unpacked)/, 'app.asar.unpacked')
 if (sevenZipBinary) _7z.config({ binaryPath: sevenZipBinary })
 
+export function sevenZipBinaryPath(): string | null {
+  return sevenZipBinary ?? null
+}
+
 /** Builds a flat ZIP next to the first source file without replacing anything. */
 function run7z(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
