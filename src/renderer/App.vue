@@ -271,14 +271,27 @@ function armWatchdog(): void {
   // events without a dragleave; close the donut when the stream goes quiet.
   dragWatchdog = setTimeout(() => {
     dragWatchdog = undefined;
-    if (!donutOpen.value) return;
-    void closeDonut();
-    void command({ type: "drop-mode", enabled: false });
+    resetDragState();
+    if (donutOpen.value) void closeDonut();
   }, 1500);
 }
 function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
+}
+function syncDropMode(enabled: boolean): Promise<void> {
+  dropModeChain = dropModeChain.then(() =>
+    command({ type: "drop-mode", enabled }),
+  );
+  return dropModeChain;
+}
+/** Clears a file drag that ended without a drop or dragleave. */
+function resetDragState(): void {
+  dragOver.value = false;
+  dragFileKinds = [];
+  wheelHint.value = "";
+  disarmWatchdog();
+  void syncDropMode(false);
 }
 function kindsFromDrop(dataTransfer: DataTransfer | null): FileKind[] {
   if (!dataTransfer) return [];
@@ -439,12 +452,7 @@ function enter(event: DragEvent): void {
   donutActive.value = null;
   // Enabling the receive region closes the wheel window; open only after that
   // command has landed, otherwise its reply would close the fresh wheel.
-  dropModeChain = dropModeChain.then(async () => {
-    if (!state.value?.dropMode) {
-      await command({ type: "drop-mode", enabled: true });
-    }
-  });
-  void dropModeChain.then(() => {
+  void syncDropMode(true).then(() => {
     if (dragOver.value) void openDonut();
   });
 }
@@ -462,24 +470,17 @@ function leave(event: DragEvent): void {
     event.clientY < bounds.bottom
   )
     return;
-  dragOver.value = false;
-  dragFileKinds = [];
-  wheelHint.value = "";
+  resetDragState();
   if (!petView) return;
   void closeDonut();
-  void command({ type: "drop-mode", enabled: false });
 }
 async function receive(event: DragEvent): Promise<void> {
   event.preventDefault();
   const action = petView ? regionAt(event.clientX, event.clientY) : null;
   const files = [...(event.dataTransfer?.files || [])];
   if (files.length) dragFileKinds = files.map((file) => fileKind(file.name));
-  disarmWatchdog();
-  dragOver.value = false;
-  if (petView) {
-    void closeDonut();
-    void command({ type: "drop-mode", enabled: false });
-  }
+  resetDragState();
+  if (petView) void closeDonut();
   if (!files.length) return;
   if (!petView) {
     await receiveFiles(files);
@@ -683,10 +684,11 @@ function scheduleBlink(): void {
   }, 2600 + Math.random() * 1800);
 }
 function onKeydown(event: KeyboardEvent): void {
-  if (!donutOpen.value || event.key !== "Escape") return;
+  if (event.key !== "Escape") return;
+  if (!donutOpen.value && !dragOver.value) return;
   event.preventDefault();
-  void closeDonut();
-  void command({ type: "drop-mode", enabled: false });
+  resetDragState();
+  if (donutOpen.value) void closeDonut();
 }
 function clearHoverTimer(): void {
   if (hoverTimer) clearTimeout(hoverTimer);

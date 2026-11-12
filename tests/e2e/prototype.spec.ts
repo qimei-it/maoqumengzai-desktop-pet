@@ -2841,6 +2841,60 @@ test("the donut closes when a drag ends without a drop", async () => {
     .evaluate((element) => element.remove());
 });
 
+test("canceling a file drag restores the hover wheel", async () => {
+  await pet.evaluate(() => {
+    document.querySelector("#mqmz-cancel-drag-input")?.remove();
+    const input = document.createElement("input");
+    input.type = "file";
+    input.id = "mqmz-cancel-drag-input";
+    input.hidden = true;
+    document.body.append(input);
+  });
+  const fixture = join(directory, "取消拖拽.txt");
+  await writeFile(fixture, "cancel-drag");
+  await pet
+    .locator("#mqmz-cancel-drag-input")
+    .setInputFiles(fixture);
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>(
+      "#mqmz-cancel-drag-input",
+    )!;
+    const transfer = new DataTransfer();
+    for (const file of input.files!) transfer.items.add(file);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await pet.keyboard.press("Escape");
+  await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 4000 });
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropMode}`
+        : "";
+    })
+    .toBe("false:false");
+
+  const box = await pet.locator(".marker").boundingBox();
+  if (!box) throw new Error("Marker is not rendered");
+  await pet.mouse.move(4, 4);
+  await new Promise((resolve) => setTimeout(resolve, 160));
+  await pet.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(pet.locator(".donut-ring")).toBeVisible({ timeout: 3000 });
+  await expect(pet.locator(".donut-segment")).toHaveCount(8);
+  await pet.keyboard.press("Escape");
+  await pet
+    .locator("#mqmz-cancel-drag-input")
+    .evaluate((element) => element.remove());
+});
+
 test("releasing on the pet cancels instead of acting", async () => {
   const fixture = join(directory, "中心取消.txt");
   await writeFile(fixture, "cancel-me");
