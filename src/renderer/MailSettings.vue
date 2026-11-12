@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-  KeyRound,
+  PenLine,
   RefreshCw,
   Trash2,
 } from '@lucide/vue'
@@ -13,6 +13,7 @@ import type {
   MailState,
 } from '../shared/mail'
 import {
+  mailAccountLabel,
   mailProviderLabels,
   mailRetentionOptions,
   mailSyncOptions,
@@ -84,12 +85,15 @@ function openAdd(): void {
   resetForm()
   formOpen.value = true
 }
-function openReauthorize(account: MailAccount): void {
+async function openReauthorize(account: MailAccount): Promise<void> {
+  const result = await window.mqmz?.mailSecret(account.id)
   resetForm()
   reauthorizeId.value = account.id
   formProvider.value = account.provider
   formEmail.value = account.email
   formName.value = account.displayName ?? ''
+  if (result?.ok) formSecret.value = result.value
+  else if (result) pushToast(result.error, 'error')
   formOpen.value = true
 }
 function closeForm(): void {
@@ -109,6 +113,7 @@ function submit(): void {
       type: 'mail-reauthorize',
       accountId: reauthorizeId.value,
       secret,
+      displayName: formName.value.trim(),
     })
     return
   }
@@ -209,12 +214,14 @@ watch(
           alt=""
           draggable="false"
         />
-        <span class="mail-account-email">{{ account.email }}</span>
+        <span class="mail-account-email" :title="mailAccountLabel(account)">
+          {{ mailAccountLabel(account) }}
+        </span>
         <span class="mail-status" :class="account.status">
           {{ statusLabel(account) }}
         </span>
         <span v-if="account.unread" class="mail-unread">
-          {{ account.unread }}
+          {{ account.unread }} 封未读
         </span>
         <button
           type="button"
@@ -234,7 +241,7 @@ watch(
           title="重新授权"
           @click="openReauthorize(account)"
         >
-          <KeyRound :size="14" :stroke-width="2" aria-hidden="true" />
+          <PenLine :size="14" :stroke-width="2" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -250,7 +257,12 @@ watch(
     </div>
 
     <form v-if="formOpen" class="mail-form" @submit.prevent="submit">
-      <div class="mail-provider-track" role="radiogroup" aria-label="邮箱服务商">
+      <div
+        v-if="!reauthorizeId"
+        class="mail-provider-track"
+        role="radiogroup"
+        aria-label="邮箱服务商"
+      >
         <span
           class="mail-provider-thumb"
           :style="{ transform: `translateX(${providerIndex * 100}%)` }"
@@ -313,7 +325,7 @@ watch(
           class="settings-button primary"
           :disabled="busy"
         >
-          {{ reauthorizeId ? '重新授权' : '测试并添加' }}
+          {{ reauthorizeId ? '保存' : '测试并添加' }}
         </button>
       </div>
     </form>

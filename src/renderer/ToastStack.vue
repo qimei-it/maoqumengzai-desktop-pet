@@ -22,7 +22,7 @@ import { dismissToast, toastItems } from './toasts'
   position: fixed;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  top: 64px;
   z-index: 1000;
   display: flex;
   flex-direction: column;

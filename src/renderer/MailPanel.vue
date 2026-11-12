@@ -2,7 +2,10 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { Mail, Paperclip, RefreshCw } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
-import type { MailMessageSummary } from '../shared/mail'
+import {
+  mailAccountLabel,
+  type MailMessageSummary,
+} from '../shared/mail'
 import PanelHeader from './PanelHeader.vue'
 import { pushToast } from './toasts'
 import qqIcon from './assets/mail/qq.svg'
@@ -142,10 +145,13 @@ watch(
             @click="selectAccount(item.id)"
           >
             <img :src="providerIcon(item.provider)" alt="" draggable="false" />
-            <span>{{ item.email }}</span>
+            <span :title="mailAccountLabel(item)">{{
+              mailAccountLabel(item)
+            }}</span>
             <span
               v-if="item.unread && (state?.mail.config.unreadBadge ?? true)"
               class="mail-unread"
+              :title="`${item.unread} 封未读`"
               >{{ item.unread }}</span
             >
           </button>
@@ -269,7 +275,7 @@ watch(
   gap: 12px;
 }
 .mail-accounts {
-  width: 170px;
+  width: 200px;
   flex: none;
   display: flex;
   flex-direction: column;

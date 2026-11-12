@@ -29,6 +29,7 @@ export const channels = {
   startDrag: 'mqmz:files:start-drag',
   capture: 'mqmz:capture:preview',
   saveCapture: 'mqmz:capture:save-preview',
+  mailSecret: 'mqmz:mail:secret',
 } as const
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -467,7 +468,12 @@ export type Command =
       secret: string
       displayName?: string
     }
-  | { type: 'mail-reauthorize'; accountId: string; secret: string }
+  | {
+      type: 'mail-reauthorize'
+      accountId: string
+      secret: string
+      displayName?: string
+    }
   | { type: 'mail-remove-account'; accountId: string }
   | { type: 'mail-sync'; accountId?: string }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
@@ -557,6 +563,7 @@ export interface PrototypeApi {
   startDrag(fileId: string): void
   capturePreview(): Promise<Result<CapturePreview[]>>
   saveCapture(id: string): Promise<Result<Snapshot>>
+  mailSecret(accountId: string): Promise<Result<string>>
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
   onHover(listener: () => void): () => void
 }

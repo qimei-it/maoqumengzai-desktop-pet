@@ -2772,6 +2772,7 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     window.mqmz!.command({ type: "settings-section", section: "mail" }),
   );
   await expect(settings.locator(".settings-group-title")).toHaveCount(0);
+  await expect(settings.locator(".toast-stack")).toHaveCSS("top", "64px");
   await expect(settings.locator(".mail-row .mail-label")).toHaveText([
     "邮箱账户",
     "同步间隔",

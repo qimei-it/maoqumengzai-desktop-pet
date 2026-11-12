@@ -58,6 +58,13 @@ export function mailUnreadTotal(
   )
 }
 
+export function mailAccountLabel(
+  account: Pick<MailAccount, 'email' | 'displayName'>,
+): string {
+  const name = account.displayName?.trim()
+  return name ? `${name}（${account.email}）` : account.email
+}
+
 export type MailMessageSummary = {
   uid: number
   subject: string

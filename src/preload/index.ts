@@ -29,6 +29,8 @@ const api: PrototypeApi = {
   startDrag: (id) => ipcRenderer.send(channels.startDrag, id),
   capturePreview: () => ipcRenderer.invoke(channels.capture),
   saveCapture: (id) => ipcRenderer.invoke(channels.saveCapture, id),
+  mailSecret: (accountId) =>
+    ipcRenderer.invoke(channels.mailSecret, { accountId }),
   onSnapshot: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: Snapshot) =>
       listener(state)

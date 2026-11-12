@@ -414,6 +414,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('mail-reauthorize'),
       accountId: z.string().uuid(),
       secret: z.string().min(1).max(512),
+      displayName: z.string().trim().max(40).optional(),
     })
     .strict(),
   z

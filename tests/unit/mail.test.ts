@@ -8,7 +8,7 @@ import {
   loadMailConfig,
   saveMailConfig,
 } from '../../src/main/mail-config'
-import { mailUnreadTotal } from '../../src/shared/mail'
+import { mailAccountLabel, mailUnreadTotal } from '../../src/shared/mail'
 
 const directories: string[] = []
 
@@ -200,6 +200,16 @@ describe('mail unread total', () => {
   test('sums unread counts across accounts', () => {
     expect(mailUnreadTotal([{ unread: 2 }, { unread: 3 }])).toBe(5)
     expect(mailUnreadTotal([])).toBe(0)
+  })
+
+  test('labels accounts with display name and address', () => {
+    expect(
+      mailAccountLabel({ email: 'a@qq.com', displayName: '麻薯的QQ' }),
+    ).toBe('麻薯的QQ（a@qq.com）')
+    expect(mailAccountLabel({ email: 'a@qq.com' })).toBe('a@qq.com')
+    expect(
+      mailAccountLabel({ email: 'a@qq.com', displayName: '  ' }),
+    ).toBe('a@qq.com')
   })
 })
 

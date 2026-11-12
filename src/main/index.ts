@@ -160,7 +160,7 @@ import {
   probeMailAccount,
   syncMailInbox,
 } from './mail-sync'
-import { mailUnreadTotal } from '../shared/mail'
+import { mailAccountLabel, mailUnreadTotal } from '../shared/mail'
 import type {
   MailConfig,
   MailMessageDetail,
@@ -2552,7 +2552,11 @@ async function addMailAccount(
     broadcast()
   }
 }
-async function reauthorizeMail(accountId: string, secret: string): Promise<void> {
+async function reauthorizeMail(
+  accountId: string,
+  secret: string,
+  displayName?: string,
+): Promise<void> {
   if (!mailDb) throw new Error('邮件数据库尚未就绪。')
   const account = mailDb.account(accountId)
   if (!account) throw new Error('邮箱账户不存在。')
@@ -2568,9 +2572,12 @@ async function reauthorizeMail(accountId: string, secret: string): Promise<void>
       unread: probe.unread,
       lastSyncAt: Date.now(),
       error: null,
+      ...(displayName !== undefined
+        ? { displayName: displayName.trim() || null }
+        : {}),
     })
     void updateMailBadge()
-    showToast('邮箱授权已更新')
+    showToast('邮箱账户已保存')
   } catch (error) {
     mailError = error instanceof Error ? error.message : '邮箱授权更新失败。'
     throw new Error(mailError)
@@ -2581,6 +2588,19 @@ async function reauthorizeMail(accountId: string, secret: string): Promise<void>
 }
 async function removeMailAccount(accountId: string): Promise<void> {
   if (!mailDb) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '删除邮箱账户',
+    message: `确定删除 ${mailAccountLabel(account)}？`,
+    detail: '本地缓存的邮件和附件会一并删除，邮箱服务中的邮件不受影响。',
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
   mailDb.removeAccount(accountId)
   await removeMailSecret(mailSecretsPath, accountId).catch(() => {})
   await rm(join(dataRoot, 'mail-cache', accountId), {
@@ -5463,6 +5483,18 @@ function iconPath(name: string): string {
 }
 function setupIpc(): void {
   handle(channels.snapshot, 'either', () => snapshot())
+  handle(channels.mailSecret, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window !== settingsWindow)
+      throw new Error('仅设置页可以读取邮箱授权码。')
+    const { accountId } = z
+      .object({ accountId: z.string().uuid() })
+      .strict()
+      .parse(payload)
+    const secret = await loadMailSecret(mailSecretsPath, accountId)
+    if (!secret) throw new Error('授权码不可用，请重新输入。')
+    return secret
+  })
   handle(channels.mask, 'pet', (_event, payload) => {
     mask = maskSchema.parse(payload)
     broadcast()
@@ -5940,7 +5972,11 @@ function setupIpc(): void {
         )
         break
       case 'mail-reauthorize':
-        await reauthorizeMail(command.accountId, command.secret)
+        await reauthorizeMail(
+          command.accountId,
+          command.secret,
+          command.displayName,
+        )
         break
       case 'mail-remove-account':
         await removeMailAccount(command.accountId)
