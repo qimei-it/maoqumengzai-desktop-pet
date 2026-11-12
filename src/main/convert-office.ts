@@ -102,7 +102,8 @@ export async function convertOffice(
   const profile = await mkdtemp(join(tmpdir(), 'mqmz-office-profile-'))
   try {
     await runSoffice(soffice, [
-      '--headless',
+      // macOS 27 的 headless LibreOffice 无法回退到系统中文字体，会导出空白汉字。
+      process.platform === 'darwin' ? '--invisible' : '--headless',
       '--nologo',
       '--nodefault',
       '--norestore',
