@@ -263,6 +263,7 @@ export type RenameState = {
   files: RenameFile[]
 }
 export type ConvertState = {
+  mode: 'convert' | 'audio'
   busy: boolean
   files: ConvertFile[]
   targets: ConvertTarget[]
@@ -361,6 +362,7 @@ export type Command =
   | { type: 'convert-open'; fileIds: string[] }
   | { type: 'convert-start'; action: ConvertAction }
   | { type: 'convert-cancel' }
+  | { type: 'convert-move-file'; fileId: string; direction: 'up' | 'down' }
   | { type: 'convert-remove-file'; fileId: string }
   | { type: 'convert-output-open'; outputId: string }
   | { type: 'convert-close' }

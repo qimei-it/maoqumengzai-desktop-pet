@@ -316,6 +316,7 @@ let convertFolders = new Set<string>()
 let convertToken = 0
 let convertProgressAt = 0
 let convertAbort: AbortController | undefined
+let convertMode: 'convert' | 'audio' = 'convert'
 let renameFiles: RenameFile[] = []
 let renameBusy = false
 let lyricsWidth = 240
@@ -778,6 +779,7 @@ async function clearAi(): Promise<void> {
 }
 function convertState(): ConvertState {
   return {
+    mode: convertMode,
     busy: convertBusy,
     files: [...convertFiles],
     targets: [...convertTargets],
@@ -820,50 +822,17 @@ function positionConvert(): void {
   convertWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 async function extractAudio(fileIds: string[]): Promise<void> {
-  const selected = fileIds
-    .map((id) => files.get(id))
-    .filter((file): file is NonNullable<typeof file> => Boolean(file))
-  if (!selected.length) {
-    showToast('没有可用的文件')
-    return
-  }
-  const ffmpeg = await ffmpegExecutable()
-  if (!ffmpeg) {
-    settingsSection = 'conversion'
-    openSettings()
-    showToast('提取音频需要先安装 FFmpeg')
-    addEvent('提取音频缺少 FFmpeg，已打开格式转换设置。')
-    return
-  }
-  const media = selected.filter(
-    (file) => isVideoFile(file.name) || isAudioFile(file.name),
-  )
-  if (!media.length) {
-    showToast('只能从视频或音频中提取音轨')
-    return
-  }
-  const batch = media.length > 1
-  const folders = new Set<string>()
-  let converted = 0
-  for (const file of media) {
-    try {
-      const source = await registeredFile(file.id)
-      const output = await convertMedia(ffmpeg, source, 'mp3', batch)
-      folders.add(dirname(output))
-      converted += 1
-    } catch (error) {
-      addEvent(`${file.name}：${convertFailureMessage(error)}`)
-    }
-  }
-  if (!converted) {
-    showToast('提取音频失败')
-    return
-  }
-  const folder = [...folders][0]
-  if (folder) await shell.openPath(folder).catch(() => {})
-  showToast(`已提取 ${converted} 个音频`)
-  addEvent(`已从 ${converted} 个文件提取 MP3 音轨。`)
+  const opened = await openConvert(fileIds, { mode: 'audio' })
+  if (!opened) return
+  if (!convertTargets.some((target) => target.id === 'mp3')) return
+  void startConvert('mp3').catch((error) => {
+    convertBusy = false
+    convertNotice =
+      error instanceof Error ? error.message : '提取音频失败，请重试。'
+    broadcast()
+  })
 }
+
 const convertOutputLimit = 24
 
 async function recordConvertOutput(
@@ -883,75 +852,111 @@ async function recordConvertOutput(
     addEvent('转换结果预览生成失败；文件仍已写入。')
   }
 }
-async function openConvert(fileIds: string[]): Promise<void> {
+async function openConvert(
+  fileIds: string[],
+  options: { mode?: 'convert' | 'audio' } = {},
+): Promise<boolean> {
+  const mode = options.mode ?? 'convert'
   const selected = fileIds
     .map((id) => files.get(id))
     .filter((file): file is NonNullable<typeof file> => Boolean(file))
   if (!selected.length) {
     showToast('没有可用的文件')
-    return
+    return false
   }
-  const engine = conversionEngineFor(selected.map((file) => file.name))
+  const media = selected.filter(
+    (file) => isVideoFile(file.name) || isAudioFile(file.name),
+  )
+  if (mode === 'audio' && !media.length) {
+    showToast('只能从视频或音频中提取音轨')
+    return false
+  }
+  const engine =
+    mode === 'audio'
+      ? 'ffmpeg'
+      : conversionEngineFor(selected.map((file) => file.name))
   if (engine === 'ffmpeg') {
     await refreshFfmpegState()
     if (!ffmpegInstalled) {
       settingsSection = 'conversion'
       openSettings()
-      showToast('音视频转换需要先安装 FFmpeg')
-      addEvent('音视频转换缺少 FFmpeg，已打开格式转换设置。')
-      return
+      showToast(
+        mode === 'audio'
+          ? '提取音频需要先安装 FFmpeg'
+          : '音视频转换需要先安装 FFmpeg',
+      )
+      addEvent(
+        mode === 'audio'
+          ? '提取音频缺少 FFmpeg，已打开格式转换设置。'
+          : '音视频转换缺少 FFmpeg，已打开格式转换设置。',
+      )
+      return false
     }
   } else if (engine === 'libreoffice') {
     if (!(await libreOfficeExecutable())) {
       settingsSection = 'conversion'
       openSettings()
       showToast('Office 转 PDF 需要先选择本机 LibreOffice')
-      return
+      return false
     }
   } else if (engine === 'unsupported') {
     showToast('请把不同类型的文件分开转换')
-    return
+    return false
   }
-  const supported = selected.filter((file) => {
-    if (engine === 'ffmpeg')
-      return isVideoFile(file.name) || isAudioFile(file.name)
-    if (engine === 'libreoffice') return isOfficeFile(file.name)
-    return (
-      isImageFile(file.name) ||
-      isPdfFile(file.name) ||
-      isDocumentFile(file.name) ||
-      isOfdFile(file.name)
-    )
-  })
+  const supported =
+    mode === 'audio'
+      ? media
+      : selected.filter((file) => {
+          if (engine === 'ffmpeg')
+            return isVideoFile(file.name) || isAudioFile(file.name)
+          if (engine === 'libreoffice') return isOfficeFile(file.name)
+          return (
+            isImageFile(file.name) ||
+            isPdfFile(file.name) ||
+            isDocumentFile(file.name) ||
+            isOfdFile(file.name)
+          )
+        })
   const skipped = selected.length - supported.length
+  cancelConvert()
   convertToken += 1
   convertBusy = false
+  convertAbort = undefined
+  convertMode = mode
   convertFiles = supported.map(({ id, name, size }) => ({ id, name, size }))
   convertTargets = availableConvertTargets(
     supported.map((file) => file.name),
     { ffmpeg: engine === 'ffmpeg' },
-  )
+  ).filter((target) => mode !== 'audio' || target.group === 'audio')
   convertProgress = { done: 0, total: supported.length }
   convertOutcome = undefined
   convertOutputs = []
   convertOutputPaths.clear()
   convertProgressAt = 0
   convertFolders = new Set<string>()
-  convertNotice = !supported.length
-    ? '目前支持 JPG、PNG、WEBP 图片、PDF 和音视频。'
-    : !convertTargets.length
-      ? engine === 'ffmpeg'
-        ? '没有可用的音视频转换目标。'
-        : engine === 'libreoffice'
-          ? '没有可用的 Office 转换目标。'
-          : '图片、PDF、文档和 OFD 请分开转换。'
-      : skipped
-        ? `已跳过 ${skipped} 个不支持的文件。`
+  convertNotice =
+    mode === 'audio'
+      ? skipped
+        ? `已跳过 ${skipped} 个非音视频文件。`
         : undefined
+      : !supported.length
+        ? '目前支持 JPG、PNG、WEBP 图片、PDF 和音视频。'
+        : !convertTargets.length
+          ? engine === 'ffmpeg'
+            ? '没有可用的音视频转换目标。'
+            : engine === 'libreoffice'
+              ? '没有可用的 Office 转换目标。'
+              : '图片、PDF、文档和 OFD 请分开转换。'
+          : skipped
+            ? `已跳过 ${skipped} 个不支持的文件。`
+            : undefined
   if (askWindow?.isVisible()) askWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
   if (convertWindow && !convertWindow.isDestroyed()) {
+    convertWindow.setTitle(
+      mode === 'audio' ? '毛趣萌仔 · 提取音频' : '毛趣萌仔 · 文件转换',
+    )
     positionConvert()
     if (process.platform === 'darwin' || convertWindow.isMinimized())
       convertWindow.restore()
@@ -960,7 +965,9 @@ async function openConvert(fileIds: string[]): Promise<void> {
     convertWindow.focus()
   }
   broadcast()
+  return true
 }
+
 function closeConvert(): void {
   cancelConvert()
   convertWindow?.hide()
@@ -992,6 +999,21 @@ function removeConvertFile(fileId: string): void {
       : '图片和 PDF 请分开转换。'
     : undefined
   positionConvert()
+  broadcast()
+}
+function moveConvertFile(
+  fileId: string,
+  direction: 'up' | 'down',
+): void {
+  if (convertBusy) return
+  const index = convertFiles.findIndex((file) => file.id === fileId)
+  if (index < 0) return
+  const target = direction === 'up' ? index - 1 : index + 1
+  if (target < 0 || target >= convertFiles.length) return
+  const next = [...convertFiles]
+  const [moved] = next.splice(index, 1)
+  next.splice(target, 0, moved)
+  convertFiles = next
   broadcast()
 }
 async function openConvertOutput(outputId: string): Promise<void> {
@@ -4871,6 +4893,7 @@ function setupIpc(): void {
       'convert-open',
       'convert-start',
       'convert-cancel',
+      'convert-move-file',
       'convert-remove-file',
       'convert-output-open',
       'convert-close',
@@ -5083,6 +5106,9 @@ function setupIpc(): void {
         break
       case 'convert-cancel':
         cancelConvert()
+        break
+      case 'convert-move-file':
+        moveConvertFile(command.fileId, command.direction)
         break
       case 'convert-remove-file':
         removeConvertFile(command.fileId)

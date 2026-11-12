@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FolderOpen, Music, X } from '@lucide/vue'
+import { ArrowDown, ArrowUp, FolderOpen, Music, X } from '@lucide/vue'
 import { isAudioFile } from '../shared/file-kinds'
 import type {
   Command,
@@ -15,6 +15,16 @@ const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
 const convert = computed(() => props.state?.convert)
+const title = computed(() =>
+  convert.value?.mode === 'audio' ? '提取音频' : '文件转换',
+)
+watch(
+  title,
+  (value) => {
+    document.title = `毛趣萌仔 · ${value}`
+  },
+  { immediate: true },
+)
 const target = ref<ConvertAction | ''>('')
 const busy = computed(() => Boolean(convert.value?.busy))
 const files = computed(() => convert.value?.files ?? [])
@@ -128,6 +138,9 @@ function reveal(): void {
 function removeFile(fileId: string): void {
   emit('command', { type: 'convert-remove-file', fileId })
 }
+function moveFile(fileId: string, direction: 'up' | 'down'): void {
+  emit('command', { type: 'convert-move-file', fileId, direction })
+}
 function openOutput(outputId: string): void {
   emit('command', { type: 'convert-output-open', outputId })
 }
@@ -135,9 +148,9 @@ function openOutput(outputId: string): void {
 
 <template>
   <main class="convert-shell" @keydown.esc="close">
-    <section class="convert-surface" aria-label="文件转换">
+    <section class="convert-surface" :aria-label="title">
       <PanelHeader
-        title="文件转换"
+        :title="title"
         :platform="state?.runtime.platform"
         @minimize="
           emit('command', { type: 'panel-control', action: 'minimize' })
@@ -148,13 +161,35 @@ function openOutput(outputId: string): void {
       <div class="convert-content panel-scroll">
         <div v-if="!outcome" class="convert-files">
           <div
-            v-for="file in files"
+            v-for="(file, index) in files"
             :key="file.id"
             class="convert-file"
             :title="file.name"
           >
             <FileTypeIcon :name="file.name" :size="18" />
             <span class="convert-file-name">{{ file.name }}</span>
+            <template v-if="target === 'merge-pdf' && !busy">
+              <button
+                type="button"
+                class="convert-file-move"
+                :disabled="index === 0"
+                :aria-label="`上移 ${file.name}`"
+                title="上移"
+                @click.stop="moveFile(file.id, 'up')"
+              >
+                <ArrowUp :size="14" :stroke-width="2" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="convert-file-move"
+                :disabled="index === files.length - 1"
+                :aria-label="`下移 ${file.name}`"
+                title="下移"
+                @click.stop="moveFile(file.id, 'down')"
+              >
+                <ArrowDown :size="14" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </template>
             <button
               type="button"
               class="convert-file-remove"
@@ -375,7 +410,8 @@ function openOutput(outputId: string): void {
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-.convert-file-remove {
+.convert-file-remove,
+.convert-file-move {
   display: grid;
   place-items: center;
   flex: none;
@@ -392,15 +428,18 @@ function openOutput(outputId: string): void {
     background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
-.convert-file-remove:hover:not(:disabled) {
+.convert-file-remove:hover:not(:disabled),
+.convert-file-move:hover:not(:disabled) {
   background: var(--color-fill-secondary);
   color: var(--color-ink);
 }
-.convert-file-remove:focus-visible {
+.convert-file-remove:focus-visible,
+.convert-file-move:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
 }
-.convert-file-remove:disabled {
+.convert-file-remove:disabled,
+.convert-file-move:disabled {
   opacity: 0.45;
   cursor: default;
 }

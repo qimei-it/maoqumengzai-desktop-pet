@@ -155,6 +155,13 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('convert-cancel') }).strict(),
+  z
+    .object({
+      type: z.literal('convert-move-file'),
+      fileId: z.string().min(1),
+      direction: z.enum(['up', 'down']),
+    })
+    .strict(),
   z.object({ type: z.literal('convert-close') }).strict(),
   z.object({ type: z.literal('convert-reveal') }).strict(),
   z
