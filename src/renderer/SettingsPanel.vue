@@ -200,6 +200,12 @@ function updateHoverWheel(actions: string[]): void {
 function updateFileWheel(actions: string[]): void {
   update({ fileWheelActions: actions as DropAction[] })
 }
+function restoreHoverWheel(): void {
+  updateHoverWheel([...hoverActions])
+}
+function restoreFileWheel(): void {
+  updateFileWheel([...sliceActions])
+}
 function updateClipboardConfig(patch: Partial<ClipboardConfig>): void {
   emit('command', { type: 'clipboard-config', patch })
 }
@@ -320,13 +326,22 @@ function onEscape(): void {
               <section class="wheel-setting">
                 <div class="wheel-setting-head">
                   <span class="settings-label">悬停轮盘</span>
-                  <button
-                    type="button"
-                    class="settings-button primary"
-                    @click="wheelEditor = 'hover'"
-                  >
-                    配置
-                  </button>
+                  <div class="wheel-setting-actions">
+                    <button
+                      type="button"
+                      class="settings-button"
+                      @click="restoreHoverWheel"
+                    >
+                      恢复默认
+                    </button>
+                    <button
+                      type="button"
+                      class="settings-button primary"
+                      @click="wheelEditor = 'hover'"
+                    >
+                      配置
+                    </button>
+                  </div>
                 </div>
                 <WheelPreview
                   :scale="0.75"
@@ -341,13 +356,22 @@ function onEscape(): void {
               <section class="wheel-setting">
                 <div class="wheel-setting-head">
                   <span class="settings-label">文件轮盘</span>
-                  <button
-                    type="button"
-                    class="settings-button primary"
-                    @click="wheelEditor = 'file'"
-                  >
-                    配置
-                  </button>
+                  <div class="wheel-setting-actions">
+                    <button
+                      type="button"
+                      class="settings-button"
+                      @click="restoreFileWheel"
+                    >
+                      恢复默认
+                    </button>
+                    <button
+                      type="button"
+                      class="settings-button primary"
+                      @click="wheelEditor = 'file'"
+                    >
+                      配置
+                    </button>
+                  </div>
                 </div>
                 <WheelPreview
                   :scale="0.75"
@@ -1115,6 +1139,11 @@ function onEscape(): void {
   gap: 8px;
   width: 100%;
   min-height: 40px;
+}
+.wheel-setting-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .pet-grid {
   display: grid;

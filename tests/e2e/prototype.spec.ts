@@ -385,6 +385,16 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toEqual(["clipboard", "agent"]);
   await hoverRegion
+    .getByRole("button", { name: "完成", exact: true })
+    .click();
+  await expect(hoverRegion).toBeHidden();
+  const hoverSetting = settings.locator(".wheel-setting", {
+    hasText: "悬停轮盘",
+  });
+  await expect(
+    hoverSetting.getByRole("button", { name: "恢复默认", exact: true }),
+  ).toBeVisible();
+  await hoverSetting
     .getByRole("button", { name: "恢复默认", exact: true })
     .click();
   await expect
@@ -393,10 +403,6 @@ test("settings panel updates theme, scale, and bubbles", async () => {
       return snapshot.ok ? snapshot.value.settings.hoverWheelActions : [];
     })
     .toEqual([...hoverActions]);
-  await hoverRegion
-    .getByRole("button", { name: "完成", exact: true })
-    .click();
-  await expect(hoverRegion).toBeHidden();
 
   await settings
     .locator(".wheel-setting", { hasText: "文件轮盘" })
