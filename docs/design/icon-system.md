@@ -17,6 +17,7 @@
 | 继续选择文件 | Plus |
 | 智能问答面板标题 | DeepSeek 鲸鱼标志（品牌素材，非 Lucide） |
 | 设置面板标题与左侧导航 | Settings / Palette / Monitor / Database / DeepSeek 智能体标志 / Info |
+| 待办清单的自定义清单 | Firefox Emoji 官方 SVG，圆形底色使用语义功能色 |
 | 系统托盘 | 毛趣映画猫脸（品牌素材，非 Lucide） |
 
 原有手绘路径、字符代图标以及托盘像素方块已替换。桌宠本体已是独立管理的布偶猫插画素材（见 `src/renderer/assets/pet/` 与 `resources/pet/ragdoll/source/`），不再用 Lucide 图标代替宠物动画。
@@ -65,13 +66,21 @@ npm run check:icons
 
 ## Firefox Emoji 使用规则
 
-Firefox Emoji 用于后续适合的情绪、活动或业务插画型图标，沿用小程序的素材方案；按需使用官方原图、本地保存并逐项记录来源和署名。功能性线性图标继续使用 Lucide，避免字体 Emoji 受到系统字形差异影响。本次尚无需要新增的彩色表情素材，没有为替换功能图标额外引入 Firefox Emoji 文件。
+Firefox Emoji 用于适合的情绪、活动或业务插画型图标，沿用小程序的素材方案；按需使用官方原图、本地保存并逐项记录来源和署名。功能性线性图标继续使用 Lucide，避免字体 Emoji 受到系统字形差异影响。
+
+待办清单的清单图标使用该方案：
+
+- 素材为 Mozilla FxEmojis 官方 SVG，共 1035 枚（官方全集），保存在 [src/renderer/assets/fxemoji/](../../src/renderer/assets/fxemoji/)，由 `manifest.json` 记录每枚图标的文件名、Unicode 码点、名称、分类与关键词；分类使用官方的自然、物品、人物、地点、符号、旗帜，并保留“常用”筛选。
+- 图标选择器只展示这组 FxEmoji 原图，按底部分类标签浏览；每次固定显示 3 行，更多图标在右侧垂直滚动；不使用搜索框、系统 Emoji 字符或网络字体。
+- 清单圆形的纯色底色使用用户要求的 12 色鲜艳调色板（固定值，仅用于清单图标与颜色选择器）。
+- 仅移除上游 SVG 中未使用的 Illustrator 内嵌字体、文本元数据与多余空白，图形路径和配色保持不变。重新获取与清理使用 `npm run sync:fxemoji`（[scripts/fetch-fxemoji.mjs](../../scripts/fetch-fxemoji.mjs)）。
+- 来源：[mozilla/fxemoji](https://github.com/mozilla/fxemoji) 的 `svgs/FirefoxEmoji/`；视觉设计为 CC BY 4.0，代码为 Apache-2.0。许可证原文见 [resources/licenses/fxemoji-LICENSE.md](../../resources/licenses/fxemoji-LICENSE.md)。
 
 小程序参考依据：`maoquyinghua-frontend/docs/assets-attribution.md`，其中已逐项登记 Lucide 与 Firefox Emoji 来源。本轮只读取该文件，未修改小程序仓库。
 
 ## 版权与验证
 
 - Lucide 来源与许可：[Lucide](https://lucide.dev/license)。完整上游许可证已保留在 [lucide-ISC.txt](../../resources/licenses/lucide-ISC.txt)，包括源文件中的 ISC 与 Feather 派生图标 MIT 声明，并随安装包分发。
-- Firefox Emoji 来源：[Mozilla FxEmoji](https://mozilla.github.io/fxemoji/)。首次新增素材时继续逐项核实许可与修改记录，不把整个素材库的使用范围推定为已核验。
+- Firefox Emoji 来源：[Mozilla FxEmojis](https://github.com/mozilla/fxemoji)。视觉设计采用 CC BY 4.0，代码采用 Apache-2.0；许可证原文保存在 [fxemoji-LICENSE.md](../../resources/licenses/fxemoji-LICENSE.md)，成品中仅保留清单图标所需的官方 SVG 并记录于 `manifest.json`。
 - 本轮验证包含 SVG 来源/属性、图标随三套主题着色、原生图标资源、透明命中、文件卡片拖动事件及原有文件功能回归。原生拖出落地与 Windows/Intel/最低系统仍按 P0 原记录待验收。
 - 实测结果：构建、图标/主题检查、84 项单元测试与 30 项 Electron 集成测试全部通过（macOS 27.0.1 arm64）。替换后的透明命中回归暴露了原生缩放与图像布局更新的时序问题，已在窗口 resize 时重新测量命中区域并复验通过。
