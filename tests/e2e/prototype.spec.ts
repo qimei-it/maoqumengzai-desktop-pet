@@ -1970,8 +1970,8 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     expect(styles.primaryBorder).toBe("rgba(0, 0, 0, 0)");
     expect(styles.iconCount).toBe(1);
     expect(styles.color).toBe("rgb(26, 26, 26)");
-    expect(styles.bodySize).toBe("12px");
-    expect(styles.height).toBe(28);
+    expect(styles.bodySize).toBe("14px");
+    expect(styles.height).toBe(34);
     expect(styles.widthDifference).toBeLessThanOrEqual(1);
     expect(styles.actionsVisible).toBe(true);
     expect(styles.horizontalOverflow).toBe(false);
