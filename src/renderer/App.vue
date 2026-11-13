@@ -1108,6 +1108,11 @@ const hasLyrics = computed(() =>
       state.value?.lyrics?.plain?.trim(),
   ),
 );
+const playerName = computed(() => {
+  const name = state.value?.music.appName;
+  if (!name) return "当前播放器";
+  return /^[A-Za-z]/.test(name) ? ` ${name}` : name;
+});
 const pillLyric = computed(() => {
   if (state.value?.lyrics?.instrumental) return "纯音乐";
   if (currentLyric.value) return currentLyric.value.current;
@@ -1486,14 +1491,14 @@ onUnmounted(() => {
             ? state?.music.shuffle
               ? '关闭随机播放'
               : '随机播放'
-            : '随机播放不可用'
+            : `无法控制${playerName}随机播放`
         "
         :title="
           state?.music.source === 'apple'
             ? state?.music.shuffle
               ? '关闭随机播放'
               : '随机播放'
-            : '当前播放器不支持随机播放'
+            : `无法控制${playerName}随机播放`
         "
         @click="musicControl('shuffle')"
       >
@@ -1561,7 +1566,7 @@ onUnmounted(() => {
         :aria-disabled="state?.music.source !== 'apple'"
         :aria-label="
           state?.music.source !== 'apple'
-            ? '循环模式不可用'
+            ? `无法控制${playerName}切换循环模式`
             : state?.music.repeat === 'one'
               ? '单曲循环'
               : state?.music.repeat === 'all'
@@ -1570,7 +1575,7 @@ onUnmounted(() => {
         "
         :title="
           state?.music.source !== 'apple'
-            ? '当前播放器不支持循环设置'
+            ? `无法控制${playerName}切换循环模式`
             : state?.music.repeat === 'one'
               ? '单曲循环'
               : state?.music.repeat === 'all'

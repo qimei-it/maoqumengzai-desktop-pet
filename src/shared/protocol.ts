@@ -96,6 +96,7 @@ export type MusicState = {
   album?: string
   genre?: string
   cover?: string
+  appName?: string
 }
 export type LyricsState = {
   key: string

@@ -6049,7 +6049,8 @@ function applyMusic(next: MusicState): void {
     music.position === next.position &&
     music.positionReliable === next.positionReliable &&
     music.album === next.album &&
-    music.genre === next.genre
+    music.genre === next.genre &&
+    music.appName === next.appName
   )
     return
   music = {
@@ -6252,6 +6253,7 @@ type MediaRemotePayload = {
   artworkData?: string
   artworkMimeType?: string
   bundleIdentifier?: string
+  client?: string
 }
 function musicStateFromPayload(
   parsed: MediaRemotePayload,
@@ -6321,6 +6323,14 @@ const axStateBundles = new Set([
   'com.tencent.QQMusicMac',
   'com.kugou.mac.Music',
 ])
+const systemPlayerNames: Record<string, string> = {
+  'com.tencent.QQMusicMac': 'QQ 音乐',
+  'com.kugou.mac.Music': '酷狗音乐',
+  'com.netease.163music': '网易云音乐',
+}
+function systemPlayerName(bundleId?: string): string | undefined {
+  return bundleId ? systemPlayerNames[bundleId] : undefined
+}
 type AxPlaybackState = { playing?: boolean; position?: number }
 function readAxPlaybackState(
   bundleId: string,
@@ -6377,6 +6387,7 @@ function pollMediaRemoteMini(
           done(null)
           return
         }
+        state.appName = systemPlayerName(parsed.bundleIdentifier)
         const key = coverKey({
           title: state.title,
           artist: state.artist,
@@ -6439,12 +6450,10 @@ function pollLegacySystemMusic(
       return
     }
     try {
-      done(
-        musicStateFromPayload(
-          JSON.parse(stdout.trim() || '{}') as MediaRemotePayload,
-          false,
-        ),
-      )
+      const parsed = JSON.parse(stdout.trim() || '{}') as MediaRemotePayload
+      const state = musicStateFromPayload(parsed, false)
+      if (state) state.appName = systemPlayerName(parsed.client)
+      done(state)
     } catch {
       done(null)
     }
@@ -6869,10 +6878,16 @@ function controlMusic(action: MusicAction): void {
     return
   }
   if ((action === 'shuffle' || action === 'repeat') && music.source !== 'apple') {
+    const name = music.appName
+    const player = name
+      ? /^[A-Za-z]/.test(name)
+        ? ` ${name}`
+        : name
+      : '当前播放器'
     showToast(
       action === 'shuffle'
-        ? '当前播放器不支持随机播放'
-        : '当前播放器不支持循环设置',
+        ? `无法控制${player}随机播放`
+        : `无法控制${player}切换循环模式`,
     )
     return
   }
