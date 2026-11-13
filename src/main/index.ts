@@ -6317,10 +6317,14 @@ function mediaRemoteMiniPaths(): { loader: string; dylib: string } {
     dylib: join(directory, 'MediaRemoteMini.dylib'),
   }
 }
-const axPlaybackBundles = new Set(['com.tencent.QQMusicMac'])
+const axStateBundles = new Set([
+  'com.tencent.QQMusicMac',
+  'com.kugou.mac.Music',
+])
+type AxPlaybackState = { playing?: boolean; position?: number }
 function readAxPlaybackState(
   bundleId: string,
-  done: (playing: boolean | undefined) => void,
+  done: (state: AxPlaybackState) => void,
 ): void {
   execFile(
     musicHelperPath(),
@@ -6328,20 +6332,26 @@ function readAxPlaybackState(
     { timeout: 1500 },
     (error, stdout) => {
       if (error) {
-        done(undefined)
+        done({})
         return
       }
       try {
-        const parsed = JSON.parse(stdout.trim() || '{}') as { state?: string }
-        done(
-          parsed.state === 'playing'
-            ? true
-            : parsed.state === 'paused'
-              ? false
-              : undefined,
-        )
+        const parsed = JSON.parse(stdout.trim() || '{}') as {
+          state?: string
+          position?: number
+        }
+        done({
+          playing:
+            parsed.state === 'playing'
+              ? true
+              : parsed.state === 'paused'
+                ? false
+                : undefined,
+          position:
+            typeof parsed.position === 'number' ? parsed.position : undefined,
+        })
       } catch {
-        done(undefined)
+        done({})
       }
     },
   )
@@ -6381,18 +6391,25 @@ function pollMediaRemoteMini(
           if (data.length) mediaRemoteArtwork = { key, data }
         }
         const bundleId = parsed.bundleIdentifier
-        if (!bundleId || !axPlaybackBundles.has(bundleId)) {
+        if (!bundleId || !axStateBundles.has(bundleId)) {
           done(state)
           return
         }
-        readAxPlaybackState(bundleId, (playing) => {
-          if (playing === undefined) {
+        readAxPlaybackState(bundleId, (ax) => {
+          if (ax.playing === undefined) {
             // QQ Music reports playbackRate=1 even while paused and exposes
             // no usable MediaRemote state. Keep the last known state for the
             // same track so a user command is not reverted by a stale poll.
             if (state.title === music.title) state.playing = music.playing
           } else {
-            state.playing = playing
+            state.playing = ax.playing
+          }
+          // Kugou only publishes a MediaRemote snapshot when its playback
+          // state changes. Its window exposes the elapsed/duration labels,
+          // so prefer that position while it is available.
+          if (typeof ax.position === 'number') {
+            state.position = ax.position
+            state.positionReliable = true
           }
           done(state)
         })

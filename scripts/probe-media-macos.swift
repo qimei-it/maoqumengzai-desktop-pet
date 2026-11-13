@@ -189,7 +189,8 @@ if command == "ax-state" {
             if sorted.count >= 2,
                let position = seconds(sorted[0].text),
                let duration = seconds(sorted[sorted.count - 1].text),
-               duration > 0, position <= duration {
+               duration > 0, position <= duration,
+               sorted[sorted.count - 1].frame.minX - sorted[0].frame.minX > 100 {
                 output["position"] = position
                 output["duration"] = duration
             }
