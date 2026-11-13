@@ -3,6 +3,7 @@ import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
 import type {
   MailAttachmentPick,
+  MailComposeDraft,
   MailComposeState,
   MailConfig,
   MailPanelState,
@@ -493,8 +494,14 @@ export type Command =
   | { type: 'mail-load-more' }
   | { type: 'mail-search'; query: string }
   | { type: 'mail-set-unread'; uid: number; unread: boolean }
-  | { type: 'mail-compose-open'; accountId?: string }
+  | {
+      type: 'mail-compose-open'
+      accountId?: string
+      draft?: MailComposeDraft
+    }
   | { type: 'mail-compose-close' }
+  | { type: 'mail-archive'; uid: number }
+  | { type: 'mail-delete'; uid: number }
   | {
       type: 'mail-send'
       accountId: string

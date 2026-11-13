@@ -23,10 +23,11 @@ const body = ref('')
 const attachments = ref<MailAttachmentPick[]>([])
 
 function reset(): void {
-  to.value = ''
-  cc.value = ''
-  subject.value = ''
-  body.value = ''
+  const draft = compose.value?.draft
+  to.value = draft?.to ?? ''
+  cc.value = draft?.cc ?? ''
+  subject.value = draft?.subject ?? ''
+  body.value = draft?.body ?? ''
   attachments.value = []
   accountId.value =
     compose.value?.accountId ?? accounts.value[0]?.id ?? ''

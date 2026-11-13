@@ -158,6 +158,7 @@ import {
 import {
   fetchMailDetail,
   fetchOlderMailInbox,
+  moveMailMessage,
   probeMailAccount,
   setMailSeen,
   syncMailInbox,
@@ -174,6 +175,7 @@ import {
   type MailAttachmentPick,
 } from '../shared/mail'
 import type {
+  MailComposeDraft,
   MailComposeState,
   MailConfig,
   MailMessageDetail,
@@ -290,6 +292,7 @@ let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let mailWindow: BrowserWindow | undefined
 let mailComposeWindow: BrowserWindow | undefined
 let mailComposeAccountId: string | undefined
+let mailComposeDraft: MailComposeDraft | undefined
 let mailComposeSending = false
 let mailComposeError: string | undefined
 let mailComposeRevision = 0
@@ -2263,6 +2266,7 @@ function mailComposeState(): MailComposeState {
     ...(mailComposeAccountId ? { accountId: mailComposeAccountId } : {}),
     revision: mailComposeRevision,
     sending: mailComposeSending,
+    ...(mailComposeDraft ? { draft: mailComposeDraft } : {}),
     ...(mailComposeError ? { error: mailComposeError } : {}),
   }
 }
@@ -2278,7 +2282,10 @@ function positionMailCompose(): void {
     fitToDisplays({ x, y, width, height }, [a]),
   )
 }
-function openMailCompose(accountId?: string): void {
+function openMailCompose(
+  accountId?: string,
+  draft?: MailComposeDraft,
+): void {
   if (!mailDb) return
   const accounts = mailDb.listAccounts()
   if (!accounts.length) {
@@ -2292,6 +2299,7 @@ function openMailCompose(accountId?: string): void {
     mailPanelAccountId ??
     accounts[0].id
   mailComposeRevision += 1
+  mailComposeDraft = draft
   mailComposeError = undefined
   mailComposeSending = false
   if (mailComposeWindow && !mailComposeWindow.isDestroyed()) {
@@ -2307,6 +2315,7 @@ function openMailCompose(accountId?: string): void {
 function closeMailCompose(): void {
   mailComposeWindow?.hide()
   mailComposeSending = false
+  mailComposeDraft = undefined
   mailComposeError = undefined
   broadcast()
 }
@@ -2581,6 +2590,66 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
     mailPanelErrorKind = 'detail'
   }
   broadcast()
+}
+async function moveCurrentMail(
+  uid: number,
+  target: 'archive' | 'delete',
+): Promise<void> {
+  if (!mailPanelAccountId || !mailDb) throw new Error('邮件账户不存在。')
+  const accountId = mailPanelAccountId
+  const account = mailDb.account(accountId)
+  const message = mailDb.message(accountId, 'INBOX', uid)
+  if (!account || !message) throw new Error('邮件不存在。')
+  if (target === 'delete') {
+    const choice = await dialog.showMessageBox(mailWindow ?? pet, {
+      type: 'warning',
+      title: '删除邮件',
+      message: `确定删除「${message.subject}」？`,
+      detail: '邮件将移动到邮箱的已删除文件夹。',
+      buttons: ['取消', '删除'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    if (choice.response !== 1) return
+  }
+  try {
+    const secret = await loadMailSecret(mailSecretsPath, accountId)
+    if (!secret) throw new Error('授权已失效，请重新授权。')
+    const moved = await moveMailMessage(
+      account.provider,
+      account.email,
+      secret,
+      uid,
+      target === 'archive' ? 'archive' : 'trash',
+    )
+    if (!moved)
+      throw new Error(
+        target === 'archive'
+          ? '未找到归档文件夹，无法归档。'
+          : '未找到已删除文件夹，无法删除。',
+      )
+    mailDb.removeMessage(accountId, 'INBOX', uid)
+    await rm(
+      join(dataRoot, 'mail-cache', accountId, 'INBOX', String(uid)),
+      { recursive: true, force: true },
+    ).catch(() => {})
+    if (message.unread) {
+      mailDb.updateAccount(accountId, {
+        unread: Math.max(0, account.unread - 1),
+      })
+    }
+    if (mailPanelSelected?.uid === uid) mailPanelSelected = undefined
+    loadMailMessages(accountId)
+    void refreshMailCacheSize()
+    void updateMailBadge()
+    broadcast()
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '邮件操作失败，请稍后重试。'
+    mailPanelErrorKind = 'detail'
+    broadcast()
+  }
 }
 async function sendMail(command: {
   accountId: string
@@ -5950,6 +6019,8 @@ function setupIpc(): void {
       'mail-send',
       'mail-compose-open',
       'mail-compose-close',
+      'mail-archive',
+      'mail-delete',
       'mail-update-config',
       'mail-clear-cache',
       'mail-choose-attachment-dir',
@@ -6337,10 +6408,16 @@ function setupIpc(): void {
         await setMailUnread(command.uid, command.unread)
         break
       case 'mail-compose-open':
-        openMailCompose(command.accountId)
+        openMailCompose(command.accountId, command.draft)
         break
       case 'mail-compose-close':
         closeMailCompose()
+        break
+      case 'mail-archive':
+        await moveCurrentMail(command.uid, 'archive')
+        break
+      case 'mail-delete':
+        await moveCurrentMail(command.uid, 'delete')
         break
       case 'mail-send':
         await sendMail(command)

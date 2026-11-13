@@ -138,11 +138,19 @@ export type MailMessageDetail = MailMessageSummary & {
   codeSuperseded?: boolean
 }
 
+export type MailComposeDraft = {
+  to?: string
+  cc?: string
+  subject?: string
+  body?: string
+}
+
 export type MailComposeState = {
   open: boolean
   accountId?: string
   revision: number
   sending: boolean
+  draft?: MailComposeDraft
   error?: string
 }
 

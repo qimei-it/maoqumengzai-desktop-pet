@@ -11,6 +11,12 @@ const mocks = vi.hoisted(() => ({
   search: vi.fn(async () => [] as number[]),
   fetch: vi.fn(),
   fetchOne: vi.fn(async () => ({ source: Buffer.from('mail') })),
+  list: vi.fn(
+    async (): Promise<
+      Array<{ path: string; name: string; specialUse?: string }>
+    > => [],
+  ),
+  move: vi.fn(async () => ({ uidMap: new Map() })),
   flagsAdd: vi.fn(async () => true),
   flagsRemove: vi.fn(async () => true),
   logout: vi.fn(async () => {}),
@@ -32,6 +38,8 @@ vi.mock('imapflow', () => ({
     search = mocks.search
     fetch = mocks.fetch
     fetchOne = mocks.fetchOne
+    list = mocks.list
+    messageMove = mocks.move
     messageFlagsAdd = mocks.flagsAdd
     messageFlagsRemove = mocks.flagsRemove
     logout = mocks.logout
@@ -46,6 +54,7 @@ import {
   fetchMailDetail,
   fetchOlderMailInbox,
   mailErrorMessage,
+  moveMailMessage,
   probeMailAccount,
   setMailSeen,
 } from '../../src/main/mail-sync'
@@ -106,6 +115,32 @@ describe('mail detail fetch', () => {
       fromAddress: 'old@example.com',
     })
     expect(result.hasMore).toBe(false)
+  })
+
+  test('moves Gmail mail to All Mail when archiving', async () => {
+    mocks.list.mockResolvedValueOnce([
+      {
+        path: 'INBOX',
+        name: 'Inbox',
+        specialUse: '\\Inbox',
+      },
+      {
+        path: '[Gmail]/All Mail',
+        name: 'All Mail',
+        specialUse: '\\All',
+      },
+    ])
+    const moved = await moveMailMessage(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+      9,
+      'archive',
+    )
+    expect(moved).toBe(true)
+    expect(mocks.move).toHaveBeenCalledWith('9', '[Gmail]/All Mail', {
+      uid: true,
+    })
   })
 
   test('updates the seen flag for manual unread state', async () => {

@@ -163,6 +163,48 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-code')).toHaveText('333333')
   await expect(mail.locator('.mail-code-note')).toContainText('有效期至')
   await expect(mail.locator('.mail-unread')).toHaveCount(0)
+  for (const name of ['回复', '转发', '归档', '删除']) {
+    await expect(
+      mail.getByRole('button', { name, exact: true }),
+    ).toBeVisible()
+  }
+
+  await mail.getByRole('button', { name: '回复', exact: true }).click()
+  await expect(compose.locator('.compose-surface')).toBeVisible()
+  await expect(
+    compose
+      .locator('.compose-field', { hasText: '收件人' })
+      .locator('input'),
+  ).toHaveValue('security@example.com')
+  await expect(
+    compose
+      .locator('.compose-field', { hasText: '主题' })
+      .locator('input'),
+  ).toHaveValue('Re: 最新验证码')
+  await expect(compose.locator('.compose-content')).toHaveValue(
+    /----- 原邮件 -----/,
+  )
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailCompose.open : true
+    })
+    .toBe(false)
+
+  await mail.getByRole('button', { name: '转发', exact: true }).click()
+  await expect(compose.locator('.compose-surface')).toBeVisible()
+  await expect(
+    compose
+      .locator('.compose-field', { hasText: '收件人' })
+      .locator('input'),
+  ).toHaveValue('')
+  await expect(
+    compose
+      .locator('.compose-field', { hasText: '主题' })
+      .locator('input'),
+  ).toHaveValue('Fwd: 最新验证码')
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
 
   await expect(mail.locator('.mail-attachment-summary')).toHaveText(
     '1 个附件 · 15 B',

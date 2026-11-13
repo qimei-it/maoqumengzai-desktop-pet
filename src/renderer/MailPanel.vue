@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import {
+  Archive,
+  CornerUpLeft,
+  CornerUpRight,
   LoaderCircle,
   Mail,
   MailPlus,
@@ -8,6 +11,7 @@ import {
   PenLine,
   RefreshCw,
   Search,
+  Trash2,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
@@ -98,6 +102,73 @@ function openCompose(): void {
   emit('command', {
     type: 'mail-compose-open',
     ...(accountId.value ? { accountId: accountId.value } : {}),
+  })
+}
+function plainBody(): string {
+  const detail = selected.value
+  if (!detail) return ''
+  if (detail.bodyText) return detail.bodyText
+  if (!detail.bodyHtml) return ''
+  return detail.bodyHtml
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim()
+}
+function quotedBody(heading: string): string {
+  const detail = selected.value
+  if (!detail) return ''
+  const from =
+    detail.fromName || detail.fromAddress || '未知发件人'
+  return `\n\n----- ${heading} -----\n发件人: ${from}\n时间: ${
+    detail.date ? formatMailDateTime(detail.date) : ''
+  }\n\n${plainBody()}`
+}
+function reply(): void {
+  const detail = selected.value
+  if (!detail?.fromAddress) {
+    pushToast('原邮件没有可回复的发件人。', 'error')
+    return
+  }
+  emit('command', {
+    type: 'mail-compose-open',
+    accountId: accountId.value,
+    draft: {
+      to: detail.fromAddress,
+      subject: /^re:/i.test(detail.subject)
+        ? detail.subject
+        : `Re: ${detail.subject}`,
+      body: quotedBody('原邮件'),
+    },
+  })
+}
+function forward(): void {
+  const detail = selected.value
+  if (!detail) return
+  emit('command', {
+    type: 'mail-compose-open',
+    accountId: accountId.value,
+    draft: {
+      subject: /^fwd:/i.test(detail.subject)
+        ? detail.subject
+        : `Fwd: ${detail.subject}`,
+      body: quotedBody('转发邮件'),
+    },
+  })
+}
+function archiveMail(): void {
+  if (!selected.value) return
+  emit('command', {
+    type: 'mail-archive',
+    uid: selected.value.uid,
+  })
+}
+function deleteMail(): void {
+  if (!selected.value) return
+  emit('command', {
+    type: 'mail-delete',
+    uid: selected.value.uid,
   })
 }
 function toggleUnread(): void {
@@ -304,13 +375,51 @@ watch(
             <header class="mail-reader-head">
               <div class="mail-reader-title">
                 <h2>{{ selected.subject }}</h2>
-                <button
-                  type="button"
-                  class="settings-button mail-read-toggle"
-                  @click="toggleUnread"
-                >
-                  {{ selected.unread ? '标记已读' : '标记未读' }}
-                </button>
+                <div class="mail-reader-actions">
+                  <button
+                    type="button"
+                    class="mail-reader-icon"
+                    aria-label="回复"
+                    title="回复"
+                    @click="reply"
+                  >
+                    <CornerUpLeft :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="mail-reader-icon"
+                    aria-label="转发"
+                    title="转发"
+                    @click="forward"
+                  >
+                    <CornerUpRight :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="mail-reader-icon"
+                    aria-label="归档"
+                    title="归档"
+                    @click="archiveMail"
+                  >
+                    <Archive :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="mail-reader-icon danger"
+                    aria-label="删除"
+                    title="删除"
+                    @click="deleteMail"
+                  >
+                    <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="settings-button mail-read-toggle"
+                    @click="toggleUnread"
+                  >
+                    {{ selected.unread ? '标记已读' : '标记未读' }}
+                  </button>
+                </div>
               </div>
               <p>
                 {{ selected.fromName || selected.fromAddress || '未知发件人' }}
@@ -636,7 +745,36 @@ watch(
   gap: 12px;
 }
 .mail-reader-title h2 {
+  flex: 1;
+  min-width: 0;
   margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.mail-reader-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+.mail-reader-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.mail-reader-icon:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.mail-reader-icon.danger:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 .mail-read-toggle {
   flex: none;

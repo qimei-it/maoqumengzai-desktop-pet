@@ -284,6 +284,37 @@ export async function setMailSeen(
   }
 }
 
+export async function moveMailMessage(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uid: number,
+  target: 'archive' | 'trash',
+): Promise<boolean> {
+  const client = providerClient(provider, email, secret)
+  const archiveNames = /^(archive|archives|all mail|归档|存档|所有邮件)$/i
+  const trashNames = /^(trash|deleted messages|deleted items|已删除|已删除邮件|废纸篓)$/i
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen('INBOX', { readOnly: false })
+    const boxes = await client.list()
+    const special = target === 'archive' ? ['\\archive', '\\all'] : ['\\trash']
+    const names = target === 'archive' ? archiveNames : trashNames
+    const folder =
+      boxes.find((box) =>
+        special.includes(box.specialUse?.toLowerCase() ?? ''),
+      ) ?? boxes.find((box) => names.test(box.name))
+    if (!folder) return false
+    await client.messageMove(String(uid), folder.path, { uid: true })
+    return true
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
 export async function appendMailToSent(
   provider: MailProvider,
   email: string,

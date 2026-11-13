@@ -342,6 +342,31 @@ export class MailDatabase {
     }))
   }
 
+  removeMessage(accountId: string, folder: string, uid: number): void {
+    this.db.exec('BEGIN')
+    try {
+      this.db
+        .prepare(
+          'DELETE FROM mail_attachments WHERE account_id = ? AND folder = ? AND uid = ?',
+        )
+        .run(accountId, folder, uid)
+      this.db
+        .prepare(
+          'DELETE FROM mail_codes WHERE account_id = ? AND folder = ? AND uid = ?',
+        )
+        .run(accountId, folder, uid)
+      this.db
+        .prepare(
+          'DELETE FROM mail_messages WHERE account_id = ? AND folder = ? AND uid = ?',
+        )
+        .run(accountId, folder, uid)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
   clearDetails(): void {
     this.db.exec(`
       UPDATE mail_messages
