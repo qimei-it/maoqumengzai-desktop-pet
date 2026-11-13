@@ -210,8 +210,16 @@ export const quotaBarHeight = 60
 export function quotaBarWidth(state: AiQuotaState): number {
   const openai = state.openai.configured
   const deepseek = state.deepseek.configured
-  if (openai && deepseek) return 240
-  if (openai || deepseek) return 120
+  const deepseekDigits = state.deepseek.balance
+    ? String(Math.max(0, Math.floor(state.deepseek.balance.total))).length
+    : 2
+  const deepseekExtra = deepseek
+    ? Math.min(30, Math.max(0, deepseekDigits - 2) * 10)
+    : 0
+  const single = 120 + (openai ? 0 : deepseekExtra)
+  if (openai && deepseek) return (120 + deepseekExtra) * 2
+  if (openai) return 120
+  if (deepseek) return single
   return 0
 }
 

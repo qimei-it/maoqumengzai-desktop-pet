@@ -118,5 +118,13 @@ describe('quota presentation helpers', () => {
     expect(quotaBarWidth(state)).toBe(120)
     state.deepseek.configured = true
     expect(quotaBarWidth(state)).toBe(240)
+    state.deepseek.balance = {
+      currency: 'CNY',
+      total: 123.45,
+      granted: 0,
+      toppedUp: 123.45,
+      available: true,
+    }
+    expect(quotaBarWidth(state)).toBe(260)
   })
 })

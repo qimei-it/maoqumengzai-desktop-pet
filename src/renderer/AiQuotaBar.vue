@@ -84,7 +84,7 @@ const deepSeekBalance = computed(() => {
 .quota-surface {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100vw;
   height: 100vh;
   padding: 6px 10px;
@@ -99,6 +99,7 @@ const deepSeekBalance = computed(() => {
 .quota-surface.single {
   padding-left: 6px;
   padding-right: 6px;
+  justify-content: flex-start;
 }
 .quota-segment {
   display: flex;
@@ -114,7 +115,7 @@ const deepSeekBalance = computed(() => {
   justify-content: flex-start;
 }
 .quota-surface.dual .quota-deepseek {
-  justify-content: center;
+  justify-content: flex-start;
 }
 .quota-ring-wrap {
   position: relative;
