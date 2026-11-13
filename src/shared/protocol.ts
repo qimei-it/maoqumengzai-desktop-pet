@@ -103,6 +103,7 @@ export type LyricsState = {
   plain: string | null
   instrumental: boolean
   missing?: boolean
+  version?: number
 }
 export type BubbleState = {
   text: string

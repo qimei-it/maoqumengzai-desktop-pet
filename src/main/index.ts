@@ -42,6 +42,10 @@ import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import { detectClockJump } from '../shared/scheduler'
 import {
+  pickLyricsCandidate,
+  type LyricsCandidate,
+} from '../shared/lyrics-match'
+import {
   requestCompletion,
   testDeepSeekConnection,
   type DeepSeekMessage,
@@ -6448,6 +6452,7 @@ function bubbleTick(): void {
   const threshold = bubbleThresholds()[bubbleStep]
   if (threshold !== undefined && bubbleElapsed >= threshold) showBubble()
 }
+const lyricsCacheVersion = 2
 function normalizeLyricsState(state: LyricsState): LyricsState {
   return {
     ...state,
@@ -6473,47 +6478,82 @@ async function writeCachedLyrics(state: LyricsState): Promise<void> {
     lyricsDirectory(),
     `${createHash('sha1').update(state.key).digest('hex')}.json`,
   )
-  await writeFile(file, JSON.stringify(normalizeLyricsState(state)), {
-    mode: 0o600,
-  })
+  await writeFile(
+    file,
+    JSON.stringify({
+      ...normalizeLyricsState(state),
+      version: lyricsCacheVersion,
+    }),
+    { mode: 0o600 },
+  )
 }
-async function fetchLyrics(key: string): Promise<LyricsState> {
-  const [title, artist, duration] = key.split('|')
-  const params = new URLSearchParams({
-    track_name: title,
-    artist_name: artist,
-  })
-  if (Number(duration) > 0) params.set('duration', duration)
-  const response = await fetch(`https://lrclib.net/api/get?${params}`, {
+async function lrclibJson(
+  path: string,
+  params: URLSearchParams,
+): Promise<unknown | undefined> {
+  const response = await fetch(`https://lrclib.net/api/${path}?${params}`, {
     headers: {
       'User-Agent':
         'maoqumengzai-desktop/0.0.1 (https://github.com/qimei-it/maoqumengzai-desktop-pet)',
     },
     signal: AbortSignal.timeout(5000),
   })
-  if (response.status === 404) {
-    const missing: LyricsState = {
-      key,
-      synced: null,
-      plain: null,
-      instrumental: false,
-      missing: true,
-    }
-    await writeCachedLyrics(missing)
-    return missing
-  }
+  if (response.status === 404) return undefined
   if (!response.ok) throw new Error('歌词服务暂时不可用。')
-  const data = (await response.json()) as {
-    syncedLyrics?: string | null
-    plainLyrics?: string | null
-    instrumental?: boolean
-  }
-  const result = normalizeLyricsState({
-    key,
-    synced: data.syncedLyrics ?? null,
-    plain: data.plainLyrics ?? null,
-    instrumental: Boolean(data.instrumental),
+  return response.json()
+}
+async function fetchLyrics(key: string): Promise<LyricsState> {
+  const [title, artist, durationText] = key.split('|')
+  const duration = Number(durationText)
+  const exactParams = new URLSearchParams({
+    track_name: title,
+    artist_name: artist,
   })
+  if (duration > 0) exactParams.set('duration', durationText)
+  const exact = (await lrclibJson('get', exactParams)) as
+    | LyricsCandidate
+    | undefined
+  let candidates: LyricsCandidate[] = exact ? [exact] : []
+  if (!exact?.syncedLyrics) {
+    try {
+      const search = await lrclibJson(
+        'search',
+        new URLSearchParams({ track_name: title }),
+      )
+      if (Array.isArray(search))
+        candidates = [
+          ...candidates,
+          ...search.filter(
+            (item): item is LyricsCandidate =>
+              typeof item === 'object' && item !== null,
+          ),
+        ]
+    } catch {
+      /* keep the exact result when search is unavailable */
+    }
+  }
+  const best = pickLyricsCandidate(
+    { title, artist, duration: duration > 0 ? duration : undefined },
+    candidates,
+  )
+  const result = normalizeLyricsState(
+    best
+      ? {
+          key,
+          synced: best.syncedLyrics ?? null,
+          plain: best.plainLyrics ?? null,
+          instrumental: Boolean(best.instrumental),
+          version: lyricsCacheVersion,
+        }
+      : {
+          key,
+          synced: null,
+          plain: null,
+          instrumental: false,
+          missing: true,
+          version: lyricsCacheVersion,
+        },
+  )
   await writeCachedLyrics(result)
   return result
 }
@@ -6564,7 +6604,8 @@ async function resolveLyrics(
   meta: LyricsMeta,
 ): Promise<LyricsState | undefined> {
   const cached = await readCachedLyrics(key)
-  if (cached && !cached.missing) return localizeLyrics(cached, meta)
+  if (cached?.version === lyricsCacheVersion)
+    return localizeLyrics(cached, meta)
   let fetched: LyricsState | undefined
   try {
     fetched = await fetchLyrics(key)
@@ -6581,6 +6622,7 @@ async function resolveLyrics(
         synced: null,
         plain,
         instrumental: false,
+        version: lyricsCacheVersion,
       }
       await writeCachedLyrics(state)
       return localizeLyrics(state, meta)
