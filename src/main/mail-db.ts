@@ -140,6 +140,19 @@ export class MailDatabase {
     } catch {
       /* column already exists */
     }
+    const version = this.db
+      .prepare('PRAGMA user_version')
+      .get() as unknown as { user_version: number }
+    if ((version?.user_version ?? 0) < 1) {
+      // Earlier builds opened INBOX while storing results under the selected
+      // folder, polluting non-INBOX caches with INBOX copies.
+      this.db.exec(`
+        DELETE FROM mail_attachments WHERE folder <> 'INBOX';
+        DELETE FROM mail_codes WHERE folder <> 'INBOX';
+        DELETE FROM mail_messages WHERE folder <> 'INBOX';
+        PRAGMA user_version = 1;
+      `)
+    }
   }
 
   listAccounts(): MailAccount[] {

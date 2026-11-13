@@ -247,7 +247,10 @@ watch(
           <span class="mail-account-email" :title="mailAccountLabel(account)">
             {{ mailAccountLabel(account) }}
           </span>
-          <span class="mail-status" :class="account.status">
+          <span
+          class="mail-status"
+          :class="{ 'is-error': account.status === 'error' }"
+        >
             {{ statusLabel(account) }}
           </span>
           <span v-if="account.unread" class="mail-unread">
@@ -530,7 +533,7 @@ watch(
   color: var(--color-success);
   font-size: var(--font-size-caption);
 }
-.mail-status.error {
+.mail-status.is-error {
   color: var(--color-danger);
 }
 .mail-unread {
