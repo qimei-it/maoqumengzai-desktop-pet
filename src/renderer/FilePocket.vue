@@ -260,6 +260,9 @@ function commandForSelected(
 }
 .pocket-actions .settings-button {
   flex: 1 1 28%;
+  height: 34px;
+  min-height: 34px;
+  font-size: var(--font-size-body);
 }
 .pocket-belly {
   margin-top: 10px;

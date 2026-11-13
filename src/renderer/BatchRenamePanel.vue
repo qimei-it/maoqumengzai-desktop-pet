@@ -316,6 +316,11 @@ function apply(): void {
   padding-top: 0;
   border-top: 0;
 }
+.rename-actions .settings-button {
+  height: 34px;
+  min-height: 34px;
+  font-size: var(--font-size-body);
+}
 .rename-error {
   margin: 8px 0 0;
   color: var(--color-danger);

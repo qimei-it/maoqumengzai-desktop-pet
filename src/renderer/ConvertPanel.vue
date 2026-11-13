@@ -591,7 +591,10 @@ function openOutput(outputId: string): void {
 .convert-start {
   flex: none;
   width: 100%;
+  height: 34px;
+  min-height: 34px;
   margin-top: 12px;
+  font-size: var(--font-size-body);
 }
 .convert-result {
   display: flex;
@@ -721,7 +724,10 @@ function openOutput(outputId: string): void {
 }
 .convert-actions .settings-button {
   flex: 1;
+  height: 34px;
+  min-height: 34px;
   gap: 6px;
+  font-size: var(--font-size-body);
 }
 .convert-error {
   margin: 8px 0 0;

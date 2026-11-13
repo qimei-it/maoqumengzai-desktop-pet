@@ -275,7 +275,10 @@ function start(): void {
 .archive-start {
   flex: none;
   width: 100%;
+  height: 34px;
+  min-height: 34px;
   margin-top: 12px;
+  font-size: var(--font-size-body);
 }
 .archive-result {
   display: flex;
@@ -320,7 +323,10 @@ function start(): void {
 }
 .archive-actions .settings-button {
   flex: 1;
+  height: 34px;
+  min-height: 34px;
   gap: 6px;
+  font-size: var(--font-size-body);
 }
 .archive-notice {
   margin: 8px 0 0;
