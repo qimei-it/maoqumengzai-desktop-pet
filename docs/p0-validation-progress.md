@@ -20,7 +20,7 @@
 | 透明窗口与交互 | [可运行原型与验证记录](p0-window-prototype.md)已建立；用户确认文件投递可用；拖入时出现 Filee 式十等分圆环（置物架、格式转换、打包归档、解压缩、压缩大小、吃掉、另存副本、发送邮件、批量重命名、智能问答），中心为宠物、环外取消；84 项单元与 30 项 Electron 集成通过 | 原生拖出落地、真实 Finder 拖放落点、物理拖动、插拔/唤醒/权限拒绝及 Windows x64/最低系统证据仍待补；H-P0-05 保持未完成。退出/销毁守卫已补，辅助窗口销毁后关闭轮盘不再抛异常 |
 | 播放器 | macOS 已完成 QQ 音乐 11.11.0、酷狗 20.3.8、网易云 3.1.9 的真实播放实测：三款均可播放/暂停/上一首/下一首并读取歌名、歌手、专辑、时长；QQ 与酷狗无进度，网易云只有快照。Apple Music 仍只有 AppleScript 静态摸底，见[能力记录](research/player-control-probe.md) | 复验 Apple Music 真实播放与进度；Windows 四款按 SMTC 逐格验证；macOS 不承诺四款均有歌词 |
 | 邮箱 | macOS 已真实授权 QQ、163、Gmail，完成收件、正文、附件、发送、验证码、文件夹与角标；Gmail 通过代理完成带附件发送与附件缓存/保存；126 服务器映射已补但缺真实账户 | 补 126 真实授权；Windows x64；Outlook 暂缓 |
-| 订阅额度与余额 | 已通过本机 Codex CLI 0.156.1 的 `account/rateLimits/read` 真实读取 OpenAI 订阅额度（plus，5 小时/7 天窗口）；DeepSeek Key 已配置并真实读取官方余额（约 ¥17.12）；见[验证记录](research/codex-quota-probe.md) | 补 Windows 复验；Claude 本机没有 CLI/登录信息，仍需安装并登录 Claude Code 后才能读取订阅额度 |
+| 订阅额度与余额 | 已通过本机 Codex CLI 0.156.1 的 `account/rateLimits/read` 真实读取 OpenAI 订阅额度（plus，5 小时/7 天窗口）；DeepSeek Key 已配置并真实读取官方余额（当前约 ¥13.79，随用量变化）；见[验证记录](research/codex-quota-probe.md) | 补 Windows 复验；Claude 本机没有 CLI/登录信息，仍需安装并登录 Claude Code 后才能读取订阅额度 |
 | 动画制作样例 | 已选布偶猫；用户计划先在 ChatGPT App 生图，素材尚未交付 | 取得素材后验证透明通道、像素网格、显示尺寸、脚底锚点与循环接缝；样例通过后创建可复用制作 Skill，为应用内专属宠物生成流程打基础 |
 
 ## 平台与架构实测表
