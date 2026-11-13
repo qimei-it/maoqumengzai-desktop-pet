@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import {
   copyFile,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -74,6 +75,52 @@ function run7z(args: string[], cwd: string): Promise<void> {
   })
 }
 
+const archiveFolderEntryLimit = 5000
+
+type FolderEntry = { relative: string; path: string; size: number }
+
+/** Flat list of a folder's files; symlinks and special files are skipped. */
+async function walkFolder(root: string): Promise<FolderEntry[]> {
+  const entries: FolderEntry[] = []
+  const stack: { directory: string; prefix: string }[] = [
+    { directory: root, prefix: '' },
+  ]
+  while (stack.length) {
+    const current = stack.pop()!
+    const children = await readdir(current.directory, { withFileTypes: true })
+    for (const child of children) {
+      if (child.isSymbolicLink()) continue
+      const path = join(current.directory, child.name)
+      const relative = current.prefix
+        ? `${current.prefix}/${child.name}`
+        : child.name
+      if (child.isDirectory()) {
+        stack.push({ directory: path, prefix: relative })
+        continue
+      }
+      if (!child.isFile()) continue
+      const info = await stat(path)
+      entries.push({ relative, path, size: info.size })
+      if (entries.length > archiveFolderEntryLimit)
+        throw new Error(
+          `文件夹内最多打包 ${archiveFolderEntryLimit} 个文件，请分开处理。`,
+        )
+    }
+  }
+  return entries
+}
+
+/** Total bytes of files and folders, counting folder contents recursively. */
+async function sourceSize(path: string): Promise<number> {
+  const info = await lstat(path)
+  if (info.isSymbolicLink())
+    throw new Error('只支持文件和文件夹，符号链接已跳过。')
+  if (info.isFile()) return info.size
+  if (!info.isDirectory()) throw new Error('只支持文件和文件夹。')
+  const entries = await walkFolder(path)
+  return entries.reduce((sum, entry) => sum + entry.size, 0)
+}
+
 const sevenZipTypes: Partial<Record<ArchiveFormat, string>> = {
   '7z': '7z',
   tar: 'tar',
@@ -96,6 +143,19 @@ async function createWith7z(
     for (const path of paths) {
       const name = archiveEntryName(path, used)
       names.push(name)
+      const info = await lstat(path)
+      if (info.isDirectory()) {
+        const staged = join(directory, name)
+        await mkdir(staged, { recursive: true })
+        for (const entry of await walkFolder(path)) {
+          const destination = join(staged, entry.relative)
+          await mkdir(dirname(destination), { recursive: true })
+          await copyFile(entry.path, destination)
+        }
+        continue
+      }
+      if (!info.isFile())
+        throw new Error('只支持文件和文件夹，符号链接已跳过。')
       await copyFile(path, join(directory, name))
     }
     const type = sevenZipTypes[format]
@@ -134,15 +194,15 @@ export async function createArchive(
   now = new Date(),
 ): Promise<string> {
   if (!paths.length) throw new Error('没有可打包的文件。')
-  const sizes = await Promise.all(
-    paths.map(async (path) => (await stat(path)).size),
-  )
-  const total = sizes.reduce((sum, size) => sum + size, 0)
+  const infos = await Promise.all(paths.map((path) => lstat(path)))
+  const total = (
+    await Promise.all(paths.map((path) => sourceSize(path)))
+  ).reduce((sum, size) => sum + size, 0)
   if (total > archiveInputLimit)
     throw new Error('一次最多打包 512 MB，请分开处理。')
   if (
-    paths.length > 1 &&
-    (singleFileArchiveFormats as readonly ArchiveFormat[]).includes(format)
+    (singleFileArchiveFormats as readonly ArchiveFormat[]).includes(format) &&
+    (paths.length > 1 || infos.some((info) => info.isDirectory()))
   )
     throw new Error('GZ、BZ2、XZ 只能压缩单个文件。')
 
@@ -151,6 +211,19 @@ export async function createArchive(
   const used = new Set<string>()
   const entries: Record<string, Uint8Array> = {}
   for (const path of paths) {
+    const info = await lstat(path)
+    if (info.isDirectory()) {
+      const top = archiveEntryName(path, used)
+      for (const entry of await walkFolder(path)) {
+        const name = `${top}/${entry.relative}`
+        if (!safeArchiveEntry(name))
+          throw new Error('文件夹包含不安全的文件名，已停止打包。')
+        entries[name] = new Uint8Array(await readFile(entry.path))
+      }
+      continue
+    }
+    if (!info.isFile())
+      throw new Error('只支持文件和文件夹，符号链接已跳过。')
     entries[archiveEntryName(path, used)] = new Uint8Array(
       await readFile(path),
     )

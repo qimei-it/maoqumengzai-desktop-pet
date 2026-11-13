@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { FolderOpen, X } from '@lucide/vue'
+import { Folder, FolderOpen, X } from '@lucide/vue'
 import {
   archiveFormatLabels,
   archiveFormats,
@@ -19,7 +19,11 @@ const archive = computed(() => props.state?.archive)
 const files = computed(() => archive.value?.files ?? [])
 const outcome = computed(() => archive.value?.outcome)
 const busy = computed(() => Boolean(archive.value?.busy))
-const multiple = computed(() => files.value.length > 1)
+const multiple = computed(
+  () =>
+    files.value.length > 1 ||
+    files.value.some((file) => file.kind === 'folder'),
+)
 const availableFormats = computed<readonly ArchiveFormat[]>(() =>
   multiple.value ? multiFileArchiveFormats : archiveFormats,
 )
@@ -81,9 +85,18 @@ function start(): void {
             class="archive-file"
             :title="file.name"
           >
-            <FileTypeIcon :name="file.name" :size="18" />
+            <Folder
+              v-if="file.kind === 'folder'"
+              :size="18"
+              :stroke-width="2"
+              aria-hidden="true"
+              focusable="false"
+            />
+            <FileTypeIcon v-else :name="file.name" :size="18" />
             <span class="archive-file-name">{{ file.name }}</span>
-            <span class="archive-file-size">{{ formatSize(file.size) }}</span>
+            <span class="archive-file-size">{{
+              file.kind === 'folder' ? '文件夹' : formatSize(file.size)
+            }}</span>
             <button
               type="button"
               class="archive-file-remove"
@@ -103,7 +116,11 @@ function start(): void {
 
         <template v-if="outcome">
           <div class="archive-result" role="status">
-            <strong>已打包 {{ outcome.count }} 个文件</strong>
+            <strong>{{
+              outcome.folderCount
+                ? `已打包 ${outcome.count} 项`
+                : `已打包 ${outcome.count} 个文件`
+            }}</strong>
           </div>
           <div class="archive-output">
             <FileTypeIcon :name="outcome.name" :size="28" />

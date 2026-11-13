@@ -20,6 +20,7 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron'
 import {
   copyFile,
+  cp,
   lstat,
   mkdir,
   readFile,
@@ -118,6 +119,7 @@ import type {
   LocalFile,
   LyricsState,
   MusicState,
+  ReceivedBatch,
   RenameFile,
   RenameState,
   Rect,
@@ -442,6 +444,7 @@ let archiveOutcome: ArchiveOutcome | undefined
 let archiveNotice: string | undefined
 let archiveFolder: string | undefined
 let archiveToken = 0
+let archiveFolderPaths = new Map<string, string>()
 let renameFiles: RenameFile[] = []
 let renameBusy = false
 let lyricsWidth = 240
@@ -487,8 +490,13 @@ const bellyDirectory = join(dataRoot, 'belly')
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
 let belly: StoredBellyEntry[] = []
-let received: { token: number; fileIds: string[] } | undefined
+let received: ReceivedBatch | undefined
 let receiveToken = 0
+/** Folders stay out of the shelf; they live only until archive or eat consumes them. */
+let receivedFolders = new Map<
+  string,
+  { name: string; path: string; device: number; inode: number }
+>()
 
 /** On-disk belly record; absolute paths never enter snapshots or logs. */
 type StoredBellyEntry = BellyEntry & {
@@ -554,10 +562,11 @@ function snapshot(): Snapshot {
       }),
     ),
     ...(received ? { received } : {}),
-    belly: belly.map(({ id, name, size, eatenAt, expiresAt }) => ({
+    belly: belly.map(({ id, name, size, kind, eatenAt, expiresAt }) => ({
       id,
       name,
       size,
+      kind,
       eatenAt,
       expiresAt,
     })),
@@ -1144,21 +1153,38 @@ function positionArchive(): void {
   )
   archiveWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-function openArchive(fileIds: string[]): void {
-  const selected = fileIds
+function openArchive(fileIds: string[], folderIds: string[] = []): void {
+  const selectedFiles = fileIds
     .map((id) => files.get(id))
     .filter((file): file is NonNullable<typeof file> => Boolean(file))
-  if (!selected.length) {
-    showToast('没有可打包的文件')
+  const selectedFolders = folderIds.flatMap((id) => {
+    const folder = receivedFolders.get(id)
+    return folder ? [{ id, ...folder }] : []
+  })
+  if (!selectedFiles.length && !selectedFolders.length) {
+    showToast('没有可打包的项目')
     return
   }
   archiveToken += 1
   archiveBusy = false
-  archiveFiles = selected.slice(0, 32).map(({ id, name, size }) => ({
-    id,
-    name,
-    size,
-  }))
+  archiveFolderPaths = new Map()
+  archiveFiles = [
+    ...selectedFiles.map(({ id, name, size }) => ({
+      id,
+      name,
+      size,
+      kind: 'file' as const,
+    })),
+    ...selectedFolders.map((folder) => {
+      archiveFolderPaths.set(folder.id, folder.path)
+      return {
+        id: folder.id,
+        name: folder.name,
+        size: 0,
+        kind: 'folder' as const,
+      }
+    }),
+  ].slice(0, 32)
   archiveOutcome = undefined
   archiveNotice = undefined
   archiveFolder = undefined
@@ -1194,11 +1220,29 @@ async function startArchive(format: ArchiveFormat): Promise<void> {
   broadcast()
   try {
     const paths: string[] = []
-    for (const file of selected) paths.push(await registeredFile(file.id))
+    for (const file of selected) {
+      if (file.kind === 'folder') {
+        const path = archiveFolderPaths.get(file.id)
+        if (!path) throw new Error(`文件夹“${file.name}”记录不存在。`)
+        const current = await lstat(path).catch(() => null)
+        if (!current?.isDirectory())
+          throw new Error(`文件夹“${file.name}”已不存在。`)
+        paths.push(path)
+        continue
+      }
+      paths.push(await registeredFile(file.id))
+    }
+    const folderCount = selected.filter(
+      (file) => file.kind === 'folder',
+    ).length
     const destination = await createArchive(paths, format)
     const info = await stat(destination)
     await registerOutputs([destination])
-    showToast(`已打包 ${paths.length} 个文件`)
+    showToast(
+      folderCount
+        ? `已打包 ${paths.length} 项`
+        : `已打包 ${paths.length} 个文件`,
+    )
     addEvent(`已创建压缩包「${basename(destination)}」。`)
     if (token !== archiveToken) return
     archiveOutcome = {
@@ -1206,6 +1250,7 @@ async function startArchive(format: ArchiveFormat): Promise<void> {
       name: basename(destination),
       size: info.size,
       format,
+      ...(folderCount ? { folderCount } : {}),
     }
     archiveFolder = dirname(destination)
     if (windowVisible(archiveWindow)) positionArchive()
@@ -1224,6 +1269,7 @@ function removeArchiveFile(fileId: string): void {
   if (archiveBusy) return
   const next = archiveFiles.filter((file) => file.id !== fileId)
   if (next.length === archiveFiles.length) return
+  archiveFolderPaths.delete(fileId)
   archiveFiles = next
   if (!archiveFiles.length) {
     closeArchive()
@@ -4071,7 +4117,7 @@ async function clearBellyContents(): Promise<void> {
     defaultId: 0,
     cancelId: 0,
     message: '清空回收区？',
-    detail: '回收区里的文件会被永久删除，无法恢复。',
+    detail: '回收区里的文件和文件夹会被永久删除，无法恢复。',
   }
   const result = settingsWindow
     ? await dialog.showMessageBox(settingsWindow, options)
@@ -5699,6 +5745,7 @@ async function restoreBelly(): Promise<void> {
                 id: z.string().uuid(),
                 name: z.string().max(4096),
                 size: z.number().nonnegative(),
+                kind: z.enum(['file', 'folder']).optional(),
                 eatenAt: z.number().finite(),
                 expiresAt: z.number().finite(),
                 originalPath: z.string().max(4096).refine(isAbsolute),
@@ -5710,7 +5757,10 @@ async function restoreBelly(): Promise<void> {
       })
       .strict()
       .parse(JSON.parse(await readFile(bellyPath, 'utf8')))
-    belly = stored.entries
+    belly = stored.entries.map((entry) => ({
+      ...entry,
+      kind: entry.kind ?? 'file',
+    }))
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
       addEvent('桌宠回收区索引读取失败；已保留原有文件。')
@@ -5732,7 +5782,7 @@ async function purgeBelly(): Promise<number> {
   belly = kept
   if (removed) {
     await saveBelly()
-    addEvent(`回收区已清理 ${removed} 个到期文件。`)
+    addEvent(`回收区已清理 ${removed} 个到期项目。`)
   }
   return removed
 }
@@ -5741,6 +5791,15 @@ async function movePath(source: string, destination: string): Promise<void> {
     await rename(source, destination)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EXDEV') throw error
+    if ((await lstat(source)).isDirectory()) {
+      await cp(source, destination, {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+      })
+      await rm(source, { recursive: true, force: true })
+      return
+    }
     await copyFile(source, destination)
     await unlink(source)
   }
@@ -6497,6 +6556,7 @@ function recover(): void {
   wheelOpen = false
   baseBounds = undefined
   received = undefined
+  receivedFolders = new Map()
   setPassthrough(false)
   const a = screen.getPrimaryDisplay().workArea
   placePet(
@@ -6614,7 +6674,7 @@ async function inspectFile(path: string): Promise<{
   if (!isAbsolute(path)) throw new Error('只接受本地绝对路径。')
   const info = await lstat(path)
   if (!info.isFile() || info.isSymbolicLink())
-    throw new Error('原型只接收普通文件；文件夹和符号链接暂不支持。')
+    throw new Error('只接受普通文件。')
   return {
     path: await realpath(path),
     size: info.size,
@@ -6623,9 +6683,61 @@ async function inspectFile(path: string): Promise<{
     inode: info.ino,
   }
 }
+type InspectedEntry = {
+  path: string
+  size: number
+  modifiedAt: number
+  device: number
+  inode: number
+  kind: 'file' | 'folder'
+}
+type InspectOutcome =
+  | { ok: true; entry: InspectedEntry }
+  | { ok: false; name: string; folder: boolean }
+/** Drops accept folders for archiving and eating; symlinks are always skipped. */
+async function inspectEntry(path: string): Promise<InspectOutcome> {
+  const name = basename(path)
+  if (!isAbsolute(path)) return { ok: false, name, folder: false }
+  let info
+  try {
+    info = await lstat(path)
+  } catch {
+    return { ok: false, name, folder: false }
+  }
+  if (info.isSymbolicLink()) {
+    const target = await stat(path).catch(() => null)
+    return { ok: false, name, folder: Boolean(target?.isDirectory()) }
+  }
+  if (!info.isFile() && !info.isDirectory())
+    return { ok: false, name, folder: false }
+  try {
+    return {
+      ok: true,
+      entry: {
+        path: await realpath(path),
+        size: info.isFile() ? info.size : 0,
+        modifiedAt: info.mtimeMs,
+        device: info.dev,
+        inode: info.ino,
+        kind: info.isDirectory() ? 'folder' : 'file',
+      },
+    }
+  } catch {
+    return { ok: false, name, folder: info.isDirectory() }
+  }
+}
 async function receivePaths(paths: string[]): Promise<void> {
-  // Validate the complete batch before mutating the registry.
-  const inspected = await Promise.all(paths.map(inspectFile))
+  // One unsupported entry no longer rejects the whole batch; valid files and
+  // folders still reach the matching wheel action.
+  const outcomes = await Promise.all(paths.map((path) => inspectEntry(path)))
+  const entries = outcomes.flatMap((outcome) =>
+    outcome.ok ? [outcome.entry] : [],
+  )
+  const skippedFolders = outcomes.flatMap((outcome) =>
+    !outcome.ok && outcome.folder ? [outcome.name] : [],
+  )
+  const inspected = entries.filter((entry) => entry.kind === 'file')
+  const folders = entries.filter((entry) => entry.kind === 'folder')
   const known = new Set([...files.values()].map((file) => file.path))
   const additions = inspected.filter((item) => {
     if (known.has(item.path)) return false
@@ -6647,6 +6759,18 @@ async function receivePaths(paths: string[]): Promise<void> {
       status: 'shelved',
     })
   }
+  receivedFolders = new Map()
+  const knownFolders = new Set<string>()
+  for (const item of folders) {
+    if (knownFolders.has(item.path)) continue
+    knownFolders.add(item.path)
+    receivedFolders.set(randomUUID(), {
+      name: basename(item.path),
+      path: item.path,
+      device: item.device,
+      inode: item.inode,
+    })
+  }
   dropMode = false
   receiveToken += 1
   received = {
@@ -6657,19 +6781,60 @@ async function receivePaths(paths: string[]): Promise<void> {
           [...files.values()].find((file) => file.path === item.path)?.id,
       )
       .filter((id): id is string => !!id),
+    folders: [...receivedFolders].map(([id, folder]) => ({
+      id,
+      name: folder.name,
+    })),
+    skippedFolders,
   }
   addEvent(
-    `已接收 ${inspected.length} 个本地文件；只登记索引，不读取正文或上传。`,
+    `已接收 ${inspected.length} 个本地文件${folders.length ? `、${folders.length} 个文件夹` : ''}；只登记索引，不读取正文或上传。`,
   )
   if (additions.length) await saveShelf()
   refreshPocketLayout()
 }
-async function eatFiles(fileIds: string[]): Promise<void> {
-  const targets: { file: LocalFile; path: string }[] = []
+async function eatFiles(
+  fileIds: string[],
+  folderIds: string[] = [],
+): Promise<void> {
+  type EatTarget = {
+    id: string
+    fileId?: string
+    name: string
+    size: number
+    kind: 'file' | 'folder'
+    path: string
+  }
+  const targets: EatTarget[] = []
   for (const id of fileIds) {
     const file = files.get(id)
     if (!file) throw new Error('文件记录不存在。')
-    targets.push({ file, path: await registeredFile(id) })
+    targets.push({
+      id: file.id,
+      fileId: file.id,
+      name: file.name,
+      size: file.size,
+      kind: 'file',
+      path: await registeredFile(id),
+    })
+  }
+  for (const id of folderIds) {
+    const folder = receivedFolders.get(id)
+    if (!folder) continue
+    const current = await lstat(folder.path).catch(() => null)
+    if (
+      !current?.isDirectory() ||
+      current.dev !== folder.device ||
+      current.ino !== folder.inode
+    )
+      throw new Error(`文件夹“${folder.name}”已不存在。`)
+    targets.push({
+      id,
+      name: folder.name,
+      size: 0,
+      kind: 'folder',
+      path: folder.path,
+    })
   }
   if (!targets.length) throw new Error('没有可吃掉的文件。')
   await mkdir(bellyDirectory, { recursive: true, mode: 0o700 })
@@ -6683,8 +6848,9 @@ async function eatFiles(fileIds: string[]): Promise<void> {
       await movePath(target.path, storedPath)
       moved.push({
         id: entryId,
-        name: target.file.name,
-        size: target.file.size,
+        name: target.name,
+        size: target.size,
+        kind: target.kind,
         eatenAt: Date.now(),
         expiresAt: Date.now() + bellyRetentionMs,
         originalPath: target.path,
@@ -6700,11 +6866,13 @@ async function eatFiles(fileIds: string[]): Promise<void> {
     throw error
   }
   belly.push(...moved)
-  for (const target of targets) files.delete(target.file.id)
+  for (const target of targets) {
+    if (target.fileId) files.delete(target.fileId)
+  }
   await saveBelly()
   await saveShelf()
   refreshPocketLayout()
-  addEvent(`已吃掉 ${moved.length} 个文件；7 天内可在置物架取回。`)
+  addEvent(`已吃掉 ${moved.length} 项；7 天内可在置物架取回。`)
 }
 async function restoreEaten(entryId: string): Promise<void> {
   const entry = belly.find((candidate) => candidate.id === entryId)
@@ -6715,7 +6883,7 @@ async function restoreEaten(entryId: string): Promise<void> {
   await rm(dirname(entry.storedPath), { recursive: true, force: true })
   await saveBelly()
   refreshPocketLayout()
-  addEvent(`已取回「${entry.name}」；原文件已回到本地磁盘。`)
+  addEvent(`已取回「${entry.name}」；已回到本地磁盘。`)
 }
 async function registeredFile(id: string): Promise<string> {
   const file = files.get(id)
@@ -6994,6 +7162,7 @@ function setupIpc(): void {
         drag = undefined
         if (enabling) {
           received = undefined
+          receivedFolders = new Map()
           closeWheelWindow()
         }
         setPassthrough(false)
@@ -7058,8 +7227,9 @@ function setupIpc(): void {
         else closeWheelWindow()
         break
       case 'eat-files':
-        await eatFiles(command.fileIds)
+        await eatFiles(command.fileIds, command.folderIds)
         received = undefined
+        receivedFolders = new Map()
         closeWheelWindow()
         break
       case 'restore-eaten':
@@ -7168,7 +7338,7 @@ function setupIpc(): void {
         closeRename()
         break
       case 'archive-open':
-        openArchive(command.fileIds)
+        openArchive(command.fileIds, command.folderIds)
         break
       case 'archive-start':
         await startArchive(command.format)

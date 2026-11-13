@@ -78,7 +78,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('eat-files'),
-      fileIds: z.array(fileId).min(1).max(32),
+      fileIds: z.array(fileId).max(32).default([]),
+      folderIds: z.array(fileId).max(32).default([]),
     })
     .strict(),
   z
@@ -238,7 +239,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('archive-open'),
-      fileIds: z.array(z.string().uuid()).min(1).max(32),
+      fileIds: z.array(fileId).max(32).default([]),
+      folderIds: z.array(fileId).max(32).default([]),
     })
     .strict(),
   z

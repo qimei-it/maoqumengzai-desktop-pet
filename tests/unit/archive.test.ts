@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
@@ -138,6 +138,98 @@ describe('archive round trips', () => {
       }
     })
   }
+
+  test('packs a folder with its contents beside a file', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'mqmz-folder-zip-'))
+    try {
+      const video = join(folder, '片段.mp4')
+      await writeFile(video, 'video', 'utf8')
+      const source = join(folder, '素材')
+      await mkdir(join(source, '子目录'), { recursive: true })
+      await writeFile(join(source, '说明.txt'), '说明', 'utf8')
+      await writeFile(join(source, '子目录', '画面.txt'), '画面', 'utf8')
+      const archive = await createArchive(
+        [video, source],
+        'zip',
+        new Date(2026, 10, 13, 12, 0, 0),
+      )
+      expect(archive.endsWith('.zip')).toBe(true)
+      const result = await extractArchive(archive)
+      expect(
+        await readFile(join(result.folder, '素材', '说明.txt'), 'utf8'),
+      ).toBe('说明')
+      expect(
+        await readFile(join(result.folder, '素材', '子目录', '画面.txt'), 'utf8'),
+      ).toBe('画面')
+      expect(await readFile(join(result.folder, '片段.mp4'), 'utf8')).toBe(
+        'video',
+      )
+    } finally {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('packs a folder into TAR without losing its structure', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'mqmz-folder-tar-'))
+    try {
+      const source = join(folder, '素材')
+      await mkdir(join(source, '子目录'), { recursive: true })
+      await writeFile(join(source, '说明.txt'), '说明', 'utf8')
+      await writeFile(join(source, '子目录', '画面.txt'), '画面', 'utf8')
+      const archive = await createArchive(
+        [source],
+        'tar',
+        new Date(2026, 10, 13, 12, 0, 0),
+      )
+      const result = await extractArchive(archive)
+      expect(
+        await readFile(join(result.folder, '素材', '子目录', '画面.txt'), 'utf8'),
+      ).toBe('画面')
+    } finally {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('skips symlinks inside a folder', async () => {
+    if (process.platform === 'win32') return
+    const folder = await mkdtemp(join(tmpdir(), 'mqmz-folder-link-'))
+    try {
+      const source = join(folder, '素材')
+      await mkdir(source, { recursive: true })
+      await writeFile(join(source, '说明.txt'), '说明', 'utf8')
+      await symlink(join(source, '说明.txt'), join(source, '链接.txt'))
+      const archive = await createArchive(
+        [source],
+        'zip',
+        new Date(2026, 10, 13, 12, 0, 0),
+      )
+      const result = await extractArchive(archive)
+      expect(
+        await readFile(join(result.folder, '素材', '说明.txt'), 'utf8'),
+      ).toBe('说明')
+      await expect(
+        readFile(join(result.folder, '素材', '链接.txt'), 'utf8'),
+      ).rejects.toThrow()
+    } finally {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('single-file formats reject folders', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'mqmz-folder-stream-'))
+    try {
+      const source = join(folder, '素材')
+      await mkdir(source, { recursive: true })
+      await writeFile(join(source, '说明.txt'), '说明', 'utf8')
+      for (const format of ['gz', 'bz2', 'xz'] as const) {
+        await expect(createArchive([source], format)).rejects.toThrow(
+          '只能压缩单个文件',
+        )
+      }
+    } finally {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+    }
+  })
 
   test('rejects multi-file GZ/BZ2/XZ archives', async () => {
     const folder = await mkdtemp(join(tmpdir(), 'mqmz-stream-limit-'))

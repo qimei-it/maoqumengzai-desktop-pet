@@ -19,6 +19,7 @@ import {
 import type {
   CapturePreview,
   Command,
+  ReceivedBatch,
   Result,
   Snapshot,
 } from "../shared/protocol";
@@ -519,128 +520,134 @@ async function receive(event: DragEvent): Promise<void> {
   if (!action) return;
   await applyDrop(files, action);
 }
+function quotedFolderNames(names: string[]): string {
+  return names.map((name) => `“${name}”`).join("");
+}
+function flashMissedFolders(names: string[], result: string): void {
+  if (names.length) flash(`文件夹${quotedFolderNames(names)}${result}`);
+}
+async function receiveBatch(files: File[]): Promise<ReceivedBatch | undefined> {
+  if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+  const snapshot = unwrap(await api.receiveFiles(files));
+  state.value = snapshot;
+  return snapshot.received;
+}
+/** Drop failures belong in the bubble; the tiny error strip was cleared too fast. */
+async function attemptDrop(action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (cause) {
+    error.value = "";
+    flash(cause instanceof Error ? cause.message : "本地操作失败。");
+  }
+}
+const fileOnlyFolderResults: Record<string, string> = {
+  ask: "未参与智能问答",
+  convert: "未参与格式转换",
+  extract: "未参与解压缩",
+  shrink: "未参与压缩大小",
+  mail: "未加入邮件",
+  rename: "未参与批量重命名",
+  stash: "未放入置物架",
+  copy: "未保存副本",
+};
 async function applyDrop(files: File[], action: DropAction): Promise<void> {
-  if (action === "ask") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
+  await attemptDrop(async () => {
+    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+    const batch = await receiveBatch(files);
+    const ids = batch?.fileIds ?? [];
+    const folders = batch?.folders ?? [];
+    const skipped = batch?.skippedFolders ?? [];
+    const folderIds = folders.map((folder) => folder.id);
+    const folderNames = folders.map((folder) => folder.name);
+
+    if (action === "archive") {
+      if (!ids.length && !folderIds.length) {
+        flashMissedFolders(skipped, "未打包归档");
+        if (!skipped.length) flash("没有可打包的项目");
+        return;
+      }
+      state.value = unwrap(
+        await api.command({
+          type: "archive-open",
+          fileIds: ids,
+          folderIds,
+        }),
+      );
+      flashMissedFolders(skipped, "未打包归档");
+      return;
+    }
+
+    if (action === "eat") {
+      if (!ids.length && !folderIds.length) {
+        flashMissedFolders(skipped, "未能吃掉");
+        if (!skipped.length) flash("没有可吃掉的文件");
+        return;
+      }
+      state.value = unwrap(
+        await api.command({
+          type: "eat-files",
+          fileIds: ids,
+          folderIds,
+        }),
+      );
+      flash("吃掉了；7 天内在置物架可以取回。");
+      flashMissedFolders(skipped, "未能吃掉");
+      return;
+    }
+
+    const folderResult = fileOnlyFolderResults[action] ?? "未处理";
+    const missed = [...folderNames, ...skipped];
+    if (!ids.length) {
+      flashMissedFolders(missed, folderResult);
+      return;
+    }
+
+    if (action === "ask") {
       state.value = unwrap(
         await api.command({ type: "ai-open", fileIds: ids }),
       );
-    });
-    return;
-  }
-  if (action === "convert") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
+    } else if (action === "convert") {
       state.value = unwrap(
         await api.command({ type: "convert-open", fileIds: ids }),
       );
-    });
-    return;
-  }
-  if (action === "archive") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
-      if (!ids.length) return;
-      state.value = unwrap(
-        await api.command({ type: "archive-open", fileIds: ids }),
-      );
-    });
-    return;
-  }
-  if (action === "extract") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
-      if (!ids.length) return;
+    } else if (action === "extract") {
       state.value = unwrap(
         await api.command({ type: "extract-archives", fileIds: ids }),
       );
-    });
-    return;
-  }
-  if (action === "shrink") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
-      if (!ids.length) return;
+    } else if (action === "shrink") {
       state.value = unwrap(
         await api.command({ type: "shrink-files", fileIds: ids }),
       );
-    });
-    return;
-  }
-  if (action === "mail") {
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
-      if (!ids.length) return;
+    } else if (action === "mail") {
       state.value = unwrap(await api.command({ type: "mail-open" }));
-    });
-    flash("邮件附件发送尚未接入");
-    return;
-  }
-  if (action === "rename") {
-    if (files.length < 2) {
-      flash("至少选择两个文件才能批量重命名");
-      return;
-    }
-    await attempt(async () => {
-      if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-      const snapshot = unwrap(await api.receiveFiles(files));
-      state.value = snapshot;
-      const ids = snapshot.received?.fileIds ?? [];
+      flash("邮件附件发送尚未接入");
+    } else if (action === "rename") {
+      if (ids.length < 2) {
+        flash("至少选择两个文件才能批量重命名");
+        return;
+      }
       state.value = unwrap(
         await api.command({ type: "rename-open", fileIds: ids }),
       );
-    });
-    return;
-  }
-  await attempt(async () => {
-    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-    const snapshot = unwrap(await api.receiveFiles(files));
-    state.value = snapshot;
-    const ids = snapshot.received?.fileIds ?? [];
-    if (!ids.length) return;
-    if (action === "stash") {
+    } else if (action === "stash") {
       // Files are shelved as soon as they are received, so the wheel action
       // just surfaces the pocket instead of asking for a second confirmation.
       state.value = unwrap(await api.command({ type: "show-pocket" }));
-      return;
-    }
-    if (action === "copy") {
+    } else if (action === "copy") {
       for (const id of ids)
         state.value = unwrap(
           await api.command({ type: "save-copy", fileId: id }),
         );
       flash("已保存副本");
-      return;
     }
-    state.value = unwrap(
-      await api.command({ type: "eat-files", fileIds: ids }),
-    );
-    flash("吃掉了；7 天内在置物架可以取回。");
+    flashMissedFolders(missed, folderResult);
   });
 }
 async function receiveFiles(files: File[]): Promise<void> {
-  await attempt(async () => {
-    if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
-    state.value = unwrap(await api.receiveFiles(files));
+  await attemptDrop(async () => {
+    const batch = await receiveBatch(files);
+    flashMissedFolders(batch?.skippedFolders ?? [], "未接收");
   });
 }
 /**

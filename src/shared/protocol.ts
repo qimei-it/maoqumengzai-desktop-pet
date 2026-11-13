@@ -64,11 +64,18 @@ export type LocalFile = {
   modifiedAt: number
   status: 'received' | 'shelved'
 }
-export type ReceivedBatch = { token: number; fileIds: string[] }
+export type ReceivedFolder = { id: string; name: string }
+export type ReceivedBatch = {
+  token: number
+  fileIds: string[]
+  folders: ReceivedFolder[]
+  skippedFolders: string[]
+}
 export type BellyEntry = {
   id: string
   name: string
   size: number
+  kind: 'file' | 'folder'
   eatenAt: number
   expiresAt: number
 }
@@ -137,12 +144,18 @@ export const singleFileArchiveFormats = [
   'bz2',
   'xz',
 ] as const satisfies readonly ArchiveFormat[]
-export type ArchiveFile = { id: string; name: string; size: number }
+export type ArchiveFile = {
+  id: string
+  name: string
+  size: number
+  kind: 'file' | 'folder'
+}
 export type ArchiveOutcome = {
   count: number
   name: string
   size: number
   format: ArchiveFormat
+  folderCount?: number
 }
 export type ArchiveState = {
   busy: boolean
@@ -424,7 +437,7 @@ export type Command =
   | { type: 'reveal-file'; fileId: string }
   | { type: 'save-copy'; fileId: string }
   | { type: 'wheel'; open: boolean }
-  | { type: 'eat-files'; fileIds: string[] }
+  | { type: 'eat-files'; fileIds: string[]; folderIds: string[] }
   | { type: 'restore-eaten'; entryId: string }
   | {
       type: 'music-control'
@@ -462,7 +475,7 @@ export type Command =
   | { type: 'rename-open'; fileIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
   | { type: 'rename-close' }
-  | { type: 'archive-open'; fileIds: string[] }
+  | { type: 'archive-open'; fileIds: string[]; folderIds: string[] }
   | { type: 'archive-start'; format: ArchiveFormat }
   | { type: 'archive-remove-file'; fileId: string }
   | { type: 'archive-close' }

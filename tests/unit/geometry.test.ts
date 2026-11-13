@@ -68,6 +68,40 @@ describe('IPC boundary validation', () => {
       expect(commandSchema.safeParse(input).success).toBe(false)
     }
   })
+  it('accepts archive and eat commands with folder ids', () => {
+    const id = '00000000-0000-4000-8000-000000000000'
+    expect(
+      commandSchema.safeParse({
+        type: 'archive-open',
+        fileIds: [],
+        folderIds: [id],
+      }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({ type: 'archive-open', fileIds: [id] }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({
+        type: 'eat-files',
+        fileIds: [id],
+        folderIds: [id],
+      }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({
+        type: 'archive-open',
+        fileIds: Array(33).fill(id),
+        folderIds: [],
+      }).success,
+    ).toBe(false)
+    expect(
+      commandSchema.safeParse({
+        type: 'archive-open',
+        fileIds: [],
+        folderIds: ['/tmp/folder'],
+      }).success,
+    ).toBe(false)
+  })
   it('limits mask size, enforces pixel count, and rejects nonfinite positions', () => {
     expect(
       maskSchema.safeParse({
