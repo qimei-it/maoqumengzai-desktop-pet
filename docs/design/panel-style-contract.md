@@ -42,6 +42,7 @@
 - 原生按钮通过 `titleBarStyle: 'hidden'`、`trafficLightPosition` 和 `setWindowButtonVisibility(true)` 显示；固定尺寸面板调用 `setMaximizable(false)`、`setFullScreenable(false)`，绿色按钮显示系统原生置灰
 - 交通灯位置由 7px 面板内边距推导并集中写在 `panelChrome`，所有面板共用，不再单独偏移
 - 面板窗口的 `body` 与 `#app` 必须保持透明，只由 `.panel-surface` 绘制圆角表面；7px 外边距留给阴影，禁止在嵌套视图里回退到不透明的 `body` 背景
+- 跟宠浮层（额度药丸、音乐栏、歌词、音符、音量、眼睛、气泡、提示和专注环）统一使用 `configurePetOverlay`，与桌宠共用 `CanJoinAllSpaces + Managed` 行为；不得调用 `setHiddenInMissionControl(true)`，否则 Mission Control 只会缩放桌宠，浮层留在原地
 - Windows 11：右上角最小化、最大化、关闭按钮；固定尺寸面板最大化置灰
 - 顶部标题栏可拖动；按钮区域不参与拖动
 - 置物架、文件转换、智能问答、批量重命名、设置共用这套结构

@@ -5619,10 +5619,7 @@ async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
     })
     quotaBar = window
     window.setIgnoreMouseEvents(true)
-    if (process.platform === 'darwin') {
-      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-      window.setHiddenInMissionControl(true)
-    }
+    configurePetOverlay(window)
     secureWindow(window)
     await load(window, 'quota')
     return window
@@ -8068,6 +8065,16 @@ function configurePanelChrome(window: BrowserWindow): void {
   window.setMaximizable(false)
   window.setFullScreenable(false)
 }
+/**
+ * Pet-attached overlays must share the pet's Mission Control behavior.
+ * `setHiddenInMissionControl(true)` adds NSWindowCollectionBehaviorTransient,
+ * which leaves the overlay behind while the pet zooms into Mission Control.
+ */
+function configurePetOverlay(window: BrowserWindow): void {
+  if (process.platform !== 'darwin') return
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  window.setHiddenInMissionControl(false)
+}
 
 function installApplicationMenu(): void {
   if (process.platform !== 'darwin') {
@@ -8199,10 +8206,7 @@ async function createWindows(): Promise<void> {
     },
   })
   notes.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin') {
-    notes.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    notes.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(notes)
   pill = new BrowserWindow({
     width: 256,
     height: 40,
@@ -8224,10 +8228,7 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin') {
-    pill.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    pill.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(pill)
   volumePopup = new BrowserWindow({
     width: 40,
     height: 122,
@@ -8249,10 +8250,7 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin') {
-    volumePopup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    volumePopup.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(volumePopup)
   eye = new BrowserWindow({
     width: 32,
     height: 32,
@@ -8274,10 +8272,7 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin') {
-    eye.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    eye.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(eye)
   lyricsWindow = new BrowserWindow({
     width: 240,
     height: 88,
@@ -8300,12 +8295,7 @@ async function createWindows(): Promise<void> {
     },
   })
   lyricsWindow.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin') {
-    lyricsWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true,
-    })
-    lyricsWindow.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(lyricsWindow)
   bubbleWindow = new BrowserWindow({
     width: 216,
     height: 84,
@@ -8328,10 +8318,7 @@ async function createWindows(): Promise<void> {
     },
   })
   bubbleWindow.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin') {
-    bubbleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    bubbleWindow.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(bubbleWindow)
   toastWindow = new BrowserWindow({
     width: 190,
     height: 64,
@@ -8354,10 +8341,7 @@ async function createWindows(): Promise<void> {
     },
   })
   toastWindow.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin') {
-    toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    toastWindow.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(toastWindow)
   askWindow = new BrowserWindow({
     width: 400,
     height: 520,
@@ -8676,10 +8660,7 @@ async function createWindows(): Promise<void> {
     },
   })
   focusBadge.setIgnoreMouseEvents(true)
-  if (process.platform === 'darwin') {
-    focusBadge.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    focusBadge.setHiddenInMissionControl(true)
-  }
+  configurePetOverlay(focusBadge)
   lab = !app.isPackaged
     ? new BrowserWindow({
         width: 1024,

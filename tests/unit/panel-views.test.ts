@@ -3,6 +3,11 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 describe('panel window backgrounds', () => {
+  test('pet overlays stay with the pet in Mission Control', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    expect(main).not.toContain('.setHiddenInMissionControl(true)')
+  })
+
   test('every toggled view keeps the window margin transparent', () => {
     const root = process.cwd()
     const app = readFileSync(join(root, 'src/renderer/App.vue'), 'utf8')
