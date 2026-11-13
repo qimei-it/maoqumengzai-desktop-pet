@@ -118,6 +118,7 @@ document.body.classList.toggle("lyrics-view", lyricsView);
 document.body.classList.toggle("bubble-view", bubbleView);
 document.body.classList.toggle("ask-view", askView);
 document.body.classList.toggle("mail-view", mailView);
+document.body.classList.toggle("compose-view", composeView);
 document.body.classList.toggle("convert-view", convertView);
 document.body.classList.toggle("archive-view", archiveView);
 document.body.classList.toggle("toast-view", toastView);

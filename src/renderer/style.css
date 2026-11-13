@@ -1251,6 +1251,18 @@ footer button {
   overflow: hidden;
 }
 
+.archive-view,
+.archive-view #app,
+.mail-view,
+.mail-view #app,
+.compose-view,
+.compose-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
 .toast-view,
 .toast-view #app {
   background: transparent;

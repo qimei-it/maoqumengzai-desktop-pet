@@ -7909,11 +7909,16 @@ async function load(window: BrowserWindow, view: string): Promise<void> {
  * `titleBarStyle: 'hidden'` lets AppKit draw red/yellow/green over it.
  * Windows keeps the in-page controls because it has no equivalent.
  */
+/** Keep in sync with the 7px inset on every panel shell. */
+const panelInset = 7
 const panelChrome =
   process.platform === 'darwin'
     ? {
         titleBarStyle: 'hidden' as const,
-        trafficLightPosition: { x: 14, y: 17 },
+        trafficLightPosition: {
+          x: panelInset + 7,
+          y: panelInset + 10,
+        },
       }
     : {}
 
@@ -8499,6 +8504,7 @@ async function createWindows(): Promise<void> {
     archiveWindow,
     renameWindow,
     settingsWindow,
+    mailWindow,
     mailComposeWindow,
     pomodoroWindow,
     waterWindow,

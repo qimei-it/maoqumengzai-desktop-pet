@@ -40,6 +40,8 @@
 
 - macOS：使用 AppKit 原生红黄绿交通灯，标题居中，不再绘制 DOM 圆点或右上角 X
 - 原生按钮通过 `titleBarStyle: 'hidden'`、`trafficLightPosition` 和 `setWindowButtonVisibility(true)` 显示；固定尺寸面板调用 `setMaximizable(false)`、`setFullScreenable(false)`，绿色按钮显示系统原生置灰
+- 交通灯位置由 7px 面板内边距推导并集中写在 `panelChrome`，所有面板共用，不再单独偏移
+- 面板窗口的 `body` 与 `#app` 必须保持透明，只由 `.panel-surface` 绘制圆角表面；7px 外边距留给阴影，禁止在嵌套视图里回退到不透明的 `body` 背景
 - Windows 11：右上角最小化、最大化、关闭按钮；固定尺寸面板最大化置灰
 - 顶部标题栏可拖动；按钮区域不参与拖动
 - 置物架、文件转换、智能问答、批量重命名、设置共用这套结构
