@@ -315,12 +315,10 @@ function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
 }
-let dropModeSynced: boolean | undefined;
 function syncDropMode(enabled: boolean): Promise<void> {
-  // dragenter fires again whenever the cursor crosses the pet or a slice;
-  // repeating an unchanged request would close and reopen the wheel window.
-  if (dropModeSynced === enabled) return dropModeChain;
-  dropModeSynced = enabled;
+  // Every dragenter repeats this request; the main process ignores an enable
+  // that is already active so the wheel is never torn down mid-drag. Keeping
+  // the renderer stateless also covers drop mode changed from another window.
   dropModeChain = dropModeChain.then(() =>
     command({ type: "drop-mode", enabled }),
   );
@@ -1215,12 +1213,6 @@ const permissionLabel = computed(
     })[state.value?.screenPermission || ""] ||
     state.value?.screenPermission ||
     "读取中",
-);
-watch(
-  () => state.value?.dropMode,
-  (value) => {
-    if (typeof value === "boolean") dropModeSynced = value;
-  },
 );
 watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
   await nextTick();
