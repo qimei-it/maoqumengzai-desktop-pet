@@ -6260,11 +6260,20 @@ function musicStateFromPayload(
         ? parsed.elapsedTime
         : undefined
   let positionReliable = false
-  if (fromTimestamp && typeof parsed.timestamp === 'string') {
+  const elapsedAtSnapshot = position
+  // elapsed=0 with a fresh timestamp only means "playback started"; it is not
+  // a usable seek position (Kugou reports this for every track). Keep lyrics
+  // static instead of falsely restarting them from the beginning.
+  if (
+    fromTimestamp &&
+    typeof parsed.timestamp === 'string' &&
+    typeof elapsedAtSnapshot === 'number' &&
+    elapsedAtSnapshot > 0
+  ) {
     const stamp = Date.parse(parsed.timestamp)
     if (Number.isFinite(stamp)) {
       position =
-        (position ?? 0) +
+        elapsedAtSnapshot +
         Math.max(0, (Date.now() - stamp) / 1000) * Math.max(0, rate)
       positionReliable = true
     }
@@ -6336,25 +6345,50 @@ function pollMediaRemoteMini(
     },
   )
 }
-function pollSystemMusic(done: (state: MusicState | null) => void): void {
+function prefersMediaRemoteMini(): boolean {
+  const [major, minor] = process
+    .getSystemVersion()
+    .split('.')
+    .map((value) => Number(value))
+  return (
+    Number.isFinite(major) &&
+    (major > 15 || (major === 15 && minor >= 4))
+  )
+}
+function pollLegacySystemMusic(
+  done: (state: MusicState | null) => void,
+): void {
   execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
-    let state: MusicState | null = null
-    if (!error) {
-      try {
-        state = musicStateFromPayload(
-          JSON.parse(stdout.trim() || '{}') as MediaRemotePayload,
-          false,
-        )
-      } catch {
-        state = null
-      }
-    }
-    if (state) {
-      done(state)
+    if (error) {
+      done(null)
       return
     }
-    pollMediaRemoteMini(done)
+    try {
+      done(
+        musicStateFromPayload(
+          JSON.parse(stdout.trim() || '{}') as MediaRemotePayload,
+          false,
+        ),
+      )
+    } catch {
+      done(null)
+    }
   })
+}
+function pollSystemMusic(done: (state: MusicState | null) => void): void {
+  // macOS 15.4+ no longer populates the legacy API for several players.
+  // Prefer the richer bundled adapter there so artwork/timestamp survive.
+  if (prefersMediaRemoteMini()) {
+    pollMediaRemoteMini((state) => {
+      if (state) {
+        done(state)
+        return
+      }
+      pollLegacySystemMusic(done)
+    })
+    return
+  }
+  pollLegacySystemMusic(done)
 }
 type MusicAction =
   | 'previous'
