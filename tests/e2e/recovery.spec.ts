@@ -91,8 +91,10 @@ test.beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "mqmz-recovery-"));
   data = join(directory, "data");
   const shots = join(directory, "shots");
+  const codexHome = join(directory, "codex-empty");
   await mkdir(data, { recursive: true });
   await mkdir(shots, { recursive: true });
+  await mkdir(codexHome, { recursive: true });
   const now = Date.now();
 
   await writeFile(
@@ -190,12 +192,13 @@ test.beforeAll(async () => {
   );
   environment.MQMZ_DATA_DIR = data;
   environment.MQMZ_SCREENSHOT_DIR = shots;
+  environment.CODEX_HOME = codexHome;
   delete environment.ELECTRON_RUN_AS_NODE;
   application = await electron.launch({
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(23);
+  await expect.poll(() => application.windows().length).toBe(24);
   const windows = await Promise.all(
     application.windows().map(async (page) => ({
       page,

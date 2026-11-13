@@ -24,6 +24,7 @@ let pet: Page;
 let pocket: Page;
 let ask: Page;
 let convert: Page;
+let archive: Page;
 let rename: Page;
 let settings: Page;
 let mail: Page;
@@ -90,7 +91,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(23);
+  await expect.poll(() => application.windows().length).toBe(24);
   const windows = await Promise.all(
     application
       .windows()
@@ -101,6 +102,7 @@ test.beforeAll(async () => {
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
   ask = windows.find((item) => item.title.includes("智能问答"))!.page;
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
+  archive = windows.find((item) => item.title.includes("打包归档"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
   settings = windows.find((item) => item.title.includes("设置"))!.page;
   mail = windows.find((item) => item.title.includes("邮件"))!.page;
@@ -119,7 +121,7 @@ test.beforeAll(async () => {
     })),
   );
   await lab.evaluate(() => window.mqmz!.command({ type: "show-lab" }));
-  for (const page of [lab, pet, pocket, ask, convert, rename, settings, mail, pomodoro, water, breakPanel, profile, clipboard, focusBadge, todo, pill]) {
+  for (const page of [lab, pet, pocket, ask, convert, archive, rename, settings, mail, pomodoro, water, breakPanel, profile, clipboard, focusBadge, todo, pill]) {
     page.on("pageerror", (error) => runtimeErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") runtimeErrors.push(message.text());
@@ -274,7 +276,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   ).toBeVisible();
   await expect(
     settings.getByRole("group", { name: "归档格式" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await settings.getByRole("button", { name: "格式转换", exact: true }).click();
   await expect(
     settings.locator(".engine-section-title").first(),
@@ -689,9 +691,10 @@ test("hovering the pet centre opens companion tools", async () => {
     .toBe(true);
   await expect(pet.locator(".marker")).toHaveAttribute("src", /focus/);
   const primary = await pomodoro
-    .locator(".focus-controls .button-glass")
+    .locator(".focus-controls .settings-button.primary")
     .boundingBox();
   const reset = await pomodoro.getByRole("button", { name: "重置" }).boundingBox();
+  expect(primary!.height).toBe(34);
   expect(reset!.width).toBe(primary!.height);
   expect(reset!.height).toBe(primary!.height);
   const badgeVisible = () =>
@@ -826,6 +829,14 @@ test("hovering the pet centre opens companion tools", async () => {
   await water.getByLabel("喝水提醒间隔分钟").press("Tab");
   await water.getByLabel("喝水提醒开始时间").selectOption("8");
   await water.getByLabel("喝水提醒结束时间").selectOption("21");
+  const waterStartBox = await water
+    .getByLabel("喝水提醒开始时间")
+    .boundingBox();
+  const waterEndBox = await water
+    .getByLabel("喝水提醒结束时间")
+    .boundingBox();
+  expect(waterStartBox!.width).toBe(waterEndBox!.width);
+  expect(waterStartBox!.width).toBeGreaterThanOrEqual(92);
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -1241,6 +1252,23 @@ test("hovering the pet centre opens companion tools", async () => {
   });
   await expect(sittingSwitch).toHaveAttribute("aria-checked", "false");
   await expect(breakPanel.getByLabel("久坐提醒间隔分钟")).toHaveValue("45");
+  const breakIntervalBox = await breakPanel
+    .getByLabel("久坐提醒间隔分钟")
+    .boundingBox();
+  expect(breakIntervalBox!.width).toBe(waterStartBox!.width);
+  const arrowInset = await breakPanel.evaluate(() => {
+    const select = document.querySelector<HTMLSelectElement>(
+      'select[aria-label="久坐提醒间隔分钟"]',
+    );
+    const icon = select?.parentElement?.querySelector<SVGElement>(
+      ".select-field-icon",
+    );
+    if (!select || !icon) return null;
+    return (
+      select.getBoundingClientRect().right - icon.getBoundingClientRect().right
+    );
+  });
+  expect(arrowInset).toBeGreaterThan(0);
   await sittingSwitch.click();
   await expect
     .poll(async () => {
@@ -1539,6 +1567,10 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
     startupVisibility.find((window) => window.title.includes("文件转换"))
       ?.visible,
   ).toBe(false);
+  expect(
+    startupVisibility.find((window) => window.title.includes("打包归档"))
+      ?.visible,
+  ).toBe(false);
   expect(lab.url()).toMatch(/^file:/);
   await expect(lab).toHaveTitle("毛趣萌仔 · P0 验证台");
   await expect(pet.locator(".marker")).toBeVisible();
@@ -1804,8 +1836,9 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     );
     const styles = await pocket.evaluate(() => {
       const action = document.querySelector<HTMLButtonElement>(".pocket-add")!;
-      const secondary =
-        document.querySelectorAll<HTMLButtonElement>(".pocket-actions .button-soft")[0]!;
+      const secondary = document.querySelector<HTMLButtonElement>(
+        ".pocket-actions .settings-button:not(.primary)",
+      )!;
       const actions = document
         .querySelector(".pocket-actions")!
         .getBoundingClientRect();
@@ -1838,7 +1871,7 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     expect(styles.iconCount).toBe(1);
     expect(styles.color).toBe("rgb(26, 26, 26)");
     expect(styles.bodySize).toBe("12px");
-    expect(styles.height).toBeGreaterThanOrEqual(34);
+    expect(styles.height).toBe(28);
     expect(styles.widthDifference).toBeLessThanOrEqual(1);
     expect(styles.actionsVisible).toBe(true);
     expect(styles.horizontalOverflow).toBe(false);
@@ -2931,6 +2964,34 @@ test("打包归档、解压缩与压缩大小 work on real files", async () => {
   await writeFile(first, "alpha");
   await writeFile(second, "beta");
   await dropOnPet([first, second], "archive");
+  await expect(
+    archive.getByRole("heading", { name: "打包归档", exact: true }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("group", { name: "归档格式" }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("button", { name: "TAR", exact: true }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("button", { name: "TGZ", exact: true }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("button", { name: "GZ", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    archive.getByRole("button", { name: "BZ2", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    archive.getByRole("button", { name: "XZ", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    archive.getByRole("button", { name: "ZIP", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await archive.getByRole("button", { name: "开始打包", exact: true }).click();
+  await expect(archive.locator(".archive-result")).toContainText(
+    "已打包 2 个文件",
+  );
   await expect
     .poll(async () => (await readdir(directory)).find((name) => name.endsWith(".zip")))
     .toBeTruthy();
@@ -2939,6 +3000,32 @@ test("打包归档、解压缩与压缩大小 work on real files", async () => {
   const entries = unzipSync(new Uint8Array(await readFile(zipPath)));
   expect(Object.keys(entries).sort()).toEqual(["归档乙.txt", "归档甲.txt"]);
   expect(new TextDecoder().decode(entries["归档甲.txt"])).toBe("alpha");
+
+  await archive.getByRole("button", { name: "完成", exact: true }).click();
+  await dropOnPet([first, second], "archive");
+  await archive.getByRole("button", { name: "7Z", exact: true }).click();
+  await expect(
+    archive.getByRole("button", { name: "7Z", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await archive.getByRole("button", { name: "开始打包", exact: true }).click();
+  await expect
+    .poll(async () => (await readdir(directory)).find((name) => name.endsWith(".7z")))
+    .toBeTruthy();
+  await archive.getByRole("button", { name: "完成", exact: true }).click();
+
+  await dropOnPet(first, "archive");
+  await expect(
+    archive.getByRole("button", { name: "GZ", exact: true }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("button", { name: "BZ2", exact: true }),
+  ).toBeVisible();
+  await expect(
+    archive.getByRole("button", { name: "XZ", exact: true }),
+  ).toBeVisible();
+  await archive.evaluate(() =>
+    window.mqmz!.command({ type: "archive-close" }),
+  );
 
   await dropOnPet(zipPath, "extract");
   const folder = join(directory, zipName.replace(/\.zip$/i, ""));
@@ -3272,7 +3359,7 @@ test("dropping a non-ZIP on 解压缩 reports a clear error", async () => {
   await writeFile(fixture, "not-a-zip");
   await dropOnPet(fixture, "extract");
   await expect(pet.locator(".pet-error")).toContainText(
-    "目前支持 ZIP、7Z 和 RAR 压缩包",
+    "目前支持 ZIP、7Z、TAR、TGZ、GZ、BZ2、XZ 和 RAR 压缩包",
   );
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(1);
@@ -3562,7 +3649,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(23);
+  await expect.poll(() => application.windows().length).toBe(24);
   pocket = (
     await Promise.all(
       application
@@ -3608,7 +3695,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(23);
+  await expect.poll(() => application.windows().length).toBe(24);
   const restarted = await Promise.all(
     application
       .windows()

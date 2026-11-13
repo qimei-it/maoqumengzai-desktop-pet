@@ -53,6 +53,7 @@ import catFocus from "./assets/pet/ragdoll/focus.png";
 import AskPanel from "./AskPanel.vue";
 import MailPanel from "./MailPanel.vue";
 import MailCompose from "./MailCompose.vue";
+import ArchivePanel from "./ArchivePanel.vue";
 import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
@@ -66,6 +67,7 @@ import BreakPanel from "./BreakPanel.vue";
 import ProfilePanel from "./ProfilePanel.vue";
 import ClipboardPanel from "./ClipboardPanel.vue";
 import TodoPanel from "./TodoPanel.vue";
+import AiQuotaBar from "./AiQuotaBar.vue";
 import SettingsPanel from "./SettingsPanel.vue";
 
 const petView = new URLSearchParams(location.search).get("view") === "pet";
@@ -87,7 +89,10 @@ const composeView =
   new URLSearchParams(location.search).get("view") === "compose";
 const convertView =
   new URLSearchParams(location.search).get("view") === "convert";
+const archiveView =
+  new URLSearchParams(location.search).get("view") === "archive";
 const toastView = new URLSearchParams(location.search).get("view") === "toast";
+const quotaView = new URLSearchParams(location.search).get("view") === "quota";
 const renameView =
   new URLSearchParams(location.search).get("view") === "rename";
 const settingsView =
@@ -113,7 +118,9 @@ document.body.classList.toggle("bubble-view", bubbleView);
 document.body.classList.toggle("ask-view", askView);
 document.body.classList.toggle("mail-view", mailView);
 document.body.classList.toggle("convert-view", convertView);
+document.body.classList.toggle("archive-view", archiveView);
 document.body.classList.toggle("toast-view", toastView);
+document.body.classList.toggle("quota-view", quotaView);
 document.body.classList.toggle("rename-view", renameView);
 document.body.classList.toggle("settings-view", settingsView);
 document.body.classList.toggle("focus-view", focusView);
@@ -135,7 +142,9 @@ if (askView) document.title = "毛趣萌仔 · 智能问答";
 if (mailView) document.title = "毛趣萌仔 · 邮件";
 if (composeView) document.title = "毛趣萌仔 · 撰写";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
+if (archiveView) document.title = "毛趣萌仔 · 打包归档";
 if (toastView) document.title = "毛趣萌仔 · 提示";
+if (quotaView) document.title = "毛趣萌仔 · AI 额度";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
 if (settingsView) document.title = "毛趣萌仔 · 设置";
 if (focusView) document.title = "毛趣萌仔 · 番茄时钟";
@@ -535,7 +544,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       const ids = snapshot.received?.fileIds ?? [];
       if (!ids.length) return;
       state.value = unwrap(
-        await api.command({ type: "archive-files", fileIds: ids }),
+        await api.command({ type: "archive-open", fileIds: ids }),
       );
     });
     return;
@@ -1357,6 +1366,7 @@ onUnmounted(() => {
               displayPose === 'lifted' ||
               displayPose === 'music' ||
               (!!state?.music.title && !!state?.barVisible && !state?.dropMode) ||
+              !!state?.aiQuota.visible ||
               !!toast,
           }"
           :style="{ fontSize: `${10 * markerScale}px` }"
@@ -1596,6 +1606,8 @@ onUnmounted(() => {
     </div>
   </main>
 
+  <AiQuotaBar v-else-if="quotaView" :state="state" />
+
   <main v-else-if="lyricsView" class="lyrics-surface">
     <template v-if="state?.lyrics?.instrumental">
       <span class="lyrics-state">纯音乐</span>
@@ -1692,6 +1704,13 @@ onUnmounted(() => {
 
   <ConvertPanel
     v-else-if="convertView"
+    :state="state"
+    :error="error"
+    @command="command"
+  />
+
+  <ArchivePanel
+    v-else-if="archiveView"
     :state="state"
     :error="error"
     @command="command"

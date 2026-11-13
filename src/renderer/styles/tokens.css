@@ -340,3 +340,10 @@
   --color-chart-label: #4d715e;
   --border-dashed: 1px dashed #83a48e;
 }
+
+/* Desktop-only provider accents for the AI quota pill. These keep each
+ * service's public brand color outside the shared mini-program palette. */
+:root {
+  --color-provider-openai: #10a37f;
+  --color-provider-deepseek: #4d6bfe;
+}

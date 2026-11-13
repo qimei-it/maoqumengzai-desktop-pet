@@ -708,8 +708,20 @@ watch(
                 <Paperclip :size="14" :stroke-width="2" aria-hidden="true" />
                 <span>{{ attachment.filename }}</span>
                 <span class="mail-size">{{ size(attachment.size) }}</span>
-                <button type="button" @click="saveAttachment(attachment.part, false)">保存</button>
-                <button type="button" @click="saveAttachment(attachment.part, true)">打开</button>
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="saveAttachment(attachment.part, false)"
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="saveAttachment(attachment.part, true)"
+                >
+                  打开
+                </button>
               </li>
             </ul>
           </template>
@@ -1290,16 +1302,6 @@ watch(
 }
 .mail-size {
   color: var(--color-muted);
-  font-size: var(--font-size-caption);
-}
-.mail-attachments button {
-  min-height: 26px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
-  font: inherit;
   font-size: var(--font-size-caption);
 }
 .mail-error {

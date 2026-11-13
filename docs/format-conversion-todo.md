@@ -1,6 +1,6 @@
 # 格式转换后续 TO-DO
 
-状态：2026-11-12。当前首版转换矩阵已完成图片、PDF、Office、文档、音视频、OFD、ZIP/7Z/RAR 解压与 7Z 打包；以下方向暂缓。
+状态：2026-11-13。当前首版转换矩阵已完成图片、PDF、Office、文档、音视频、OFD、ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ/RAR 解压，以及 ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ 打包；以下方向暂缓。
 
 ## 1. 扫描版 PDF OCR
 

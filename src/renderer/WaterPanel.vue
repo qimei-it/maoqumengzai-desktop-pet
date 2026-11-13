@@ -210,7 +210,7 @@ function close(): void {
           <span class="water-config">
             <SelectField
               :value="waterStart"
-              min-width="72px"
+              min-width="92px"
               aria-label="喝水提醒开始时间"
               @change="changeWaterStart"
             >
@@ -221,7 +221,7 @@ function close(): void {
             <span class="water-value">–</span>
             <SelectField
               :value="waterEnd"
-              min-width="72px"
+              min-width="92px"
               aria-label="喝水提醒结束时间"
               @change="changeWaterEnd"
             >
@@ -240,7 +240,7 @@ function close(): void {
           >
           <button
             type="button"
-            class="button-glass water-drink"
+            class="settings-button primary water-drink"
             @click="emit('command', { type: 'water-drink' })"
           >
             记录一次
@@ -435,13 +435,6 @@ function close(): void {
   font-size: var(--font-size-body);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-.water-summary .water-drink {
-  min-height: 32px;
-  height: 32px;
-  padding-inline: 14px;
-  font-size: var(--font-size-label);
-  font-weight: 600;
 }
 .water-history {
   flex: 1;

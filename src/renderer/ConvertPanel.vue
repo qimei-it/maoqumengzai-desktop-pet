@@ -342,7 +342,7 @@ function openOutput(outputId: string): void {
       <div v-if="outcome" class="convert-actions">
         <button
           type="button"
-          class="button-soft"
+          class="settings-button"
           :disabled="!convert?.canReveal"
           @click="reveal"
         >
@@ -354,7 +354,7 @@ function openOutput(outputId: string): void {
           />
           打开所在位置
         </button>
-        <button type="button" class="button-glass" @click="close">
+        <button type="button" class="settings-button primary" @click="close">
           完成
         </button>
       </div>
@@ -375,8 +375,8 @@ function openOutput(outputId: string): void {
       <button
         v-if="!outcome && targets.length"
         type="button"
-        class="convert-start"
-        :class="busy ? 'button-soft' : 'button-glass'"
+        class="settings-button convert-start"
+        :class="{ primary: !busy }"
         :disabled="
           !busy && (!target || (needsPassword && !password))
         "
@@ -719,8 +719,7 @@ function openOutput(outputId: string): void {
   line-height: 1.4;
   text-align: center;
 }
-.convert-actions .button-soft,
-.convert-actions .button-glass {
+.convert-actions .settings-button {
   flex: 1;
   gap: 6px;
 }

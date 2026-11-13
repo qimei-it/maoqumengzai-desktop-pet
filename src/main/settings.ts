@@ -3,7 +3,6 @@ import { z } from 'zod'
 import {
   defaultSettings,
   musicBarStyles,
-  archiveFormats,
   petScales,
   themeIds,
   type Settings,
@@ -68,11 +67,15 @@ const settingsSchema = z
     shelfClipboardImages: z.boolean().default(false),
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
-    archiveFormat: z.enum(archiveFormats).default('zip'),
+    aiQuotaEnabled: z.boolean().default(true),
+    aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
+    aiQuotaOpenAIPath: z.string().max(1024).default(''),
+    archiveFormat: z.enum(['zip', '7z']).optional(),
     hoverWheelActions: wheelActions(hoverActions),
     fileWheelActions: wheelActions(sliceActions),
   })
   .strict()
+  .transform(({ archiveFormat: _legacyArchiveFormat, ...rest }) => rest)
 
 export type LoadedSettings = {
   settings: Settings

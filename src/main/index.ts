@@ -42,6 +42,16 @@ import { channels } from '../shared/protocol'
 import { detectClockJump } from '../shared/scheduler'
 import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
+import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
+import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
+import {
+  emptyAiQuotaProvider,
+  emptyAiQuotaState,
+  quotaBarHeight,
+  quotaBarWidth,
+  type AiQuotaProviderState,
+  type AiQuotaState,
+} from '../shared/ai-quota'
 import { coverKey, loadCover } from './cover-art'
 import { defaultFocus, loadFocusFile, saveFocusFile, type FocusData } from './focus-store'
 import {
@@ -92,6 +102,10 @@ import type {
   AiFile,
   AiMessage,
   AiState,
+  ArchiveFile,
+  ArchiveFormat,
+  ArchiveOutcome,
+  ArchiveState,
   BellyEntry,
   ConvertFile,
   ConvertOutcome,
@@ -268,6 +282,8 @@ let pocketBlurTimer: NodeJS.Timeout | undefined
 let pocketDialogOpen = false
 let notes: BrowserWindow | undefined
 let pill: BrowserWindow | undefined
+let quotaBar: BrowserWindow | undefined
+let quotaBarCreating: Promise<BrowserWindow | undefined> | undefined
 let eye: BrowserWindow | undefined
 let lyricsWindow: BrowserWindow | undefined
 let volumePopup: BrowserWindow | undefined
@@ -385,6 +401,7 @@ let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
 let askWindow: BrowserWindow | undefined
 let convertWindow: BrowserWindow | undefined
+let archiveWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
 let settingsWindow: BrowserWindow | undefined
 let pomodoroWindow: BrowserWindow | undefined
@@ -395,6 +412,10 @@ let clipboardWindow: BrowserWindow | undefined
 let todoWindow: BrowserWindow | undefined
 let focusBadge: BrowserWindow | undefined
 let aiKey: string | undefined
+let aiQuota: AiQuotaState = emptyAiQuotaState()
+let aiQuotaTimer: ReturnType<typeof setInterval> | undefined
+let aiQuotaBusy = false
+let aiQuotaQueued = false
 let aiBusy = false
 let aiMessages: AiMessage[] = []
 let aiFiles: AiFile[] = []
@@ -415,6 +436,12 @@ let convertToken = 0
 let convertProgressAt = 0
 let convertAbort: AbortController | undefined
 let convertMode: 'convert' | 'audio' = 'convert'
+let archiveBusy = false
+let archiveFiles: ArchiveFile[] = []
+let archiveOutcome: ArchiveOutcome | undefined
+let archiveNotice: string | undefined
+let archiveFolder: string | undefined
+let archiveToken = 0
 let renameFiles: RenameFile[] = []
 let renameBusy = false
 let lyricsWidth = 240
@@ -450,6 +477,7 @@ const bellyPath = join(dataRoot, 'mqmz.belly.json')
 const settingsPath = join(dataRoot, 'mqmz.settings.json')
 const focusPath = join(dataRoot, 'mqmz.focus.json')
 const clipboardPath = join(dataRoot, 'mqmz.clipboard.json')
+const aiQuotaCachePath = join(dataRoot, 'mqmz.ai-quota.json')
 const enginePrefsPath = join(dataRoot, 'mqmz.engines.json')
 const mailDbPath = join(dataRoot, 'mqmz.mail.db')
 const mailConfigPath = join(dataRoot, 'mqmz.mail.json')
@@ -542,8 +570,11 @@ function snapshot(): Snapshot {
     lyricsAvailable,
     aiOpen: windowVisible(askWindow),
     ai: aiState(),
+    aiQuota,
     convertOpen: windowVisible(convertWindow),
     convert: convertState(),
+    archiveOpen: windowVisible(archiveWindow),
+    archive: archiveState(),
     renameOpen: windowVisible(renameWindow),
     rename: renameState(),
     settingsOpen: windowVisible(settingsWindow),
@@ -619,6 +650,7 @@ function broadcast(): void {
       lab,
       notes,
       pill,
+      quotaBar,
       volumePopup,
       eye,
       lyricsWindow,
@@ -626,6 +658,7 @@ function broadcast(): void {
       toastWindow,
       askWindow,
       convertWindow,
+      archiveWindow,
       renameWindow,
       settingsWindow,
       mailWindow,
@@ -699,6 +732,7 @@ function syncOverlays(): void {
   updateToastWindow()
   updateNotesWindow()
   updatePillWindow()
+  updateQuotaWindow()
   updateEyeWindow()
   updateLyricsWindow()
   updateBubbleWindow()
@@ -863,6 +897,7 @@ function openAsk(fileIds: string[]): void {
   aiBusy = false
   greetAi()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
     positionPanelOnce(askWindow, positionAsk)
@@ -885,6 +920,7 @@ async function configureAi(apiKey: string): Promise<void> {
   await saveStoredKey(key)
   aiKey = key
   greetAi()
+  void refreshAiQuota()
   broadcast()
 }
 async function clearAi(): Promise<void> {
@@ -893,7 +929,148 @@ async function clearAi(): Promise<void> {
   aiMessages = []
   aiBusy = false
   aiToken += 1
+  void refreshAiQuota()
   broadcast()
+}
+function quotaProvider(
+  configured: boolean,
+  previous: AiQuotaProviderState,
+): AiQuotaProviderState {
+  if (!configured) return emptyAiQuotaProvider()
+  return {
+    ...previous,
+    configured: true,
+    status:
+      previous.windows.length || previous.balance ? previous.status : 'loading',
+    error: undefined,
+  }
+}
+function quotaFailure(
+  previous: AiQuotaProviderState,
+  message: string,
+): AiQuotaProviderState {
+  const hasData = previous.windows.length > 0 || Boolean(previous.balance)
+  return {
+    ...previous,
+    configured: true,
+    status: hasData ? 'stale' : 'error',
+    error: message,
+  }
+}
+async function refreshAiQuota(): Promise<void> {
+  if (aiQuotaBusy) {
+    aiQuotaQueued = true
+    return
+  }
+  if (!settings.aiQuotaEnabled) {
+    aiQuota = { ...aiQuota, visible: false, loading: false }
+    broadcast()
+    syncOverlays()
+    return
+  }
+  aiQuotaBusy = true
+  const openaiPath = await resolveOpenAiAuthPath(
+    settings.aiQuotaOpenAIPath,
+  )
+  const openaiConfigured = Boolean(openaiPath)
+  const deepseekConfigured = Boolean(aiKey)
+  const previousOpenAi = aiQuota.openai
+  const previousDeepSeek = aiQuota.deepseek
+  aiQuota = {
+    ...aiQuota,
+    loading: true,
+    openai: quotaProvider(openaiConfigured, previousOpenAi),
+    deepseek: quotaProvider(deepseekConfigured, previousDeepSeek),
+    visible:
+      settings.aiQuotaEnabled && (openaiConfigured || deepseekConfigured),
+  }
+  broadcast()
+  syncOverlays()
+  const [openaiResult, deepseekResult] = await Promise.allSettled([
+    openaiPath
+      ? fetchOpenAiQuota(openaiPath)
+      : Promise.resolve(undefined),
+    aiKey ? fetchDeepSeekBalance(aiKey) : Promise.resolve(undefined),
+  ])
+  let nextOpenAi: AiQuotaProviderState
+  if (!openaiConfigured) {
+    nextOpenAi = emptyAiQuotaProvider()
+  } else if (openaiResult.status === 'fulfilled' && openaiResult.value) {
+    nextOpenAi = {
+      configured: true,
+      status: 'ready',
+      windows: openaiResult.value.windows,
+      ...(openaiResult.value.plan
+        ? { plan: openaiResult.value.plan }
+        : {}),
+      updatedAt: Date.now(),
+    }
+  } else {
+    const message =
+      openaiResult.status === 'rejected'
+        ? openaiResult.reason instanceof Error
+          ? openaiResult.reason.message
+          : 'OpenAI 额度读取失败。'
+        : 'OpenAI 额度读取失败。'
+    nextOpenAi = quotaFailure(previousOpenAi, message)
+  }
+  let nextDeepSeek: AiQuotaProviderState
+  if (!deepseekConfigured) {
+    nextDeepSeek = emptyAiQuotaProvider()
+  } else if (deepseekResult.status === 'fulfilled' && deepseekResult.value) {
+    nextDeepSeek = {
+      configured: true,
+      status: 'ready',
+      windows: [],
+      balance: deepseekResult.value,
+      updatedAt: Date.now(),
+    }
+  } else {
+    const message =
+      deepseekResult.status === 'rejected'
+        ? deepseekResult.reason instanceof Error
+          ? deepseekResult.reason.message
+          : 'DeepSeek 余额读取失败。'
+        : 'DeepSeek 余额读取失败。'
+    nextDeepSeek = quotaFailure(previousDeepSeek, message)
+  }
+  aiQuota = {
+    ...aiQuota,
+    loading: false,
+    openai: nextOpenAi,
+    deepseek: nextDeepSeek,
+    visible:
+      settings.aiQuotaEnabled &&
+      (nextOpenAi.configured || nextDeepSeek.configured),
+  }
+  void saveAiQuotaCache(aiQuotaCachePath, aiQuota).catch(() => {})
+  aiQuotaBusy = false
+  broadcast()
+  syncOverlays()
+  if (aiQuotaQueued) {
+    aiQuotaQueued = false
+    void refreshAiQuota()
+  }
+}
+function scheduleAiQuotaRefresh(): void {
+  if (aiQuotaTimer) clearInterval(aiQuotaTimer)
+  aiQuotaTimer = undefined
+  if (!settings.aiQuotaEnabled) return
+  const minutes = Math.max(1, settings.aiQuotaRefreshMinutes)
+  aiQuotaTimer = setInterval(() => {
+    void refreshAiQuota()
+  }, minutes * 60_000)
+}
+async function chooseOpenAiAuthFile(): Promise<void> {
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择 Codex 登录文件',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  })
+  const path = result.filePaths[0]
+  if (result.canceled || !path) return
+  await updateSettings({ aiQuotaOpenAIPath: path })
+  void refreshAiQuota()
 }
 function convertState(): ConvertState {
   return {
@@ -938,6 +1115,125 @@ function positionConvert(): void {
     a.y + a.height - height - 8,
   )
   convertWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function archiveState(): ArchiveState {
+  return {
+    busy: archiveBusy,
+    files: [...archiveFiles],
+    ...(archiveOutcome ? { outcome: archiveOutcome } : {}),
+    ...(archiveNotice ? { notice: archiveNotice } : {}),
+    canReveal: Boolean(archiveFolder),
+  }
+}
+function archivePanelHeight(): number {
+  return archiveOutcome ? 320 : 440
+}
+function positionArchive(): void {
+  if (!archiveWindow || archiveWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 400
+  const height = archivePanelHeight()
+  let x = b.x + b.width + 16
+  if (x + width > a.x + a.width) x = b.x - width - 16
+  if (x < a.x) x = a.x + 8
+  const y = Math.min(
+    Math.max(a.y + 8, b.y + b.height - height),
+    a.y + a.height - height - 8,
+  )
+  archiveWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+}
+function openArchive(fileIds: string[]): void {
+  const selected = fileIds
+    .map((id) => files.get(id))
+    .filter((file): file is NonNullable<typeof file> => Boolean(file))
+  if (!selected.length) {
+    showToast('没有可打包的文件')
+    return
+  }
+  archiveToken += 1
+  archiveBusy = false
+  archiveFiles = selected.slice(0, 32).map(({ id, name, size }) => ({
+    id,
+    name,
+    size,
+  }))
+  archiveOutcome = undefined
+  archiveNotice = undefined
+  archiveFolder = undefined
+  if (askWindow?.isVisible()) askWindow.hide()
+  if (convertWindow?.isVisible()) convertWindow.hide()
+  if (renameWindow?.isVisible()) renameWindow.hide()
+  hidePocket()
+  if (archiveWindow && !archiveWindow.isDestroyed()) {
+    positionArchive()
+    if (process.platform === 'darwin' || archiveWindow.isMinimized())
+      archiveWindow.restore()
+    archiveWindow.show()
+    archiveWindow.moveTop()
+    archiveWindow.focus()
+  }
+  broadcast()
+}
+function closeArchive(): void {
+  archiveToken += 1
+  archiveBusy = false
+  archiveWindow?.hide()
+  broadcast()
+}
+async function startArchive(format: ArchiveFormat): Promise<void> {
+  if (archiveBusy) return
+  const selected = [...archiveFiles]
+  if (!selected.length) throw new Error('没有可打包的文件。')
+  const token = ++archiveToken
+  archiveBusy = true
+  archiveNotice = undefined
+  archiveOutcome = undefined
+  archiveFolder = undefined
+  broadcast()
+  try {
+    const paths: string[] = []
+    for (const file of selected) paths.push(await registeredFile(file.id))
+    const destination = await createArchive(paths, format)
+    const info = await stat(destination)
+    await registerOutputs([destination])
+    showToast(`已打包 ${paths.length} 个文件`)
+    addEvent(`已创建压缩包「${basename(destination)}」。`)
+    if (token !== archiveToken) return
+    archiveOutcome = {
+      count: paths.length,
+      name: basename(destination),
+      size: info.size,
+      format,
+    }
+    archiveFolder = dirname(destination)
+    if (windowVisible(archiveWindow)) positionArchive()
+  } catch (error) {
+    if (token !== archiveToken) return
+    archiveNotice =
+      error instanceof Error ? error.message : '打包失败，请重试。'
+  } finally {
+    if (token === archiveToken) {
+      archiveBusy = false
+      broadcast()
+    }
+  }
+}
+function removeArchiveFile(fileId: string): void {
+  if (archiveBusy) return
+  const next = archiveFiles.filter((file) => file.id !== fileId)
+  if (next.length === archiveFiles.length) return
+  archiveFiles = next
+  if (!archiveFiles.length) {
+    closeArchive()
+    return
+  }
+  broadcast()
+}
+async function revealArchive(): Promise<void> {
+  if (!archiveFolder) throw new Error('还没有可打开的目录。')
+  const error = await shell.openPath(archiveFolder)
+  if (error) throw new Error('无法打开输出目录。')
 }
 async function extractAudio(fileIds: string[]): Promise<void> {
   const opened = await openConvert(fileIds, { mode: 'audio' })
@@ -1069,6 +1365,7 @@ async function openConvert(
             ? `已跳过 ${skipped} 个不支持的文件。`
             : undefined
   if (askWindow?.isVisible()) askWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
   if (convertWindow && !convertWindow.isDestroyed()) {
@@ -1689,6 +1986,7 @@ function openRename(fileIds: string[]): void {
   renameBusy = false
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow && !renameWindow.isDestroyed()) {
     positionPanelOnce(renameWindow, positionRename)
     if (process.platform === 'darwin' || renameWindow.isMinimized())
@@ -1716,7 +2014,9 @@ function settingsState(): SettingsState {
     shelfClipboardImages: settings.shelfClipboardImages,
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
-    archiveFormat: settings.archiveFormat,
+    aiQuotaEnabled: settings.aiQuotaEnabled,
+    aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
+    aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
     hoverWheelActions: settings.hoverWheelActions,
     fileWheelActions: settings.fileWheelActions,
   }
@@ -2476,6 +2776,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
   loadMailMessages(account.id, mailPanelFolder)
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
   if (mailWindow && !mailWindow.isDestroyed()) {
@@ -3659,6 +3960,7 @@ function openTodo(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow && !todoWindow.isDestroyed()) {
     positionPanelOnce(todoWindow, positionTodo)
@@ -3697,6 +3999,7 @@ function openSettings(): void {
   hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     positionPanelOnce(settingsWindow, positionSettings)
@@ -3735,6 +4038,14 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
   if (!settings.statusBubbles) hideToast()
   if (!settings.musicBubbles) hideBubble()
   if (patch.musicBarStyle !== undefined) syncOverlays()
+  if (
+    patch.aiQuotaEnabled !== undefined ||
+    patch.aiQuotaRefreshMinutes !== undefined ||
+    patch.aiQuotaOpenAIPath !== undefined
+  ) {
+    scheduleAiQuotaRefresh()
+    void refreshAiQuota()
+  }
   if (
     app.isPackaged &&
     patch.launchAtLogin !== undefined &&
@@ -4651,6 +4962,7 @@ function openProfile(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (windowVisible(pomodoroWindow)) closePomodoro()
@@ -4693,6 +5005,7 @@ function openClipboard(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (windowVisible(pomodoroWindow)) closePomodoro()
@@ -4735,6 +5048,7 @@ function openBreak(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (windowVisible(pomodoroWindow)) closePomodoro()
@@ -4762,6 +5076,7 @@ function openWater(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (windowVisible(breakWindow)) closeBreak()
@@ -4823,6 +5138,7 @@ function openPomodoro(): void {
   if (pocket?.isVisible()) hidePocket()
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
+  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow?.isVisible()) todoWindow.hide()
   if (waterWindow?.isVisible()) waterWindow.hide()
@@ -4972,20 +5288,13 @@ function shortSize(value: number): string {
     ? `${(value / 1024 ** 2).toFixed(1)} MB`
     : `${Math.max(1, Math.round(value / 1024))} KB`
 }
-async function archiveSelected(fileIds: string[]): Promise<void> {
-  const paths: string[] = []
-  for (const id of fileIds) paths.push(await registeredFile(id))
-  const destination = await createArchive(paths, settings.archiveFormat)
-  await registerOutputs([destination])
-  showToast(`已打包 ${paths.length} 个文件`)
-  addEvent(`已创建压缩包「${basename(destination)}」。`)
-}
 async function extractSelected(fileIds: string[]): Promise<void> {
   let count = 0
   const folders: string[] = []
   for (const id of fileIds) {
     const path = await registeredFile(id)
-    if (!isArchiveFile(path)) throw new Error('目前支持 ZIP、7Z 和 RAR 压缩包。')
+    if (!isArchiveFile(path))
+      throw new Error('目前支持 ZIP、7Z、TAR、TGZ、GZ、BZ2、XZ 和 RAR 压缩包。')
     const result = await extractArchive(path)
     count += result.count
     folders.push(basename(result.folder))
@@ -5128,6 +5437,108 @@ function updatePillWindow(): void {
     pill.moveTop()
   } else if (pill.isVisible()) {
     pill.hide()
+  }
+}
+function quotaBarSize(): { width: number; height: number } {
+  return {
+    width: Math.max(1, quotaBarWidth(aiQuota)),
+    height: quotaBarHeight,
+  }
+}
+function quotaBarLayout(liftPet: boolean): Rect {
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const { width, height } = quotaBarSize()
+  const spriteBottom = (bounds: Rect) =>
+    bounds.y +
+    bounds.height -
+    Math.round(((basePetSize.height - petSprite.height) / 2) * scale)
+  let petBounds = b
+  const maxY = a.y + a.height - height - 2
+  if (liftPet && spriteBottom(b) + 2 > maxY) {
+    const shift = spriteBottom(b) + 2 - maxY
+    const shifted = Math.max(a.y + 8, b.y - shift)
+    if (shifted !== b.y) {
+      petBounds = { ...b, y: shifted }
+      pillPositioning = true
+      placePet(petBounds)
+      persist(petBounds)
+      pillPositioning = false
+    }
+  }
+  const x = Math.round(petBounds.x + petBounds.width / 2 - width / 2)
+  const y = spriteBottom(petBounds) + 2
+  return fitToDisplays({ x, y, width, height }, [a])
+}
+function positionQuotaBar(): void {
+  if (!quotaBar || quotaBar.isDestroyed() || pillPositioning) return
+  quotaBar.setBounds(quotaBarLayout(true))
+}
+async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
+  if (shuttingDown) return undefined
+  if (quotaBar && !quotaBar.isDestroyed()) return quotaBar
+  if (quotaBarCreating) return quotaBarCreating
+  quotaBarCreating = (async () => {
+    const window = new BrowserWindow({
+      width: Math.max(1, quotaBarWidth(aiQuota)),
+      height: quotaBarHeight,
+      title: '毛趣萌仔 · AI 额度',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    quotaBar = window
+    window.setIgnoreMouseEvents(true)
+    if (process.platform === 'darwin') {
+      window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      window.setHiddenInMissionControl(true)
+    }
+    secureWindow(window)
+    await load(window, 'quota')
+    return window
+  })()
+  try {
+    return await quotaBarCreating
+  } finally {
+    quotaBarCreating = undefined
+  }
+}
+function updateQuotaWindow(): void {
+  if (!quotaBar || quotaBar.isDestroyed()) {
+    if (
+      aiQuota.visible &&
+      !dropMode &&
+      !petHoverMode &&
+      !(music.title && barVisible)
+    ) {
+      void ensureQuotaBar().then(() => updateQuotaWindow())
+    }
+    return
+  }
+  if (
+    aiQuota.visible &&
+    !dropMode &&
+    !petHoverMode &&
+    !(music.title && barVisible)
+  ) {
+    positionQuotaBar()
+    quotaBar.showInactive()
+    quotaBar.moveTop()
+  } else if (quotaBar.isVisible()) {
+    quotaBar.hide()
   }
 }
 function updateNotesWindow(): void {
@@ -6129,6 +6540,7 @@ function authorized(
       window !== lyricsWindow &&
       window !== askWindow &&
       window !== convertWindow &&
+      window !== archiveWindow &&
       window !== renameWindow &&
       window !== settingsWindow &&
       window !== mailWindow &&
@@ -6423,6 +6835,9 @@ function setupIpc(): void {
       'ai-close',
       'ai-config',
       'ai-clear',
+      'ai-quota-refresh',
+      'ai-quota-config',
+      'ai-quota-choose-openai',
       'ai-send',
       'ai-keys',
       'extract-audio',
@@ -6439,7 +6854,11 @@ function setupIpc(): void {
       'rename-open',
       'rename-apply',
       'rename-close',
-      'archive-files',
+      'archive-open',
+      'archive-start',
+      'archive-remove-file',
+      'archive-close',
+      'archive-reveal',
       'extract-archives',
       'shrink-files',
       'settings-open',
@@ -6643,6 +7062,25 @@ function setupIpc(): void {
       case 'ai-clear':
         await clearAi()
         break
+      case 'ai-quota-refresh':
+        await refreshAiQuota()
+        break
+      case 'ai-quota-config':
+        await updateSettings({
+          ...(command.patch.enabled !== undefined
+            ? { aiQuotaEnabled: command.patch.enabled }
+            : {}),
+          ...(command.patch.refreshMinutes !== undefined
+            ? { aiQuotaRefreshMinutes: command.patch.refreshMinutes }
+            : {}),
+          ...(command.patch.openaiPath !== undefined
+            ? { aiQuotaOpenAIPath: command.patch.openaiPath }
+            : {}),
+        })
+        break
+      case 'ai-quota-choose-openai':
+        await chooseOpenAiAuthFile()
+        break
       case 'ai-send':
         void sendAi(command.prompt).catch((error) => {
           aiBusy = false
@@ -6708,8 +7146,20 @@ function setupIpc(): void {
       case 'rename-close':
         closeRename()
         break
-      case 'archive-files':
-        await archiveSelected(command.fileIds)
+      case 'archive-open':
+        openArchive(command.fileIds)
+        break
+      case 'archive-start':
+        await startArchive(command.format)
+        break
+      case 'archive-remove-file':
+        removeArchiveFile(command.fileId)
+        break
+      case 'archive-close':
+        closeArchive()
+        break
+      case 'archive-reveal':
+        await revealArchive()
         break
       case 'extract-archives':
         await extractSelected(command.fileIds)
@@ -7071,6 +7521,7 @@ function setupIpc(): void {
           if (owner === pocket) hidePocket()
           else if (owner === askWindow) closeAsk()
           else if (owner === convertWindow) closeConvert()
+          else if (owner === archiveWindow) closeArchive()
           else if (owner === renameWindow) closeRename()
           else if (owner === settingsWindow) closeSettings()
           else if (owner === pomodoroWindow) closePomodoro()
@@ -7615,6 +8066,28 @@ async function createWindows(): Promise<void> {
   })
   if (process.platform === 'darwin')
     convertWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  archiveWindow = new BrowserWindow({
+    width: 400,
+    height: 440,
+    title: '毛趣萌仔 · 打包归档',
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    archiveWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   renameWindow = new BrowserWindow({
     width: 560,
     height: 480,
@@ -7832,6 +8305,7 @@ async function createWindows(): Promise<void> {
     pocket,
     askWindow,
     convertWindow,
+    archiveWindow,
     renameWindow,
     settingsWindow,
     mailComposeWindow,
@@ -7887,7 +8361,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, mailComposeWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, archiveWindow, renameWindow, settingsWindow, mailComposeWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -7914,6 +8388,12 @@ async function createWindows(): Promise<void> {
     if (!shuttingDown) {
       event.preventDefault()
       closeConvert()
+    }
+  })
+  archiveWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeArchive()
     }
   })
   renameWindow?.on('close', (event) => {
@@ -7982,12 +8462,14 @@ async function createWindows(): Promise<void> {
     if (windowVisible(pocket)) positionPocket()
     if (windowVisible(notes)) positionNotes()
     if (windowVisible(pill)) positionPill()
+    if (windowVisible(quotaBar)) positionQuotaBar()
     if (windowVisible(eye)) positionEye()
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()
     if (windowVisible(volumePopup)) positionVolumePopup()
     if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
+    if (windowVisible(archiveWindow)) positionArchive()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(todoWindow)) positionTodo()
@@ -8002,12 +8484,14 @@ async function createWindows(): Promise<void> {
     if (shuttingDown || pet.isDestroyed()) return
     if (windowVisible(notes)) positionNotes()
     if (windowVisible(pill)) positionPill()
+    if (windowVisible(quotaBar)) positionQuotaBar()
     if (windowVisible(eye)) positionEye()
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()
     if (windowVisible(volumePopup)) positionVolumePopup()
     if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
+    if (windowVisible(archiveWindow)) positionArchive()
     if (windowVisible(renameWindow)) positionRename()
     if (windowVisible(settingsWindow)) positionSettings()
     if (windowVisible(todoWindow)) positionTodo()
@@ -8039,6 +8523,7 @@ async function createWindows(): Promise<void> {
     load(toastWindow, 'toast'),
     load(askWindow, 'ask'),
     load(convertWindow, 'convert'),
+    load(archiveWindow, 'archive'),
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
     load(mailWindow, 'mail'),
@@ -8250,7 +8735,31 @@ else {
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
       applyDockIcon()
       aiKey = await loadStoredKey()
+      const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
+      const cachedOpenAiPath = await resolveOpenAiAuthPath(
+        settings.aiQuotaOpenAIPath,
+      )
+      const cachedOpenAi =
+        cachedOpenAiPath && cachedQuota.openai.configured
+          ? cachedQuota.openai
+          : emptyAiQuotaProvider()
+      const cachedDeepSeek =
+        aiKey && cachedQuota.deepseek.configured
+          ? cachedQuota.deepseek
+          : emptyAiQuotaProvider()
+      aiQuota = {
+        ...cachedQuota,
+        openai: cachedOpenAi,
+        deepseek: cachedDeepSeek,
+        visible:
+          settings.aiQuotaEnabled &&
+          (cachedOpenAi.configured || cachedDeepSeek.configured),
+      }
       await createWindows()
+      scheduleAiQuotaRefresh()
+      setTimeout(() => {
+        void refreshAiQuota()
+      }, 1200)
       await startScreenshotWatcher()
     })
     .catch(() => {
@@ -8269,6 +8778,10 @@ else {
     if (maintenanceTimer) {
       clearInterval(maintenanceTimer)
       maintenanceTimer = undefined
+    }
+    if (aiQuotaTimer) {
+      clearInterval(aiQuotaTimer)
+      aiQuotaTimer = undefined
     }
     if (clipboardTimer) {
       clearInterval(clipboardTimer)
@@ -8306,6 +8819,7 @@ else {
     lyricsWindow?.destroy()
     bubbleWindow?.destroy()
     toastWindow?.destroy()
+    quotaBar?.destroy()
     renameWindow?.destroy()
     settingsWindow?.destroy()
     pomodoroWindow?.destroy()
@@ -8317,6 +8831,7 @@ else {
     focusBadge?.destroy()
     askWindow?.destroy()
     convertWindow?.destroy()
+    archiveWindow?.destroy()
     globalShortcut.unregisterAll()
     tray?.destroy()
   })

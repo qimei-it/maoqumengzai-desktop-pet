@@ -714,6 +714,13 @@ footer button {
   height: 100vh;
   overflow: hidden;
 }
+.quota-view,
+.quota-view #app {
+  background: transparent;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
 .pill-group {
   display: flex;
   align-items: center;

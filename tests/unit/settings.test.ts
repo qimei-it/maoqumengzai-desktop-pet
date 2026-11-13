@@ -13,6 +13,9 @@ describe('settings store', () => {
     expect(defaultSettings.musicBubbles).toBe(true)
     expect(defaultSettings.hoverWheelActions).toHaveLength(10)
     expect(defaultSettings.fileWheelActions).toHaveLength(10)
+    expect(defaultSettings.aiQuotaEnabled).toBe(true)
+    expect(defaultSettings.aiQuotaRefreshMinutes).toBe(5)
+    expect(defaultSettings.aiQuotaOpenAIPath).toBe('')
   })
 
   test('round-trips a saved file atomically', async () => {
@@ -24,6 +27,9 @@ describe('settings store', () => {
       scale: 1.5,
       launchAtLogin: true,
       statusBubbles: false,
+      aiQuotaEnabled: false,
+      aiQuotaRefreshMinutes: 15,
+      aiQuotaOpenAIPath: '/tmp/codex-auth.json',
       hoverWheelActions: ['agent', 'todo', 'water', 'settings'],
       fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
     })
@@ -34,10 +40,32 @@ describe('settings store', () => {
       scale: 1.5,
       launchAtLogin: true,
       statusBubbles: false,
+      aiQuotaEnabled: false,
+      aiQuotaRefreshMinutes: 15,
+      aiQuotaOpenAIPath: '/tmp/codex-auth.json',
       hoverWheelActions: ['agent', 'todo', 'water', 'settings'],
       fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
     })
     expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(1)
+  })
+
+  test('adds AI quota defaults to an older settings file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    const {
+      aiQuotaEnabled: _enabled,
+      aiQuotaRefreshMinutes: _minutes,
+      aiQuotaOpenAIPath: _path,
+      ...legacy
+    } = defaultSettings
+    await writeFile(path, JSON.stringify(legacy))
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings).toMatchObject({
+      aiQuotaEnabled: true,
+      aiQuotaRefreshMinutes: 5,
+      aiQuotaOpenAIPath: '',
+    })
   })
 
   test('invalid wheel lists fall back without losing other settings', async () => {
@@ -101,6 +129,27 @@ describe('settings store', () => {
       'mail',
       'settings',
     ])
+  })
+
+  test('drops the removed archive format without losing other settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        petName: '团子',
+        archiveFormat: '7z',
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.petName).toBe('团子')
+    expect(loaded.settings).not.toHaveProperty('archiveFormat')
+    await saveSettingsFile(path, loaded.settings)
+    expect(JSON.parse(await readFile(path, 'utf8'))).not.toHaveProperty(
+      'archiveFormat',
+    )
   })
 
   test('a missing or corrupt file falls back to defaults', async () => {

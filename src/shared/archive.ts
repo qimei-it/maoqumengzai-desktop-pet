@@ -1,6 +1,6 @@
 /** Pure naming and safety rules for ZIP archiving and image shrinking. */
 import { basename, dirname, extname, join } from 'node:path'
-import type { ArchiveFormat } from './settings'
+import { singleFileArchiveFormats, type ArchiveFormat } from './protocol'
 
 export const compressOutputFolder = 'compress_output'
 /** Total input cap for in-memory ZIP creation. */
@@ -44,6 +44,16 @@ export function archiveFileName(
   now = new Date(),
   format: ArchiveFormat = 'zip',
 ): string {
+  if (
+    paths.length === 1 &&
+    (singleFileArchiveFormats as readonly ArchiveFormat[]).includes(format)
+  ) {
+    const name = basename(paths[0])
+    const extension = extname(name)
+    const stem = extension ? name.slice(0, -extension.length) : name
+    const suffix = attempt === 1 ? '' : ` (${attempt})`
+    return `${stem}${suffix}${extension}.${format}`
+  }
   const stem = archiveStem(paths, now)
   return `${stem}${attempt === 1 ? '' : ` (${attempt})`}.${format}`
 }
@@ -76,8 +86,38 @@ export function isRarFile(name: string): boolean {
   return extname(name).toLowerCase() === '.rar'
 }
 
+export function isTarFile(name: string): boolean {
+  return extname(name).toLowerCase() === '.tar'
+}
+
+export function isTgzFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.tgz') || lower.endsWith('.tar.gz')
+}
+
+export function isGzFile(name: string): boolean {
+  return extname(name).toLowerCase() === '.gz' && !isTgzFile(name)
+}
+
+export function isBz2File(name: string): boolean {
+  return extname(name).toLowerCase() === '.bz2'
+}
+
+export function isXzFile(name: string): boolean {
+  return extname(name).toLowerCase() === '.xz'
+}
+
 export function isArchiveFile(name: string): boolean {
-  return isZipFile(name) || is7zFile(name) || isRarFile(name)
+  return (
+    isZipFile(name) ||
+    is7zFile(name) ||
+    isRarFile(name) ||
+    isTarFile(name) ||
+    isTgzFile(name) ||
+    isGzFile(name) ||
+    isBz2File(name) ||
+    isXzFile(name)
+  )
 }
 
 export function extractedFolderName(

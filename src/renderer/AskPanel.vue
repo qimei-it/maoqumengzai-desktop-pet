@@ -108,11 +108,11 @@ function clearKey(): void {
           placeholder="API Key（仅保存在本机）"
           aria-label="DeepSeek API Key"
         />
-        <div class="button-pair">
-          <button type="button" class="button-soft" @click="getKey">
+        <div class="ask-setup-actions">
+          <button type="button" class="settings-button" @click="getKey">
             获取 Key
           </button>
-          <button type="submit" class="button-glass" :disabled="!canSave">
+          <button type="submit" class="settings-button primary" :disabled="!canSave">
             保存
           </button>
         </div>
@@ -262,6 +262,14 @@ function clearKey(): void {
 .ask-key-input:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
+}
+.ask-setup-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.ask-setup-actions .settings-button {
+  flex: 1 1 0;
 }
 .ask-key-actions {
   display: flex;

@@ -51,7 +51,9 @@ function onChange(event: Event): void {
   min-width: var(--select-min-width, 0);
 }
 .select-field select {
+  flex: 1 1 auto;
   width: auto;
+  min-width: 0;
   height: 30px;
   padding: 0 26px 0 8px;
   border: 1px solid var(--color-line);

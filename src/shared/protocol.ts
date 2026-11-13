@@ -1,6 +1,7 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
+import type { AiQuotaState } from './ai-quota'
 import type {
   MailAlert,
   MailAttachmentPick,
@@ -106,6 +107,50 @@ export type AiMessage = {
   error?: boolean
 }
 export type AiFile = { id: string; name: string; size: number }
+export const archiveFormats = [
+  'zip',
+  '7z',
+  'tar',
+  'tgz',
+  'gz',
+  'bz2',
+  'xz',
+] as const
+export type ArchiveFormat = (typeof archiveFormats)[number]
+export const archiveFormatLabels: Record<ArchiveFormat, string> = {
+  zip: 'ZIP',
+  '7z': '7Z',
+  tar: 'TAR',
+  tgz: 'TGZ',
+  gz: 'GZ',
+  bz2: 'BZ2',
+  xz: 'XZ',
+}
+export const multiFileArchiveFormats = [
+  'zip',
+  '7z',
+  'tar',
+  'tgz',
+] as const satisfies readonly ArchiveFormat[]
+export const singleFileArchiveFormats = [
+  'gz',
+  'bz2',
+  'xz',
+] as const satisfies readonly ArchiveFormat[]
+export type ArchiveFile = { id: string; name: string; size: number }
+export type ArchiveOutcome = {
+  count: number
+  name: string
+  size: number
+  format: ArchiveFormat
+}
+export type ArchiveState = {
+  busy: boolean
+  files: ArchiveFile[]
+  outcome?: ArchiveOutcome
+  notice?: string
+  canReveal: boolean
+}
 export type ConvertFile = { id: string; name: string; size: number }
 export type ConvertAction =
   | 'jpg'
@@ -335,8 +380,11 @@ export type Snapshot = {
   mailAlert?: MailAlert
   aiOpen: boolean
   ai: AiState
+  aiQuota: AiQuotaState
   convertOpen: boolean
   convert: ConvertState
+  archiveOpen: boolean
+  archive: ArchiveState
   renameOpen: boolean
   rename: RenameState
   settingsOpen: boolean
@@ -389,6 +437,16 @@ export type Command =
   | { type: 'ai-close' }
   | { type: 'ai-config'; apiKey: string }
   | { type: 'ai-clear' }
+  | { type: 'ai-quota-refresh' }
+  | {
+      type: 'ai-quota-config'
+      patch: {
+        enabled?: boolean
+        refreshMinutes?: number
+        openaiPath?: string
+      }
+    }
+  | { type: 'ai-quota-choose-openai' }
   | { type: 'ai-send'; prompt: string }
   | { type: 'ai-keys' }
   | { type: 'extract-audio'; fileIds: string[] }
@@ -404,7 +462,11 @@ export type Command =
   | { type: 'rename-open'; fileIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
   | { type: 'rename-close' }
-  | { type: 'archive-files'; fileIds: string[] }
+  | { type: 'archive-open'; fileIds: string[] }
+  | { type: 'archive-start'; format: ArchiveFormat }
+  | { type: 'archive-remove-file'; fileId: string }
+  | { type: 'archive-close' }
+  | { type: 'archive-reveal' }
   | { type: 'extract-archives'; fileIds: string[] }
   | { type: 'shrink-files'; fileIds: string[] }
   | { type: 'settings-open' }

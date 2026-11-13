@@ -270,16 +270,20 @@ function close(): void {
       </div>
 
       <div class="focus-controls">
-        <button type="button" class="button-glass" @click="toggleTimer">
+        <button
+          type="button"
+          class="settings-button primary"
+          @click="toggleTimer"
+        >
           <Pause
             v-if="focus?.running"
-            :size="17"
+            :size="18"
             :stroke-width="2"
             aria-hidden="true"
           />
           <Play
             v-else
-            :size="17"
+            :size="18"
             :stroke-width="2"
             aria-hidden="true"
           />
@@ -287,7 +291,7 @@ function close(): void {
         </button>
         <button
           type="button"
-          class="button-soft"
+          class="settings-button focus-reset"
           aria-label="重置"
           title="重置"
           @click="resetTimer"
@@ -585,15 +589,19 @@ function close(): void {
   gap: 8px;
   margin-top: 10px;
 }
-.focus-controls .button-glass {
+.focus-controls .settings-button {
   flex: 1;
+  min-height: 34px;
+  height: 34px;
   gap: 6px;
+  font-size: var(--font-size-body);
 }
-.focus-controls .button-soft {
-  width: var(--tap-min);
-  height: var(--tap-min);
-  padding: 0;
+.focus-controls .focus-reset {
   flex: none;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
 }
 .focus-error {
   margin: 10px 0 0;

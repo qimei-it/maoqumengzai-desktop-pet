@@ -1783,6 +1783,12 @@ watch(groups, (value) => {
   background: var(--color-surface-muted);
   border-radius: var(--radius-card);
 }
+/* Keep the rounded list flush with the second category card above instead of
+   letting the shared scrollbar gutter widen it by 8px. */
+.todo-lists-panel.panel-scroll {
+  width: 100%;
+  margin-right: 0;
+}
 .todo-smart-list {
   flex: none;
   display: grid;

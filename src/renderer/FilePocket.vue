@@ -83,7 +83,7 @@ function commandForSelected(
         <h2>拖到桌宠身上</h2>
         <span class="pocket-or">或</span>
         <button
-          class="button-glass pocket-select"
+          class="settings-button primary pocket-select"
           @click="emit('selectFiles')"
         >
           选择本地文件
@@ -135,6 +135,7 @@ function commandForSelected(
               entry.name
             }}</span>
             <button
+              class="settings-button pocket-restore"
               @click="
                 emit('command', { type: 'restore-eaten', entryId: entry.id })
               "
@@ -149,21 +150,26 @@ function commandForSelected(
       </section>
       <p v-if="error" class="pocket-error" role="alert">{{ error }}</p>
       <div v-if="state?.files.length" class="pocket-actions">
-        <button class="button-glass pocket-add" @click="emit('selectFiles')">
+        <button
+          class="settings-button primary pocket-add"
+          @click="emit('selectFiles')"
+        >
           新增文件
         </button>
-        <button class="button-soft" @click="convertSelected">格式转换</button>
-        <button class="button-soft" @click="commandForSelected('save-copy')">
+        <button class="settings-button" @click="convertSelected">
+          格式转换
+        </button>
+        <button class="settings-button" @click="commandForSelected('save-copy')">
           另存副本
         </button>
         <button
-          class="button-soft"
+          class="settings-button"
           @click="commandForSelected('remove-file')"
         >
           移出置物架
         </button>
         <button
-          class="button-soft"
+          class="settings-button"
           @click="commandForSelected('reveal-file')"
         >
           定位源文件
@@ -252,19 +258,8 @@ function commandForSelected(
   padding-top: 12px;
   border-top: 1px solid var(--color-line);
 }
-.pocket-actions button {
+.pocket-actions .settings-button {
   flex: 1 1 28%;
-  min-height: 34px;
-  padding-inline: 8px;
-  border-color: transparent;
-  font-size: var(--font-size-label);
-  white-space: nowrap;
-  transition:
-    background-color var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out);
-}
-.pocket-actions button:hover:not(:disabled) {
-  border-color: var(--color-line);
 }
 .pocket-belly {
   margin-top: 10px;
@@ -301,14 +296,8 @@ function commandForSelected(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pocket-belly li button {
+.pocket-belly .pocket-restore {
   flex: none;
-  border: 0;
-  background: transparent;
-  color: var(--color-brand-ink);
-  min-height: 26px;
-  padding: 2px 4px;
-  font-size: var(--font-size-label);
 }
 .pocket-belly > p {
   margin: 4px 0 0;
@@ -342,12 +331,6 @@ function commandForSelected(
   line-height: 1.35;
   margin: 0;
 }
-.pocket-empty button {
-  min-height: var(--tap-min);
-  margin-top: 2px;
-  padding-inline: var(--space-8);
-  font-size: var(--font-size-body);
-}
 .pocket-or {
   margin: 0;
   color: var(--color-muted);
@@ -355,21 +338,7 @@ function commandForSelected(
   line-height: 1.3;
 }
 .pocket-select {
-  border-color: transparent;
-  transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
-}
-button.pocket-select.button-glass:hover {
-  background-image: none;
-  background-color: var(--color-brand);
-}
-button.pocket-select.button-glass:active {
-  background-image: none;
-  background-color: var(--color-brand-ink);
-  box-shadow: var(--shadow-control-pressed);
-  transform: translateY(1px) scale(0.99);
+  margin-top: 2px;
 }
 .pocket-over .pocket-surface {
   outline: 2px solid var(--color-brand-ink);

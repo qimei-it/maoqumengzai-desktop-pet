@@ -141,7 +141,7 @@ test.beforeAll(async () => {
     args: [resolve('.')],
     env: environment,
   })
-  await expect.poll(() => application.windows().length).toBe(23)
+  await expect.poll(() => application.windows().length).toBe(24)
   const windows = await Promise.all(
     application.windows().map(async (page) => ({
       page,

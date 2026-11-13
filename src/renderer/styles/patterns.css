@@ -1,26 +1,13 @@
-/* Desktop adaptation of Maoquyinghua's button-pair / button-soft / button-glass.
- * Palette/material tokens are generated from its canonical tokens.css.
- * Native desktop dimensions and focus/hover behavior live here.
+/* Desktop button recipes.
+ * Every text action uses .settings-button. The legacy soft/glass recipes are
+ * kept only for the two existing icon-only controls; new icon buttons should
+ * follow the compact Mail/Settings icon-button pattern instead.
  */
 :root {
   --mqmz-panel-padding: var(--page-x);
   --mqmz-panel-shadow: var(--shadow-stage);
   --mqmz-action-background: var(--color-brand-ink);
   --mqmz-focus-ring: 2px solid var(--color-focus);
-}
-.button-pair {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  gap: var(--space-4);
-}
-.button-pair > .button-glass,
-.button-pair > .button-soft {
-  flex: 1 1 0;
-  width: 0;
-  min-width: 0;
-  margin: 0;
-  padding-inline: var(--space-4);
 }
 .button-glass,
 .button-soft {
@@ -113,6 +100,7 @@ body[data-input='pointer'] .button-soft:focus-visible {
   color: var(--color-brand-ink);
 }
 .settings-button.primary {
+  border-color: transparent;
   background: var(--color-brand-ink);
   color: var(--color-on-brand);
 }
@@ -124,6 +112,9 @@ body[data-input='pointer'] .button-soft:focus-visible {
     var(--color-ink)
   );
   color: var(--color-on-brand);
+}
+.settings-button.primary:active:not(:disabled) {
+  border-color: var(--color-brand);
 }
 .settings-button.danger {
   color: var(--color-danger);

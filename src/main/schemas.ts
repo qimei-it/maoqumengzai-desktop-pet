@@ -1,11 +1,10 @@
 import { z } from 'zod'
-import { todoListColors, todoRepeats } from '../shared/protocol'
 import {
   archiveFormats,
-  musicBarStyles,
-  petScales,
-  themeIds,
-} from '../shared/settings'
+  todoListColors,
+  todoRepeats,
+} from '../shared/protocol'
+import { musicBarStyles, petScales, themeIds } from '../shared/settings'
 import {
   hoverActions,
   maxWheelActions,
@@ -113,6 +112,20 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('ai-clear') }).strict(),
+  z.object({ type: z.literal('ai-quota-refresh') }).strict(),
+  z
+    .object({
+      type: z.literal('ai-quota-config'),
+      patch: z
+        .object({
+          enabled: z.boolean().optional(),
+          refreshMinutes: z.number().int().min(1).max(1440).optional(),
+          openaiPath: z.string().max(1024).optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ type: z.literal('ai-quota-choose-openai') }).strict(),
   z
     .object({
       type: z.literal('ai-send'),
@@ -224,10 +237,24 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('rename-close') }).strict(),
   z
     .object({
-      type: z.literal('archive-files'),
+      type: z.literal('archive-open'),
       fileIds: z.array(z.string().uuid()).min(1).max(32),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal('archive-start'),
+      format: z.enum(archiveFormats),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('archive-remove-file'),
+      fileId: z.string().uuid(),
+    })
+    .strict(),
+  z.object({ type: z.literal('archive-close') }).strict(),
+  z.object({ type: z.literal('archive-reveal') }).strict(),
   z
     .object({
       type: z.literal('extract-archives'),
@@ -276,7 +303,9 @@ export const commandSchema = z.discriminatedUnion('type', [
           shelfClipboardImages: z.boolean().optional(),
           shelfScreenshotBubble: z.boolean().optional(),
           shelfMaxRecords: z.number().int().min(50).max(500).optional(),
-          archiveFormat: z.enum(archiveFormats).optional(),
+          aiQuotaEnabled: z.boolean().optional(),
+          aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
+          aiQuotaOpenAIPath: z.string().max(1024).optional(),
           hoverWheelActions: wheelActions(hoverActions).optional(),
           fileWheelActions: wheelActions(sliceActions).optional(),
         })

@@ -377,12 +377,12 @@ onMounted(() => {
 
     <div class="wheel-page-foot">
       <div class="wheel-page-actions">
-        <button type="button" class="wheel-page-button" @click="reset">
+        <button type="button" class="settings-button" @click="reset">
           恢复默认
         </button>
         <button
           type="button"
-          class="wheel-page-button primary"
+          class="settings-button primary"
           @click="close"
         >
           完成
@@ -642,42 +642,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
 }
-.wheel-page-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 30px;
-  padding: 0 11px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  transition:
-    background-color var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
-}
-.wheel-page-button:hover {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-}
-.wheel-page-button:active {
-  transform: scale(0.97);
-}
-.wheel-page-button.primary {
-  background: var(--color-brand-ink);
-  color: var(--color-on-brand);
-}
-.wheel-page-button.primary:hover {
-  border-color: var(--color-brand-ink);
-  color: var(--color-on-brand);
-}
 .wheel-back:focus-visible,
-.wheel-page-button:focus-visible,
 .wheel-palette-chip:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
@@ -687,8 +652,7 @@ onMounted(() => {
   .wheel-center-drop,
   .wheel-center-drop-fill,
   .wheel-palette,
-  .wheel-palette-chip,
-  .wheel-page-button {
+  .wheel-palette-chip {
     transition: none;
   }
 }

@@ -18,9 +18,6 @@ export const musicBarStyleLabels: Record<MusicBarStyle, string> = {
   minimal: '仅封面',
 }
 
-export const archiveFormats = ['zip', '7z'] as const
-export type ArchiveFormat = (typeof archiveFormats)[number]
-
 export const petScales = [0.75, 1, 1.5, 2] as const
 export type PetScale = (typeof petScales)[number]
 
@@ -43,7 +40,9 @@ export type Settings = {
   shelfClipboardImages: boolean
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
-  archiveFormat: ArchiveFormat
+  aiQuotaEnabled: boolean
+  aiQuotaRefreshMinutes: number
+  aiQuotaOpenAIPath: string
   hoverWheelActions: HoverAction[]
   fileWheelActions: DropAction[]
 }
@@ -63,7 +62,9 @@ export const defaultSettings: Settings = {
   shelfClipboardImages: false,
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
-  archiveFormat: 'zip',
+  aiQuotaEnabled: true,
+  aiQuotaRefreshMinutes: 5,
+  aiQuotaOpenAIPath: '',
   hoverWheelActions: [...hoverActions],
   fileWheelActions: [...sliceActions],
 }

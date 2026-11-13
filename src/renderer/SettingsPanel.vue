@@ -12,7 +12,6 @@ import {
   petScales,
   themeIds,
   themeLabels,
-  type ArchiveFormat,
   type PetScale,
   type SettingsState,
   type ThemeId,
@@ -73,6 +72,23 @@ const petProfiles = computed(() => [
   { id: 'ragdoll', name: settings.value.petName, cover: catBase },
 ])
 const configured = computed(() => Boolean(props.state?.ai.configured))
+const aiQuota = computed(() => props.state?.aiQuota)
+const openAiQuotaLabel = computed(() => {
+  const provider = aiQuota.value?.openai
+  if (!provider?.configured) return '未找到 Codex 登录'
+  if (provider.status === 'loading') return '读取中'
+  if (provider.status === 'error') return '读取失败'
+  if (provider.status === 'stale') return '数据待刷新'
+  return provider.plan ? `已连接 · ${provider.plan}` : '已连接'
+})
+const deepSeekQuotaLabel = computed(() => {
+  const provider = aiQuota.value?.deepseek
+  if (!provider?.configured) return '未配置'
+  if (provider.status === 'loading') return '读取中'
+  if (provider.status === 'error') return '读取失败'
+  if (provider.status === 'stale') return '数据待刷新'
+  return '已连接'
+})
 const bellyCount = computed(() => props.state?.belly.length ?? 0)
 const shelfInvalidCount = computed(
   () => props.state?.shelfInvalidCount ?? 0,
@@ -167,10 +183,10 @@ const shelfMaxControlOptions = shelfMaxOptions.map((value) => ({
   value,
   label: String(value),
 }))
-const archiveOptions = [
-  { value: 'zip', label: 'ZIP' },
-  { value: '7z', label: '7Z' },
-] as const
+const aiQuotaRefreshOptions = [5, 15, 30, 60].map((value) => ({
+  value,
+  label: `${value} 分钟`,
+}))
 
 
 watch(configured, (value) => {
@@ -216,7 +232,8 @@ function toggle(
     | 'musicBubbles'
     | 'shelfAutoScreenshots'
     | 'shelfClipboardImages'
-    | 'shelfScreenshotBubble',
+    | 'shelfScreenshotBubble'
+    | 'aiQuotaEnabled',
 ): void {
   update({ [key]: !settings.value[key] })
 }
@@ -576,15 +593,6 @@ function onEscape(): void {
               />
             </div>
             <div class="settings-row">
-              <span class="settings-label">归档格式</span>
-              <SegmentedControl
-                :model-value="settings.archiveFormat"
-                :options="archiveOptions"
-                aria-label="归档格式"
-                @update="value => update({ archiveFormat: value as ArchiveFormat })"
-              />
-            </div>
-            <div class="settings-row">
               <span class="settings-label">截图目录</span>
               <span class="settings-value settings-path" :title="shelfFolderLabel">
                 {{ shelfFolderLabel }}
@@ -873,6 +881,73 @@ function onEscape(): void {
                 @click="emit('command', { type: 'ai-clear' })"
               >
                 删除
+              </button>
+            </div>
+
+            <h3 class="settings-group-title">AI 额度</h3>
+            <div class="settings-row">
+              <span id="setting-ai-quota" class="settings-label"
+                >显示额度药丸</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-ai-quota"
+                :aria-checked="settings.aiQuotaEnabled"
+                @click="toggle('aiQuotaEnabled')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">刷新间隔</span>
+              <SegmentedControl
+                :model-value="settings.aiQuotaRefreshMinutes"
+                :options="aiQuotaRefreshOptions"
+                aria-label="AI 额度刷新间隔"
+                @update="
+                  value => update({ aiQuotaRefreshMinutes: value as number })
+                "
+              />
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">OpenAI</span>
+              <span class="settings-value">{{ openAiQuotaLabel }}</span>
+            </div>
+            <div class="settings-field settings-field-end">
+              <button
+                type="button"
+                class="settings-button"
+                @click="emit('command', { type: 'ai-quota-choose-openai' })"
+              >
+                选择登录
+              </button>
+              <button
+                type="button"
+                class="settings-button"
+                @click="
+                  emit('command', {
+                    type: 'ai-quota-config',
+                    patch: { openaiPath: '' },
+                  })
+                "
+              >
+                自动检测
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">DeepSeek 余额</span>
+              <span class="settings-value">{{ deepSeekQuotaLabel }}</span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">立即刷新</span>
+              <button
+                type="button"
+                class="settings-button"
+                @click="emit('command', { type: 'ai-quota-refresh' })"
+              >
+                刷新
               </button>
             </div>
           </template>

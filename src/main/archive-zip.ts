@@ -3,6 +3,7 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -11,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { unzipSync, zipSync } from 'fflate'
-import _7z from '7zip-min'
+import _7z, { type ListItem } from '7zip-min'
 import { createExtractorFromData } from 'node-unrar-js'
 import {
   archiveEntryName,
@@ -21,10 +22,18 @@ import {
   extractSizeLimit,
   extractedFolderName,
   is7zFile,
+  isBz2File,
+  isGzFile,
   isRarFile,
+  isTarFile,
+  isTgzFile,
+  isXzFile,
   safeArchiveEntry,
 } from '../shared/archive'
-import type { ArchiveFormat } from '../shared/settings'
+import {
+  singleFileArchiveFormats,
+  type ArchiveFormat,
+} from '../shared/protocol'
 import { writeExclusive } from './write-output'
 
 /** 7zip-min only detects asar in some Electron argv shapes; normalize once. */
@@ -65,12 +74,22 @@ function run7z(args: string[], cwd: string): Promise<void> {
   })
 }
 
-async function create7z(
+const sevenZipTypes: Partial<Record<ArchiveFormat, string>> = {
+  '7z': '7z',
+  tar: 'tar',
+  tgz: 'gzip',
+  gz: 'gzip',
+  bz2: 'bzip2',
+  xz: 'xz',
+}
+
+async function createWith7z(
   paths: readonly string[],
+  format: Exclude<ArchiveFormat, 'zip'>,
   now: Date,
 ): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-7z-'))
-  const archive = join(directory, 'archive.7z')
+  const archive = join(directory, `archive.${format}`)
   try {
     const used = new Set<string>()
     const names: string[] = []
@@ -79,11 +98,28 @@ async function create7z(
       names.push(name)
       await copyFile(path, join(directory, name))
     }
-    await run7z(['a', '-t7z', '-mx=6', archive, ...names], directory)
+    const type = sevenZipTypes[format]
+    if (!type) throw new Error('暂不支持该归档格式。')
+    if (format === 'tgz') {
+      const tar = join(directory, 'archive.tar')
+      await run7z(['a', '-ttar', tar, ...names], directory)
+      await run7z(['a', '-tgzip', archive, tar], directory)
+    } else {
+      await run7z(
+        [
+          'a',
+          `-t${type}`,
+          ...(format === '7z' ? ['-mx=6'] : []),
+          archive,
+          ...names,
+        ],
+        directory,
+      )
+    }
     const bytes = await readFile(archive)
     return writeExclusive(
       dirname(paths[0]),
-      (attempt) => archiveFileName(paths, attempt, now, '7z'),
+      (attempt) => archiveFileName(paths, attempt, now, format),
       bytes,
     )
   } finally {
@@ -104,8 +140,13 @@ export async function createArchive(
   const total = sizes.reduce((sum, size) => sum + size, 0)
   if (total > archiveInputLimit)
     throw new Error('一次最多打包 512 MB，请分开处理。')
+  if (
+    paths.length > 1 &&
+    (singleFileArchiveFormats as readonly ArchiveFormat[]).includes(format)
+  )
+    throw new Error('GZ、BZ2、XZ 只能压缩单个文件。')
 
-  if (format === '7z') return create7z(paths, now)
+  if (format !== 'zip') return createWith7z(paths, format, now)
 
   const used = new Set<string>()
   const entries: Record<string, Uint8Array> = {}
@@ -193,22 +234,12 @@ async function extractZip(
   return { folder, count }
 }
 
-async function extract7z(
-  archivePath: string,
-): Promise<{ folder: string; count: number }> {
-  const info = await stat(archivePath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
-  const items = await _7z.list(archivePath)
-  const files = items.filter(
-    (item) =>
-      !item.name.endsWith('/') && !item.attr?.trim().startsWith('D'),
-  )
+function validateSevenZipFiles(files: ListItem[]): number {
   const used = new Set<string>()
   let expanded = 0
   for (const item of files) {
     if (item.encrypted === '+')
-      throw new Error('暂不支持加密的 7Z 压缩包。')
+      throw new Error('暂不支持加密的压缩包。')
     const safe = safeArchiveEntry(item.name)
     if (!safe) throw new Error('压缩包包含不安全的路径，已停止解压。')
     if (used.has(safe))
@@ -221,6 +252,25 @@ async function extract7z(
       throw new Error('解压后体积过大，已停止解压。')
   }
   if (!files.length) throw new Error('压缩包是空的。')
+  return files.length
+}
+
+async function sevenZipFiles(archivePath: string): Promise<ListItem[]> {
+  const items = await _7z.list(archivePath)
+  return items.filter(
+    (item) =>
+      !item.name.endsWith('/') && !item.attr?.trim().startsWith('D'),
+  )
+}
+
+async function extractWith7z(
+  archivePath: string,
+): Promise<{ folder: string; count: number }> {
+  const info = await stat(archivePath)
+  if (info.size > archiveInputLimit)
+    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  const files = await sevenZipFiles(archivePath)
+  const count = validateSevenZipFiles(files)
   const folder = await makeExtractFolder(archivePath)
   try {
     await _7z.unpack(archivePath, folder)
@@ -228,7 +278,69 @@ async function extract7z(
     await rm(folder, { recursive: true, force: true }).catch(() => {})
     throw new Error('解压失败，已清理不完整的文件。')
   }
-  return { folder, count: files.length }
+  return { folder, count }
+}
+
+async function extractSingleStream(
+  archivePath: string,
+): Promise<{ folder: string; count: number }> {
+  const info = await stat(archivePath)
+  if (info.size > archiveInputLimit)
+    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-stream-'))
+  try {
+    await _7z.unpack(archivePath, directory)
+    const names = await readdir(directory)
+    if (names.length !== 1) throw new Error('不是有效的单文件压缩包。')
+    const safe = safeArchiveEntry(names[0])
+    if (!safe) throw new Error('压缩包包含不安全的路径，已停止解压。')
+    const source = join(directory, names[0])
+    if ((await stat(source)).size > extractSizeLimit)
+      throw new Error('解压后体积过大，已停止解压。')
+    const folder = await makeExtractFolder(archivePath)
+    try {
+      await copyFile(source, join(folder, safe))
+    } catch {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+      throw new Error('解压失败，已清理不完整的文件。')
+    }
+    return { folder, count: 1 }
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+async function extractTgz(
+  archivePath: string,
+): Promise<{ folder: string; count: number }> {
+  const info = await stat(archivePath)
+  if (info.size > archiveInputLimit)
+    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-tgz-'))
+  try {
+    const outer = await sevenZipFiles(archivePath)
+    validateSevenZipFiles(outer)
+    await _7z.unpack(archivePath, directory)
+    const tarName = (await readdir(directory)).find((name) =>
+      name.toLowerCase().endsWith('.tar'),
+    )
+    if (!tarName) throw new Error('不是有效的 TGZ 压缩包。')
+    const tarPath = join(directory, tarName)
+    if ((await stat(tarPath)).size > extractSizeLimit)
+      throw new Error('解压后体积过大，已停止解压。')
+    const files = await sevenZipFiles(tarPath)
+    const count = validateSevenZipFiles(files)
+    const folder = await makeExtractFolder(archivePath)
+    try {
+      await _7z.unpack(tarPath, folder)
+    } catch {
+      await rm(folder, { recursive: true, force: true }).catch(() => {})
+      throw new Error('解压失败，已清理不完整的文件。')
+    }
+    return { folder, count }
+  } finally {
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 async function extractRar(
@@ -286,7 +398,12 @@ async function extractRar(
 export async function extractArchive(
   archivePath: string,
 ): Promise<{ folder: string; count: number }> {
-  if (is7zFile(archivePath)) return extract7z(archivePath)
+  if (is7zFile(archivePath)) return extractWith7z(archivePath)
+  if (isTarFile(archivePath)) return extractWith7z(archivePath)
+  if (isTgzFile(archivePath)) return extractTgz(archivePath)
+  if (isGzFile(archivePath)) return extractSingleStream(archivePath)
+  if (isBz2File(archivePath)) return extractSingleStream(archivePath)
+  if (isXzFile(archivePath)) return extractSingleStream(archivePath)
   if (isRarFile(archivePath)) return extractRar(archivePath)
   return extractZip(archivePath)
 }

@@ -173,10 +173,12 @@ function apply(): void {
       <p v-if="error" class="rename-error" role="alert">{{ error }}</p>
 
       <footer class="rename-actions">
-        <button type="button" class="button-soft" @click="close">取消</button>
+        <button type="button" class="settings-button" @click="close">
+          取消
+        </button>
         <button
           type="button"
-          class="button-glass"
+          class="settings-button primary"
           :disabled="busy || !changed"
           @click="apply"
         >
@@ -313,10 +315,6 @@ function apply(): void {
   margin-top: 12px;
   padding-top: 0;
   border-top: 0;
-}
-.rename-actions .button-soft,
-.rename-actions .button-glass {
-  min-width: 96px;
 }
 .rename-error {
   margin: 8px 0 0;
