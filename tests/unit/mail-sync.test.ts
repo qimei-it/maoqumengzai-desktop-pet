@@ -8,8 +8,11 @@ const mocks = vi.hoisted(() => ({
     vendor: 'Mailtech',
     TransID: 'abc',
   })),
+  search: vi.fn(async () => [] as number[]),
+  fetch: vi.fn(),
   fetchOne: vi.fn(async () => ({ source: Buffer.from('mail') })),
   flagsAdd: vi.fn(async () => true),
+  flagsRemove: vi.fn(async () => true),
   logout: vi.fn(async () => {}),
   parse: vi.fn(async () => ({
     subject: '登录验证码',
@@ -26,8 +29,11 @@ vi.mock('imapflow', () => ({
     connect = mocks.connect
     mailboxOpen = mocks.mailboxOpen
     run = mocks.run
+    search = mocks.search
+    fetch = mocks.fetch
     fetchOne = mocks.fetchOne
     messageFlagsAdd = mocks.flagsAdd
+    messageFlagsRemove = mocks.flagsRemove
     logout = mocks.logout
   },
 }))
@@ -38,8 +44,10 @@ vi.mock('mailparser', () => ({
 
 import {
   fetchMailDetail,
+  fetchOlderMailInbox,
   mailErrorMessage,
   probeMailAccount,
+  setMailSeen,
 } from '../../src/main/mail-sync'
 
 describe('mail detail fetch', () => {
@@ -68,6 +76,44 @@ describe('mail detail fetch', () => {
     expect(detail.code).toBe('123456')
     expect(detail.codeExpiresAt).toBe(
       new Date('2026-01-01T08:00:00Z').getTime() + 5 * 60_000,
+    )
+  })
+
+  test('loads older cached pages by UID', async () => {
+    mocks.search.mockResolvedValueOnce([1, 2, 3])
+    mocks.fetch.mockImplementationOnce(async function* () {
+      yield {
+        uid: 3,
+        envelope: {
+          subject: '旧邮件',
+          from: [{ address: 'old@example.com' }],
+          date: new Date('2026-01-01T07:00:00Z'),
+        },
+        flags: new Set(),
+        bodyStructure: undefined,
+      }
+    })
+    const result = await fetchOlderMailInbox(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+      4,
+    )
+    expect(mocks.search).toHaveBeenCalledWith({ uid: '1:3' }, { uid: true })
+    expect(result.messages[0]).toMatchObject({
+      uid: 3,
+      subject: '旧邮件',
+      fromAddress: 'old@example.com',
+    })
+    expect(result.hasMore).toBe(false)
+  })
+
+  test('updates the seen flag for manual unread state', async () => {
+    await setMailSeen('gmail', 'demo@gmail.com', 'auth-code', 5, false)
+    expect(mocks.flagsRemove).toHaveBeenCalledWith(
+      '5',
+      ['\\Seen'],
+      { uid: true },
     )
   })
 

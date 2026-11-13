@@ -342,6 +342,67 @@ export class MailDatabase {
     }))
   }
 
+  countMessages(accountId: string, folder = 'INBOX'): number {
+    const row = this.db
+      .prepare(
+        'SELECT COUNT(*) AS count FROM mail_messages WHERE account_id = ? AND folder = ?',
+      )
+      .get(accountId, folder) as unknown as { count: number }
+    return row.count
+  }
+
+  oldestUid(accountId: string, folder = 'INBOX'): number | undefined {
+    const row = this.db
+      .prepare(
+        'SELECT MIN(uid) AS uid FROM mail_messages WHERE account_id = ? AND folder = ?',
+      )
+      .get(accountId, folder) as unknown as { uid: number | null }
+    return row.uid ?? undefined
+  }
+
+  searchMessages(
+    accountId: string,
+    folder: string,
+    query: string,
+    limit = 500,
+  ): MailMessageSummary[] {
+    const term = query.trim().toLowerCase()
+    if (!term) return this.listMessages(accountId, folder, limit)
+    const rows = this.db
+      .prepare(
+        `SELECT uid, subject, from_name, from_address, date, snippet,
+                unread, has_attachments
+         FROM mail_messages
+         WHERE account_id = ? AND folder = ?
+           AND (INSTR(LOWER(COALESCE(subject, '')), ?) > 0
+             OR INSTR(LOWER(COALESCE(from_name, '')), ?) > 0
+             OR INSTR(LOWER(COALESCE(from_address, '')), ?) > 0
+             OR INSTR(LOWER(COALESCE(snippet, '')), ?) > 0)
+         ORDER BY date DESC, uid DESC
+         LIMIT ?`,
+      )
+      .all(accountId, folder, term, term, term, term, limit) as unknown as Array<{
+      uid: number
+      subject: string | null
+      from_name: string | null
+      from_address: string | null
+      date: number | null
+      snippet: string | null
+      unread: number
+      has_attachments: number
+    }>
+    return rows.map((row) => ({
+      uid: row.uid,
+      subject: row.subject || '(无主题)',
+      ...(row.from_name ? { fromName: row.from_name } : {}),
+      ...(row.from_address ? { fromAddress: row.from_address } : {}),
+      ...(row.date ? { date: row.date } : {}),
+      ...(row.snippet ? { snippet: row.snippet } : {}),
+      unread: Boolean(row.unread),
+      hasAttachments: Boolean(row.has_attachments),
+    }))
+  }
+
   message(
     accountId: string,
     folder: string,

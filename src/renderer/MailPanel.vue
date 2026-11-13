@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { LoaderCircle, Mail, Paperclip, RefreshCw } from '@lucide/vue'
+import { LoaderCircle, Mail, Paperclip, RefreshCw, Search } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
@@ -18,10 +18,18 @@ const panel = computed(() => props.state?.mailPanel)
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const selected = computed(() => panel.value?.selected)
 const messages = computed(() => panel.value?.messages ?? [])
+const loadingMore = computed(
+  () => panel.value?.loadingKind === 'more',
+)
 const loadingText = computed(() =>
   panel.value?.loadingKind === 'sync'
     ? '正在同步邮件…'
-    : '正在读取邮件…',
+    : loadingMore.value
+      ? '正在加载更早邮件…'
+      : '正在读取邮件…',
+)
+const readerLoading = computed(
+  () => Boolean(panel.value?.loading) && !loadingMore.value,
 )
 const accountId = computed(() => panel.value?.accountId)
 const account = computed(() =>
@@ -69,6 +77,24 @@ function selectMessage(message: MailMessageSummary): void {
 }
 function refresh(): void {
   emit('command', { type: 'mail-refresh' })
+}
+function onSearch(event: Event): void {
+  emit('command', {
+    type: 'mail-search',
+    query: (event.target as HTMLInputElement).value,
+  })
+}
+function loadMore(): void {
+  emit('command', { type: 'mail-load-more' })
+}
+function toggleUnread(): void {
+  const message = selected.value
+  if (!message) return
+  emit('command', {
+    type: 'mail-set-unread',
+    uid: message.uid,
+    unread: !message.unread,
+  })
 }
 function openMailSettings(): void {
   emit('command', { type: 'settings-section', section: 'mail' })
@@ -166,6 +192,16 @@ watch(
           </button>
         </aside>
         <section class="mail-list" aria-label="邮件列表">
+          <label class="mail-search">
+            <Search :size="14" :stroke-width="2" aria-hidden="true" />
+            <input
+              :value="panel?.query ?? ''"
+              type="search"
+              placeholder="搜索主题或发件人"
+              aria-label="搜索邮件"
+              @input="onSearch"
+            />
+          </label>
           <div v-if="panel?.error" class="mail-error" role="alert">
             <span>{{ panel.error }}</span>
             <div class="mail-error-actions">
@@ -204,12 +240,21 @@ watch(
             </span>
             <span v-if="message.snippet" class="mail-snippet">{{ message.snippet }}</span>
           </button>
+          <button
+            v-if="panel?.hasMore"
+            type="button"
+            class="settings-button mail-more"
+            :disabled="panel?.loading"
+            @click="loadMore"
+          >
+            {{ loadingMore ? '正在加载…' : '加载更多' }}
+          </button>
           <div v-if="!panel?.loading && !messages.length" class="mail-empty">
-            暂无邮件
+            {{ panel?.query ? '没有匹配的邮件' : '暂无邮件' }}
           </div>
         </section>
         <article class="mail-reader">
-          <div v-if="panel?.loading" class="mail-loading" role="status">
+          <div v-if="readerLoading" class="mail-loading" role="status">
             <LoaderCircle
               :size="22"
               :stroke-width="2"
@@ -219,7 +264,16 @@ watch(
           </div>
           <template v-else-if="selected">
             <header class="mail-reader-head">
-              <h2>{{ selected.subject }}</h2>
+              <div class="mail-reader-title">
+                <h2>{{ selected.subject }}</h2>
+                <button
+                  type="button"
+                  class="settings-button mail-read-toggle"
+                  @click="toggleUnread"
+                >
+                  {{ selected.unread ? '标记已读' : '标记未读' }}
+                </button>
+              </div>
               <p>
                 {{ selected.fromName || selected.fromAddress || '未知发件人' }}
                 <span v-if="selected.date">{{ formatDate(selected.date) }}</span>
@@ -354,6 +408,36 @@ watch(
   overflow-y: auto;
   padding-right: 4px;
 }
+.mail-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 32px;
+  margin-bottom: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.mail-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  outline: none;
+}
+.mail-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.mail-more {
+  width: 100%;
+  margin-top: 8px;
+}
 .mail-message {
   display: flex;
   flex-direction: column;
@@ -444,6 +528,20 @@ watch(
 .mail-reader-head {
   padding-bottom: 12px;
   border-bottom: 1px solid var(--color-line);
+}
+.mail-reader-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mail-reader-title h2 {
+  margin: 0 0 6px;
+}
+.mail-read-toggle {
+  flex: none;
+  min-height: 26px;
+  padding: 0 10px;
 }
 .mail-reader-head h2 {
   margin: 0 0 6px;

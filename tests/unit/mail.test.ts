@@ -118,6 +118,40 @@ describe('mail database', () => {
     db.close()
   })
 
+  test('searches cached messages and tracks older pages', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: 'gmail', email: 'c@gmail.com' })
+    db.upsertMessages(account.id, 'INBOX', [
+      {
+        uid: 2,
+        subject: '验证码邮件',
+        fromName: 'Example',
+        fromAddress: 'security@example.com',
+        date: 2,
+        snippet: '登录验证码',
+        unread: false,
+        hasAttachments: false,
+      },
+      {
+        uid: 1,
+        subject: '账单',
+        fromName: 'Example',
+        fromAddress: 'billing@example.com',
+        date: 1,
+        snippet: '本月账单',
+        unread: false,
+        hasAttachments: false,
+      },
+    ])
+    expect(db.countMessages(account.id)).toBe(2)
+    expect(db.oldestUid(account.id)).toBe(1)
+    expect(db.searchMessages(account.id, 'INBOX', '验证码')).toHaveLength(1)
+    expect(db.searchMessages(account.id, 'INBOX', 'billing')).toHaveLength(1)
+    expect(db.searchMessages(account.id, 'INBOX', '不存在')).toHaveLength(0)
+    db.close()
+  })
+
   test('marks older codes from the same sender as superseded', async () => {
     const directory = await tempDirectory()
     const db = new MailDatabase(join(directory, 'mail.db'))

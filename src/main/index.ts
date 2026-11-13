@@ -157,7 +157,9 @@ import {
 } from './mail-secrets'
 import {
   fetchMailDetail,
+  fetchOlderMailInbox,
   probeMailAccount,
+  setMailSeen,
   syncMailInbox,
 } from './mail-sync'
 import {
@@ -285,7 +287,9 @@ let mailBadgeTotal = -1
 let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelLoading = false
-let mailPanelLoadingKind: 'sync' | 'detail' | undefined
+let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
+let mailPanelHasMore = false
+let mailPanelQuery = ''
 let mailPanelError: string | undefined
 let mailPanelErrorKind: 'sync' | 'detail' | undefined
 let mailPanelNotice: string | undefined
@@ -2229,6 +2233,8 @@ function mailPanelState(): MailPanelState {
     ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
     loading: mailPanelLoading,
     ...(mailPanelLoadingKind ? { loadingKind: mailPanelLoadingKind } : {}),
+    hasMore: mailPanelQuery ? false : mailPanelHasMore,
+    ...(mailPanelQuery ? { query: mailPanelQuery } : {}),
     messages: mailPanelMessages,
     ...(mailPanelSelected ? { selected: mailPanelSelected } : {}),
     ...(mailPanelError ? { error: mailPanelError } : {}),
@@ -2238,7 +2244,9 @@ function mailPanelState(): MailPanelState {
 }
 function loadMailMessages(accountId: string): void {
   if (!mailDb) return
-  mailPanelMessages = mailDb.listMessages(accountId, 'INBOX', 50)
+  mailPanelMessages = mailPanelQuery
+    ? mailDb.searchMessages(accountId, 'INBOX', mailPanelQuery, 500)
+    : mailDb.listMessages(accountId, 'INBOX', 500)
 }
 function positionMail(): void {
   if (!mailWindow || mailWindow.isDestroyed()) return
@@ -2265,6 +2273,8 @@ async function openMail(accountId?: string): Promise<void> {
   mailPanelSelected = undefined
   mailPanelError = undefined
   mailPanelErrorKind = undefined
+  mailPanelHasMore = false
+  mailPanelQuery = ''
   mailPanelNotice = undefined
   loadMailMessages(account.id)
   if (askWindow?.isVisible()) askWindow.hide()
@@ -2415,6 +2425,93 @@ async function selectMail(uid: number): Promise<void> {
     }
     broadcast()
   }
+}
+async function loadMoreMail(): Promise<void> {
+  if (!mailPanelAccountId || !mailDb || mailPanelLoading) return
+  const accountId = mailPanelAccountId
+  const account = mailDb.account(accountId)
+  if (!account) return
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) {
+    mailPanelError = '授权已失效，请重新授权。'
+    mailPanelErrorKind = 'sync'
+    broadcast()
+    return
+  }
+  const beforeUid = mailDb.oldestUid(accountId, 'INBOX')
+  if (!beforeUid) {
+    mailPanelHasMore = false
+    broadcast()
+    return
+  }
+  mailPanelLoading = true
+  mailPanelLoadingKind = 'more'
+  mailPanelError = undefined
+  mailPanelErrorKind = undefined
+  broadcast()
+  try {
+    const result = await fetchOlderMailInbox(
+      account.provider,
+      account.email,
+      secret,
+      beforeUid,
+    )
+    if (mailPanelAccountId !== accountId) return
+    mailDb.upsertMessages(accountId, 'INBOX', result.messages)
+    mailPanelHasMore = result.hasMore
+    loadMailMessages(accountId)
+  } catch (error) {
+    if (mailPanelAccountId !== accountId) return
+    mailPanelError =
+      error instanceof Error ? error.message : '加载更多邮件失败。'
+    mailPanelErrorKind = 'sync'
+  } finally {
+    if (mailPanelAccountId === accountId) {
+      mailPanelLoading = false
+      mailPanelLoadingKind = undefined
+    }
+    broadcast()
+  }
+}
+function searchMail(query: string): void {
+  if (!mailPanelAccountId || !mailDb) return
+  const next = query.trim().slice(0, 100)
+  if (next === mailPanelQuery) return
+  mailPanelQuery = next
+  loadMailMessages(mailPanelAccountId)
+  broadcast()
+}
+async function setMailUnread(uid: number, unread: boolean): Promise<void> {
+  if (!mailPanelAccountId || !mailDb) return
+  const accountId = mailPanelAccountId
+  const account = mailDb.account(accountId)
+  const message = mailDb.message(accountId, 'INBOX', uid)
+  if (!account || !message) throw new Error('邮件不存在。')
+  if (message.unread === unread) return
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) throw new Error('授权已失效，请重新授权。')
+  try {
+    await setMailSeen(
+      account.provider,
+      account.email,
+      secret,
+      uid,
+      !unread,
+    )
+    mailDb.setUnread(accountId, 'INBOX', uid, unread)
+    mailDb.updateAccount(accountId, {
+      unread: Math.max(0, account.unread + (unread ? 1 : -1)),
+    })
+    if (mailPanelSelected?.uid === uid)
+      mailPanelSelected = { ...mailPanelSelected, unread }
+    loadMailMessages(accountId)
+    void updateMailBadge()
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '无法更新邮件状态。'
+    mailPanelErrorKind = 'detail'
+  }
+  broadcast()
 }
 async function saveMailAttachment(
   uid: number,
@@ -2638,6 +2735,8 @@ async function removeMailAccount(accountId: string): Promise<void> {
     mailPanelMessages = []
     mailPanelError = undefined
     mailPanelErrorKind = undefined
+    mailPanelHasMore = false
+    mailPanelQuery = ''
     mailPanelLoading = false
     mailPanelLoadingKind = undefined
     if (next) {
@@ -2685,7 +2784,11 @@ async function syncMailAccount(
       error: null,
     })
     await pruneMailCache()
-    if (mailPanelAccountId === accountId) loadMailMessages(accountId)
+    if (mailPanelAccountId === accountId) {
+      mailPanelHasMore =
+        probe.total > mailDb.countMessages(accountId, 'INBOX')
+      loadMailMessages(accountId)
+    }
     void updateMailBadge()
     if (probe.unread > account.unread) notifyMail(account, probe.unread)
   } catch (error) {
@@ -5652,6 +5755,9 @@ function setupIpc(): void {
       'mail-remove-account',
       'mail-help',
       'mail-sync',
+      'mail-load-more',
+      'mail-search',
+      'mail-set-unread',
       'mail-update-config',
       'mail-choose-attachment-dir',
       'mail-open-attachment-dir',
@@ -6027,6 +6133,15 @@ function setupIpc(): void {
       case 'mail-sync':
         if (command.accountId) await syncMailAccount(command.accountId)
         else await syncAllMail()
+        break
+      case 'mail-load-more':
+        await loadMoreMail()
+        break
+      case 'mail-search':
+        searchMail(command.query)
+        break
+      case 'mail-set-unread':
+        await setMailUnread(command.uid, command.unread)
         break
       case 'mail-update-config':
         await updateMailConfig(command.patch)

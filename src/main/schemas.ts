@@ -430,6 +430,20 @@ export const commandSchema = z.discriminatedUnion('type', [
       accountId: z.string().uuid(),
     })
     .strict(),
+  z.object({ type: z.literal('mail-load-more') }).strict(),
+  z
+    .object({
+      type: z.literal('mail-search'),
+      query: z.string().max(100),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-set-unread'),
+      uid: z.number().int().nonnegative(),
+      unread: z.boolean(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('mail-help'),

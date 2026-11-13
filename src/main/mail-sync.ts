@@ -1,5 +1,5 @@
 /** IMAP connection probe and inbox unread sync. */
-import { ImapFlow } from 'imapflow'
+import { ImapFlow, type FetchMessageObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import sanitizeHtml from 'sanitize-html'
 import { detectVerificationCode } from '../shared/mail-code'
@@ -11,7 +11,14 @@ import {
 } from '../shared/mail'
 
 export type MailProbe = { unread: number }
-export type MailInboxSync = MailProbe & { messages: MailMessageSummary[] }
+export type MailInboxSync = MailProbe & {
+  messages: MailMessageSummary[]
+  total: number
+}
+export type MailOlderSync = {
+  messages: MailMessageSummary[]
+  hasMore: boolean
+}
 export type MailFetchedDetail = {
   subject: string
   fromName?: string
@@ -159,6 +166,22 @@ function snippetOf(text: string | undefined): string | undefined {
   return value ? value.slice(0, 160) : undefined
 }
 
+function summaryOf(message: FetchMessageObject): MailMessageSummary {
+  const envelope = message.envelope
+  const from = envelope?.from?.[0]
+  return {
+    uid: message.uid,
+    subject: envelope?.subject || '(无主题)',
+    ...(from?.name ? { fromName: from.name } : {}),
+    ...(from?.address ? { fromAddress: from.address } : {}),
+    ...(envelope?.date
+      ? { date: new Date(envelope.date).getTime() }
+      : {}),
+    unread: !message.flags?.has('\\Seen'),
+    hasAttachments: structureHasAttachments(message.bodyStructure),
+  }
+}
+
 export async function syncMailInbox(
   provider: MailProvider,
   email: string,
@@ -179,24 +202,80 @@ export async function syncMailInbox(
         size: true,
         bodyStructure: true,
       })) {
-        const envelope = message.envelope
-        const from = envelope?.from?.[0]
-        messages.push({
-          uid: message.uid,
-          subject: envelope?.subject || '(无主题)',
-          ...(from?.name ? { fromName: from.name } : {}),
-          ...(from?.address ? { fromAddress: from.address } : {}),
-          ...(envelope?.date
-            ? { date: new Date(envelope.date).getTime() }
-            : {}),
-          unread: !message.flags?.has('\\Seen'),
-          hasAttachments: structureHasAttachments(message.bodyStructure),
-        })
+        messages.push(summaryOf(message))
       }
     }
     return {
       unread: Math.max(0, mailbox.unseen ?? 0),
+      total,
       messages: messages.sort((a, b) => (b.date ?? 0) - (a.date ?? 0)),
+    }
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
+export async function fetchOlderMailInbox(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  beforeUid: number,
+  limit = 50,
+): Promise<MailOlderSync> {
+  if (beforeUid <= 1) return { messages: [], hasMore: false }
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen('INBOX', { readOnly: true })
+    const uids = await client.search(
+      { uid: `1:${beforeUid - 1}` },
+      { uid: true },
+    )
+    if (!uids || !uids.length) return { messages: [], hasMore: false }
+    const chosen = uids.slice(-limit)
+    const messages: MailMessageSummary[] = []
+    for await (const message of client.fetch(
+      chosen,
+      {
+        envelope: true,
+        flags: true,
+        size: true,
+        bodyStructure: true,
+      },
+      { uid: true },
+    )) {
+      messages.push(summaryOf(message))
+    }
+    return {
+      messages: messages.sort((a, b) => (b.date ?? 0) - (a.date ?? 0)),
+      hasMore: uids.length > chosen.length,
+    }
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
+export async function setMailSeen(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uid: number,
+  seen: boolean,
+): Promise<void> {
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen('INBOX', { readOnly: false })
+    if (seen) {
+      await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
+    } else {
+      await client.messageFlagsRemove(String(uid), ['\\Seen'], { uid: true })
     }
   } catch (error) {
     throw new Error(mailErrorMessage(error))

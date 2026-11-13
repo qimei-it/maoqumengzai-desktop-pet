@@ -481,6 +481,9 @@ export type Command =
       target?: 'client' | 'app-password'
     }
   | { type: 'mail-sync'; accountId?: string }
+  | { type: 'mail-load-more' }
+  | { type: 'mail-search'; query: string }
+  | { type: 'mail-set-unread'; uid: number; unread: boolean }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
   | { type: 'mail-choose-attachment-dir' }
   | { type: 'mail-open-attachment-dir' }
