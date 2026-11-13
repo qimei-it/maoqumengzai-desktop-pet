@@ -869,6 +869,9 @@ footer button {
   cursor: default;
   background: transparent;
 }
+.pill-button.unsupported {
+  color: var(--color-muted);
+}
 .pill-button:active {
   background: var(--color-brand-soft);
   transform: scale(0.96);

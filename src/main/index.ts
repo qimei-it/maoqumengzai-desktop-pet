@@ -5510,11 +5510,9 @@ function positionNotes(): void {
 }
 function pillSize(): { width: number; height: number } {
   const style = settings.musicBarStyle
-  if (style === 'compact')
-    return { width: music.source === 'apple' ? 432 : 370, height: 50 }
-  if (style === 'minimal')
-    return { width: music.source === 'apple' ? 288 : 224, height: 50 }
-  return { width: music.source === 'apple' ? 210 : 170, height: 108 }
+  if (style === 'compact') return { width: 432, height: 50 }
+  if (style === 'minimal') return { width: 288, height: 50 }
+  return { width: 210, height: 108 }
 }
 function pillLayout(liftPet: boolean): Rect {
   const b = pet.getBounds()

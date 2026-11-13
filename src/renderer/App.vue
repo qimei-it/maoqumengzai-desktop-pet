@@ -1474,12 +1474,27 @@ onUnmounted(() => {
 
     <div class="pill-group pill-controls">
       <button
-        v-if="state?.music.source === 'apple'"
         type="button"
         class="pill-button"
-        :class="{ active: state?.music.shuffle }"
-        :aria-label="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
-        :title="state?.music.shuffle ? '关闭随机播放' : '随机播放'"
+        :class="{
+          active: state?.music.source === 'apple' && state?.music.shuffle,
+          unsupported: state?.music.source !== 'apple',
+        }"
+        :disabled="state?.music.source !== 'apple'"
+        :aria-label="
+          state?.music.source === 'apple'
+            ? state?.music.shuffle
+              ? '关闭随机播放'
+              : '随机播放'
+            : '随机播放不可用'
+        "
+        :title="
+          state?.music.source === 'apple'
+            ? state?.music.shuffle
+              ? '关闭随机播放'
+              : '随机播放'
+            : '当前播放器不支持随机播放'
+        "
         @click="musicControl('shuffle')"
       >
         <Shuffle :size="16" :stroke-width="2" aria-hidden="true" />
@@ -1535,16 +1550,37 @@ onUnmounted(() => {
         />
       </button>
       <button
-        v-if="state?.music.source === 'apple'"
         type="button"
         class="pill-button"
-        :class="{ active: state?.music.repeat !== 'off' }"
-        :aria-label="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
-        :title="state?.music.repeat === 'one' ? '单曲循环' : state?.music.repeat === 'all' ? '列表循环' : '不循环'"
+        :class="{
+          active:
+            state?.music.source === 'apple' &&
+            state?.music.repeat !== 'off',
+          unsupported: state?.music.source !== 'apple',
+        }"
+        :disabled="state?.music.source !== 'apple'"
+        :aria-label="
+          state?.music.source !== 'apple'
+            ? '循环模式不可用'
+            : state?.music.repeat === 'one'
+              ? '单曲循环'
+              : state?.music.repeat === 'all'
+                ? '列表循环'
+                : '不循环'
+        "
+        :title="
+          state?.music.source !== 'apple'
+            ? '当前播放器不支持循环设置'
+            : state?.music.repeat === 'one'
+              ? '单曲循环'
+              : state?.music.repeat === 'all'
+                ? '列表循环'
+                : '不循环'
+        "
         @click="musicControl('repeat')"
       >
         <InfinityIcon
-          v-if="state?.music.repeat === 'one'"
+          v-if="state?.music.source === 'apple' && state?.music.repeat === 'one'"
           :size="16"
           :stroke-width="2"
           aria-hidden="true"
