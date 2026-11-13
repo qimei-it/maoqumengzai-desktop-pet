@@ -2821,6 +2821,11 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "placeholder",
     "name@126.com 或 name@163.com",
   );
+  await settings.locator(".mail-provider", { hasText: "Gmail" }).click();
+  await expect(settings.locator(".mail-help-link")).toHaveText([
+    "邮件客户端设置方式",
+    "获取应用专用密码",
+  ]);
   await expect(settings.locator(".mail-field span")).toHaveText([
     "邮箱地址",
     "授权码 / 应用专用密码",

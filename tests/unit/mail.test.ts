@@ -12,6 +12,7 @@ import {
   mailAccountLabel,
   mailDisplayNameError,
   mailDisplayNameLimit,
+  mailGmailAppPasswordUrl,
   mailHelpUrls,
   mailUnreadTotal,
   normalizeMailSecret,
@@ -213,6 +214,9 @@ describe('mail unread total', () => {
     expect(mailHelpUrls.qq).toContain('wx.mail.qq.com')
     expect(mailHelpUrls['163']).toContain('help.mail.163.com')
     expect(mailHelpUrls.gmail).toContain('knowledge.workspace.google.com')
+    expect(mailGmailAppPasswordUrl).toContain(
+      'blog.csdn.net/weixin_54689482/article/details/146033946',
+    )
   })
 
   test('removes spaces from Google app passwords', () => {

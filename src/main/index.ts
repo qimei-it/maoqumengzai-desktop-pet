@@ -162,6 +162,7 @@ import {
 } from './mail-sync'
 import {
   mailAccountLabel,
+  mailGmailAppPasswordUrl,
   mailHelpUrls,
   mailUnreadTotal,
 } from '../shared/mail'
@@ -2687,7 +2688,6 @@ async function syncMailAccount(
     if (mailPanelAccountId === accountId) loadMailMessages(accountId)
     void updateMailBadge()
     if (probe.unread > account.unread) notifyMail(account, probe.unread)
-    mailError = undefined
   } catch (error) {
     const message =
       error instanceof Error ? error.message : '邮箱同步失败，请稍后重试。'
@@ -6018,7 +6018,11 @@ function setupIpc(): void {
         await removeMailAccount(command.accountId)
         break
       case 'mail-help':
-        await shell.openExternal(mailHelpUrls[command.provider])
+        await shell.openExternal(
+          command.target === 'app-password'
+            ? mailGmailAppPasswordUrl
+            : mailHelpUrls[command.provider],
+        )
         break
       case 'mail-sync':
         if (command.accountId) await syncMailAccount(command.accountId)

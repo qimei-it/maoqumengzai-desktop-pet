@@ -135,8 +135,12 @@ function submit(): void {
     ...(displayName ? { displayName } : {}),
   })
 }
-function openMailHelp(): void {
-  emit('command', { type: 'mail-help', provider: formProvider.value })
+function openMailHelp(target: 'client' | 'app-password' = 'client'): void {
+  emit('command', {
+    type: 'mail-help',
+    provider: formProvider.value,
+    target,
+  })
 }
 function syncAccount(accountId: string): void {
   emit('command', { type: 'mail-sync', accountId })
@@ -201,7 +205,6 @@ watch(
   (value) => {
     if (wasBusy.value && !value && formOpen.value && !props.mail?.error) {
       closeForm()
-      pushToast('邮箱账户已保存。', 'success')
     }
     wasBusy.value = Boolean(value)
   },
@@ -338,14 +341,25 @@ watch(
           />
         </label>
         <div class="mail-form-actions">
-          <button
-            type="button"
-            class="mail-help-link"
-            @click="openMailHelp"
-          >
-            邮件客户端设置方式
-            <ExternalLink :size="12" :stroke-width="2" aria-hidden="true" />
-          </button>
+          <div class="mail-help-links">
+            <button
+              type="button"
+              class="mail-help-link"
+              @click="openMailHelp()"
+            >
+              邮件客户端设置方式
+              <ExternalLink :size="12" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <button
+              v-if="formProvider === 'gmail'"
+              type="button"
+              class="mail-help-link"
+              @click="openMailHelp('app-password')"
+            >
+              获取应用专用密码
+              <ExternalLink :size="12" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
           <button
             type="button"
             class="settings-button"
@@ -637,11 +651,16 @@ watch(
   justify-content: flex-end;
   gap: 8px;
 }
+.mail-help-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-right: auto;
+}
 .mail-help-link {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-right: auto;
   padding: 0;
   border: 0;
   background: transparent;

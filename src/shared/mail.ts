@@ -55,6 +55,9 @@ export const mailProviderLabels: Record<MailProvider, string> = {
   gmail: 'Gmail',
 }
 
+export const mailGmailAppPasswordUrl =
+  'https://blog.csdn.net/weixin_54689482/article/details/146033946'
+
 export const mailHelpUrls: Record<MailProvider, string> = {
   qq: 'https://wx.mail.qq.com/list/readtemplate?name=app_intro.html#/agreement/authorizationCode',
   '163':

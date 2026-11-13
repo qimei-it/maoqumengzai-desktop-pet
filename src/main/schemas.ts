@@ -434,6 +434,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('mail-help'),
       provider: z.enum(['qq', '163', 'gmail']),
+      target: z.enum(['client', 'app-password']).optional(),
     })
     .strict(),
   z
