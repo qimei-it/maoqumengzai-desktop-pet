@@ -125,3 +125,23 @@ export function dueTodosToNotify<T extends DueTodoLike>(
       now - todo.dueAt <= grace,
   )
 }
+
+/**
+ * Removes deadlines already announced in this process. The map is shared with
+ * water/break reminders, so todo keys carry their own prefix. A changed due
+ * date is treated as a new reminder.
+ */
+export function filterUnnotifiedDueTodos<T extends DueTodoLike>(
+  todos: readonly T[],
+  notified: Map<string, number>,
+): T[] {
+  const fresh: T[] = []
+  for (const todo of todos) {
+    if (todo.dueAt === null) continue
+    const key = `todo:${todo.id}`
+    if (notified.get(key) === todo.dueAt) continue
+    notified.set(key, todo.dueAt)
+    fresh.push(todo)
+  }
+  return fresh
+}

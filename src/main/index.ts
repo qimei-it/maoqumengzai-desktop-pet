@@ -64,6 +64,7 @@ import {
 import {
   dueTodosToNotify,
   endOfLocalDay,
+  filterUnnotifiedDueTodos,
   nextRepeatDueAt,
 } from '../shared/todo-time'
 import {
@@ -340,6 +341,8 @@ let petHoverMode = false
 let hoverCenterSince = 0
 let hoverSent = false
 let focusTimer: ReturnType<typeof setInterval> | undefined
+let maintenanceTimer: ReturnType<typeof setInterval> | undefined
+let maintenanceBusy = false
 let todoReminderCheck = Date.now()
 let schedulerBusy = false
 let lastSchedulerWall = 0
@@ -1742,7 +1745,8 @@ function persistClipboard(): void {
     addEvent('剪贴板历史保存失败；当前记录仍可使用。')
   })
 }
-function pruneClipboard(): void {
+function pruneClipboard(): boolean {
+  const before = clipboardData.entries.length
   const kept = pruneClipboardEntries(
     clipboardData.entries,
     clipboardData.config,
@@ -1756,6 +1760,7 @@ function pruneClipboard(): void {
       void rm(entry.imagePath, { force: true }).catch(() => {})
   }
   clipboardData = { ...clipboardData, entries: kept }
+  return kept.length !== before
 }
 function clipboardHash(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex')
@@ -3801,7 +3806,10 @@ function notifyFocus(title: string, body: string): void {
   showToast(body)
 }
 function checkTodoReminders(now: number): void {
-  const due = dueTodosToNotify(focusData.todos, todoReminderCheck, now)
+  const due = filterUnnotifiedDueTodos(
+    dueTodosToNotify(focusData.todos, todoReminderCheck, now),
+    notifiedReminderDues,
+  )
   todoReminderCheck = now
   if (!due.length) return
   const body =
@@ -5281,7 +5289,7 @@ async function restoreBelly(): Promise<void> {
   }
 }
 /** Expired meals are removed from disk on launch; the pet never keeps them forever. */
-async function purgeBelly(): Promise<void> {
+async function purgeBelly(): Promise<number> {
   const now = Date.now()
   const kept: StoredBellyEntry[] = []
   let removed = 0
@@ -5298,6 +5306,7 @@ async function purgeBelly(): Promise<void> {
     await saveBelly()
     addEvent(`回收区已清理 ${removed} 个到期文件。`)
   }
+  return removed
 }
 async function movePath(source: string, destination: string): Promise<void> {
   try {
@@ -5372,6 +5381,25 @@ async function clearInvalidShelf(): Promise<number> {
   shelfInvalidCount = 0
   broadcast()
   return invalid.length
+}
+/** Applies local retention and expiry rules without touching source files. */
+async function runMaintenance(): Promise<void> {
+  if (shuttingDown || maintenanceBusy) return
+  maintenanceBusy = true
+  try {
+    let changed = false
+    if (pruneClipboard()) {
+      persistClipboard()
+      changed = true
+    }
+    if (await purgeBelly()) changed = true
+    const previousInvalid = shelfInvalidCount
+    await scanShelfValidity()
+    if (shelfInvalidCount !== previousInvalid) changed = true
+    if (changed) broadcast()
+  } finally {
+    maintenanceBusy = false
+  }
 }
 async function restoreShelf(): Promise<void> {
   try {
@@ -8083,6 +8111,9 @@ async function createWindows(): Promise<void> {
   // ~60fps while dragging: the window follows the cursor from this loop, so a
   // slower tick reads as a low frame rate.
   focusTimer = setInterval(focusTick, 1000)
+  maintenanceTimer = setInterval(() => {
+    void runMaintenance()
+  }, 15 * 60_000)
   pollMusic()
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
@@ -8234,6 +8265,10 @@ else {
     if (focusTimer) {
       clearInterval(focusTimer)
       focusTimer = undefined
+    }
+    if (maintenanceTimer) {
+      clearInterval(maintenanceTimer)
+      maintenanceTimer = undefined
     }
     if (clipboardTimer) {
       clearInterval(clipboardTimer)

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import {
   dueTodosToNotify,
   endOfLocalDay,
+  filterUnnotifiedDueTodos,
   formatDueLabel,
   fromDateTimeLocalValue,
   isSameLocalDay,
@@ -108,5 +109,20 @@ describe('todo due dates', () => {
         now,
       ),
     ).toEqual([])
+  })
+
+  test('does not repeat a todo reminder after the clock rolls back', () => {
+    const now = Date.now()
+    const todo = { id: 'todo-1', text: '开会', done: false, dueAt: now }
+    const notified = new Map<string, number>([['water', now]])
+    const first = dueTodosToNotify([todo], now - 60_000, now)
+    expect(filterUnnotifiedDueTodos(first, notified)).toEqual([todo])
+    expect(filterUnnotifiedDueTodos(first, notified)).toEqual([])
+
+    const moved = { ...todo, dueAt: now + 60_000 }
+    expect(filterUnnotifiedDueTodos([moved], notified)).toEqual([moved])
+    expect(notified.get('todo:todo-1')).toBe(now + 60_000)
+    // Water/break keys share the map and must not collide with todo ids.
+    expect(notified.get('water')).toBe(now)
   })
 })
