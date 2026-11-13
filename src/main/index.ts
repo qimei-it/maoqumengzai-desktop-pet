@@ -163,10 +163,15 @@ import {
   syncMailInbox,
 } from './mail-sync'
 import {
+  sendMailMessage,
+  type OutgoingAttachment,
+} from './mail-smtp'
+import {
   mailAccountLabel,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
   mailUnreadTotal,
+  type MailAttachmentPick,
 } from '../shared/mail'
 import type {
   MailConfig,
@@ -288,8 +293,10 @@ let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelLoading = false
 let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
+let mailPanelSending = false
 let mailPanelHasMore = false
 let mailPanelQuery = ''
+const mailComposeAttachments = new Map<string, OutgoingAttachment>()
 let mailCacheBytes = 0
 let mailPanelError: string | undefined
 let mailPanelErrorKind: 'sync' | 'detail' | undefined
@@ -2234,6 +2241,7 @@ function mailPanelState(): MailPanelState {
     ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
     loading: mailPanelLoading,
     ...(mailPanelLoadingKind ? { loadingKind: mailPanelLoadingKind } : {}),
+    sending: mailPanelSending,
     hasMore: mailPanelQuery ? false : mailPanelHasMore,
     ...(mailPanelQuery ? { query: mailPanelQuery } : {}),
     messages: mailPanelMessages,
@@ -2514,6 +2522,56 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
     mailPanelErrorKind = 'detail'
   }
   broadcast()
+}
+async function sendMail(command: {
+  to: string
+  cc?: string
+  subject: string
+  body: string
+  attachmentIds: string[]
+}): Promise<void> {
+  if (!mailPanelAccountId || !mailDb)
+    throw new Error('邮件账户不存在。')
+  if (mailPanelSending) throw new Error('正在发送邮件，请稍候。')
+  const account = mailDb.account(mailPanelAccountId)
+  if (!account) throw new Error('邮件账户不存在。')
+  const secret = await loadMailSecret(mailSecretsPath, account.id)
+  if (!secret) throw new Error('授权已失效，请重新授权。')
+  const attachments = command.attachmentIds
+    .map((id) => mailComposeAttachments.get(id))
+    .filter((item): item is OutgoingAttachment => Boolean(item))
+  if (attachments.length !== command.attachmentIds.length)
+    throw new Error('附件已失效，请重新选择。')
+  const totalBytes = attachments.reduce((total, item) => total + item.size, 0)
+  if (totalBytes > 25 * 1024 * 1024)
+    throw new Error('附件总大小不能超过 25 MB。')
+  mailPanelSending = true
+  mailPanelError = undefined
+  mailPanelErrorKind = undefined
+  broadcast()
+  try {
+    const result = await sendMailMessage({
+      account,
+      secret,
+      to: command.to,
+      ...(command.cc ? { cc: command.cc } : {}),
+      subject: command.subject,
+      body: command.body,
+      attachments,
+    })
+    mailPanelNotice = result.savedToSent
+      ? '邮件已发送'
+      : '邮件已发送，但未能保存到已发送。'
+    mailPanelNoticeId += 1
+    mailComposeAttachments.clear()
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '邮件发送失败，请稍后重试。'
+    mailPanelErrorKind = 'detail'
+  } finally {
+    mailPanelSending = false
+    broadcast()
+  }
 }
 async function saveMailAttachment(
   uid: number,
@@ -5681,6 +5739,28 @@ function setupIpc(): void {
     if (!secret) throw new Error('授权码不可用，请重新输入。')
     return secret
   })
+  handle(channels.mailAttachments, 'either', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window !== mailWindow)
+      throw new Error('仅邮件面板可以选择附件。')
+    if (!mailWindow) return []
+    const result = await dialog.showOpenDialog(mailWindow, {
+      title: '选择邮件附件',
+      properties: ['openFile', 'multiSelections'],
+    })
+    if (result.canceled) return []
+    const picks: MailAttachmentPick[] = []
+    mailComposeAttachments.clear()
+    for (const path of result.filePaths.slice(0, 20)) {
+      const info = await stat(path)
+      if (!info.isFile()) continue
+      const id = randomUUID()
+      const name = basename(path)
+      mailComposeAttachments.set(id, { path, name, size: info.size })
+      picks.push({ id, name, size: info.size })
+    }
+    return picks
+  })
   handle(channels.mask, 'pet', (_event, payload) => {
     mask = maskSchema.parse(payload)
     broadcast()
@@ -5806,6 +5886,7 @@ function setupIpc(): void {
       'mail-load-more',
       'mail-search',
       'mail-set-unread',
+      'mail-send',
       'mail-update-config',
       'mail-clear-cache',
       'mail-choose-attachment-dir',
@@ -6191,6 +6272,9 @@ function setupIpc(): void {
         break
       case 'mail-set-unread':
         await setMailUnread(command.uid, command.unread)
+        break
+      case 'mail-send':
+        await sendMail(command)
         break
       case 'mail-update-config':
         await updateMailConfig(command.patch)

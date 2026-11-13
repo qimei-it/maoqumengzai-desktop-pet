@@ -31,6 +31,8 @@ const api: PrototypeApi = {
   saveCapture: (id) => ipcRenderer.invoke(channels.saveCapture, id),
   mailSecret: (accountId) =>
     ipcRenderer.invoke(channels.mailSecret, { accountId }),
+  mailChooseAttachments: () =>
+    ipcRenderer.invoke(channels.mailAttachments),
   onSnapshot: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: Snapshot) =>
       listener(state)

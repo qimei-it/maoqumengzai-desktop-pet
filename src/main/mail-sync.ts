@@ -284,6 +284,32 @@ export async function setMailSeen(
   }
 }
 
+export async function appendMailToSent(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  raw: Buffer,
+): Promise<boolean> {
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    const boxes = await client.list()
+    const sent =
+      boxes.find((box) => box.specialUse?.toLowerCase() === '\\sent') ??
+      boxes.find((box) =>
+        /^(sent|sent messages|sent items|已发送|已发送邮件)$/i.test(box.name),
+      )
+    if (!sent) return false
+    await client.append(sent.path, raw, ['\\Seen'])
+    return true
+  } catch {
+    return false
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
 export async function fetchMailDetail(
   provider: MailProvider,
   email: string,

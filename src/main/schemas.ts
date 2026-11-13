@@ -446,6 +446,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('mail-send'),
+      to: z.string().min(1).max(1000),
+      cc: z.string().max(1000).optional(),
+      subject: z.string().max(500),
+      body: z.string().max(1_000_000),
+      attachmentIds: z.array(z.string().uuid()).max(20),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('mail-help'),
       provider: z.enum(['qq', '163', 'gmail']),
       target: z.enum(['client', 'app-password']).optional(),

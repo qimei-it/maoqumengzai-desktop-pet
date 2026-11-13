@@ -67,6 +67,21 @@ export const mailHelpUrls: Record<MailProvider, string> = {
     'https://knowledge.workspace.google.com/admin/sync/turn-pop-and-imap-on-or-off-for-users?hl=zh-cn',
 }
 
+export const mailSmtpHosts: Record<
+  MailProvider,
+  { host: string; port: number }
+> = {
+  qq: { host: 'smtp.qq.com', port: 465 },
+  '163': { host: 'smtp.163.com', port: 465 },
+  gmail: { host: 'smtp.gmail.com', port: 465 },
+}
+
+export type MailAttachmentPick = {
+  id: string
+  name: string
+  size: number
+}
+
 export const mailProviderHosts: Record<
   MailProvider,
   { host: string; port: number }
@@ -130,6 +145,7 @@ export type MailPanelState = {
   loadingKind?: 'sync' | 'detail' | 'more'
   hasMore: boolean
   query?: string
+  sending: boolean
   messages: MailMessageSummary[]
   selected?: MailMessageDetail
   error?: string

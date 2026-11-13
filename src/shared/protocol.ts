@@ -1,7 +1,13 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
-import type { MailConfig, MailPanelState, MailProvider, MailState } from './mail'
+import type {
+  MailAttachmentPick,
+  MailConfig,
+  MailPanelState,
+  MailProvider,
+  MailState,
+} from './mail'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
@@ -30,6 +36,7 @@ export const channels = {
   capture: 'mqmz:capture:preview',
   saveCapture: 'mqmz:capture:save-preview',
   mailSecret: 'mqmz:mail:secret',
+  mailAttachments: 'mqmz:mail:attachments',
 } as const
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -484,6 +491,14 @@ export type Command =
   | { type: 'mail-load-more' }
   | { type: 'mail-search'; query: string }
   | { type: 'mail-set-unread'; uid: number; unread: boolean }
+  | {
+      type: 'mail-send'
+      to: string
+      cc?: string
+      subject: string
+      body: string
+      attachmentIds: string[]
+    }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
   | { type: 'mail-clear-cache' }
   | { type: 'mail-choose-attachment-dir' }
@@ -573,6 +588,7 @@ export interface PrototypeApi {
   capturePreview(): Promise<Result<CapturePreview[]>>
   saveCapture(id: string): Promise<Result<Snapshot>>
   mailSecret(accountId: string): Promise<Result<string>>
+  mailChooseAttachments(): Promise<Result<MailAttachmentPick[]>>
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
   onHover(listener: () => void): () => void
 }

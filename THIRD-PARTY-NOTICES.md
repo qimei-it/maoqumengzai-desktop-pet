@@ -27,6 +27,7 @@
 | fflate | MIT | https://github.com/101arrowz/fflate |
 | pdf-to-img | MIT | https://github.com/k-yle/pdf-to-img |
 | pdfjs-dist（PDF.js） | Apache-2.0 | https://github.com/mozilla/pdf.js |
+| Nodemailer | MIT | https://github.com/nodemailer/nodemailer |
 | @napi-rs/canvas | MIT | https://github.com/Brooooooklyn/canvas |
 | bmp-js | MIT | https://github.com/shaozilee/bmp-js |
 | marked | MIT | https://github.com/markedjs/marked |

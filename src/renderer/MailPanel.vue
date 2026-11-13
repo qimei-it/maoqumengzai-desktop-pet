@@ -8,10 +8,12 @@ import {
   PenLine,
   RefreshCw,
   Search,
+  X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
+  type MailAttachmentPick,
   type MailMessageSummary,
 } from '../shared/mail'
 import PanelHeader from './PanelHeader.vue'
@@ -49,6 +51,13 @@ const accountId = computed(() => panel.value?.accountId)
 const account = computed(() =>
   accounts.value.find((item) => item.id === accountId.value),
 )
+const composeOpen = ref(false)
+const composeTo = ref('')
+const composeCc = ref('')
+const composeSubject = ref('')
+const composeBody = ref('')
+const composeAttachments = ref<MailAttachmentPick[]>([])
+const sending = computed(() => Boolean(panel.value?.sending))
 const now = ref(Date.now())
 let codeTimer: ReturnType<typeof setInterval> | undefined
 const codeExpired = computed(() => {
@@ -100,6 +109,48 @@ function onSearch(event: Event): void {
 }
 function loadMore(): void {
   emit('command', { type: 'mail-load-more' })
+}
+function openCompose(): void {
+  composeTo.value = ''
+  composeCc.value = ''
+  composeSubject.value = ''
+  composeBody.value = ''
+  composeAttachments.value = []
+  composeOpen.value = true
+}
+function closeCompose(): void {
+  if (sending.value) return
+  composeOpen.value = false
+  composeAttachments.value = []
+}
+async function chooseAttachments(): Promise<void> {
+  const result = await window.mqmz?.mailChooseAttachments()
+  if (!result) return
+  if (!result.ok) {
+    pushToast(result.error, 'error')
+    return
+  }
+  composeAttachments.value = result.value
+}
+function removeAttachment(id: string): void {
+  composeAttachments.value = composeAttachments.value.filter(
+    (item) => item.id !== id,
+  )
+}
+function sendCompose(): void {
+  if (sending.value) return
+  if (!composeTo.value.trim()) {
+    pushToast('请填写收件人。', 'error')
+    return
+  }
+  emit('command', {
+    type: 'mail-send',
+    to: composeTo.value.trim(),
+    ...(composeCc.value.trim() ? { cc: composeCc.value.trim() } : {}),
+    subject: composeSubject.value,
+    body: composeBody.value,
+    attachmentIds: composeAttachments.value.map((item) => item.id),
+  })
 }
 function toggleUnread(): void {
   const message = selected.value
@@ -164,7 +215,12 @@ watch(
   (value, previous) => {
     if (!value || value === previous) return
     const notice = panel.value?.notice
-    if (notice) pushToast(notice, 'success')
+    if (!notice) return
+    pushToast(notice, 'success')
+    if (notice.startsWith('邮件已发送')) {
+      composeOpen.value = false
+      composeAttachments.value = []
+    }
   },
 )
 </script>
@@ -286,13 +342,95 @@ watch(
               type="button"
               class="mail-compose"
               aria-label="新建邮件"
-              title="发件功能下一步实现"
-              disabled
+              title="写邮件"
+              :disabled="!accounts.length || sending"
+              @click="openCompose"
             >
               <PenLine :size="15" :stroke-width="2" aria-hidden="true" />
             </button>
           </div>
-          <div v-if="readerLoading" class="mail-loading" role="status">
+          <form
+            v-if="composeOpen"
+            class="mail-compose-form"
+            @submit.prevent="sendCompose"
+          >
+            <h2>新邮件</h2>
+            <label class="mail-compose-field">
+              <span>收件人</span>
+              <input
+                v-model="composeTo"
+                type="text"
+                autocomplete="off"
+                placeholder="name@example.com"
+              />
+            </label>
+            <label class="mail-compose-field">
+              <span>抄送</span>
+              <input
+                v-model="composeCc"
+                type="text"
+                autocomplete="off"
+                placeholder="可选"
+              />
+            </label>
+            <label class="mail-compose-field">
+              <span>主题</span>
+              <input v-model="composeSubject" type="text" maxlength="500" />
+            </label>
+            <label class="mail-compose-field">
+              <span>正文</span>
+              <textarea v-model="composeBody" rows="9" />
+            </label>
+            <ul
+              v-if="composeAttachments.length"
+              class="mail-compose-attachments"
+            >
+              <li
+                v-for="attachment in composeAttachments"
+                :key="attachment.id"
+              >
+                <Paperclip :size="13" :stroke-width="2" aria-hidden="true" />
+                <span>{{ attachment.name }}</span>
+                <span class="mail-size">{{ size(attachment.size) }}</span>
+                <button
+                  type="button"
+                  class="mail-compose-remove"
+                  aria-label="移除附件"
+                  @click="removeAttachment(attachment.id)"
+                >
+                  <X :size="12" :stroke-width="2" aria-hidden="true" />
+                </button>
+              </li>
+            </ul>
+            <div class="mail-compose-actions">
+              <button
+                type="button"
+                class="settings-button"
+                :disabled="sending"
+                @click="chooseAttachments"
+              >
+                <Paperclip :size="13" :stroke-width="2" aria-hidden="true" />
+                添加附件
+              </button>
+              <span class="mail-compose-spacer" />
+              <button
+                type="button"
+                class="settings-button"
+                :disabled="sending"
+                @click="closeCompose"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                class="settings-button primary"
+                :disabled="sending"
+              >
+                {{ sending ? '发送中…' : '发送' }}
+              </button>
+            </div>
+          </form>
+          <div v-else-if="readerLoading" class="mail-loading" role="status">
             <LoaderCircle
               :size="22"
               :stroke-width="2"
@@ -585,6 +723,88 @@ watch(
   justify-content: flex-end;
   height: 28px;
   margin-bottom: 8px;
+}
+.mail-compose-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.mail-compose-form h2 {
+  margin: 0;
+  font-size: var(--font-size-section);
+}
+.mail-compose-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.mail-compose-field input,
+.mail-compose-field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  resize: vertical;
+}
+.mail-compose-field textarea {
+  min-height: 160px;
+}
+.mail-compose-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
+  list-style: none;
+}
+.mail-compose-attachments li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--font-size-label);
+}
+.mail-compose-attachments li > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-compose-remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.mail-compose-remove:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.mail-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mail-compose-spacer {
+  flex: 1;
 }
 .mail-loading {
   height: 100%;

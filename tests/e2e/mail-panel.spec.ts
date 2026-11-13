@@ -137,7 +137,7 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   ).toBeVisible()
   await expect(
     mail.getByRole('button', { name: '新建邮件' }),
-  ).toBeDisabled()
+  ).toBeEnabled()
   await expect(mail.locator('.mail-unread')).toHaveText('1')
   await expect(mail.locator('.mail-error')).toContainText(
     '授权已失效，请重新授权。',
@@ -195,6 +195,27 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-message')).toContainText('旧验证码')
   await mail.getByLabel('搜索邮件').fill('')
   await expect(mail.locator('.mail-message')).toHaveCount(2)
+
+  await mail.getByRole('button', { name: '新建邮件' }).click()
+  await expect(
+    mail.getByRole('heading', { name: '新邮件', exact: true }),
+  ).toBeVisible()
+  await mail.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(
+    mail.locator('.toast-item.toast-error').last(),
+  ).toContainText('请填写收件人')
+  await application.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    })
+  }, attachmentPath)
+  await mail.getByRole('button', { name: '添加附件', exact: true }).click()
+  await expect(mail.locator('.mail-compose-attachments')).toContainText(
+    '1-report.txt',
+  )
+  await mail.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(mail.locator('.mail-compose-form')).toHaveCount(0)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {
