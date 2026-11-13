@@ -5505,13 +5505,24 @@ function hideToast(): void {
   syncOverlays()
   broadcast()
 }
+const notesWindowSize = 240
+// music-notes.png is 512×512 with its visible glyphs starting at y≈172.
+const notesArtTop = Math.round((notesWindowSize * 172) / 512)
 function positionNotes(): void {
   if (!notes || notes.isDestroyed()) return
   const b = pet.getBounds()
-  const size = 240
-  const x = Math.round(b.x + b.width / 2 - size / 2)
-  const y = Math.round(b.y + 60 * scale - size)
-  notes.setBounds(fitToDisplays({ x, y, width: size, height: size }, areas()))
+  const area = screen.getDisplayMatching(b).workArea
+  const x = Math.round(b.x + b.width / 2 - notesWindowSize / 2)
+  const y = Math.round(b.y + 60 * scale - notesWindowSize)
+  const fitted = fitToDisplays(
+    { x, y, width: notesWindowSize, height: notesWindowSize },
+    [area],
+  )
+  // Keep the visible notes at head height when the pet is against the top
+  // edge. The transparent padding may extend above the screen, but the
+  // animation must not be pushed down over the pet's body.
+  if (y < area.y) fitted.y = Math.max(y, area.y - notesArtTop)
+  notes.setBounds(fitted)
 }
 function pillSize(): { width: number; height: number } {
   const style = settings.musicBarStyle
