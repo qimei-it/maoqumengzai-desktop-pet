@@ -132,6 +132,12 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-account.active')).toContainText(
     '测试邮箱（demo@qq.com）',
   )
+  await expect(
+    mail.getByRole('button', { name: '添加邮箱账户' }),
+  ).toBeVisible()
+  await expect(
+    mail.getByRole('button', { name: '新建邮件' }),
+  ).toBeDisabled()
   await expect(mail.locator('.mail-unread')).toHaveText('1')
   await expect(mail.locator('.mail-error')).toContainText(
     '授权已失效，请重新授权。',

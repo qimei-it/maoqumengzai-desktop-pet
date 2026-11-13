@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { LoaderCircle, Mail, Paperclip, RefreshCw, Search } from '@lucide/vue'
+import {
+  LoaderCircle,
+  Mail,
+  MailPlus,
+  Paperclip,
+  PenLine,
+  RefreshCw,
+  Search,
+} from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
@@ -174,6 +182,18 @@ watch(
       />
       <div class="mail-body">
         <aside class="mail-accounts" aria-label="邮箱账户">
+          <div class="mail-accounts-head">
+            <span>邮箱账户</span>
+            <button
+              type="button"
+              class="mail-account-add"
+              aria-label="添加邮箱账户"
+              title="添加邮箱账户"
+              @click="openMailSettings"
+            >
+              <MailPlus :size="15" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
           <button
             v-for="item in accounts"
             :key="item.id"
@@ -261,6 +281,17 @@ watch(
           </div>
         </section>
         <article class="mail-reader">
+          <div class="mail-reader-toolbar">
+            <button
+              type="button"
+              class="mail-compose"
+              aria-label="新建邮件"
+              title="发件功能下一步实现"
+              disabled
+            >
+              <PenLine :size="15" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
           <div v-if="readerLoading" class="mail-loading" role="status">
             <LoaderCircle
               :size="22"
@@ -362,6 +393,38 @@ watch(
   gap: 4px;
   padding-right: 12px;
   border-right: 1px solid var(--color-line);
+}
+.mail-accounts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 0 4px;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.mail-account-add,
+.mail-compose {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-brand-ink);
+  cursor: pointer;
+}
+.mail-account-add:hover,
+.mail-compose:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+}
+.mail-compose:disabled {
+  color: var(--color-muted);
+  cursor: default;
+  opacity: 0.45;
 }
 .mail-account,
 .mail-refresh {
@@ -516,6 +579,12 @@ watch(
   min-width: 0;
   overflow-y: auto;
   padding-left: 4px;
+}
+.mail-reader-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  height: 28px;
+  margin-bottom: 8px;
 }
 .mail-loading {
   height: 100%;
