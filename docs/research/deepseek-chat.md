@@ -6,7 +6,8 @@
 
 - 官方文档：https://api-docs.deepseek.com/zh-cn/
 - Chat Completions：`POST https://api.deepseek.com/chat/completions`
-- 模型：`deepseek-flash`（DeepSeek-V4.1-Flash-1017）
+- 模型：`deepseek-flash`（DeepSeek-V4.1-Flash-1017）或 `deepseek-v4-pro`（DeepSeek-V4-Pro），在智能体面板选择，默认 Flash
+- 连接测试：设置页“测试链接”请求 `GET https://api.deepseek.com/models` 并显示往返延迟
 - 认证：`Authorization: Bearer <API Key>`
 - 请求关闭思考模式：`thinking: { "type": "disabled" }`，非流式返回
 - 输出上限 1600 tokens，超时 60 秒
@@ -25,4 +26,4 @@
 - 2026-11-10：本地 mock 验证请求体（model / thinking / messages / Authorization）、401、402、503、空返回共 4 项单元测试
 - 2026-11-10：真机拖文件到第六扇区打开面板；保存测试 Key 后本机文件以 `enc:` 前缀加密保存，重启后仍显示已配置
 - 2026-11-10：真实请求 `https://api.deepseek.com/chat/completions` 使用无效 Key，返回 401 并在界面显示“API Key 无效”，确认网络与错误映射可用
-- 未完成：有效 DeepSeek Key 的真实问答、延迟与用量核对，需要用户在本机配置自己的 Key
+- 2026-11-13：本机配置有效 DeepSeek Key 后完成真实验收。`GET /models` 连接测试 134 ms；余额接口返回 CNY 29.30；设置页添加/测试/删除流程通过；`deepseek-flash` 与 `deepseek-v4-pro` 均完成真实对话并返回预期内容。Key 未写入文档、日志或仓库。

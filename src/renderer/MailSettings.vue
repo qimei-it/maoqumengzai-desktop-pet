@@ -14,7 +14,6 @@ import type {
   MailState,
 } from '../shared/mail'
 import {
-  formatMailBadge,
   mailAccountLabel,
   mailDisplayNameError,
   mailDisplayNameLimit,
@@ -260,9 +259,6 @@ watch(
           :class="{ 'is-error': account.status === 'error' }"
         >
             {{ statusLabel(account) }}
-          </span>
-          <span v-if="account.unread" class="mail-unread">
-            {{ formatMailBadge(account.unread) }} 封未读
           </span>
           <button
             type="button"
@@ -543,17 +539,6 @@ watch(
 }
 .mail-status.is-error {
   color: var(--color-danger);
-}
-.mail-unread {
-  flex: none;
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-  font-size: var(--font-size-caption);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
 }
 .mail-icon-action {
   display: grid;

@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
+import { waitForAppWindows } from "./app-windows";
 import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -50,6 +51,7 @@ test.beforeAll(async () => {
   );
   environment.MQMZ_DATA_DIR = join(directory, "data");
   environment.MQMZ_SCREENSHOT_DIR = join(directory, "shots");
+  environment.MQMZ_DEEPSEEK_MODELS_URL = "http://127.0.0.1:1/models";
   await mkdir(environment.MQMZ_DATA_DIR, { recursive: true });
   await mkdir(environment.MQMZ_SCREENSHOT_DIR, { recursive: true });
   const today = new Date();
@@ -91,7 +93,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(24);
+  await waitForAppWindows(application);
   const windows = await Promise.all(
     application
       .windows()
@@ -461,22 +463,104 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toContain("设置已生效");
 
-  await settings.getByRole("button", { name: "智能体", exact: true }).click();
+  await settings.getByRole("button", { name: "API Key", exact: true }).click();
+  await expect(
+    settings.locator(".settings-row", { hasText: "显示额度监控" }),
+  ).toBeVisible();
+  await expect(
+    settings.locator(".settings-row", { hasText: "额度刷新间隔" }),
+  ).toBeVisible();
+  await expect(
+    settings.locator(".settings-row", { hasText: "OpenAI 帐户（" }),
+  ).toBeVisible();
+  await expect(
+    settings
+      .locator(".settings-row", { hasText: "OpenAI 帐户（" })
+      .getByRole("button"),
+  ).toHaveText(["选择登录", "自动检测"]);
+  await expect(
+    settings.getByRole("button", { name: "测试链接", exact: true }),
+  ).toHaveCount(0);
+  const addKeyButton = settings.getByRole("button", {
+    name: "添加",
+    exact: true,
+  });
+  await expect(addKeyButton).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "测试延迟", exact: true }),
+  ).toHaveCount(0);
+  await addKeyButton.click();
+  await expect(settings.getByLabel("DeepSeek API Key")).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "取消", exact: true }),
+  ).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "测试", exact: true }),
+  ).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "添加", exact: true }),
+  ).toBeVisible();
   await settings.getByLabel("DeepSeek API Key").fill("sk-settings-test");
-  await settings.getByRole("button", { name: "保存", exact: true }).click();
+  await settings.getByRole("button", { name: "测试", exact: true }).click();
+  await expect(settings.locator(".ai-latency")).toBeVisible();
+  await settings.getByRole("button", { name: "添加", exact: true }).click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.ai.configured : false;
     })
     .toBe(true);
-  await settings.getByRole("button", { name: "删除", exact: true }).click();
+  await expect(addKeyButton).toHaveCount(0);
+  await expect(settings.locator(".ai-latency")).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "测试延迟", exact: true }),
+  ).toBeVisible();
+  const deleteKeyButton = settings.getByRole("button", {
+    name: "删除",
+    exact: true,
+  });
+  await expect(deleteKeyButton).toBeVisible();
+  await application.evaluate(({ dialog }) => {
+    const target = dialog as unknown as {
+      showMessageBox: () => Promise<{
+        response: number
+        checkboxChecked: boolean
+      }>
+    }
+    const state = globalThis as typeof globalThis & {
+      __mqmzOriginalShowMessageBox?: typeof target.showMessageBox
+    }
+    state.__mqmzOriginalShowMessageBox = target.showMessageBox
+    target.showMessageBox = async () => ({
+      response: 1,
+      checkboxChecked: false,
+    })
+  });
+  await deleteKeyButton.click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.ai.configured : true;
     })
     .toBe(false);
+  await expect(addKeyButton).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "测试延迟", exact: true }),
+  ).toHaveCount(0);
+  await application.evaluate(({ dialog }) => {
+    const target = dialog as unknown as {
+      showMessageBox: () => Promise<{
+        response: number
+        checkboxChecked: boolean
+      }>
+    }
+    const state = globalThis as typeof globalThis & {
+      __mqmzOriginalShowMessageBox?: typeof target.showMessageBox
+    }
+    if (state.__mqmzOriginalShowMessageBox)
+      target.showMessageBox = state.__mqmzOriginalShowMessageBox
+    delete state.__mqmzOriginalShowMessageBox
+  });
 
   await settings.getByRole("button", { name: "音乐播放器", exact: true }).click();
   await expect(settings.locator(".bar-style")).toHaveCount(3);
@@ -1301,16 +1385,32 @@ test("hovering the pet centre opens companion tools", async () => {
     })
     .toBe(30);
   const dndSwitch = breakPanel.getByRole("switch", { name: "免打扰" });
-  await expect(dndSwitch).toHaveAttribute("aria-checked", "true");
+  await expect(dndSwitch).toHaveAttribute("aria-checked", "false");
   await dndSwitch.click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.breakDnd : false;
+    })
+    .toBe(true);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.focus.breakSitting}:${snapshot.value.focus.breakEyes}`
+        : "";
+    })
+    .toBe("false:false");
+  await expect(eyesSwitch).toHaveAttribute("aria-checked", "false");
+  await breakPanel.getByRole("tab", { name: "久坐提醒" }).click();
+  await expect(sittingSwitch).toHaveAttribute("aria-checked", "false");
+  await sittingSwitch.click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.focus.breakDnd : true;
     })
     .toBe(false);
-  await breakPanel.getByRole("tab", { name: "久坐提醒" }).click();
-  await expect(sittingSwitch).toHaveAttribute("aria-checked", "true");
   await expect
     .poll(async () => {
       const data = JSON.parse(
@@ -1318,7 +1418,7 @@ test("hovering the pet centre opens companion tools", async () => {
       );
       return `${data.breakSitting}:${data.breakEyes}:${data.breakEyesInterval}:${data.breakDnd}`;
     })
-    .toBe("true:true:30:false");
+    .toBe("true:false:30:false");
   await breakPanel.evaluate(() =>
     window.mqmz!.command({ type: "break-close" }),
   );
@@ -2229,6 +2329,17 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
     ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
+  await ask.getByLabel("DeepSeek API Key").fill("sk-ask-test");
+  await ask.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(ask.getByLabel("模型")).toBeVisible();
+  await ask.getByLabel("模型").selectOption("deepseek-v4-pro");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settings.aiModel : "";
+    })
+    .toBe("deepseek-v4-pro");
+  await lab.evaluate(() => window.mqmz!.command({ type: "ai-clear" }));
   const askCenter = await application.evaluate(({ BrowserWindow, screen }) => {
     const bounds = BrowserWindow.getAllWindows()
       .find((window) => window.getTitle().includes("智能问答"))!
@@ -3683,7 +3794,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(24);
+  await waitForAppWindows(application);
   pocket = (
     await Promise.all(
       application
@@ -3729,7 +3840,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(24);
+  await waitForAppWindows(application);
   const restarted = await Promise.all(
     application
       .windows()

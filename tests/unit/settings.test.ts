@@ -11,6 +11,7 @@ describe('settings store', () => {
     expect(petScales).toContain(defaultSettings.scale)
     expect(defaultSettings.statusBubbles).toBe(true)
     expect(defaultSettings.musicBubbles).toBe(true)
+    expect(defaultSettings.aiModel).toBe('deepseek-flash')
     expect(defaultSettings.hoverWheelActions).toHaveLength(10)
     expect(defaultSettings.fileWheelActions).toHaveLength(10)
     expect(defaultSettings.aiQuotaEnabled).toBe(true)

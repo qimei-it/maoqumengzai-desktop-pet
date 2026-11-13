@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, Database, Info, Mail, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
-import type { Command, SettingsSection, Snapshot } from '../shared/protocol'
+import { Archive, Boxes, ClipboardList, Database, Info, KeyRound, Mail, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
+import { formatOpenAiAccountStatus } from '../shared/ai-quota'
+import type {
+  AiTestState,
+  Command,
+  SettingsSection,
+  Snapshot,
+} from '../shared/protocol'
 import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
@@ -28,7 +34,6 @@ import {
   type DropAction,
   type HoverAction,
 } from '../shared/donut'
-import DeepSeekAgentMark from './DeepSeekAgentMark.vue'
 import ClipboardSettings from './ClipboardSettings.vue'
 import catBase from './assets/pet/ragdoll/base.png'
 import MusicBarPreview from './MusicBarPreview.vue'
@@ -51,7 +56,7 @@ const nav = [
   { id: 'conversion', label: '格式转换', icon: Boxes },
   { id: 'mail', label: '邮件客户端', icon: Mail },
   { id: 'music', label: '音乐播放器', icon: SixteenthNotes },
-  { id: 'ai', label: '智能体', icon: DeepSeekAgentMark },
+  { id: 'ai', label: 'API Key', icon: KeyRound },
   { id: 'about', label: '关于', icon: Info },
 ] as const
 const section = computed<SettingsSection>(
@@ -73,21 +78,17 @@ const petProfiles = computed(() => [
 ])
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const aiQuota = computed(() => props.state?.aiQuota)
-const openAiQuotaLabel = computed(() => {
-  const provider = aiQuota.value?.openai
-  if (!provider?.configured) return '未找到 Codex 登录'
-  if (provider.status === 'loading') return '读取中'
-  if (provider.status === 'error') return '读取失败'
-  if (provider.status === 'stale') return '数据待刷新'
-  return provider.plan ? `已连接 · ${provider.plan}` : '已连接'
-})
-const deepSeekQuotaLabel = computed(() => {
-  const provider = aiQuota.value?.deepseek
-  if (!provider?.configured) return '未配置'
-  if (provider.status === 'loading') return '读取中'
-  if (provider.status === 'error') return '读取失败'
-  if (provider.status === 'stale') return '数据待刷新'
-  return '已连接'
+const openAiAccountStatus = computed(() =>
+  formatOpenAiAccountStatus(aiQuota.value?.openai),
+)
+const aiTest = computed<AiTestState>(
+  () => props.state?.ai.test ?? { status: 'idle' },
+)
+const aiTestLatencyClass = computed(() => {
+  const latency = aiTest.value.latencyMs ?? 0
+  if (latency <= 400) return 'is-fast'
+  if (latency <= 1200) return 'is-medium'
+  return 'is-slow'
 })
 const bellyCount = computed(() => props.state?.belly.length ?? 0)
 const shelfInvalidCount = computed(
@@ -241,11 +242,32 @@ const shelfFolderLabel = computed(() => {
   const folders = props.state?.shelfFolders ?? []
   return folders.length ? folders.join('  ·  ') : '读取中'
 })
-function saveKey(): void {
+function addKey(): void {
+  apiKey.value = ''
+  editingKey.value = true
+}
+function cancelKey(): void {
+  editingKey.value = false
+  apiKey.value = ''
+}
+function deleteKey(): void {
+  emit('command', { type: 'ai-delete' })
+}
+function testSavedKey(): void {
+  if (!configured.value || aiTest.value.status === 'testing') return
+  emit('command', { type: 'ai-test' })
+}
+function testDraftKey(): void {
+  const value = apiKey.value.trim()
+  if (!value || aiTest.value.status === 'testing') return
+  emit('command', { type: 'ai-test', apiKey: value })
+}
+function saveAndTestKey(): void {
   const value = apiKey.value.trim()
   if (!value) return
-  emit('command', { type: 'ai-config', apiKey: value })
+  emit('command', { type: 'ai-config', apiKey: value, test: true })
   apiKey.value = ''
+  editingKey.value = false
 }
 function close(): void {
   emit('command', { type: 'settings-close' })
@@ -833,61 +855,8 @@ function onEscape(): void {
 
           <template v-else-if="section === 'ai'">
             <div class="settings-row">
-              <span class="settings-label">DeepSeek Key</span>
-              <span class="settings-value">{{
-                configured ? '已配置' : '未配置'
-              }}</span>
-            </div>
-            <div v-if="!configured || editingKey" class="settings-field">
-              <input
-                v-model="apiKey"
-                type="password"
-                autocomplete="off"
-                aria-label="DeepSeek API Key"
-                placeholder="API Key"
-                @keydown.enter="saveKey"
-              />
-              <button
-                type="button"
-                class="settings-button primary"
-                :disabled="!apiKey.trim()"
-                @click="saveKey"
-              >
-                保存
-              </button>
-              <button
-                v-if="editingKey"
-                type="button"
-                class="settings-button"
-                @click="
-                  editingKey = false;
-                  apiKey = '';
-                "
-              >
-                取消
-              </button>
-            </div>
-            <div v-else class="settings-field settings-field-end">
-              <button
-                type="button"
-                class="settings-button primary"
-                @click="editingKey = true"
-              >
-                替换
-              </button>
-              <button
-                type="button"
-                class="settings-button danger"
-                @click="emit('command', { type: 'ai-clear' })"
-              >
-                删除
-              </button>
-            </div>
-
-            <h3 class="settings-group-title">AI 额度</h3>
-            <div class="settings-row">
               <span id="setting-ai-quota" class="settings-label"
-                >显示额度药丸</span
+                >显示额度监控</span
               >
               <button
                 type="button"
@@ -901,44 +870,132 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">刷新间隔</span>
+              <span class="settings-label">额度刷新间隔</span>
               <SegmentedControl
                 :model-value="settings.aiQuotaRefreshMinutes"
                 :options="aiQuotaRefreshOptions"
-                aria-label="AI 额度刷新间隔"
+                aria-label="额度刷新间隔"
                 @update="
                   value => update({ aiQuotaRefreshMinutes: value as number })
                 "
               />
             </div>
             <div class="settings-row">
-              <span class="settings-label">OpenAI</span>
-              <span class="settings-value">{{ openAiQuotaLabel }}</span>
+              <span class="settings-label"
+                >OpenAI 帐户<span class="settings-account-state"
+                  >（{{ openAiAccountStatus }}）</span
+                ></span
+              >
+              <span class="settings-inline">
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="emit('command', { type: 'ai-quota-choose-openai' })"
+                >
+                  选择登录
+                </button>
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="
+                    emit('command', {
+                      type: 'ai-quota-config',
+                      patch: { openaiPath: '' },
+                    })
+                  "
+                >
+                  自动检测
+                </button>
+              </span>
             </div>
-            <div class="settings-field settings-field-end">
+            <div
+              class="settings-row"
+              :class="{ 'settings-row-connected': editingKey }"
+            >
+              <span class="settings-label">DeepSeek API Key</span>
+              <span class="settings-inline">
+                <span
+                  v-if="
+                    (configured || editingKey) && aiTest.status === 'testing'
+                  "
+                  class="ai-latency"
+                  >测试中…</span
+                >
+                <span
+                  v-else-if="
+                    (configured || editingKey) && aiTest.status === 'ok'
+                  "
+                  class="ai-latency"
+                  :class="aiTestLatencyClass"
+                  >{{ aiTest.latencyMs }} ms</span
+                >
+                <span
+                  v-else-if="
+                    (configured || editingKey) && aiTest.status === 'error'
+                  "
+                  class="ai-latency is-slow"
+                  :title="aiTest.error"
+                  >测试失败</span
+                >
+                <button
+                  v-if="!editingKey && configured"
+                  type="button"
+                  class="settings-button"
+                  :disabled="aiTest.status === 'testing'"
+                  @click="testSavedKey"
+                >
+                  测试延迟
+                </button>
+                <button
+                  v-if="!editingKey && configured"
+                  type="button"
+                  class="settings-button danger"
+                  @click="deleteKey"
+                >
+                  删除
+                </button>
+                <button
+                  v-if="!editingKey && !configured"
+                  type="button"
+                  class="settings-button primary"
+                  @click="addKey"
+                >
+                  添加
+                </button>
+              </span>
+            </div>
+            <div v-if="editingKey" class="settings-field">
+              <input
+                v-model="apiKey"
+                type="password"
+                autocomplete="off"
+                aria-label="DeepSeek API Key"
+                :placeholder="configured ? '替换 API Key' : 'API Key'"
+                @keydown.enter="saveAndTestKey"
+              />
               <button
                 type="button"
                 class="settings-button"
-                @click="emit('command', { type: 'ai-quota-choose-openai' })"
+                @click="cancelKey"
               >
-                选择登录
+                取消
               </button>
               <button
                 type="button"
                 class="settings-button"
-                @click="
-                  emit('command', {
-                    type: 'ai-quota-config',
-                    patch: { openaiPath: '' },
-                  })
-                "
+                :disabled="!apiKey.trim() || aiTest.status === 'testing'"
+                @click="testDraftKey"
               >
-                自动检测
+                测试
               </button>
-            </div>
-            <div class="settings-row">
-              <span class="settings-label">DeepSeek 余额</span>
-              <span class="settings-value">{{ deepSeekQuotaLabel }}</span>
+              <button
+                type="button"
+                class="settings-button primary"
+                :disabled="!apiKey.trim()"
+                @click="saveAndTestKey"
+              >
+                添加
+              </button>
             </div>
             <div class="settings-row">
               <span class="settings-label">立即刷新</span>
@@ -1281,6 +1338,25 @@ function onEscape(): void {
 .settings-label {
   font-size: var(--font-size-body);
 }
+.settings-account-state {
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.ai-latency {
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ai-latency.is-fast {
+  color: var(--color-success);
+}
+.ai-latency.is-medium {
+  color: var(--color-warning);
+}
+.ai-latency.is-slow {
+  color: var(--color-danger);
+}
 .settings-value {
   color: var(--color-muted);
   font-size: var(--font-size-label);
@@ -1332,8 +1408,11 @@ function onEscape(): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 0;
+  padding: 12px 6px;
   border-bottom: 1px solid var(--color-line);
+}
+.settings-row-connected {
+  border-bottom: 0;
 }
 .settings-field-end {
   justify-content: flex-end;
@@ -1341,17 +1420,17 @@ function onEscape(): void {
 .settings-field input {
   flex: 1;
   min-width: 0;
-  height: var(--tap-min);
+  height: 34px;
   padding: 0 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
   background: var(--color-surface);
   color: var(--color-ink);
   font: inherit;
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-label);
 }
 .settings-field input:focus-visible {
-  outline: var(--mqmz-focus-ring);
+  outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
 }
 .settings-group-title {

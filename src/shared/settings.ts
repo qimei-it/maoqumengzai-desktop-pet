@@ -6,6 +6,7 @@ import {
   type DropAction,
   type HoverAction,
 } from './donut'
+import type { DeepSeekModel } from './deepseek'
 
 export const themeIds = ['default', 'halloween', 'christmas'] as const
 export type ThemeId = (typeof themeIds)[number]
@@ -40,6 +41,7 @@ export type Settings = {
   shelfClipboardImages: boolean
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
+  aiModel: DeepSeekModel
   aiQuotaEnabled: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string
@@ -62,6 +64,7 @@ export const defaultSettings: Settings = {
   shelfClipboardImages: false,
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
+  aiModel: 'deepseek-flash',
   aiQuotaEnabled: true,
   aiQuotaRefreshMinutes: 5,
   aiQuotaOpenAIPath: '',

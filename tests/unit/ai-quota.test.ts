@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   emptyAiQuotaState,
+  formatOpenAiAccountStatus,
   formatQuotaMoney,
   formatQuotaPercent,
   parseDeepSeekBalance,
@@ -8,6 +9,22 @@ import {
   quotaBarWidth,
   ringMetrics,
 } from '../../src/shared/ai-quota'
+
+describe('OpenAI account status', () => {
+  test('capitalizes the subscription plan and marks logged-out accounts', () => {
+    expect(formatOpenAiAccountStatus(undefined)).toBe('未登录')
+    expect(
+      formatOpenAiAccountStatus({ configured: false, plan: 'pro' }),
+    ).toBe('未登录')
+    expect(formatOpenAiAccountStatus({ configured: true })).toBe('已登录')
+    expect(
+      formatOpenAiAccountStatus({ configured: true, plan: 'plus' }),
+    ).toBe('已登录 Plus 帐户')
+    expect(
+      formatOpenAiAccountStatus({ configured: true, plan: 'pro' }),
+    ).toBe('已登录 Pro 帐户')
+  })
+})
 
 describe('OpenAI quota parsing', () => {
   test('reads five-hour and weekly windows', () => {

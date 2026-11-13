@@ -41,7 +41,11 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import { detectClockJump } from '../shared/scheduler'
-import { requestCompletion, type DeepSeekMessage } from '../shared/deepseek'
+import {
+  requestCompletion,
+  testDeepSeekConnection,
+  type DeepSeekMessage,
+} from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
 import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
 import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
@@ -103,6 +107,7 @@ import type {
   AiFile,
   AiMessage,
   AiState,
+  AiTestState,
   ArchiveFile,
   ArchiveFormat,
   ArchiveOutcome,
@@ -422,6 +427,8 @@ let aiBusy = false
 let aiMessages: AiMessage[] = []
 let aiFiles: AiFile[] = []
 let aiToken = 0
+let aiTest: AiTestState = { status: 'idle' }
+let aiTestToken = 0
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
@@ -768,6 +775,7 @@ function aiState(): AiState {
     busy: aiBusy,
     files: [...aiFiles],
     messages: [...aiMessages],
+    test: { ...aiTest },
   }
 }
 function pushAiMessage(
@@ -866,10 +874,14 @@ async function sendAi(prompt: string): Promise<void> {
       .filter((message) => !message.error)
       .slice(-10)
       .map((message) => ({ role: message.role, content: message.content }))
-    const answer = await requestCompletion(aiKey, [
-      { role: 'system', content: aiSystemPrompt(context) },
-      ...history,
-    ])
+    const answer = await requestCompletion(
+      aiKey,
+      [
+        { role: 'system', content: aiSystemPrompt(context) },
+        ...history,
+      ],
+      { model: settings.aiModel },
+    )
     if (token !== aiToken) return
     pushAiMessage('assistant', answer)
   } catch (error) {
@@ -923,15 +935,18 @@ function closeAsk(): void {
   askWindow?.hide()
   broadcast()
 }
-async function configureAi(apiKey: string): Promise<void> {
+async function configureAi(apiKey: string, test = false): Promise<void> {
   const key = apiKey.trim()
   if (key.length < 10) throw new Error('API Key 太短，请检查后重试。')
   if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
   await saveStoredKey(key)
   aiKey = key
+  aiTest = { status: 'idle' }
+  aiTestToken += 1
   greetAi()
   void refreshAiQuota()
   broadcast()
+  if (test) void testAiConnection()
 }
 async function clearAi(): Promise<void> {
   await clearStoredKey()
@@ -939,7 +954,46 @@ async function clearAi(): Promise<void> {
   aiMessages = []
   aiBusy = false
   aiToken += 1
+  aiTest = { status: 'idle' }
+  aiTestToken += 1
   void refreshAiQuota()
+  broadcast()
+}
+async function deleteAiKey(): Promise<void> {
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '删除 DeepSeek API Key',
+    message: '确定删除已保存的 DeepSeek API Key？',
+    detail: '删除后需要重新添加并测试 API Key。',
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  await clearAi()
+}
+async function testAiConnection(draftKey?: string): Promise<void> {
+  const key = draftKey?.trim() || aiKey
+  if (!key) {
+    aiTest = { status: 'error', error: '请先添加 API Key。' }
+    broadcast()
+    return
+  }
+  const token = ++aiTestToken
+  aiTest = { status: 'testing' }
+  broadcast()
+  try {
+    const latencyMs = await testDeepSeekConnection(key)
+    if (token !== aiTestToken) return
+    aiTest = { status: 'ok', latencyMs }
+  } catch (error) {
+    if (token !== aiTestToken) return
+    aiTest = {
+      status: 'error',
+      error: error instanceof Error ? error.message : '连接测试失败。',
+    }
+  }
   broadcast()
 }
 function quotaProvider(
@@ -2061,6 +2115,7 @@ function settingsState(): SettingsState {
     shelfClipboardImages: settings.shelfClipboardImages,
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
+    aiModel: settings.aiModel,
     aiQuotaEnabled: settings.aiQuotaEnabled,
     aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
     aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
@@ -4610,11 +4665,22 @@ function scheduleBreak(kind: BreakKind, minutes = breakIntervalOf(kind)): number
   )
 }
 function setBreakEnabled(kind: BreakKind, enabled: boolean): void {
-  const next = enabled ? scheduleBreak(kind) : null
-  focusData =
-    kind === 'sitting'
-      ? { ...focusData, breakSitting: enabled, breakSittingNextAt: next }
-      : { ...focusData, breakEyes: enabled, breakEyesNextAt: next }
+  const next = enabled
+    ? nextBreakAt(
+        Date.now(),
+        breakIntervalOf(kind),
+        false,
+        focusData.breakDndStart,
+        focusData.breakDndEnd,
+      )
+    : null
+  focusData = {
+    ...focusData,
+    ...(enabled ? { breakDnd: false } : {}),
+    ...(kind === 'sitting'
+      ? { breakSitting: enabled, breakSittingNextAt: next }
+      : { breakEyes: enabled, breakEyesNextAt: next }),
+  }
   persistFocus()
   broadcast()
 }
@@ -4651,25 +4717,29 @@ function snoozeBreak(kind: BreakKind, minutes = 10): void {
 function setBreakDnd(enabled: boolean, start: number, end: number): void {
   const safeStart = Math.min(23, Math.max(0, Math.round(start)))
   const safeEnd = Math.min(24, Math.max(1, Math.round(end)))
+  const sitting = enabled ? false : focusData.breakSitting
+  const eyes = enabled ? false : focusData.breakEyes
   focusData = {
     ...focusData,
     breakDnd: enabled,
     breakDndStart: safeStart,
     breakDndEnd: safeEnd,
-    breakSittingNextAt: focusData.breakSitting
+    breakSitting: sitting,
+    breakEyes: eyes,
+    breakSittingNextAt: sitting
       ? nextBreakAt(
           Date.now(),
           focusData.breakSittingInterval,
-          enabled,
+          false,
           safeStart,
           safeEnd,
         )
       : null,
-    breakEyesNextAt: focusData.breakEyes
+    breakEyesNextAt: eyes
       ? nextBreakAt(
           Date.now(),
           focusData.breakEyesInterval,
-          enabled,
+          false,
           safeStart,
           safeEnd,
         )
@@ -7025,6 +7095,8 @@ function setupIpc(): void {
       'ai-quota-choose-openai',
       'ai-send',
       'ai-keys',
+      'ai-delete',
+      'ai-test',
       'extract-audio',
       'convert-open',
       'convert-start',
@@ -7248,7 +7320,7 @@ function setupIpc(): void {
         closeAsk()
         break
       case 'ai-config':
-        await configureAi(command.apiKey)
+        await configureAi(command.apiKey, command.test)
         break
       case 'ai-clear':
         await clearAi()
@@ -7285,6 +7357,12 @@ function setupIpc(): void {
         break
       case 'ai-keys':
         await shell.openExternal('https://platform.deepseek.com/api_keys')
+        break
+      case 'ai-delete':
+        await deleteAiKey()
+        break
+      case 'ai-test':
+        void testAiConnection(command.apiKey)
         break
       case 'extract-audio':
         await extractAudio(command.fileIds)
@@ -8885,6 +8963,15 @@ else {
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
+      if (focusData.breakDnd) {
+        focusData = {
+          ...focusData,
+          breakSitting: false,
+          breakSittingNextAt: null,
+          breakEyes: false,
+          breakEyesNextAt: null,
+        }
+      }
       clipboardData = await loadClipboardFile(clipboardPath)
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
       await refreshLibreOfficeState()

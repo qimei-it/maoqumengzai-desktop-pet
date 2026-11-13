@@ -38,7 +38,7 @@
 | H-P4-02 | 歌词匹配与缓存 | lyrics | 本地优先、版本区分、人工匹配、偏移、切歌旧请求作废、429/超时 | 未实现；来源用途待核实 |
 | H-P4-03 | 多家多账户收件 | mail | QQ/163/Gmail 真实授权、未读、列表、正文、附件；Outlook 暂缓 | 部分通过（macOS arm64）：QQ、163 真实授权、收件列表与正文已验证；Gmail、附件全项及 Windows 待验证 |
 | H-P4-04 | 数字验证码 | mail-code | 大号数字/一键复制；订单号反例、过期、重复邮件、敏感内容 | 部分通过：验证码识别与大号复制已实现；订单号/手机号/金额反例、有效期过期、重复验证码替代已补单元测试，真实样例待补 |
-| H-P4-05 | 订阅额度与余额 | quota | OpenAI/Claude 按客户端来源、周期、重置、失效/切换；DeepSeek 真实余额 | 部分通过（macOS arm64）：OpenAI Codex 5 小时/本周与 DeepSeek 余额已接入并显示在桌宠药丸；真实 OpenAI 账户通过，DeepSeek 真 Key 待配置；Claude、WorkBuddy、豆包 Work 延后 |
+| H-P4-05 | 订阅额度与余额 | quota | OpenAI/Claude 按客户端来源、周期、重置、失效/切换；DeepSeek 真实余额 | 部分通过（macOS arm64）：OpenAI Codex 5 小时/本周与 DeepSeek 余额已接入并显示在桌宠药丸；真实 OpenAI 账户通过；真实 DeepSeek Key 连接 134 ms、余额 CNY 29.30，Flash/Pro 对话成功；Claude、WorkBuddy、豆包 Work 延后 |
 | H-P4-06 | 外部服务数据边界 | network-policy / security | 观测实际目标、请求体、缓存与日志，凭据及本地历史不经自家云 | 未实现 |
 | H-P5-01 | 转换输入→输出白名单 | conversion / engines | 逐方向关联引擎、平台、版本与真实样例；复杂格式单独验收 | 通过（macOS arm64）：矩阵与引擎映射已固定，图片/PDF/Office/文档/OFD/音视频/归档均有真实样例；Windows x64 按用户要求暂缓 |
 | H-P5-02 | 文件投递到结果交付 | conversion / shelf / files | 拖给宠物、放入置物架、转换；结果点击预览打开、打开所在位置；转换结果不自动进入置物架、不支持结果拖出 | 通过（macOS arm64）：投递、置物架、转换、结果预览与打开/定位已实测；结果不进入置物架；提取音频复用同一成功面板 |
@@ -51,7 +51,7 @@
 | H-P6-03 | 交友提醒跨端去重 | cloud / notifications | 列表、筛选、分组、角标、通知跳转、免打扰、已处理同步、双端并发与重复投递 | 延后：随交友模块一并延后，验收口径不变 |
 | H-P6-04 | 社交数据与次数边界 | cloud / security | 账户/终端隔离、公开/私人字段、每日次数/频率、联系方式撤权、举报处理及越权反例 | 未实现；账户/设备隔离属首版，交友相关部分随模块延后 |
 | H-P7-01 | 独立 BYOK 会话 | cloud / byok-chat | 会话/调用/计费类型与旧积分会话隔离，旧上下文不混入 | 未实现；待后端变更 |
-| H-P7-02 | DeepSeek Key 生命周期 | credentials / byok-chat / quota | 校验、绑定、替换、删除、余额、本地/托管用途与撤销 | 未实现；待真实 Key 与托管方案落实 |
+| H-P7-02 | DeepSeek Key 生命周期 | credentials / byok-chat / quota | 校验、绑定、替换、删除、余额、本地/托管用途与撤销 | 部分通过（macOS arm64）：本地添加、测试延迟、替换、删除、余额与 Flash/Pro 对话已验证；服务端绑定、跨端托管与撤销未实现 |
 | H-P7-03 | 流式对话 | chat / tasks | 真实流、历史、取消、断线/错误、用量反馈 | 未实现；待服务/账户 |
 | H-P7-04 | 小程序继续同一会话 | shared-business / chat | 小程序宠物分身真实新增入口，双端查看并继续新会话 | 未实现；待前后端接口 |
 | H-P7-05 | 消息顺序与幂等 | chat-sync / cloud | 双端并发、断线重连、重复提交、取消重试不重复生成 | 未实现 |

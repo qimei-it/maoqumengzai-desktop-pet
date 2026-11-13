@@ -1,15 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { KeyRound, Send, Trash2 } from '@lucide/vue'
+import {
+  deepseekModelIds,
+  deepseekModelLabels,
+  type DeepSeekModel,
+} from '../shared/deepseek'
 import type { Command, Snapshot } from '../shared/protocol'
 import DeepSeekMark from './DeepSeekMark.vue'
 import FileTypeIcon from './FileTypeIcon.vue'
 import PanelHeader from './PanelHeader.vue'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
 const ai = computed(() => props.state?.ai)
+const model = computed(() => props.state?.settings.aiModel ?? 'deepseek-flash')
 const draft = ref('')
 const keyDraft = ref('')
 const editingKey = ref(false)
@@ -64,6 +71,10 @@ function clearKey(): void {
   emit('command', { type: 'ai-clear' })
   editingKey.value = false
 }
+function changeModel(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value as DeepSeekModel
+  emit('command', { type: 'settings-update', patch: { aiModel: value } })
+}
 </script>
 
 <template>
@@ -79,6 +90,23 @@ function clearKey(): void {
           <DeepSeekMark aria-hidden="true" />
         </template>
         <template #actions>
+          <SelectField
+            v-if="ai?.configured"
+            class="ask-model"
+            :value="model"
+            min-width="78px"
+            aria-label="模型"
+            title="模型"
+            @change="changeModel"
+          >
+            <option
+              v-for="item in deepseekModelIds"
+              :key="item"
+              :value="item"
+            >
+              {{ deepseekModelLabels[item] }}
+            </option>
+          </SelectField>
           <button
             v-if="ai?.configured"
             type="button"
@@ -219,6 +247,9 @@ function clearKey(): void {
   background: var(--color-canvas);
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
+}
+.ask-model {
+  flex: none;
 }
 .ask-icon-button {
   display: grid;

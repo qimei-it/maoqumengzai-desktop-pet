@@ -13,6 +13,7 @@ import {
   minWheelActions,
   sliceActions,
 } from '../shared/donut'
+import { deepseekModelIds } from '../shared/deepseek'
 
 const wheelActions = <T extends string>(catalog: readonly T[]) =>
   z
@@ -67,6 +68,7 @@ const settingsSchema = z
     shelfClipboardImages: z.boolean().default(false),
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
+    aiModel: z.enum(deepseekModelIds).default('deepseek-flash'),
     aiQuotaEnabled: z.boolean().default(true),
     aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
     aiQuotaOpenAIPath: z.string().max(1024).default(''),

@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
+import { waitForAppWindows } from "./app-windows";
 import {
   mkdir,
   mkdtemp,
@@ -48,7 +49,7 @@ function focusFile(todoDueAt: number, overdueAt: number): unknown {
     breakEyes: false,
     breakEyesInterval: 20,
     breakEyesNextAt: null,
-    breakDnd: true,
+    breakDnd: false,
     breakDndStart: 22,
     breakDndEnd: 8,
     todos: [
@@ -198,7 +199,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(24);
+  await waitForAppWindows(application);
   const windows = await Promise.all(
     application.windows().map(async (page) => ({
       page,

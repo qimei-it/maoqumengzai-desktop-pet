@@ -355,11 +355,17 @@ export type ConvertState = {
   notice?: string
   canReveal: boolean
 }
+export type AiTestState = {
+  status: 'idle' | 'testing' | 'ok' | 'error'
+  latencyMs?: number
+  error?: string
+}
 export type AiState = {
   configured: boolean
   busy: boolean
   files: AiFile[]
   messages: AiMessage[]
+  test: AiTestState
 }
 export type LocalEngineState = {
   status: 'missing' | 'ready' | 'error'
@@ -448,8 +454,10 @@ export type Command =
   | { type: 'lyrics-width'; width: number }
   | { type: 'ai-open'; fileIds: string[] }
   | { type: 'ai-close' }
-  | { type: 'ai-config'; apiKey: string }
+  | { type: 'ai-config'; apiKey: string; test?: boolean }
   | { type: 'ai-clear' }
+  | { type: 'ai-delete' }
+  | { type: 'ai-test'; apiKey?: string }
   | { type: 'ai-quota-refresh' }
   | {
       type: 'ai-quota-config'

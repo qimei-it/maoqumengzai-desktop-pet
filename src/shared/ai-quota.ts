@@ -174,6 +174,15 @@ export function parseDeepSeekBalance(value: unknown): AiQuotaBalance {
   return balance
 }
 
+export function formatOpenAiAccountStatus(
+  provider: Pick<AiQuotaProviderState, 'configured' | 'plan'> | undefined,
+): string {
+  if (!provider?.configured) return '未登录'
+  if (!provider.plan) return '已登录'
+  const plan = provider.plan.charAt(0).toUpperCase() + provider.plan.slice(1)
+  return `已登录 ${plan} 帐户`
+}
+
 export function formatQuotaMoney(balance: AiQuotaBalance): string {
   const symbol = balance.currency === 'CNY' ? '¥' : '$'
   const value = Math.abs(balance.total)

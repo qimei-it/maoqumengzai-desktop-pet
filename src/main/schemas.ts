@@ -4,6 +4,7 @@ import {
   todoListColors,
   todoRepeats,
 } from '../shared/protocol'
+import { deepseekModelIds } from '../shared/deepseek'
 import { musicBarStyles, petScales, themeIds } from '../shared/settings'
 import {
   hoverActions,
@@ -110,9 +111,11 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('ai-config'),
       apiKey: z.string().min(1).max(400),
+      test: z.boolean().optional(),
     })
     .strict(),
   z.object({ type: z.literal('ai-clear') }).strict(),
+  z.object({ type: z.literal('ai-delete') }).strict(),
   z.object({ type: z.literal('ai-quota-refresh') }).strict(),
   z
     .object({
@@ -134,6 +137,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('ai-keys') }).strict(),
+  z
+    .object({
+      type: z.literal('ai-test'),
+      apiKey: z.string().min(1).max(400).optional(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('extract-audio'),
@@ -305,6 +314,7 @@ export const commandSchema = z.discriminatedUnion('type', [
           shelfClipboardImages: z.boolean().optional(),
           shelfScreenshotBubble: z.boolean().optional(),
           shelfMaxRecords: z.number().int().min(50).max(500).optional(),
+          aiModel: z.enum(deepseekModelIds).optional(),
           aiQuotaEnabled: z.boolean().optional(),
           aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
           aiQuotaOpenAIPath: z.string().max(1024).optional(),

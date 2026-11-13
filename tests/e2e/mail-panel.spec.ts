@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
+import { waitForAppWindows } from './app-windows';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -141,7 +142,7 @@ test.beforeAll(async () => {
     args: [resolve('.')],
     env: environment,
   })
-  await expect.poll(() => application.windows().length).toBe(24)
+  await waitForAppWindows(application)
   const windows = await Promise.all(
     application.windows().map(async (page) => ({
       page,
