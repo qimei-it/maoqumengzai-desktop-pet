@@ -643,6 +643,7 @@ function broadcast(): void {
   broadcastTimer = setTimeout(() => {
     broadcastTimer = undefined
     if (shuttingDown || !pet || pet.isDestroyed()) return
+    if (quotaBar && !quotaBar.isDestroyed()) updateQuotaWindow()
     const state = snapshot()
     for (const window of [
       pet,
@@ -5516,24 +5517,39 @@ async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
     quotaBarCreating = undefined
   }
 }
+function quotaBarBlocked(): boolean {
+  if (
+    dropMode ||
+    wheelOpen ||
+    petHoverMode ||
+    (music.title && barVisible)
+  )
+    return true
+  return Boolean(
+    windowVisible(pocket) ||
+      windowVisible(askWindow) ||
+      windowVisible(convertWindow) ||
+      windowVisible(archiveWindow) ||
+      windowVisible(renameWindow) ||
+      windowVisible(settingsWindow) ||
+      windowVisible(mailWindow) ||
+      windowVisible(mailComposeWindow) ||
+      windowVisible(pomodoroWindow) ||
+      windowVisible(waterWindow) ||
+      windowVisible(breakWindow) ||
+      windowVisible(profileWindow) ||
+      windowVisible(clipboardWindow) ||
+      windowVisible(todoWindow),
+  )
+}
 function updateQuotaWindow(): void {
   if (!quotaBar || quotaBar.isDestroyed()) {
-    if (
-      aiQuota.visible &&
-      !dropMode &&
-      !petHoverMode &&
-      !(music.title && barVisible)
-    ) {
+    if (aiQuota.visible && !quotaBarBlocked()) {
       void ensureQuotaBar().then(() => updateQuotaWindow())
     }
     return
   }
-  if (
-    aiQuota.visible &&
-    !dropMode &&
-    !petHoverMode &&
-    !(music.title && barVisible)
-  ) {
+  if (aiQuota.visible && !quotaBarBlocked()) {
     positionQuotaBar()
     quotaBar.showInactive()
     quotaBar.moveTop()
@@ -5628,6 +5644,7 @@ function openWheelWindow(): void {
   if (shuttingDown || wheelOpen || pet.isDestroyed()) return
   baseBounds = pet.getBounds()
   wheelOpen = true
+  updateQuotaWindow()
   const size = donutWindowSize(scale)
   const width = Math.max(baseBounds.width, size.width)
   const height = Math.max(baseBounds.height, size.height)
@@ -8462,7 +8479,7 @@ async function createWindows(): Promise<void> {
     if (windowVisible(pocket)) positionPocket()
     if (windowVisible(notes)) positionNotes()
     if (windowVisible(pill)) positionPill()
-    if (windowVisible(quotaBar)) positionQuotaBar()
+    if (windowVisible(quotaBar) && !quotaBarBlocked()) positionQuotaBar()
     if (windowVisible(eye)) positionEye()
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()
@@ -8484,7 +8501,7 @@ async function createWindows(): Promise<void> {
     if (shuttingDown || pet.isDestroyed()) return
     if (windowVisible(notes)) positionNotes()
     if (windowVisible(pill)) positionPill()
-    if (windowVisible(quotaBar)) positionQuotaBar()
+    if (windowVisible(quotaBar) && !quotaBarBlocked()) positionQuotaBar()
     if (windowVisible(eye)) positionEye()
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()

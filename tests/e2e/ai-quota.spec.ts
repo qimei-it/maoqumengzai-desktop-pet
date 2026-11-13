@@ -157,7 +157,7 @@ test("shows both providers, then shrinks and hides as configuration changes", as
   await expect.poll(async () => Boolean(await quotaPage())).toBe(true);
   quota = await quotaPage();
   if (!quota) throw new Error("quota page missing");
-    await expect(quota.locator(".quota-surface")).toContainText("5h 75%");
+  await expect(quota.locator(".quota-surface")).toContainText("5h 75%");
   await expect(quota.locator(".quota-surface")).toContainText("1w 40%");
   await expect(quota.locator(".quota-surface")).toContainText("¥28.60");
   const sides = await quota.evaluate(() => [
@@ -177,6 +177,24 @@ test("shows both providers, then shrinks and hides as configuration changes", as
   expect(both.height).toBe(60);
   expect(requests).toContain("/openai");
   expect(requests).toContain("/deepseek");
+
+  const quotaVisible = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes("AI 额度"),
+      );
+      return window ? window.isVisible() : false;
+    });
+  await pet.evaluate(() => window.mqmz!.command({ type: "wheel", open: true }));
+  await expect.poll(quotaVisible).toBe(false);
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "wheel", open: false }),
+  );
+  await expect.poll(quotaVisible).toBe(true);
+  await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
+  await expect.poll(quotaVisible).toBe(false);
+  await pet.evaluate(() => window.mqmz!.command({ type: "todo-close" }));
+  await expect.poll(quotaVisible).toBe(true);
 
   await pet.evaluate(() => window.mqmz!.command({ type: "ai-clear" }));
   await expect
