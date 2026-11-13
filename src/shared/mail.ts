@@ -118,6 +118,7 @@ export type MailPanelState = {
   open: boolean
   accountId?: string
   loading: boolean
+  loadingKind?: 'sync' | 'detail'
   messages: MailMessageSummary[]
   selected?: MailMessageDetail
   error?: string

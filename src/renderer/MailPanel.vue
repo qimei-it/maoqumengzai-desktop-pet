@@ -18,6 +18,11 @@ const panel = computed(() => props.state?.mailPanel)
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const selected = computed(() => panel.value?.selected)
 const messages = computed(() => panel.value?.messages ?? [])
+const loadingText = computed(() =>
+  panel.value?.loadingKind === 'sync'
+    ? '正在同步邮件…'
+    : '正在读取邮件…',
+)
 const accountId = computed(() => panel.value?.accountId)
 const account = computed(() =>
   accounts.value.find((item) => item.id === accountId.value),
@@ -210,7 +215,7 @@ watch(
               :stroke-width="2"
               aria-hidden="true"
             />
-            <span>正在读取邮件…</span>
+            <span>{{ loadingText }}</span>
           </div>
           <template v-else-if="selected">
             <header class="mail-reader-head">

@@ -284,6 +284,7 @@ let mailBadgeTotal = -1
 let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelLoading = false
+let mailPanelLoadingKind: 'sync' | 'detail' | undefined
 let mailPanelError: string | undefined
 let mailPanelErrorKind: 'sync' | 'detail' | undefined
 let mailPanelNotice: string | undefined
@@ -2226,6 +2227,7 @@ function mailPanelState(): MailPanelState {
     open: windowVisible(mailWindow),
     ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
     loading: mailPanelLoading,
+    ...(mailPanelLoadingKind ? { loadingKind: mailPanelLoadingKind } : {}),
     messages: mailPanelMessages,
     ...(mailPanelSelected ? { selected: mailPanelSelected } : {}),
     ...(mailPanelError ? { error: mailPanelError } : {}),
@@ -2288,6 +2290,7 @@ async function refreshMailPanel(): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
   mailPanelLoading = true
+  mailPanelLoadingKind = 'sync'
   mailPanelError = undefined
   mailPanelErrorKind = undefined
   broadcast()
@@ -2306,7 +2309,10 @@ async function refreshMailPanel(): Promise<void> {
       error instanceof Error ? error.message : '邮件同步失败。'
     mailPanelErrorKind = 'sync'
   } finally {
-    if (mailPanelAccountId === accountId) mailPanelLoading = false
+    if (mailPanelAccountId === accountId) {
+      mailPanelLoading = false
+      mailPanelLoadingKind = undefined
+    }
     broadcast()
   }
 }
@@ -2373,6 +2379,7 @@ async function selectMail(uid: number): Promise<void> {
   )
   if (!cached) {
     mailPanelLoading = true
+    mailPanelLoadingKind = 'detail'
     broadcast()
   }
   try {
@@ -2402,7 +2409,10 @@ async function selectMail(uid: number): Promise<void> {
       error instanceof Error ? error.message : '无法读取邮件。'
     mailPanelErrorKind = 'detail'
   } finally {
-    if (!cached && mailPanelAccountId === accountId) mailPanelLoading = false
+    if (!cached && mailPanelAccountId === accountId) {
+      mailPanelLoading = false
+      mailPanelLoadingKind = undefined
+    }
     broadcast()
   }
 }
@@ -2629,6 +2639,7 @@ async function removeMailAccount(accountId: string): Promise<void> {
     mailPanelError = undefined
     mailPanelErrorKind = undefined
     mailPanelLoading = false
+    mailPanelLoadingKind = undefined
     if (next) {
       mailPanelAccountId = next.id
       loadMailMessages(next.id)
