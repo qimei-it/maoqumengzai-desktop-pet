@@ -2,6 +2,7 @@ import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
 import type {
+  MailAlert,
   MailAttachmentPick,
   MailComposeDraft,
   MailComposeState,
@@ -331,6 +332,7 @@ export type Snapshot = {
   lyricsAvailable?: boolean
   bubble?: BubbleState
   toast?: string
+  mailAlert?: MailAlert
   aiOpen: boolean
   ai: AiState
   convertOpen: boolean
@@ -497,16 +499,41 @@ export type Command =
   | {
       type: 'mail-compose-open'
       accountId?: string
+      draftId?: string
       draft?: MailComposeDraft
     }
   | { type: 'mail-compose-close' }
+  | {
+      type: 'mail-draft-save'
+      draftId?: string
+      accountId: string
+      to: string
+      cc: string
+      bcc: string
+      subject: string
+      body: string
+      bodyHtml: string
+      attachmentIds: string[]
+    }
+  | { type: 'mail-draft-delete'; id: string }
+  | { type: 'mail-remove-attachment'; id: string }
   | { type: 'mail-archive'; uid: number }
   | { type: 'mail-delete'; uid: number }
+  | { type: 'mail-move'; uid: number; folder: string }
+  | { type: 'mail-spam'; uid: number; spam: boolean }
+  | { type: 'mail-batch-read'; uids: number[]; unread: boolean }
+  | { type: 'mail-batch-delete'; uids: number[] }
+  | { type: 'mail-batch-move'; uids: number[]; folder: string }
+  | { type: 'mail-alert-copy' }
+  | { type: 'mail-alert-open' }
+  | { type: 'mail-alert-dismiss' }
   | {
       type: 'mail-send'
       accountId: string
+      draftId?: string
       to: string
       cc?: string
+      bcc?: string
       subject: string
       body: string
       bodyHtml?: string

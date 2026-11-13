@@ -156,12 +156,15 @@ import {
   saveMailSecret,
 } from './mail-secrets'
 import {
+  deleteMailMessages,
   fetchMailDetail,
   fetchMailFolders,
   fetchOlderMailInbox,
-  moveMailMessage,
+  moveMailMessages,
+  moveMailMessagesToFolder,
   probeMailAccount,
   setMailSeen,
+  setMailSeenBatch,
   syncMailInbox,
 } from './mail-sync'
 import {
@@ -170,14 +173,20 @@ import {
 } from './mail-smtp'
 import {
   mailAccountLabel,
+  mailAttachmentLimit,
+  mailAttachmentTotalLimit,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
+  mailLocalDraftsFolder,
   mailRecipientAddresses,
   mailUnreadTotal,
+  formatMailBadge,
+  type MailAlert,
   type MailAttachmentPick,
+  type MailComposeDraft,
+  type MailDraftAttachment,
 } from '../shared/mail'
 import type {
-  MailComposeDraft,
   MailComposeState,
   MailConfig,
   MailMessageDetail,
@@ -295,10 +304,14 @@ let mailWindow: BrowserWindow | undefined
 let mailComposeWindow: BrowserWindow | undefined
 let mailComposeAccountId: string | undefined
 let mailComposeDraft: MailComposeDraft | undefined
+let mailComposeDraftId: string | undefined
 let mailComposeContacts: Array<{ name?: string; address: string }> = []
 let mailComposeSending = false
 let mailComposeError: string | undefined
 let mailComposeRevision = 0
+let mailAlert: MailAlert | undefined
+let mailAlertTimer: ReturnType<typeof setTimeout> | undefined
+let mailAlertId = 0
 let mailBadgeImage: ReturnType<typeof nativeImage.createFromPath> | undefined
 let mailBadgeTotal = -1
 let mailPruning = false
@@ -589,6 +602,7 @@ function snapshot(): Snapshot {
     },
     ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
     ...(toastText ? { toast: toastText } : {}),
+    ...(mailAlert ? { mailAlert } : {}),
   }
 }
 function broadcast(): void {
@@ -2270,19 +2284,31 @@ function mailPanelState(): MailPanelState {
     hasMore: mailPanelQuery ? false : mailPanelHasMore,
     ...(mailPanelQuery ? { query: mailPanelQuery } : {}),
     messages: mailPanelMessages,
+    ...(mailPanelAccountId && mailPanelFolder === mailLocalDraftsFolder
+      ? { drafts: mailDb?.listDrafts(mailPanelAccountId) ?? [] }
+      : {}),
     ...(mailPanelSelected ? { selected: mailPanelSelected } : {}),
     ...(mailPanelError ? { error: mailPanelError } : {}),
     ...(mailPanelNotice ? { notice: mailPanelNotice } : {}),
     ...(mailPanelNoticeId ? { noticeId: mailPanelNoticeId } : {}),
   }
 }
+function composeAttachmentPicks(): MailAttachmentPick[] {
+  return [...mailComposeAttachments.entries()].map(([id, item]) => ({
+    id,
+    name: item.name,
+    size: item.size,
+  }))
+}
 function mailComposeState(): MailComposeState {
   return {
     open: windowVisible(mailComposeWindow),
     ...(mailComposeAccountId ? { accountId: mailComposeAccountId } : {}),
+    ...(mailComposeDraftId ? { draftId: mailComposeDraftId } : {}),
     revision: mailComposeRevision,
     sending: mailComposeSending,
     ...(mailComposeDraft ? { draft: mailComposeDraft } : {}),
+    attachments: composeAttachmentPicks(),
     contacts: mailComposeContacts,
     ...(mailComposeError ? { error: mailComposeError } : {}),
   }
@@ -2299,9 +2325,21 @@ function positionMailCompose(): void {
     fitToDisplays({ x, y, width, height }, [a]),
   )
 }
+function registerComposeAttachment(
+  attachment: MailDraftAttachment,
+): string {
+  const id = randomUUID()
+  mailComposeAttachments.set(id, {
+    path: attachment.path,
+    name: attachment.name,
+    size: attachment.size,
+  })
+  return id
+}
 function openMailCompose(
   accountId?: string,
   draft?: MailComposeDraft,
+  draftId?: string,
 ): void {
   if (!mailDb) return
   const accounts = mailDb.listAccounts()
@@ -2311,12 +2349,31 @@ function openMailCompose(
     showToast('请先添加邮箱账户')
     return
   }
+  const stored = draftId ? mailDb.draft(draftId) : undefined
+  const source: MailComposeDraft | undefined = stored
+    ? {
+        to: stored.to,
+        cc: stored.cc,
+        bcc: stored.bcc,
+        subject: stored.subject,
+        body: stored.bodyText,
+        bodyHtml: stored.bodyHtml,
+        attachments: stored.attachments,
+      }
+    : draft
   mailComposeAccountId =
-    accounts.find((account) => account.id === accountId)?.id ??
+    accounts.find(
+      (account) =>
+        account.id === (stored?.accountId ?? accountId),
+    )?.id ??
     mailPanelAccountId ??
     accounts[0].id
+  mailComposeDraftId = stored?.id ?? draftId ?? randomUUID()
   mailComposeRevision += 1
-  mailComposeDraft = draft
+  mailComposeDraft = source
+  mailComposeAttachments.clear()
+  for (const attachment of source?.attachments ?? [])
+    registerComposeAttachment(attachment)
   const seen = new Set<string>()
   mailComposeContacts = [
     ...accounts.map((item) => ({
@@ -2346,7 +2403,9 @@ function closeMailCompose(): void {
   mailComposeWindow?.hide()
   mailComposeSending = false
   mailComposeDraft = undefined
+  mailComposeDraftId = undefined
   mailComposeError = undefined
+  mailComposeAttachments.clear()
   broadcast()
 }
 function loadMailMessages(
@@ -2372,6 +2431,10 @@ function switchMailFolder(accountId: string, folder: string): void {
   mailPanelQuery = ''
   mailPanelNotice = undefined
   mailPanelMessages = []
+  if (folder === mailLocalDraftsFolder) {
+    broadcast()
+    return
+  }
   loadMailMessages(accountId, folder)
   broadcast()
   if (windowVisible(mailWindow)) void refreshMailPanel()
@@ -2452,6 +2515,9 @@ async function refreshMailFolders(accountId: string): Promise<void> {
             },
           ],
     )
+    const inbox = folders.find((folder) => folder.kind === 'inbox')
+    if (inbox) mailDb.updateAccount(accountId, { unread: inbox.unread })
+    void updateMailBadge()
     broadcast()
   } catch {
     /* folder listing is best effort */
@@ -2459,6 +2525,12 @@ async function refreshMailFolders(accountId: string): Promise<void> {
 }
 async function refreshMailPanel(): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
+  if (mailPanelFolder === mailLocalDraftsFolder) {
+    mailPanelLoading = false
+    mailPanelLoadingKind = undefined
+    broadcast()
+    return
+  }
   const accountId = mailPanelAccountId
   const folder = mailPanelFolder
   const requestId = ++mailPanelRequest
@@ -2508,6 +2580,7 @@ async function ensureMailDetail(
   accountId: string,
   uid: number,
   folder = mailPanelFolder,
+  markSeen = true,
 ): Promise<MailMessageDetail | undefined> {
   if (!mailDb) return undefined
   const cached = mailDb.message(accountId, folder, uid)
@@ -2523,6 +2596,7 @@ async function ensureMailDetail(
     secret,
     uid,
     folder,
+    markSeen,
   )
   const cacheFolder = join(
     dataRoot,
@@ -2561,8 +2635,28 @@ async function ensureMailDetail(
   void refreshMailCacheSize()
   return mailDb.message(accountId, folder, uid)
 }
+async function markMailSeenOnServer(
+  accountId: string,
+  uid: number,
+  folder: string,
+): Promise<void> {
+  if (!mailDb) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) return
+  await setMailSeen(
+    account.provider,
+    account.email,
+    secret,
+    uid,
+    true,
+    folder,
+  ).catch(() => {})
+}
 async function selectMail(uid: number): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
+  if (mailPanelFolder === mailLocalDraftsFolder) return
   const accountId = mailPanelAccountId
   const folder = mailPanelFolder
   const before = mailDb.message(accountId, folder, uid)
@@ -2581,13 +2675,16 @@ async function selectMail(uid: number): Promise<void> {
     if (!detail) throw new Error('邮件不存在。')
     if (before?.unread) {
       mailDb.setUnread(accountId, folder, uid, false)
-      const account = mailDb.account(accountId)
-      if (account) {
-        mailDb.updateAccount(accountId, {
-          unread: Math.max(0, account.unread - 1),
-        })
-        void updateMailBadge()
+      if (folder === 'INBOX') {
+        const account = mailDb.account(accountId)
+        if (account) {
+          mailDb.updateAccount(accountId, {
+            unread: Math.max(0, account.unread - 1),
+          })
+          void updateMailBadge()
+        }
       }
+      if (cached) void markMailSeenOnServer(accountId, uid, folder)
     }
     if (mailPanelAccountId !== accountId) return
     if (mailPanelErrorKind !== 'sync') {
@@ -2610,6 +2707,7 @@ async function selectMail(uid: number): Promise<void> {
 }
 async function loadMoreMail(): Promise<void> {
   if (!mailPanelAccountId || !mailDb || mailPanelLoading) return
+  if (mailPanelFolder === mailLocalDraftsFolder) return
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
   if (!account) return
@@ -2665,6 +2763,7 @@ async function loadMoreMail(): Promise<void> {
 }
 function searchMail(query: string): void {
   if (!mailPanelAccountId || !mailDb) return
+  if (mailPanelFolder === mailLocalDraftsFolder) return
   const next = query.trim().slice(0, 100)
   if (next === mailPanelQuery) return
   mailPanelQuery = next
@@ -2673,6 +2772,7 @@ function searchMail(query: string): void {
 }
 async function setMailUnread(uid: number, unread: boolean): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
+  if (mailPanelFolder === mailLocalDraftsFolder) return
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
   const folder = mailPanelFolder
@@ -2691,9 +2791,10 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
       folder,
     )
     mailDb.setUnread(accountId, folder, uid, unread)
-    mailDb.updateAccount(accountId, {
-      unread: Math.max(0, account.unread + (unread ? 1 : -1)),
-    })
+    if (folder === 'INBOX')
+      mailDb.updateAccount(accountId, {
+        unread: Math.max(0, account.unread + (unread ? 1 : -1)),
+      })
     if (mailPanelSelected?.uid === uid)
       mailPanelSelected = { ...mailPanelSelected, unread }
     loadMailMessages(accountId, folder)
@@ -2705,22 +2806,52 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
   }
   broadcast()
 }
-async function moveCurrentMail(
-  uid: number,
-  target: 'archive' | 'delete',
+function mailFolderKind(
+  accountId: string,
+  folder: string,
+): string | undefined {
+  return mailDb
+    ?.listFolders(accountId)
+    .find((item) => item.path === folder)?.kind
+}
+function reduceAccountUnread(
+  accountId: string,
+  count: number,
+): void {
+  if (!mailDb || count <= 0) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  mailDb.updateAccount(accountId, {
+    unread: Math.max(0, account.unread - count),
+  })
+}
+type MailMoveMode = 'archive' | 'delete' | 'spam' | 'ham' | 'move'
+async function moveMailMessagesOperation(
+  uids: number[],
+  mode: MailMoveMode,
+  targetFolder?: string,
 ): Promise<void> {
-  if (!mailPanelAccountId || !mailDb) throw new Error('邮件账户不存在。')
+  if (!mailPanelAccountId || !mailDb || !uids.length) return
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
   const folder = mailPanelFolder
-  const message = mailDb.message(accountId, folder, uid)
-  if (!account || !message) throw new Error('邮件不存在。')
-  if (target === 'delete') {
+  const messages = uids
+    .map((uid) => mailDb!.message(accountId, folder, uid))
+    .filter((item): item is MailMessageDetail => Boolean(item))
+  if (!account || !messages.length) throw new Error('邮件不存在。')
+  const permanent =
+    mode === 'delete' && mailFolderKind(accountId, folder) === 'trash'
+  const single = messages.length === 1
+  if (mode === 'delete') {
     const choice = await dialog.showMessageBox(mailWindow ?? pet, {
       type: 'warning',
-      title: '删除邮件',
-      message: `确定删除「${message.subject}」？`,
-      detail: '邮件将移动到邮箱的已删除文件夹。',
+      title: permanent ? '永久删除邮件' : '删除邮件',
+      message: single
+        ? `确定删除「${messages[0].subject}」？`
+        : `确定删除选中的 ${messages.length} 封邮件？`,
+      detail: permanent
+        ? '邮件将从邮箱中永久删除，无法恢复。'
+        : '邮件将移动到邮箱的已删除文件夹。',
       buttons: ['取消', '删除'],
       defaultId: 0,
       cancelId: 0,
@@ -2728,35 +2859,74 @@ async function moveCurrentMail(
     })
     if (choice.response !== 1) return
   }
+  if (mode === 'move' && !targetFolder) throw new Error('请选择目标文件夹。')
   try {
     const secret = await loadMailSecret(mailSecretsPath, accountId)
     if (!secret) throw new Error('授权已失效，请重新授权。')
-    const moved = await moveMailMessage(
-      account.provider,
-      account.email,
-      secret,
-      uid,
-      target === 'archive' ? 'archive' : 'trash',
-      folder,
-    )
-    if (!moved)
-      throw new Error(
-        target === 'archive'
-          ? '未找到归档文件夹，无法归档。'
-          : '未找到已删除文件夹，无法删除。',
+    if (permanent) {
+      await deleteMailMessages(
+        account.provider,
+        account.email,
+        secret,
+        uids,
+        folder,
       )
-    mailDb.removeMessage(accountId, folder, uid)
-    await rm(
-      join(dataRoot, 'mail-cache', accountId, folder, String(uid)),
-      { recursive: true, force: true },
-    ).catch(() => {})
-    if (message.unread) {
-      mailDb.updateAccount(accountId, {
-        unread: Math.max(0, account.unread - 1),
-      })
+    } else if (mode === 'move') {
+      await moveMailMessagesToFolder(
+        account.provider,
+        account.email,
+        secret,
+        uids,
+        targetFolder!,
+        folder,
+      )
+    } else {
+      const target: 'archive' | 'trash' | 'junk' | 'inbox' =
+        mode === 'archive'
+          ? 'archive'
+          : mode === 'delete'
+            ? 'trash'
+            : mode === 'spam'
+              ? 'junk'
+              : 'inbox'
+      const moved = await moveMailMessages(
+        account.provider,
+        account.email,
+        secret,
+        uids,
+        target,
+        folder,
+      )
+      if (!moved)
+        throw new Error(
+          target === 'archive'
+            ? '未找到归档文件夹，无法归档。'
+            : target === 'junk'
+              ? '未找到垃圾邮件文件夹，无法标记。'
+              : target === 'inbox'
+                ? '未找到收件箱，无法移出垃圾邮件。'
+                : '未找到已删除文件夹，无法删除。',
+        )
     }
-    if (mailPanelSelected?.uid === uid) mailPanelSelected = undefined
-    loadMailMessages(accountId, folder)
+    for (const message of messages) {
+      mailDb.removeMessage(accountId, folder, message.uid)
+      await rm(
+        join(dataRoot, 'mail-cache', accountId, folder, String(message.uid)),
+        { recursive: true, force: true },
+      ).catch(() => {})
+    }
+    reduceAccountUnread(
+      accountId,
+      folder === 'INBOX'
+        ? messages.filter((message) => message.unread).length
+        : 0,
+    )
+    if (
+      mailPanelSelected &&
+      uids.includes(mailPanelSelected.uid)
+    )
+      mailPanelSelected = undefined
+    if (mailPanelFolder === folder) loadMailMessages(accountId, folder)
     void refreshMailCacheSize()
     void updateMailBadge()
     broadcast()
@@ -2767,10 +2937,57 @@ async function moveCurrentMail(
     broadcast()
   }
 }
+async function setMailUnreadBatch(
+  uids: number[],
+  unread: boolean,
+): Promise<void> {
+  if (!mailPanelAccountId || !mailDb || !uids.length) return
+  const accountId = mailPanelAccountId
+  const account = mailDb.account(accountId)
+  const folder = mailPanelFolder
+  const messages = uids
+    .map((uid) => mailDb!.message(accountId, folder, uid))
+    .filter((item): item is MailMessageDetail => Boolean(item))
+  if (!account || !messages.length) return
+  const changed = messages.filter((message) => message.unread !== unread)
+  if (!changed.length) return
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) throw new Error('授权已失效，请重新授权。')
+  try {
+    await setMailSeenBatch(
+      account.provider,
+      account.email,
+      secret,
+      changed.map((message) => message.uid),
+      !unread,
+      folder,
+    )
+    for (const message of changed)
+      mailDb.setUnread(accountId, folder, message.uid, unread)
+    if (folder === 'INBOX')
+      mailDb.updateAccount(accountId, {
+        unread: Math.max(
+          0,
+          account.unread + (unread ? changed.length : -changed.length),
+        ),
+      })
+    if (mailPanelSelected && uids.includes(mailPanelSelected.uid))
+      mailPanelSelected = { ...mailPanelSelected, unread }
+    loadMailMessages(accountId, folder)
+    void updateMailBadge()
+  } catch (error) {
+    mailPanelError =
+      error instanceof Error ? error.message : '无法更新邮件状态。'
+    mailPanelErrorKind = 'detail'
+  }
+  broadcast()
+}
 async function sendMail(command: {
   accountId: string
+  draftId?: string
   to: string
   cc?: string
+  bcc?: string
   subject: string
   body: string
   bodyHtml?: string
@@ -2787,8 +3004,10 @@ async function sendMail(command: {
     .filter((item): item is OutgoingAttachment => Boolean(item))
   if (attachments.length !== command.attachmentIds.length)
     throw new Error('附件已失效，请重新选择。')
+  if (attachments.length > mailAttachmentLimit)
+    throw new Error(`附件数量不能超过 ${mailAttachmentLimit} 个。`)
   const totalBytes = attachments.reduce((total, item) => total + item.size, 0)
-  if (totalBytes > 25 * 1024 * 1024)
+  if (totalBytes > mailAttachmentTotalLimit)
     throw new Error('附件总大小不能超过 25 MB。')
   mailComposeSending = true
   mailComposeError = undefined
@@ -2799,24 +3018,29 @@ async function sendMail(command: {
       secret,
       to: command.to,
       ...(command.cc ? { cc: command.cc } : {}),
+      ...(command.bcc ? { bcc: command.bcc } : {}),
       subject: command.subject,
       body: command.body,
       ...(command.bodyHtml ? { bodyHtml: command.bodyHtml } : {}),
       attachments,
     })
+    if (command.draftId) mailDb.removeDraft(command.draftId)
     mailPanelNotice = result.savedToSent
       ? '邮件已发送'
       : '邮件已发送，但未能保存到已发送。'
     mailPanelNoticeId += 1
     mailDb.recordContacts(
       mailRecipientAddresses(
-        `${command.to}${command.cc ? `,${command.cc}` : ''}`,
+        `${command.to}${command.cc ? `,${command.cc}` : ''}${
+          command.bcc ? `,${command.bcc}` : ''
+        }`,
       ).map((address) => ({ address })),
     )
     mailComposeAttachments.clear()
     mailComposeSending = false
     closeMailCompose()
     showToast(mailPanelNotice)
+    void refreshSentFolder(account.id)
   } catch (error) {
     mailComposeError =
       error instanceof Error ? error.message : '邮件发送失败，请稍后重试。'
@@ -2824,6 +3048,85 @@ async function sendMail(command: {
     mailComposeSending = false
     broadcast()
   }
+}
+async function refreshSentFolder(accountId: string): Promise<void> {
+  if (!mailDb) return
+  try {
+    const secret = await loadMailSecret(mailSecretsPath, accountId)
+    if (!secret) return
+    const account = mailDb.account(accountId)
+    if (!account) return
+    const folders = await fetchMailFolders(
+      account.provider,
+      account.email,
+      secret,
+    )
+    mailDb.replaceFolders(accountId, folders)
+    const sent = folders.find((folder) => folder.kind === 'sent')
+    if (sent) await syncMailAccount(accountId, true, sent.path)
+    broadcast()
+  } catch {
+    /* sent refresh is best effort */
+  }
+}
+async function saveMailDraft(command: {
+  draftId?: string
+  accountId: string
+  to: string
+  cc: string
+  bcc: string
+  subject: string
+  body: string
+  bodyHtml: string
+  attachmentIds: string[]
+}): Promise<void> {
+  if (!mailDb) return
+  const account = mailDb.account(command.accountId)
+  if (!account) return
+  const attachments = command.attachmentIds
+    .map((id) => mailComposeAttachments.get(id))
+    .filter((item): item is OutgoingAttachment => Boolean(item))
+  const blank =
+    !command.to.trim() &&
+    !command.cc.trim() &&
+    !command.bcc.trim() &&
+    !command.subject.trim() &&
+    !command.body.trim() &&
+    !command.bodyHtml.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() &&
+    !attachments.length
+  const id = command.draftId || mailComposeDraftId || randomUUID()
+  if (blank) {
+    mailDb.removeDraft(id)
+    if (mailComposeDraftId === id) mailComposeDraftId = id
+  } else {
+    const draft = mailDb.saveDraft({
+      id,
+      accountId: account.id,
+      to: command.to,
+      cc: command.cc,
+      bcc: command.bcc,
+      subject: command.subject,
+      bodyText: command.body,
+      bodyHtml: command.bodyHtml,
+      attachments: attachments.map((attachment) => ({
+        path: attachment.path,
+        name: attachment.name,
+        size: attachment.size,
+      })),
+    })
+    mailComposeDraftId = draft.id
+  }
+  broadcast()
+}
+function deleteMailDraft(id: string): void {
+  if (!mailDb) return
+  mailDb.removeDraft(id)
+  if (mailComposeDraftId === id) mailComposeDraftId = randomUUID()
+  broadcast()
+}
+function removeComposeAttachment(id: string): void {
+  mailComposeAttachments.delete(id)
+  broadcast()
 }
 async function saveMailAttachment(
   uid: number,
@@ -2867,6 +3170,7 @@ function mailState(): MailState {
         mailDb?.listFolders(account.id) ?? [],
       ]),
     ),
+    drafts: mailDb?.listDrafts() ?? [],
     config: mailConfig,
     busy: mailBusy,
     cacheBytes: mailCacheBytes,
@@ -2960,8 +3264,9 @@ async function updateMailBadge(): Promise<void> {
   if (process.platform === 'win32' && (!pet || pet.isDestroyed())) return
   if (total === mailBadgeTotal) return
   mailBadgeTotal = total
+  const label = formatMailBadge(total)
   if (process.platform === 'darwin') {
-    app.dock?.setBadge(total > 0 ? String(total) : '')
+    app.dock?.setBadge(label)
     return
   }
   if (process.platform === 'win32') {
@@ -2973,7 +3278,7 @@ async function updateMailBadge(): Promise<void> {
       iconPath('mail-badge.png'),
     )
     if (!mailBadgeImage.isEmpty())
-      pet.setOverlayIcon(mailBadgeImage, `${total} 封未读邮件`)
+      pet.setOverlayIcon(mailBadgeImage, `${label} 封未读邮件`)
     return
   }
   app.setBadgeCount(total)
@@ -2991,6 +3296,66 @@ function notifyMail(
     void openMail(account.id)
   })
   notification.show()
+}
+function hideMailAlert(): void {
+  if (mailAlertTimer) {
+    clearTimeout(mailAlertTimer)
+    mailAlertTimer = undefined
+  }
+  if (!mailAlert) return
+  mailAlert = undefined
+  updateToastWindow()
+  broadcast()
+}
+function showMailAlert(alert: Omit<MailAlert, 'id'>): void {
+  if (!mailConfig.notify || !settings.statusBubbles) return
+  if (mailAlertTimer) clearTimeout(mailAlertTimer)
+  mailAlert = { ...alert, id: ++mailAlertId }
+  mailAlertTimer = setTimeout(hideMailAlert, 15_000)
+  updateToastWindow()
+  positionToast()
+  broadcast()
+}
+async function alertNewMail(
+  accountId: string,
+  messages: MailMessageSummary[],
+): Promise<void> {
+  if (!mailDb || !mailConfig.notify || !settings.statusBubbles) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  let fallback: Omit<MailAlert, 'id'> | undefined
+  for (const message of messages.slice(0, 3)) {
+    try {
+      const detail = await ensureMailDetail(
+        accountId,
+        message.uid,
+        'INBOX',
+        false,
+      )
+      if (!detail) continue
+      const alert: Omit<MailAlert, 'id'> = {
+        accountId,
+        uid: detail.uid,
+        sender: detail.fromName || detail.fromAddress || '未知发件人',
+        subject: detail.subject,
+        attachmentCount: detail.attachments.length,
+        ...(detail.code && !detail.codeSuperseded
+          ? { code: detail.code }
+          : {}),
+        ...(detail.codeExpiresAt
+          ? { codeExpiresAt: detail.codeExpiresAt }
+          : {}),
+      }
+      if (alert.code) {
+        showMailAlert(alert)
+        return
+      }
+      fallback ??= alert
+    } catch {
+      /* a detail failure should not block sync */
+    }
+  }
+  if (fallback) showMailAlert(fallback)
 }
 async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
   const prune = patch.retentionDays !== undefined
@@ -3130,6 +3495,7 @@ async function syncMailAccount(
   folder = 'INBOX',
 ): Promise<void> {
   if (!mailDb) return
+  if (folder === mailLocalDraftsFolder) return
   const account = mailDb.account(accountId)
   if (!account) {
     if (!silent) throw new Error('邮箱账户不存在。')
@@ -3145,6 +3511,7 @@ async function syncMailAccount(
     return
   }
   const requestId = mailPanelRequest
+  const hadCache = mailDb.countMessages(accountId, folder) > 0
   mailBusy = true
   broadcast()
   try {
@@ -3154,6 +3521,16 @@ async function syncMailAccount(
       secret,
       folder,
     )
+    const newcomers =
+      folder === 'INBOX' && hadCache
+        ? probe.messages
+            .filter(
+              (message) =>
+                message.unread &&
+                !mailDb!.hasMessage(accountId, folder, message.uid),
+            )
+            .sort((a, b) => (b.date ?? 0) - (a.date ?? 0))
+        : []
     mailDb.upsertMessages(accountId, folder, probe.messages)
     mailDb.updateFolder(accountId, folder, probe.unread, probe.total)
     mailDb.updateAccount(accountId, {
@@ -3175,6 +3552,7 @@ async function syncMailAccount(
     void updateMailBadge()
     if (folder === 'INBOX' && probe.unread > account.unread)
       notifyMail(account, probe.unread)
+    if (newcomers.length) void alertNewMail(accountId, newcomers)
   } catch (error) {
     const message =
       error instanceof Error ? error.message : '邮箱同步失败，请稍后重试。'
@@ -4757,19 +5135,21 @@ function updateBubbleWindow(): void {
 function positionToast(): void {
   if (!toastWindow || toastWindow.isDestroyed()) return
   const b = pet.getBounds()
-  const width = 190
-  const height = 64
+  const width = mailAlert ? 300 : 190
+  const height = mailAlert ? 126 : 64
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + Math.round(9 * scale) - 6 - height
   toastWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateToastWindow(): void {
   if (!toastWindow || toastWindow.isDestroyed()) return
-  if (toastText && !dropMode) {
+  if ((toastText || mailAlert) && !dropMode) {
     positionToast()
+    toastWindow.setIgnoreMouseEvents(!mailAlert)
     toastWindow.showInactive()
     toastWindow.moveTop()
   } else if (toastWindow.isVisible()) {
+    toastWindow.setIgnoreMouseEvents(true)
     toastWindow.hide()
   }
 }
@@ -6022,23 +6402,42 @@ function setupIpc(): void {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window !== mailComposeWindow)
       throw new Error('仅撰写窗口可以选择附件。')
-    if (!mailComposeWindow) return []
+    if (!mailComposeWindow) return composeAttachmentPicks()
     const result = await dialog.showOpenDialog(mailComposeWindow, {
       title: '选择邮件附件',
       properties: ['openFile', 'multiSelections'],
     })
-    if (result.canceled) return []
-    const picks: MailAttachmentPick[] = []
-    mailComposeAttachments.clear()
-    for (const path of result.filePaths.slice(0, 20)) {
+    if (result.canceled) return composeAttachmentPicks()
+    const existing = new Set(
+      [...mailComposeAttachments.values()].map((item) => item.path),
+    )
+    let total = [...mailComposeAttachments.values()].reduce(
+      (sum, item) => sum + item.size,
+      0,
+    )
+    let added = 0
+    for (const path of result.filePaths) {
+      if (mailComposeAttachments.size >= mailAttachmentLimit) break
+      if (existing.has(path)) continue
       const info = await stat(path)
       if (!info.isFile()) continue
+      if (total + info.size > mailAttachmentTotalLimit) continue
       const id = randomUUID()
       const name = basename(path)
       mailComposeAttachments.set(id, { path, name, size: info.size })
-      picks.push({ id, name, size: info.size })
+      existing.add(path)
+      total += info.size
+      added += 1
     }
-    return picks
+    if (!added) {
+      throw new Error(
+        mailComposeAttachments.size
+          ? '附件超出 20 个或 25 MB，未添加。'
+          : '没有可添加的附件。',
+      )
+    }
+    broadcast()
+    return composeAttachmentPicks()
   })
   handle(channels.mask, 'pet', (_event, payload) => {
     mask = maskSchema.parse(payload)
@@ -6168,8 +6567,19 @@ function setupIpc(): void {
       'mail-send',
       'mail-compose-open',
       'mail-compose-close',
+      'mail-draft-save',
+      'mail-draft-delete',
+      'mail-remove-attachment',
       'mail-archive',
       'mail-delete',
+      'mail-move',
+      'mail-spam',
+      'mail-batch-read',
+      'mail-batch-delete',
+      'mail-batch-move',
+      'mail-alert-copy',
+      'mail-alert-open',
+      'mail-alert-dismiss',
       'mail-update-config',
       'mail-clear-cache',
       'mail-choose-attachment-dir',
@@ -6558,16 +6968,76 @@ function setupIpc(): void {
         await setMailUnread(command.uid, command.unread)
         break
       case 'mail-compose-open':
-        openMailCompose(command.accountId, command.draft)
+        openMailCompose(
+          command.accountId,
+          command.draft,
+          command.draftId,
+        )
         break
       case 'mail-compose-close':
         closeMailCompose()
         break
+      case 'mail-draft-save':
+        await saveMailDraft(command)
+        break
+      case 'mail-draft-delete':
+        deleteMailDraft(command.id)
+        break
+      case 'mail-remove-attachment':
+        removeComposeAttachment(command.id)
+        break
       case 'mail-archive':
-        await moveCurrentMail(command.uid, 'archive')
+        await moveMailMessagesOperation([command.uid], 'archive')
         break
       case 'mail-delete':
-        await moveCurrentMail(command.uid, 'delete')
+        await moveMailMessagesOperation([command.uid], 'delete')
+        break
+      case 'mail-move':
+        await moveMailMessagesOperation(
+          [command.uid],
+          'move',
+          command.folder,
+        )
+        break
+      case 'mail-spam':
+        await moveMailMessagesOperation(
+          [command.uid],
+          command.spam ? 'spam' : 'ham',
+        )
+        break
+      case 'mail-batch-read':
+        await setMailUnreadBatch(command.uids, command.unread)
+        break
+      case 'mail-batch-delete':
+        await moveMailMessagesOperation(command.uids, 'delete')
+        break
+      case 'mail-batch-move':
+        await moveMailMessagesOperation(
+          command.uids,
+          'move',
+          command.folder,
+        )
+        break
+      case 'mail-alert-copy':
+        if (mailAlert?.code) {
+          electronClipboard.writeText(mailAlert.code)
+          const copied = mailAlert
+          hideMailAlert()
+          showToast(`验证码 ${copied.code} 已复制`)
+        } else {
+          hideMailAlert()
+        }
+        break
+      case 'mail-alert-open':
+        if (mailAlert) {
+          const alert = mailAlert
+          hideMailAlert()
+          await openMail(alert.accountId, 'INBOX')
+          await selectMail(alert.uid)
+        }
+        break
+      case 'mail-alert-dismiss':
+        hideMailAlert()
         break
       case 'mail-send':
         await sendMail(command)

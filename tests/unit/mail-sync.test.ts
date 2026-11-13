@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   ),
   status: vi.fn(async () => ({ messages: 2, unseen: 1 })),
   move: vi.fn(async () => ({ uidMap: new Map() })),
+  deleteFn: vi.fn(async () => true),
   flagsAdd: vi.fn(async () => true),
   flagsRemove: vi.fn(async () => true),
   logout: vi.fn(async () => {}),
@@ -42,6 +43,7 @@ vi.mock('imapflow', () => ({
     list = mocks.list
     status = mocks.status
     messageMove = mocks.move
+    messageDelete = mocks.deleteFn
     messageFlagsAdd = mocks.flagsAdd
     messageFlagsRemove = mocks.flagsRemove
     logout = mocks.logout
@@ -53,6 +55,7 @@ vi.mock('mailparser', () => ({
 }))
 
 import {
+  deleteMailMessages,
   fetchMailDetail,
   fetchMailFolders,
   fetchOlderMailInbox,
@@ -60,6 +63,8 @@ import {
   moveMailMessage,
   probeMailAccount,
   setMailSeen,
+  setMailSeenBatch,
+  syncMailInbox,
 } from '../../src/main/mail-sync'
 
 describe('mail detail fetch', () => {
@@ -118,6 +123,19 @@ describe('mail detail fetch', () => {
       fromAddress: 'old@example.com',
     })
     expect(result.hasMore).toBe(false)
+  })
+
+  test('syncs the selected folder instead of always INBOX', async () => {
+    mocks.mailboxOpen.mockResolvedValueOnce({ exists: 0, unseen: 0 })
+    await syncMailInbox(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+      '[Gmail]/已删除邮件',
+    )
+    expect(mocks.mailboxOpen).toHaveBeenCalledWith('[Gmail]/已删除邮件', {
+      readOnly: true,
+    })
   })
 
   test('maps IMAP special-use folders to localized categories', async () => {
@@ -186,6 +204,34 @@ describe('mail detail fetch', () => {
     )
   })
 
+  test('updates seen state for a UID batch in one connection', async () => {
+    await setMailSeenBatch(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+      [5, 6],
+      true,
+      'Archive',
+    )
+    expect(mocks.mailboxOpen).toHaveBeenCalledWith('Archive', {
+      readOnly: false,
+    })
+    expect(mocks.flagsAdd).toHaveBeenCalledWith('5,6', ['\\Seen'], {
+      uid: true,
+    })
+  })
+
+  test('permanently deletes a UID batch in one connection', async () => {
+    await deleteMailMessages(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+      [7, 8],
+      '[Gmail]/Trash',
+    )
+    expect(mocks.deleteFn).toHaveBeenCalledWith('7,8', { uid: true })
+  })
+
   test('retries a transient network failure once', async () => {
     mocks.connect.mockRejectedValueOnce(
       Object.assign(new Error('connect ETIMEDOUT'), {
@@ -197,7 +243,7 @@ describe('mail detail fetch', () => {
       'demo@gmail.com',
       'abcd efgh ijkl mnop',
     )
-    expect(probe.unread).toBe(2)
+    expect(probe.unread).toBe(1)
     expect(mocks.connect).toHaveBeenCalledTimes(2)
     expect(mocks.run).not.toHaveBeenCalled()
   })

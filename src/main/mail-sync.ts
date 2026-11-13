@@ -139,7 +139,14 @@ export async function probeMailAccount(
         await client.connect()
         await identifyClient(client, provider)
         const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
-        return { unread: Math.max(0, mailbox.unseen ?? 0) }
+        const status = await client
+          .status('INBOX', { messages: true, unseen: true })
+          .catch(() => false)
+        const unseen =
+          typeof status === 'object' && status ? status.unseen : undefined
+        return {
+          unread: Math.max(0, unseen ?? mailbox.unseen ?? 0),
+        }
       } finally {
         await client.logout().catch(() => {})
       }
@@ -299,7 +306,7 @@ export async function syncMailInbox(
   try {
     await client.connect()
     await identifyClient(client, provider)
-    const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
+    const mailbox = await client.mailboxOpen(folder, { readOnly: true })
     const total = mailbox.exists
     const start = Math.max(1, total - 49)
     const messages: MailMessageSummary[] = []
@@ -314,7 +321,11 @@ export async function syncMailInbox(
       }
     }
     return {
-      unread: Math.max(0, mailbox.unseen ?? 0),
+      unread: Math.max(
+        0,
+        mailbox.unseen ??
+          messages.filter((message) => message.unread).length,
+      ),
       total,
       messages: messages.sort((a, b) => (b.date ?? 0) - (a.date ?? 0)),
     }
@@ -394,6 +405,136 @@ export async function setMailSeen(
   }
 }
 
+type SpecialTarget = 'archive' | 'trash' | 'junk' | 'inbox'
+
+const archiveNames = /^(archive|archives|all mail|归档|存档|所有邮件)$/i
+const trashNames = /^(trash|deleted messages|deleted items|已删除|已删除邮件|废纸篓)$/i
+const junkNames = /^(junk|spam|垃圾邮件|垃圾箱|广告邮件)$/i
+
+function specialTargetPath(
+  boxes: Array<{ path: string; name: string; specialUse?: string }>,
+  target: SpecialTarget,
+): string | undefined {
+  if (target === 'inbox') return 'INBOX'
+  const specialUse =
+    target === 'archive'
+      ? ['\\archive', '\\all']
+      : target === 'trash'
+        ? ['\\trash']
+        : ['\\junk', '\\spam']
+  const names =
+    target === 'archive' ? archiveNames : target === 'trash' ? trashNames : junkNames
+  return (
+    boxes.find((box) =>
+      specialUse.includes(box.specialUse?.toLowerCase() ?? ''),
+    )?.path ?? boxes.find((box) => names.test(box.name))?.path
+  )
+}
+
+export async function moveMailMessages(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uids: number[],
+  target: SpecialTarget,
+  folder = 'INBOX',
+): Promise<string | undefined> {
+  if (!uids.length) return undefined
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen(folder, { readOnly: false })
+    const boxes = await client.list()
+    const path = specialTargetPath(boxes, target)
+    if (!path) return undefined
+    await client.messageMove(
+      uids.map(String).join(','),
+      path,
+      { uid: true },
+    )
+    return path
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
+export async function moveMailMessagesToFolder(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uids: number[],
+  targetFolder: string,
+  folder = 'INBOX',
+): Promise<void> {
+  if (!uids.length) return
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen(folder, { readOnly: false })
+    await client.messageMove(
+      uids.map(String).join(','),
+      targetFolder,
+      { uid: true },
+    )
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
+export async function deleteMailMessages(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uids: number[],
+  folder = 'INBOX',
+): Promise<void> {
+  if (!uids.length) return
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen(folder, { readOnly: false })
+    await client.messageDelete(uids.map(String).join(','), { uid: true })
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
+export async function setMailSeenBatch(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  uids: number[],
+  seen: boolean,
+  folder = 'INBOX',
+): Promise<void> {
+  if (!uids.length) return
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    await client.mailboxOpen(folder, { readOnly: false })
+    const sequence = uids.map(String).join(',')
+    if (seen) {
+      await client.messageFlagsAdd(sequence, ['\\Seen'], { uid: true })
+    } else {
+      await client.messageFlagsRemove(sequence, ['\\Seen'], { uid: true })
+    }
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
 export async function moveMailMessage(
   provider: MailProvider,
   email: string,
@@ -402,28 +543,9 @@ export async function moveMailMessage(
   target: 'archive' | 'trash',
   folder = 'INBOX',
 ): Promise<boolean> {
-  const client = providerClient(provider, email, secret)
-  const archiveNames = /^(archive|archives|all mail|归档|存档|所有邮件)$/i
-  const trashNames = /^(trash|deleted messages|deleted items|已删除|已删除邮件|废纸篓)$/i
-  try {
-    await client.connect()
-    await identifyClient(client, provider)
-    await client.mailboxOpen(folder, { readOnly: false })
-    const boxes = await client.list()
-    const special = target === 'archive' ? ['\\archive', '\\all'] : ['\\trash']
-    const names = target === 'archive' ? archiveNames : trashNames
-    const targetFolder =
-      boxes.find((box) =>
-        special.includes(box.specialUse?.toLowerCase() ?? ''),
-      ) ?? boxes.find((box) => names.test(box.name))
-    if (!targetFolder) return false
-    await client.messageMove(String(uid), targetFolder.path, { uid: true })
-    return true
-  } catch (error) {
-    throw new Error(mailErrorMessage(error))
-  } finally {
-    await client.logout().catch(() => {})
-  }
+  return Boolean(
+    await moveMailMessages(provider, email, secret, [uid], target, folder),
+  )
 }
 
 export async function appendMailToSent(
@@ -458,6 +580,7 @@ export async function fetchMailDetail(
   secret: string,
   uid: number,
   folder = 'INBOX',
+  markSeen = true,
 ): Promise<MailFetchedDetail> {
   const client = providerClient(provider, email, secret)
   try {
@@ -505,15 +628,16 @@ export async function fetchMailDetail(
       ...(attachment.contentType ? { mime: attachment.contentType } : {}),
       data: attachment.content,
     }))
-    await client
-      .messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
-      .catch(() => {})
+    if (markSeen)
+      await client
+        .messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
+        .catch(() => {})
     return {
       subject,
       ...(from?.name ? { fromName: from.name } : {}),
       ...(from?.address ? { fromAddress: from.address } : {}),
       ...(parsed.date ? { date: parsed.date.getTime() } : {}),
-      unread: false,
+      unread: !markSeen,
       ...(text ? { bodyText: text } : {}),
       ...(html ? { bodyHtml: html } : {}),
       ...(snippetOf(detectionText)

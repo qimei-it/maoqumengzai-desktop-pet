@@ -44,6 +44,7 @@ export type MailConfig = {
 export type MailState = {
   accounts: MailAccount[]
   folders: Record<string, MailFolder[]>
+  drafts: MailDraftSummary[]
   config: MailConfig
   busy: boolean
   cacheBytes: number
@@ -53,6 +54,17 @@ export type MailState = {
 export const mailContactLimit = 50
 export const mailSubjectLimit = 500
 export const mailBodyLimit = 1_000_000
+export const mailAttachmentLimit = 20
+export const mailAttachmentTotalLimit = 25 * 1024 * 1024
+/** Local drafts are not an IMAP folder; this sentinel switches the panel view. */
+export const mailLocalDraftsFolder = '__local_drafts__'
+
+/** Unread badges cap at 99+ so the display never grows without bound. */
+export function formatMailBadge(count: number): string {
+  const value = Math.max(0, Math.floor(count))
+  if (!value) return ''
+  return value > 99 ? '99+' : String(value)
+}
 
 export type MailContact = {
   name?: string
@@ -197,19 +209,63 @@ export type MailMessageDetail = MailMessageSummary & {
   codeSuperseded?: boolean
 }
 
+export type MailDraftAttachment = {
+  path: string
+  name: string
+  size: number
+}
+
 export type MailComposeDraft = {
   to?: string
   cc?: string
+  bcc?: string
   subject?: string
   body?: string
+  bodyHtml?: string
+  attachments?: MailDraftAttachment[]
+}
+
+export type MailDraft = {
+  id: string
+  accountId: string
+  to: string
+  cc: string
+  bcc: string
+  subject: string
+  bodyText: string
+  bodyHtml: string
+  attachments: MailDraftAttachment[]
+  updatedAt: number
+}
+
+export type MailDraftSummary = {
+  id: string
+  accountId: string
+  to: string
+  subject: string
+  attachmentCount: number
+  updatedAt: number
+}
+
+export type MailAlert = {
+  id: number
+  accountId: string
+  uid: number
+  sender: string
+  subject: string
+  code?: string
+  codeExpiresAt?: number
+  attachmentCount: number
 }
 
 export type MailComposeState = {
   open: boolean
   accountId?: string
+  draftId?: string
   revision: number
   sending: boolean
   draft?: MailComposeDraft
+  attachments: MailAttachmentPick[]
   contacts: MailContact[]
   error?: string
 }
@@ -223,6 +279,7 @@ export type MailPanelState = {
   hasMore: boolean
   query?: string
   messages: MailMessageSummary[]
+  drafts?: MailDraftSummary[]
   selected?: MailMessageDetail
   error?: string
   notice?: string

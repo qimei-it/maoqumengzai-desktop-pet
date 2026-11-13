@@ -21,6 +21,7 @@ export type OutgoingMail = {
   secret: string
   to: string
   cc?: string
+  bcc?: string
   subject: string
   body: string
   bodyHtml?: string
@@ -93,6 +94,7 @@ export async function sendMailMessage(
     from,
     to: mail.to,
     ...(mail.cc ? { cc: mail.cc } : {}),
+    ...(mail.bcc ? { bcc: mail.bcc } : {}),
     subject: mail.subject || '(无主题)',
     text: mail.body,
     ...(html ? { html } : {}),

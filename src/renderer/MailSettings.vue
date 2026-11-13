@@ -14,6 +14,7 @@ import type {
   MailState,
 } from '../shared/mail'
 import {
+  formatMailBadge,
   mailAccountLabel,
   mailDisplayNameError,
   mailDisplayNameLimit,
@@ -254,7 +255,7 @@ watch(
             {{ statusLabel(account) }}
           </span>
           <span v-if="account.unread" class="mail-unread">
-            {{ account.unread }} 封未读
+            {{ formatMailBadge(account.unread) }} 封未读
           </span>
           <button
             type="button"

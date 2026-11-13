@@ -451,18 +451,59 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('mail-compose-open'),
       accountId: z.string().uuid().optional(),
+      draftId: z.string().uuid().optional(),
       draft: z
         .object({
           to: z.string().max(1000).optional(),
           cc: z.string().max(1000).optional(),
+          bcc: z.string().max(1000).optional(),
           subject: z.string().max(500).optional(),
           body: z.string().max(1_000_000).optional(),
+          bodyHtml: z.string().max(1_000_000).optional(),
+          attachments: z
+            .array(
+              z
+                .object({
+                  path: z.string().min(1).max(1024),
+                  name: z.string().min(1).max(255),
+                  size: z.number().int().nonnegative(),
+                })
+                .strict(),
+            )
+            .max(20)
+            .optional(),
         })
         .strict()
         .optional(),
     })
     .strict(),
   z.object({ type: z.literal('mail-compose-close') }).strict(),
+  z
+    .object({
+      type: z.literal('mail-draft-save'),
+      draftId: z.string().uuid().optional(),
+      accountId: z.string().uuid(),
+      to: z.string().max(1000),
+      cc: z.string().max(1000),
+      bcc: z.string().max(1000),
+      subject: z.string().max(500),
+      body: z.string().max(1_000_000),
+      bodyHtml: z.string().max(1_000_000),
+      attachmentIds: z.array(z.string().uuid()).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-draft-delete'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-remove-attachment'),
+      id: z.string().uuid(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('mail-archive'),
@@ -477,14 +518,57 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('mail-move'),
+      uid: z.number().int().nonnegative(),
+      folder: z.string().min(1).max(500),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-spam'),
+      uid: z.number().int().nonnegative(),
+      spam: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-batch-read'),
+      uids: z.array(z.number().int().positive()).min(1).max(200),
+      unread: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-batch-delete'),
+      uids: z.array(z.number().int().positive()).min(1).max(200),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-batch-move'),
+      uids: z.array(z.number().int().positive()).min(1).max(200),
+      folder: z.string().min(1).max(500),
+    })
+    .strict(),
+  z.object({ type: z.literal('mail-alert-copy') }).strict(),
+  z.object({ type: z.literal('mail-alert-open') }).strict(),
+  z.object({ type: z.literal('mail-alert-dismiss') }).strict(),
+  z
+    .object({
       type: z.literal('mail-send'),
       accountId: z.string().uuid(),
+      draftId: z.string().uuid().optional(),
       to: z
         .string()
         .min(1)
         .max(1000)
         .refine((value) => !mailRecipientError(value, true)),
       cc: z
+        .string()
+        .max(1000)
+        .optional()
+        .refine((value) => !mailRecipientError(value ?? '')),
+      bcc: z
         .string()
         .max(1000)
         .optional()

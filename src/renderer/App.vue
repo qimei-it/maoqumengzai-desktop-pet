@@ -29,6 +29,10 @@ import {
   type FileKind,
 } from "../shared/file-kinds";
 import {
+  formatMailBadge,
+  mailUnreadTotal,
+} from "../shared/mail";
+import {
   actionAt,
   donutMetrics,
   donutWindowSize,
@@ -177,6 +181,14 @@ const fileWheelActions = computed<readonly DropAction[]>(() =>
 const hoverWheelActions = computed<readonly HoverAction[]>(() =>
   normalizeWheelActions(state.value?.settings.hoverWheelActions, hoverActions),
 );
+const donutBadges = computed<Record<string, string>>(() => {
+  const mail = state.value?.mail;
+  if (!mail?.config.unreadBadge) return {};
+  const label = formatMailBadge(mailUnreadTotal(mail.accounts));
+  const badges: Record<string, string> = {};
+  if (label) badges.mail = label;
+  return badges;
+});
 const donutActions = computed<readonly string[]>(() =>
   donutMode.value === "hover" ? hoverWheelActions.value : fileWheelActions.value,
 );
@@ -246,6 +258,13 @@ async function attempt(action: () => Promise<void>): Promise<void> {
 async function command(value: Command): Promise<void> {
   await attempt(async () => {
     if (api) state.value = unwrap(await api.command(value));
+  });
+}
+async function mailAlertClick(): Promise<void> {
+  await command({
+    type: state.value?.mailAlert?.code
+      ? "mail-alert-copy"
+      : "mail-alert-open",
   });
 }
 async function selectFiles(): Promise<void> {
@@ -1338,6 +1357,7 @@ onUnmounted(() => {
           :error="error"
           :actions="donutActions"
           :labels="donutLabels"
+          :badges="donutBadges"
           :label-size="11"
           :single-line="donutMode === 'hover'"
           :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"
@@ -1559,8 +1579,32 @@ onUnmounted(() => {
     </div>
   </main>
 
-  <main v-else-if="toastView" class="bubble-surface toast-surface">
-    <div class="bubble-body toast-body">
+  <main
+    v-else-if="toastView"
+    class="bubble-surface toast-surface"
+    :class="{ 'has-alert': !!state?.mailAlert }"
+  >
+    <div
+      v-if="state?.mailAlert"
+      class="mail-alert"
+      role="button"
+      tabindex="0"
+      :title="state.mailAlert.code ? '复制验证码' : '打开邮件'"
+      @click="mailAlertClick"
+      @keydown.enter.prevent="mailAlertClick"
+      @keydown.space.prevent="mailAlertClick"
+    >
+      <span class="mail-alert-sender">{{ state.mailAlert.sender }}</span>
+      <template v-if="state.mailAlert.code">
+        <span class="mail-alert-code">{{ state.mailAlert.code }}</span>
+        <span class="mail-alert-hint">点击复制验证码</span>
+      </template>
+      <template v-else>
+        <span class="mail-alert-subject">{{ state.mailAlert.subject }}</span>
+        <span class="mail-alert-hint">点击查看邮件</span>
+      </template>
+    </div>
+    <div v-else class="bubble-body toast-body">
       <span class="bubble-text">{{ state?.toast }}</span>
     </div>
   </main>

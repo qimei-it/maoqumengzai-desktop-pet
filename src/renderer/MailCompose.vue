@@ -16,8 +16,8 @@ import {
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
+  mailAttachmentTotalLimit,
   mailRecipientError,
-  type MailAttachmentPick,
 } from '../shared/mail'
 import PanelHeader from './PanelHeader.vue'
 import { pushToast } from './toasts'
@@ -31,10 +31,17 @@ const sending = computed(() => Boolean(compose.value?.sending))
 const accountId = ref('')
 const to = ref('')
 const cc = ref('')
+const bcc = ref('')
 const subject = ref('')
 const bodyHtml = ref('')
-const attachments = ref<MailAttachmentPick[]>([])
+const draftId = ref('')
 const editor = ref<HTMLDivElement>()
+const attachments = computed(() => compose.value?.attachments ?? [])
+const attachmentTotal = computed(() =>
+  attachments.value.reduce((total, item) => total + item.size, 0),
+)
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let hydrating = false
 const contacts = computed(() => compose.value?.contacts ?? [])
 const contactOptions = computed(() =>
   contacts.value.map((contact) => ({
@@ -59,15 +66,18 @@ function textToHtml(value: string): string {
 }
 function reset(): void {
   const draft = compose.value?.draft
+  hydrating = true
   to.value = draft?.to ?? ''
   cc.value = draft?.cc ?? ''
+  bcc.value = draft?.bcc ?? ''
   subject.value = draft?.subject ?? ''
-  bodyHtml.value = textToHtml(draft?.body ?? '')
-  attachments.value = []
+  bodyHtml.value = draft?.bodyHtml || textToHtml(draft?.body ?? '')
+  draftId.value = compose.value?.draftId ?? ''
   accountId.value =
     compose.value?.accountId ?? accounts.value[0]?.id ?? ''
   void nextTick(() => {
     if (editor.value) editor.value.innerHTML = bodyHtml.value
+    hydrating = false
   })
 }
 watch(() => compose.value?.revision, reset, { immediate: true })
@@ -83,6 +93,63 @@ watch(
     if (value) pushToast(value, 'error')
   },
 )
+watch(
+  () => compose.value?.draftId,
+  (value) => {
+    if (value) draftId.value = value
+  },
+)
+function currentBody(): string {
+  return editor.value?.innerText ?? ''
+}
+function isBlank(): boolean {
+  const text = bodyHtml.value
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim()
+  return (
+    !to.value.trim() &&
+    !cc.value.trim() &&
+    !bcc.value.trim() &&
+    !subject.value.trim() &&
+    !text &&
+    !attachments.value.length
+  )
+}
+async function saveDraft(): Promise<void> {
+  if (sending.value || hydrating) return
+  syncBody()
+  if (!accountId.value) return
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = undefined
+  }
+  if (isBlank() && !draftId.value) return
+  const result = await window.mqmz?.command({
+    type: 'mail-draft-save',
+    ...(draftId.value ? { draftId: draftId.value } : {}),
+    accountId: accountId.value,
+    to: to.value,
+    cc: cc.value,
+    bcc: bcc.value,
+    subject: subject.value,
+    body: currentBody(),
+    bodyHtml: bodyHtml.value,
+    attachmentIds: attachments.value.map((item) => item.id),
+  })
+  if (result?.ok && result.value.mailCompose.draftId)
+    draftId.value = result.value.mailCompose.draftId
+}
+function scheduleSave(): void {
+  if (hydrating || sending.value) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = undefined
+    void saveDraft()
+  }, 900)
+}
+watch([to, cc, bcc, subject], scheduleSave)
+watch(bodyHtml, scheduleSave)
 
 async function chooseAttachments(): Promise<void> {
   const result = await window.mqmz?.mailChooseAttachments()
@@ -91,10 +158,14 @@ async function chooseAttachments(): Promise<void> {
     pushToast(result.error, 'error')
     return
   }
-  attachments.value = result.value
+  scheduleSave()
 }
 function syncBody(): void {
   bodyHtml.value = editor.value?.innerHTML ?? ''
+}
+function onBodyInput(): void {
+  syncBody()
+  scheduleSave()
 }
 function indentOnTab(event: KeyboardEvent): void {
   editor.value?.focus()
@@ -111,10 +182,12 @@ function format(command: string): void {
   syncBody()
 }
 function removeAttachment(id: string): void {
-  attachments.value = attachments.value.filter((item) => item.id !== id)
+  emit('command', { type: 'mail-remove-attachment', id })
+  scheduleSave()
 }
-function close(): void {
+async function close(): Promise<void> {
   if (sending.value) return
+  await saveDraft()
   emit('command', { type: 'mail-compose-close' })
 }
 function send(): void {
@@ -133,12 +206,21 @@ function send(): void {
     pushToast(ccError, 'error')
     return
   }
+  const bccError = mailRecipientError(bcc.value)
+  if (bccError) {
+    pushToast(bccError, 'error')
+    return
+  }
   if (subject.value.length > 500) {
     pushToast('主题不能超过 500 个字符。', 'error')
     return
   }
+  if (attachmentTotal.value > mailAttachmentTotalLimit) {
+    pushToast('附件总大小不能超过 25 MB。', 'error')
+    return
+  }
   syncBody()
-  const body = editor.value?.innerText ?? ''
+  const body = currentBody()
   if (bodyHtml.value.length > 1_000_000) {
     pushToast('正文过长，请精简后发送。', 'error')
     return
@@ -146,8 +228,10 @@ function send(): void {
   emit('command', {
     type: 'mail-send',
     accountId: accountId.value,
+    ...(draftId.value ? { draftId: draftId.value } : {}),
     to: to.value.trim(),
     ...(cc.value.trim() ? { cc: cc.value.trim() } : {}),
+    ...(bcc.value.trim() ? { bcc: bcc.value.trim() } : {}),
     subject: subject.value,
     body,
     bodyHtml: bodyHtml.value,
@@ -186,7 +270,7 @@ function size(bytes: number): string {
         </datalist>
         <label class="compose-field">
           <span>发件人</span>
-          <select v-model="accountId" :disabled="sending">
+          <select v-model="accountId" :disabled="sending" @change="scheduleSave">
             <option
               v-for="account in accounts"
               :key="account.id"
@@ -204,6 +288,7 @@ function size(bytes: number): string {
             autocomplete="off"
             list="mail-contact-options"
             placeholder="name@example.com"
+            @input="scheduleSave"
           />
         </label>
         <label class="compose-field">
@@ -214,11 +299,28 @@ function size(bytes: number): string {
             autocomplete="off"
             list="mail-contact-options"
             placeholder="可选"
+            @input="scheduleSave"
+          />
+        </label>
+        <label class="compose-field">
+          <span>密送</span>
+          <input
+            v-model="bcc"
+            type="text"
+            autocomplete="off"
+            list="mail-contact-options"
+            placeholder="可选"
+            @input="scheduleSave"
           />
         </label>
         <label class="compose-field">
           <span>主题</span>
-          <input v-model="subject" type="text" maxlength="500" />
+          <input
+            v-model="subject"
+            type="text"
+            maxlength="500"
+            @input="scheduleSave"
+          />
         </label>
         <div class="compose-formatbar" role="toolbar" aria-label="正文格式">
           <button
@@ -323,9 +425,16 @@ function size(bytes: number): string {
           aria-multiline="true"
           data-placeholder="正文"
           spellcheck="false"
-          @input="syncBody"
+          @input="onBodyInput"
           @keydown.tab.prevent="indentOnTab"
         />
+        <p
+          v-if="attachments.length"
+          class="compose-attachment-summary"
+          :class="{ over: attachmentTotal > mailAttachmentTotalLimit }"
+        >
+          {{ attachments.length }} 个附件 · {{ size(attachmentTotal) }}
+        </p>
         <ul v-if="attachments.length" class="compose-attachments">
           <li v-for="attachment in attachments" :key="attachment.id">
             <Paperclip :size="13" :stroke-width="2" aria-hidden="true" />
@@ -497,6 +606,14 @@ function size(bytes: number): string {
   border-radius: var(--radius-control);
   background: var(--color-fill-secondary);
   list-style: none;
+}
+.compose-attachment-summary {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.compose-attachment-summary.over {
+  color: var(--color-danger);
 }
 .compose-attachments li {
   display: flex;

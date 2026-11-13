@@ -66,6 +66,8 @@ describe('SMTP delivery', () => {
       account,
       secret: 'app-password',
       to: 'you@example.com',
+      cc: 'copy@example.com',
+      bcc: 'hidden@example.com',
       subject: 'Hello',
       body: 'Body',
       attachments: [{ path, name: 'report.txt', size: 5 }],
@@ -75,6 +77,8 @@ describe('SMTP delivery', () => {
       expect.objectContaining({
         from: { name: 'Me', address: 'me@gmail.com' },
         to: 'you@example.com',
+        cc: 'copy@example.com',
+        bcc: 'hidden@example.com',
         subject: 'Hello',
         text: 'Body',
       }),

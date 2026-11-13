@@ -260,6 +260,9 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(compose.locator('.compose-content')).toContainText(
     '----- 原邮件 -----',
   )
+  await expect(compose.locator('.compose-attachments')).toContainText(
+    '报告.txt',
+  )
   await compose.getByRole('button', { name: '取消', exact: true }).click()
   await expect
     .poll(async () => {
@@ -280,6 +283,9 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
       .locator('.compose-field', { hasText: '主题' })
       .locator('input'),
   ).toHaveValue('Fwd: 最新验证码')
+  await expect(compose.locator('.compose-attachments')).toContainText(
+    '报告.txt',
+  )
   await compose.getByRole('button', { name: '取消', exact: true }).click()
 
   await expect(mail.locator('.mail-attachment-summary')).toHaveText(
@@ -365,6 +371,109 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
       return snapshot.ok ? snapshot.value.mailCompose.open : true
     })
     .toBe(false)
+})
+
+test('草稿自动保存、继续编辑与删除', async () => {
+  await mail.locator('.mail-folder', { hasText: '收件箱' }).first().click()
+  await mail.getByRole('button', { name: '新建邮件' }).click()
+  await expect(compose.locator('.compose-surface')).toBeVisible()
+  const to = compose
+    .locator('.compose-field', { hasText: '收件人' })
+    .locator('input')
+  await to.fill('draft@example.com')
+  await compose
+    .locator('.compose-field', { hasText: '主题' })
+    .locator('input')
+    .fill('草稿自动保存')
+  await compose.locator('.compose-content').click()
+  await compose.locator('.compose-content').pressSequentially('草稿正文')
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.mail.drafts.some(
+            (draft) => draft.subject === '草稿自动保存',
+          )
+        : false
+    })
+    .toBe(true)
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailCompose.open : true
+    })
+    .toBe(false)
+  await mail.locator('.mail-folder-drafts').first().click()
+  await expect(mail.locator('.mail-list-head')).toContainText('草稿')
+  const draft = mail.locator('.mail-draft-row', { hasText: '草稿自动保存' })
+  await expect(draft).toHaveCount(1)
+  await draft.click()
+  await expect(compose.locator('.compose-surface')).toBeVisible()
+  await expect(
+    compose
+      .locator('.compose-field', { hasText: '收件人' })
+      .locator('input'),
+  ).toHaveValue('draft@example.com')
+  await expect(compose.locator('.compose-content')).toContainText('草稿正文')
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
+  await mail.locator('.mail-folder-drafts').first().click()
+  await expect(mail.locator('.mail-draft-row')).not.toHaveCount(0)
+  await mail
+    .locator('.mail-draft-row', { hasText: '草稿自动保存' })
+    .getByRole('button', { name: '删除草稿' })
+    .click()
+  await expect(
+    mail.locator('.mail-draft-row', { hasText: '草稿自动保存' }),
+  ).toHaveCount(0)
+})
+
+test('邮件列表支持 Delete 和 Backspace 删除并进入确认', async () => {
+  await mail.locator('.mail-folder', { hasText: '收件箱' }).first().click()
+  await application.evaluate(({ dialog }) => {
+    const state = globalThis as typeof globalThis & {
+      __mailDeleteCalls: number
+    }
+    state.__mailDeleteCalls = 0
+    dialog.showMessageBox = async () => {
+      state.__mailDeleteCalls += 1
+      return { response: 0, checkboxChecked: false }
+    }
+  })
+  const message = mail.locator('.mail-message').first()
+  await message.focus()
+  await message.press('Delete')
+  await expect
+    .poll(() =>
+      application.evaluate(
+        () =>
+          (globalThis as typeof globalThis & { __mailDeleteCalls: number })
+            .__mailDeleteCalls,
+      ),
+    )
+    .toBe(1)
+  await message.focus()
+  await message.press('Backspace')
+  await expect
+    .poll(() =>
+      application.evaluate(
+        () =>
+          (globalThis as typeof globalThis & { __mailDeleteCalls: number })
+            .__mailDeleteCalls,
+      ),
+    )
+    .toBe(2)
+})
+
+test('邮件列表支持批量选择', async () => {
+  await mail.locator('.mail-folder', { hasText: '收件箱' }).first().click()
+  const checks = mail.locator('.mail-check')
+  await expect(checks).toHaveCount(2)
+  await checks.nth(0).click()
+  await checks.nth(1).click()
+  await expect(mail.locator('.mail-batch')).toContainText('已选 2 封')
+  await mail.getByRole('button', { name: '取消选择' }).click()
+  await expect(mail.locator('.mail-batch')).toHaveCount(0)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {

@@ -1149,6 +1149,62 @@ footer button {
   width: 10px;
   height: 10px;
 }
+.toast-surface.has-alert {
+  pointer-events: auto;
+}
+.mail-alert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 114px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-stage);
+  cursor: pointer;
+  text-align: center;
+  animation: bubble-rise 240ms cubic-bezier(0.2, 1.35, 0.4, 1) both;
+}
+.mail-alert:hover {
+  border-color: var(--color-brand-ink);
+}
+.mail-alert-sender {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-alert-code {
+  color: var(--color-brand-ink);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  line-height: 1.15;
+}
+.mail-alert-subject {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+}
+.mail-alert-hint {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-alert {
+    animation: none;
+  }
+}
 @keyframes bubble-rise {
   from {
     opacity: 0;

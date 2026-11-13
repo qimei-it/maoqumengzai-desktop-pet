@@ -16,6 +16,7 @@ import {
   mailHelpUrls,
   mailRecipientError,
   mailUnreadTotal,
+  formatMailBadge,
   normalizeMailSecret,
 } from '../../src/shared/mail'
 
@@ -111,11 +112,33 @@ describe('mail database', () => {
         },
       ],
     })
-    expect(db.pruneMessages(now - 30 * 86_400_000)).toEqual([
+    expect(db.pruneMessages(now - 30 * 86_400_000, 0)).toEqual([
       { accountId: account.id, folder: 'INBOX', uid: 1 },
     ])
     expect(db.listMessages(account.id).map((item) => item.uid)).toEqual([2])
     expect(db.message(account.id, 'INBOX', 1)).toBeUndefined()
+    db.close()
+  })
+
+  test('keeps the newest page when a folder is older than retention', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: '163', email: 'sent@163.com' })
+    const now = Date.now()
+    db.upsertMessages(
+      account.id,
+      '已发送',
+      Array.from({ length: 52 }, (_, index) => ({
+        uid: 100 + index,
+        subject: `旧邮件 ${index}`,
+        date: now - (400 + index) * 86_400_000,
+        unread: false,
+        hasAttachments: false,
+      })),
+    )
+    const removed = db.pruneMessages(now - 30 * 86_400_000, 50)
+    expect(removed).toHaveLength(2)
+    expect(db.countMessages(account.id, '已发送')).toBe(50)
     db.close()
   })
 
@@ -157,6 +180,36 @@ describe('mail database', () => {
       unread: 2,
       total: 8,
     })
+    db.close()
+  })
+
+  test('stores drafts with attachments and removes them', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: '163', email: 'd@163.com' })
+    const draft = db.saveDraft({
+      id: 'b84f3e6a-1b1a-4c2a-9d63-2f0f3f6b8d10',
+      accountId: account.id,
+      to: 'you@example.com',
+      cc: '',
+      bcc: '',
+      subject: '草稿主题',
+      bodyText: '正文',
+      bodyHtml: '<div>正文</div>',
+      attachments: [
+        { path: '/tmp/report.pdf', name: 'report.pdf', size: 12 },
+      ],
+    })
+    expect(draft.subject).toBe('草稿主题')
+    expect(db.listDrafts(account.id)[0]).toMatchObject({
+      id: draft.id,
+      to: 'you@example.com',
+      subject: '草稿主题',
+      attachmentCount: 1,
+    })
+    expect(db.draft(draft.id)?.attachments[0].name).toBe('report.pdf')
+    db.removeDraft(draft.id)
+    expect(db.listDrafts()).toHaveLength(0)
     db.close()
   })
 
@@ -293,6 +346,14 @@ describe('mail unread total', () => {
   test('sums unread counts across accounts', () => {
     expect(mailUnreadTotal([{ unread: 2 }, { unread: 3 }])).toBe(5)
     expect(mailUnreadTotal([])).toBe(0)
+  })
+
+  test('caps the unread badge at 99+', () => {
+    expect(formatMailBadge(0)).toBe('')
+    expect(formatMailBadge(1)).toBe('1')
+    expect(formatMailBadge(99)).toBe('99')
+    expect(formatMailBadge(100)).toBe('99+')
+    expect(formatMailBadge(1200)).toBe('99+')
   })
 
   test('uses the official help links for each provider', () => {

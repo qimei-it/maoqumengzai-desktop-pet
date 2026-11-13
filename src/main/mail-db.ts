@@ -8,6 +8,9 @@ import type {
   MailAccountStatus,
   MailAttachmentInfo,
   MailAuthType,
+  MailDraft,
+  MailDraftAttachment,
+  MailDraftSummary,
   MailFolder,
   MailFolderKind,
   MailMessageDetail,
@@ -124,6 +127,20 @@ export class MailDatabase {
         name TEXT,
         last_used_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS mail_drafts (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
+        to_addr TEXT NOT NULL DEFAULT '',
+        cc_addr TEXT NOT NULL DEFAULT '',
+        bcc_addr TEXT NOT NULL DEFAULT '',
+        subject TEXT NOT NULL DEFAULT '',
+        body_text TEXT NOT NULL DEFAULT '',
+        body_html TEXT NOT NULL DEFAULT '',
+        attachments TEXT NOT NULL DEFAULT '[]',
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS mail_drafts_updated
+        ON mail_drafts(account_id, updated_at DESC);
       CREATE TABLE IF NOT EXISTS mail_sync_state (
         account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
         folder TEXT NOT NULL,
@@ -341,18 +358,30 @@ export class MailDatabase {
   /** Removes cached messages older than the cutoff and returns their keys. */
   pruneMessages(
     olderThan: number,
+    keepPerFolder = 500,
   ): Array<{ accountId: string; folder: string; uid: number }> {
+    // Retention trims the long tail, but never empties a folder: keep the
+    // newest cached page(s) so old folders and "load more" remain usable.
     const rows = this.db
       .prepare(
-        `SELECT account_id, folder, uid FROM mail_messages
-         WHERE COALESCE(date, cached_at) < ?`,
+        `SELECT account_id, folder, uid, COALESCE(date, cached_at) AS stamp
+         FROM mail_messages
+         ORDER BY account_id ASC, folder ASC, stamp DESC, uid DESC`,
       )
-      .all(olderThan) as unknown as Array<{
+      .all() as unknown as Array<{
       account_id: string
       folder: string
       uid: number
+      stamp: number
     }>
-    if (!rows.length) return []
+    const rank = new Map<string, number>()
+    const selected = rows.filter((row) => {
+      const key = `${row.account_id}\u0000${row.folder}`
+      const position = (rank.get(key) ?? 0) + 1
+      rank.set(key, position)
+      return row.stamp < olderThan && position > keepPerFolder
+    })
+    if (!selected.length) return []
     const deleteAttachments = this.db.prepare(
       'DELETE FROM mail_attachments WHERE account_id = ? AND folder = ? AND uid = ?',
     )
@@ -364,7 +393,7 @@ export class MailDatabase {
     )
     this.db.exec('BEGIN')
     try {
-      for (const row of rows) {
+      for (const row of selected) {
         deleteAttachments.run(row.account_id, row.folder, row.uid)
         deleteCodes.run(row.account_id, row.folder, row.uid)
         deleteMessage.run(row.account_id, row.folder, row.uid)
@@ -374,7 +403,7 @@ export class MailDatabase {
       this.db.exec('ROLLBACK')
       throw error
     }
-    return rows.map((row) => ({
+    return selected.map((row) => ({
       accountId: row.account_id,
       folder: row.folder,
       uid: row.uid,
@@ -539,6 +568,138 @@ export class MailDatabase {
       )
       .get(accountId, folder) as unknown as { count: number }
     return row.count
+  }
+
+  hasMessage(accountId: string, folder: string, uid: number): boolean {
+    return Boolean(
+      this.db
+        .prepare(
+          'SELECT 1 FROM mail_messages WHERE account_id = ? AND folder = ? AND uid = ?',
+        )
+        .get(accountId, folder, uid),
+    )
+  }
+
+  saveDraft(input: {
+    id: string
+    accountId: string
+    to: string
+    cc: string
+    bcc: string
+    subject: string
+    bodyText: string
+    bodyHtml: string
+    attachments: MailDraftAttachment[]
+  }): MailDraft {
+    this.db
+      .prepare(
+        `INSERT INTO mail_drafts
+          (id, account_id, to_addr, cc_addr, bcc_addr, subject,
+           body_text, body_html, attachments, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           account_id = excluded.account_id,
+           to_addr = excluded.to_addr,
+           cc_addr = excluded.cc_addr,
+           bcc_addr = excluded.bcc_addr,
+           subject = excluded.subject,
+           body_text = excluded.body_text,
+           body_html = excluded.body_html,
+           attachments = excluded.attachments,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        input.id,
+        input.accountId,
+        input.to,
+        input.cc,
+        input.bcc,
+        input.subject,
+        input.bodyText,
+        input.bodyHtml,
+        JSON.stringify(input.attachments),
+        Date.now(),
+      )
+    return this.draft(input.id)!
+  }
+
+  draft(id: string): MailDraft | undefined {
+    const row = this.db
+      .prepare('SELECT * FROM mail_drafts WHERE id = ?')
+      .get(id) as unknown as
+      | {
+          id: string
+          account_id: string
+          to_addr: string
+          cc_addr: string
+          bcc_addr: string
+          subject: string
+          body_text: string
+          body_html: string
+          attachments: string
+          updated_at: number
+        }
+      | undefined
+    if (!row) return undefined
+    return {
+      id: row.id,
+      accountId: row.account_id,
+      to: row.to_addr,
+      cc: row.cc_addr,
+      bcc: row.bcc_addr,
+      subject: row.subject,
+      bodyText: row.body_text,
+      bodyHtml: row.body_html,
+      attachments: this.draftAttachments(row.attachments),
+      updatedAt: row.updated_at,
+    }
+  }
+
+  listDrafts(accountId?: string): MailDraftSummary[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, account_id, to_addr, subject, attachments, updated_at
+         FROM mail_drafts
+         ${accountId ? 'WHERE account_id = ?' : ''}
+         ORDER BY updated_at DESC`,
+      )
+      .all(...(accountId ? [accountId] : [])) as unknown as Array<{
+      id: string
+      account_id: string
+      to_addr: string
+      subject: string
+      attachments: string
+      updated_at: number
+    }>
+    return rows.map((row) => ({
+      id: row.id,
+      accountId: row.account_id,
+      to: row.to_addr,
+      subject: row.subject,
+      attachmentCount: this.draftAttachments(row.attachments).length,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  removeDraft(id: string): void {
+    this.db.prepare('DELETE FROM mail_drafts WHERE id = ?').run(id)
+  }
+
+  private draftAttachments(value: string): MailDraftAttachment[] {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (!Array.isArray(parsed)) return []
+      return parsed.filter(
+        (item): item is MailDraftAttachment =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as MailDraftAttachment).path === 'string' &&
+          typeof (item as MailDraftAttachment).name === 'string' &&
+          typeof (item as MailDraftAttachment).size === 'number',
+      )
+    } catch {
+      return []
+    }
   }
 
   oldestUid(accountId: string, folder = 'INBOX'): number | undefined {

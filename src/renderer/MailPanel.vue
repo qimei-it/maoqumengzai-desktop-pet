@@ -6,6 +6,7 @@ import {
   CornerUpRight,
   FileText,
   Folder,
+  FolderInput,
   Inbox,
   LoaderCircle,
   Mail,
@@ -16,11 +17,16 @@ import {
   Search,
   Send,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
+  X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
+  formatMailBadge,
   mailAccountLabel,
+  mailLocalDraftsFolder,
+  type MailDraftSummary,
   type MailFolderKind,
   type MailMessageSummary,
 } from '../shared/mail'
@@ -61,7 +67,42 @@ const attachmentTotal = computed(() =>
   ),
 )
 const messages = computed(() => panel.value?.messages ?? [])
+const localDrafts = computed(() =>
+  panel.value?.folder === mailLocalDraftsFolder
+    ? panel.value?.drafts ?? []
+    : [],
+)
+const allDrafts = computed(() => props.state?.mail.drafts ?? [])
+function draftsFor(accountId: string): MailDraftSummary[] {
+  return allDrafts.value.filter((draft) => draft.accountId === accountId)
+}
+const inLocalDrafts = computed(
+  () => panel.value?.folder === mailLocalDraftsFolder,
+)
+const currentFolderKind = computed<MailFolderKind>(() => {
+  const id = accountId.value
+  if (!id || inLocalDrafts.value) return 'drafts'
+  return (
+    foldersFor(id).find((folder) => folder.path === panel.value?.folder)
+      ?.kind ?? 'other'
+  )
+})
+const inTrash = computed(() => currentFolderKind.value === 'trash')
+const inJunk = computed(() => currentFolderKind.value === 'junk')
+const moveTargets = computed(() => {
+  const id = accountId.value
+  if (!id) return []
+  return foldersFor(id).filter(
+    (folder) =>
+      folder.path !== panel.value?.folder &&
+      folder.kind !== 'drafts' &&
+      folder.path !== mailLocalDraftsFolder,
+  )
+})
+const selectedUids = ref<number[]>([])
+const selectedCount = computed(() => selectedUids.value.length)
 const currentFolderName = computed(() => {
+  if (inLocalDrafts.value) return '草稿'
   const id = accountId.value
   if (!id) return '收件箱'
   return (
@@ -109,14 +150,98 @@ function selectAccount(id: string): void {
   emit('command', { type: 'mail-open', accountId: id })
 }
 function selectFolder(accountId: string, folder: string): void {
+  selectedUids.value = []
   emit('command', {
     type: 'mail-folder',
     accountId,
     folder,
   })
 }
-function selectMessage(message: MailMessageSummary): void {
+function selectLocalDrafts(accountId: string): void {
+  selectFolder(accountId, mailLocalDraftsFolder)
+}
+function selectMessage(
+  message: MailMessageSummary,
+  event?: Event,
+): void {
+  if (event) (event.currentTarget as HTMLElement | null)?.focus()
   emit('command', { type: 'mail-select', uid: message.uid })
+}
+function toggleSelected(uid: number): void {
+  selectedUids.value = selectedUids.value.includes(uid)
+    ? selectedUids.value.filter((item) => item !== uid)
+    : [...selectedUids.value, uid]
+}
+function clearSelected(): void {
+  selectedUids.value = []
+}
+function batchRead(unread: boolean): void {
+  if (!selectedUids.value.length) return
+  emit('command', {
+    type: 'mail-batch-read',
+    uids: [...selectedUids.value],
+    unread,
+  })
+  clearSelected()
+}
+function batchDelete(): void {
+  if (!selectedUids.value.length) return
+  emit('command', {
+    type: 'mail-batch-delete',
+    uids: [...selectedUids.value],
+  })
+  clearSelected()
+}
+function batchMove(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value
+  ;(event.target as HTMLSelectElement).value = ''
+  if (!value || !selectedUids.value.length) return
+  emit('command', {
+    type: 'mail-batch-move',
+    uids: [...selectedUids.value],
+    folder: value,
+  })
+  clearSelected()
+}
+function deleteMessage(message: MailMessageSummary): void {
+  emit('command', { type: 'mail-delete', uid: message.uid })
+}
+function onMessageKeydown(
+  message: MailMessageSummary,
+  event: KeyboardEvent,
+): void {
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return
+  event.preventDefault()
+  event.stopPropagation()
+  deleteMessage(message)
+}
+function moveMessage(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value
+  ;(event.target as HTMLSelectElement).value = ''
+  if (!value || !selected.value) return
+  emit('command', {
+    type: 'mail-move',
+    uid: selected.value.uid,
+    folder: value,
+  })
+}
+function spamMessage(): void {
+  if (!selected.value) return
+  emit('command', {
+    type: 'mail-spam',
+    uid: selected.value.uid,
+    spam: !inJunk.value,
+  })
+}
+function openDraft(draft: MailDraftSummary): void {
+  emit('command', {
+    type: 'mail-compose-open',
+    accountId: draft.accountId,
+    draftId: draft.id,
+  })
+}
+function removeDraft(draft: MailDraftSummary): void {
+  emit('command', { type: 'mail-draft-delete', id: draft.id })
 }
 function refresh(): void {
   emit('command', { type: 'mail-refresh' })
@@ -157,12 +282,24 @@ function quotedBody(heading: string): string {
     detail.date ? formatMailDateTime(detail.date) : ''
   }\n\n${plainBody()}`
 }
+function draftAttachments() {
+  const detail = selected.value
+  if (!detail) return []
+  return detail.attachments
+    .filter((attachment) => Boolean(attachment.localPath))
+    .map((attachment) => ({
+      path: attachment.localPath!,
+      name: attachment.filename,
+      size: attachment.size,
+    }))
+}
 function reply(): void {
   const detail = selected.value
   if (!detail?.fromAddress) {
     pushToast('原邮件没有可回复的发件人。', 'error')
     return
   }
+  const attachments = draftAttachments()
   emit('command', {
     type: 'mail-compose-open',
     accountId: accountId.value,
@@ -172,12 +309,14 @@ function reply(): void {
         ? detail.subject
         : `Re: ${detail.subject}`,
       body: quotedBody('原邮件'),
+      ...(attachments.length ? { attachments } : {}),
     },
   })
 }
 function forward(): void {
   const detail = selected.value
   if (!detail) return
+  const attachments = draftAttachments()
   emit('command', {
     type: 'mail-compose-open',
     accountId: accountId.value,
@@ -186,6 +325,7 @@ function forward(): void {
         ? detail.subject
         : `Fwd: ${detail.subject}`,
       body: quotedBody('转发邮件'),
+      ...(attachments.length ? { attachments } : {}),
     },
   })
 }
@@ -254,6 +394,18 @@ watch(
 )
 onUnmounted(() => {
   if (codeTimer) clearInterval(codeTimer)
+})
+watch(
+  () => `${panel.value?.accountId ?? ''}|${panel.value?.folder ?? ''}`,
+  () => {
+    selectedUids.value = []
+  },
+)
+watch(messages, (list) => {
+  if (!selectedUids.value.length) return
+  const available = new Set(list.map((message) => message.uid))
+  const next = selectedUids.value.filter((uid) => available.has(uid))
+  if (next.length !== selectedUids.value.length) selectedUids.value = next
 })
 watch(
   () => panel.value?.error,
@@ -339,8 +491,26 @@ watch(
                 v-if="item.unread && (state?.mail.config.unreadBadge ?? true)"
                 class="mail-unread"
                 :title="`${item.unread} 封未读`"
-                >{{ item.unread }}</span
+                >{{ formatMailBadge(item.unread) }}</span
               >
+            </button>
+            <button
+              v-if="draftsFor(item.id).length"
+              type="button"
+              class="mail-folder mail-folder-drafts"
+              :class="{
+                active:
+                  item.id === accountId &&
+                  panel?.folder === mailLocalDraftsFolder,
+              }"
+              title="草稿"
+              @click="selectLocalDrafts(item.id)"
+            >
+              <FileText :size="14" :stroke-width="1.8" aria-hidden="true" />
+              <span class="mail-folder-name">草稿</span>
+              <span class="mail-folder-count">{{
+                draftsFor(item.id).length
+              }}</span>
             </button>
             <button
               v-for="folder in foldersFor(item.id)"
@@ -382,6 +552,44 @@ watch(
               @input="onSearch"
             />
           </label>
+          <div v-if="selectedCount" class="mail-batch">
+            <span class="mail-batch-count">已选 {{ selectedCount }} 封</span>
+            <button
+              type="button"
+              class="mail-batch-action"
+              @click="batchRead(true)"
+            >
+              标记已读
+            </button>
+            <button
+              type="button"
+              class="mail-batch-action danger"
+              @click="batchDelete"
+            >
+              删除
+            </button>
+            <label class="mail-batch-move">
+              <span>移动</span>
+              <select aria-label="批量移动到" @change="batchMove">
+                <option value="">选择文件夹</option>
+                <option
+                  v-for="folder in moveTargets"
+                  :key="folder.path"
+                  :value="folder.path"
+                >
+                  {{ folder.name }}
+                </option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="mail-batch-clear"
+              aria-label="取消选择"
+              @click="clearSelected"
+            >
+              <X :size="13" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
           <div v-if="panel?.error" class="mail-error" role="alert">
             <span>{{ panel.error }}</span>
             <div class="mail-error-actions">
@@ -401,25 +609,72 @@ watch(
               </button>
             </div>
           </div>
-          <button
+          <div
             v-for="message in messages"
             :key="message.uid"
-            type="button"
-            class="mail-message"
-            :class="{ active: selected?.uid === message.uid }"
-            @click="selectMessage(message)"
+            class="mail-message-row"
+            :class="{ checked: selectedUids.includes(message.uid) }"
           >
-            <span class="mail-message-top">
-              <span class="mail-from">{{ message.fromName || message.fromAddress || '未知发件人' }}</span>
-              <span class="mail-date">{{ formatMailListDate(message.date) }}</span>
+            <input
+              class="mail-check"
+              type="checkbox"
+              :checked="selectedUids.includes(message.uid)"
+              :aria-label="`选择 ${message.subject}`"
+              @click.stop="toggleSelected(message.uid)"
+            />
+            <button
+              type="button"
+              class="mail-message"
+              :class="{ active: selected?.uid === message.uid }"
+              @click="selectMessage(message, $event)"
+              @keydown="onMessageKeydown(message, $event)"
+            >
+              <span class="mail-message-top">
+                <span class="mail-from">{{ message.fromName || message.fromAddress || '未知发件人' }}</span>
+                <span class="mail-date">{{ formatMailListDate(message.date) }}</span>
+              </span>
+              <span class="mail-subject">
+                <span v-if="message.unread" class="mail-dot" />
+                {{ message.subject }}
+                <Paperclip v-if="message.hasAttachments" :size="12" :stroke-width="2" aria-hidden="true" />
+              </span>
+              <span v-if="message.snippet" class="mail-snippet">{{ message.snippet }}</span>
+            </button>
+          </div>
+          <div
+            v-for="draft in localDrafts"
+            :key="draft.id"
+            class="mail-draft-row"
+            role="button"
+            tabindex="0"
+            @click="openDraft(draft)"
+            @keydown.enter.prevent="openDraft(draft)"
+          >
+            <PenLine :size="14" :stroke-width="2" aria-hidden="true" />
+            <span class="mail-draft-meta">
+              <span class="mail-draft-to">{{
+                draft.to || '未填写收件人'
+              }}</span>
+              <span class="mail-draft-subject">{{
+                draft.subject || '(无主题)'
+              }}</span>
             </span>
-            <span class="mail-subject">
-              <span v-if="message.unread" class="mail-dot" />
-              {{ message.subject }}
-              <Paperclip v-if="message.hasAttachments" :size="12" :stroke-width="2" aria-hidden="true" />
-            </span>
-            <span v-if="message.snippet" class="mail-snippet">{{ message.snippet }}</span>
-          </button>
+            <button
+              type="button"
+              class="mail-draft-remove"
+              title="删除草稿"
+              aria-label="删除草稿"
+              @click.stop="removeDraft(draft)"
+            >
+              <Trash2 :size="13" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
+          <div
+            v-if="!panel?.loading && !messages.length && !localDrafts.length"
+            class="mail-empty"
+          >
+            {{ panel?.query ? '没有匹配的邮件' : '暂无邮件' }}
+          </div>
           <button
             v-if="panel?.hasMore"
             type="button"
@@ -429,9 +684,6 @@ watch(
           >
             {{ loadingMore ? '正在加载…' : '加载更多' }}
           </button>
-          <div v-if="!panel?.loading && !messages.length" class="mail-empty">
-            {{ panel?.query ? '没有匹配的邮件' : '暂无邮件' }}
-          </div>
         </section>
         <article class="mail-reader">
           <div v-if="readerLoading" class="mail-loading" role="status">
@@ -474,11 +726,38 @@ watch(
                   >
                     <Archive :size="15" :stroke-width="2" aria-hidden="true" />
                   </button>
+                  <label class="mail-reader-move" title="移动到文件夹">
+                    <FolderInput :size="15" :stroke-width="2" aria-hidden="true" />
+                    <select aria-label="移动到文件夹" @change="moveMessage">
+                      <option value="">移动</option>
+                      <option
+                        v-for="folder in moveTargets"
+                        :key="folder.path"
+                        :value="folder.path"
+                      >
+                        {{ folder.name }}
+                      </option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    class="mail-reader-icon"
+                    :aria-label="inJunk ? '移出垃圾邮件' : '标记为垃圾邮件'"
+                    :title="inJunk ? '移出垃圾邮件' : '标记为垃圾邮件'"
+                    @click="spamMessage"
+                  >
+                    <component
+                      :is="inJunk ? ShieldCheck : ShieldAlert"
+                      :size="15"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
                   <button
                     type="button"
                     class="mail-reader-icon danger"
-                    aria-label="删除"
-                    title="删除"
+                    :aria-label="inTrash ? '永久删除' : '删除'"
+                    :title="inTrash ? '永久删除' : '删除'"
                     @click="deleteMail"
                   >
                     <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
@@ -765,6 +1044,8 @@ watch(
 }
 .mail-message {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
   gap: 3px;
   padding: 9px 10px;
@@ -774,6 +1055,116 @@ watch(
   color: var(--color-ink);
   font: inherit;
   text-align: left;
+}
+.mail-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 3px;
+}
+.mail-check {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin: 12px 0 0 2px;
+  accent-color: var(--color-brand-ink);
+  cursor: pointer;
+}
+.mail-batch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: none;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+}
+.mail-batch-count {
+  flex: 1;
+  min-width: 64px;
+  font-weight: 600;
+}
+.mail-batch-action,
+.mail-batch-clear {
+  min-height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+}
+.mail-batch-action.danger {
+  color: var(--color-danger);
+}
+.mail-batch-move {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.mail-batch-move select {
+  max-width: 84px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-caption);
+}
+.mail-draft-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 8px;
+  border-radius: var(--radius-control);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.mail-draft-row:hover {
+  background: var(--color-fill-secondary);
+}
+.mail-draft-meta {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.mail-draft-to {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-draft-subject {
+  overflow: hidden;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-draft-remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.mail-draft-remove:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 .mail-message:hover,
 .mail-message.active {
@@ -919,6 +1310,34 @@ watch(
 .mail-reader-icon.danger:hover {
   background: var(--color-danger-soft);
   color: var(--color-danger);
+}
+.mail-reader-move {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 26px;
+  padding: 0 2px 0 5px;
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.mail-reader-move:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.mail-reader-move select {
+  width: 54px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  cursor: pointer;
+}
+.mail-reader-move select:focus {
+  width: 88px;
+  outline: none;
 }
 .mail-read-toggle {
   flex: none;
