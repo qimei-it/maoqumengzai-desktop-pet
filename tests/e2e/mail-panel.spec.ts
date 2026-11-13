@@ -297,6 +297,21 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
     compose.getByRole('button', { name: '加粗', exact: true }),
   ).toBeVisible()
   await expect(
+    compose.getByRole('button', { name: '增加缩进', exact: true }),
+  ).toBeVisible()
+  await expect(
+    compose.getByRole('button', { name: '减少缩进', exact: true }),
+  ).toBeVisible()
+  const editor = compose.locator('.compose-content')
+  await editor.click()
+  await editor.press('Tab')
+  await editor.pressSequentially('x')
+  expect(
+    await editor.evaluate((element) =>
+      element.textContent?.startsWith('  x'),
+    ),
+  ).toBe(true)
+  await expect(
     compose.locator('#mail-contact-options option'),
   ).not.toHaveCount(0)
   await compose.getByRole('button', { name: '发送', exact: true }).click()

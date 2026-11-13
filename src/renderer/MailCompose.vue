@@ -4,6 +4,8 @@ import {
   Bold,
   Italic,
   List as ListIcon,
+  ListIndentDecrease,
+  ListIndentIncrease,
   ListOrdered,
   Paperclip,
   Redo2,
@@ -93,6 +95,15 @@ async function chooseAttachments(): Promise<void> {
 }
 function syncBody(): void {
   bodyHtml.value = editor.value?.innerHTML ?? ''
+}
+function indentOnTab(event: KeyboardEvent): void {
+  editor.value?.focus()
+  if (event.shiftKey) {
+    document.execCommand('outdent', false)
+  } else {
+    document.execCommand('insertText', false, '  ')
+  }
+  syncBody()
 }
 function format(command: string): void {
   editor.value?.focus()
@@ -275,6 +286,33 @@ function size(bytes: number): string {
           >
             <ListOrdered :size="14" :stroke-width="2" aria-hidden="true" />
           </button>
+          <span class="compose-format-separator" />
+          <button
+            type="button"
+            class="compose-format-button"
+            title="增加缩进"
+            aria-label="增加缩进"
+            @mousedown.prevent="format('indent')"
+          >
+            <ListIndentIncrease
+              :size="14"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            class="compose-format-button"
+            title="减少缩进"
+            aria-label="减少缩进"
+            @mousedown.prevent="format('outdent')"
+          >
+            <ListIndentDecrease
+              :size="14"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+          </button>
         </div>
         <div
           ref="editor"
@@ -286,6 +324,7 @@ function size(bytes: number): string {
           data-placeholder="正文"
           spellcheck="false"
           @input="syncBody"
+          @keydown.tab.prevent="indentOnTab"
         />
         <ul v-if="attachments.length" class="compose-attachments">
           <li v-for="attachment in attachments" :key="attachment.id">
@@ -429,6 +468,7 @@ function size(bytes: number): string {
   font: inherit;
   font-size: var(--font-size-body);
   line-height: 1.6;
+  white-space: pre-wrap;
   outline: none;
 }
 .compose-content::-webkit-scrollbar {
