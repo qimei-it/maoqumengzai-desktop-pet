@@ -33,6 +33,11 @@ export type MailState = {
 
 export const mailDisplayNameLimit = 40
 
+/** App passwords are shown in grouped blocks; mail clients use them unspaced. */
+export function normalizeMailSecret(value: string): string {
+  return value.replace(/[\s\u00a0]+/g, '')
+}
+
 /** Returns a user-facing error for an invalid display name, if any. */
 export function mailDisplayNameError(value: string): string | undefined {
   const name = value.trim()

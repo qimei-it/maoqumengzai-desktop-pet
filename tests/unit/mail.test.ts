@@ -14,6 +14,7 @@ import {
   mailDisplayNameLimit,
   mailHelpUrls,
   mailUnreadTotal,
+  normalizeMailSecret,
 } from '../../src/shared/mail'
 
 const directories: string[] = []
@@ -212,6 +213,15 @@ describe('mail unread total', () => {
     expect(mailHelpUrls.qq).toContain('wx.mail.qq.com')
     expect(mailHelpUrls['163']).toContain('help.mail.163.com')
     expect(mailHelpUrls.gmail).toContain('knowledge.workspace.google.com')
+  })
+
+  test('removes spaces from Google app passwords', () => {
+    expect(normalizeMailSecret('abcd efgh ijkl mnop')).toBe(
+      'abcdefghijklmnop',
+    )
+    expect(normalizeMailSecret('abcd\u00a0efgh\nijkl\tmnop')).toBe(
+      'abcdefghijklmnop',
+    )
   })
 
   test('validates display name length and control characters', () => {

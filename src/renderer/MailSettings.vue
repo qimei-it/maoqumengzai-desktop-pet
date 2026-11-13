@@ -18,6 +18,7 @@ import {
   mailDisplayNameError,
   mailDisplayNameLimit,
   mailProviderLabels,
+  normalizeMailSecret,
   mailRetentionOptions,
   mailSyncOptions,
 } from '../shared/mail'
@@ -115,7 +116,7 @@ function submit(): void {
     pushToast(nameError, 'error')
     return
   }
-  const secret = formSecret.value.replace(/\s+/g, '')
+  const secret = normalizeMailSecret(formSecret.value)
   const displayName = formName.value.trim()
   if (reauthorizeId.value) {
     emit('command', {
@@ -183,6 +184,10 @@ watch(formName, (value) => {
   const chars = Array.from(value)
   if (chars.length > mailDisplayNameLimit)
     formName.value = chars.slice(0, mailDisplayNameLimit).join('')
+})
+watch(formSecret, (value) => {
+  const normalized = normalizeMailSecret(value)
+  if (normalized !== value) formSecret.value = normalized
 })
 watch(
   () => props.mail?.error,

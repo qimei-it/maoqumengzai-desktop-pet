@@ -537,6 +537,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await expect(
     profile.getByRole("heading", { name: "宠物档案" }),
   ).toBeVisible();
+  await expect.poll(settingsVisible).toBe(true);
   await profile.evaluate(() =>
     window.mqmz!.command({ type: "profile-close" }),
   );
@@ -2831,6 +2832,12 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
   await displayNameInput.fill("麻".repeat(45));
   await expect(displayNameInput).toHaveValue("麻".repeat(40));
   await displayNameInput.fill("");
+  const secretInput = settings
+    .locator(".mail-field", { hasText: "授权码" })
+    .locator("input");
+  await secretInput.fill("abcd efgh ijkl mnop");
+  await expect(secretInput).toHaveValue("abcdefghijklmnop");
+  await secretInput.fill("");
   await expect(
     settings.getByRole("button", { name: "取消", exact: true }),
   ).toHaveCSS("height", "28px");
