@@ -268,6 +268,16 @@ test("settings panel updates theme, scale, and bubbles", async () => {
 
   await settings.getByRole("button", { name: "剪贴板", exact: true }).click();
   await expect(settings.getByLabel("剪贴板记录上限")).toHaveValue("100");
+  await expect(
+    settings.locator(".clip-setting-row > span:first-child"),
+  ).toHaveText([
+    "监听剪贴板",
+    "字符上限",
+    "记录上限",
+    "保留期限",
+    "剪贴板",
+    "忽略敏感内容",
+  ]);
   await settings.getByRole("button", { name: "文件置物架", exact: true }).click();
   await expect(
     settings.getByRole("switch", { name: "截图自动放入置物架" }),
@@ -279,9 +289,21 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await expect(
     settings.getByRole("group", { name: "归档格式" }),
   ).toHaveCount(0);
+  const lastShelfRows = await settings
+    .locator(".settings-content > .settings-row")
+    .evaluateAll((rows) =>
+      rows.slice(-2).map((row) => ({
+        label: row.querySelector(".settings-label")?.textContent?.trim(),
+        border: getComputedStyle(row).borderBottomWidth,
+      })),
+    );
+  expect(lastShelfRows).toEqual([
+    { label: "截图目录", border: "1px" },
+    { label: "失效置物架记录", border: "0px" },
+  ]);
   await settings.getByRole("button", { name: "格式转换", exact: true }).click();
   await expect(
-    settings.locator(".engine-section-title").first(),
+    settings.locator(".settings-group-title").first(),
   ).toHaveText("内置引擎");
   const ffmpegCard = settings.locator(".engine-card", { hasText: "FFmpeg" });
   await expect(ffmpegCard).toContainText("来源");
@@ -567,7 +589,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await settings.getByRole("button", { name: "数据", exact: true }).click();
   await expect(
     settings.locator(".settings-row", { hasText: "失效置物架记录" }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await settings
     .locator(".settings-row", { hasText: "缓存" })
     .getByRole("button", { name: "清理", exact: true })

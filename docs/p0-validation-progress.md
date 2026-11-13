@@ -85,6 +85,7 @@
 - 面板层级与窗口控件统一（macOS arm64，2026-11-13）：补全打包归档、邮件、撰写窗口的透明 `body`/`#app` 规则，移除 7px 外边距内多余的不透明背景，面板只保留一层圆角表面；交通灯位置统一由 7px 面板内边距推导并共用 `panelChrome`，邮件窗口补入面板控件配置。原生窗口截图核对归档、邮件、撰写与设置一致；定向 Electron 用例通过；Windows x64 待验证。
 - 跟宠浮层 Mission Control 收口（macOS arm64，2026-11-13）：额度药丸、音乐栏、歌词、音符、音量、眼睛、气泡、提示和专注环统一改用 `configurePetOverlay`，作为桌宠子窗口并保留 `CanJoinAllSpaces`；仅移除 `setHiddenInMissionControl(true)` 仍会被 Mission Control 分开排列，补上 `setParentWindow(pet)` 后额度药丸与桌宠一起缩放并保持相对位置。新增回归测试禁止重新引入 `setHiddenInMissionControl(true)`。Windows 无 Mission Control，相关行为未验证。
 - 置物架拖出修复（macOS arm64，2026-11-13）：`startDrag` 改为同步读取已登记路径并检查存在性，避免等待 `registeredFile()` 导致原生拖拽会话失效；真实 Finder 拖出验证文件落入目标目录。Windows 拖出待平台复验。
+- 设置页分组收口（macOS arm64，2026-11-13）：把“数据”里的剪贴板清空项移到“剪贴板”分区的“保留期限”和“忽略敏感内容”之间；把“失效置物架记录”移到“文件置物架”分区的最后一项，与“截图目录”之间保留分割线，最后一项下方不再画线；同步更新设置与剪贴板 Electron 用例。
 - 本轮先整理并提交当前资料，按 GitHub → GitLab 顺序同步；两个远端已在本地配置。
 - 默认角色先验证布偶猫，继续遵守 2.5D 像素风、无衣物与透明背景要求。
 - 当前样例改为用户先在 ChatGPT App 制作，不启动火山方舟付费生成；生产端火山方舟、积分与资源包交付方案仍按需求基线保留，尚未验证。

@@ -488,20 +488,6 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">失效置物架记录</span>
-              <span class="settings-inline">
-                <span class="settings-value">{{ shelfInvalidCount }} 项</span>
-                <button
-                  type="button"
-                  class="settings-button danger"
-                  :disabled="shelfInvalidCount === 0"
-                  @click="emit('command', { type: 'shelf-clear-invalid' })"
-                >
-                  清理
-                </button>
-              </span>
-            </div>
-            <div class="settings-row">
               <span class="settings-label">缓存</span>
               <button
                 type="button"
@@ -510,20 +496,6 @@ function onEscape(): void {
               >
                 清理
               </button>
-            </div>
-            <div class="settings-row">
-              <span class="settings-label">剪贴板</span>
-              <span class="settings-inline">
-                <span class="settings-value">{{ clipboardUnpinnedCount }} 项</span>
-                <button
-                  type="button"
-                  class="settings-button danger"
-                  :disabled="clipboardUnpinnedCount === 0"
-                  @click="emit('command', { type: 'clipboard-clear' })"
-                >
-                  清空
-                </button>
-              </span>
             </div>
             <div class="settings-row">
               <span class="settings-label">回收区</span>
@@ -561,7 +533,9 @@ function onEscape(): void {
           <template v-else-if="section === 'clipboard'">
             <ClipboardSettings
               :config="clipboardConfig"
+              :clear-count="clipboardUnpinnedCount"
               @update="updateClipboardConfig"
+              @clear="emit('command', { type: 'clipboard-clear' })"
             />
           </template>
 
@@ -624,6 +598,20 @@ function onEscape(): void {
               <span class="settings-label">截图目录</span>
               <span class="settings-value settings-path" :title="shelfFolderLabel">
                 {{ shelfFolderLabel }}
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">失效置物架记录</span>
+              <span class="settings-inline">
+                <span class="settings-value">{{ shelfInvalidCount }} 项</span>
+                <button
+                  type="button"
+                  class="settings-button danger"
+                  :disabled="shelfInvalidCount === 0"
+                  @click="emit('command', { type: 'shelf-clear-invalid' })"
+                >
+                  清理
+                </button>
               </span>
             </div>
           </template>

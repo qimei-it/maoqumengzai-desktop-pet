@@ -3,8 +3,14 @@ import { clipboardTextLimit } from '../shared/clipboard'
 import type { ClipboardConfig } from '../shared/clipboard'
 import SelectField from './SelectField.vue'
 
-const props = defineProps<{ config: ClipboardConfig }>()
-const emit = defineEmits<{ update: [patch: Partial<ClipboardConfig>] }>()
+const props = defineProps<{
+  config: ClipboardConfig
+  clearCount?: number
+}>()
+const emit = defineEmits<{
+  update: [patch: Partial<ClipboardConfig>]
+  clear: []
+}>()
 
 const maxOptions = [30, 50, 100, 200, 500]
 const retentionOptions = [
@@ -79,6 +85,20 @@ function changeRetention(event: Event): void {
         </option>
       </SelectField>
     </div>
+    <div v-if="clearCount !== undefined" class="clip-setting-row">
+      <span>剪贴板</span>
+      <span class="clip-setting-actions">
+        <span class="clip-setting-value">{{ clearCount }} 项</span>
+        <button
+          type="button"
+          class="settings-button danger"
+          :disabled="clearCount === 0"
+          @click="emit('clear')"
+        >
+          清空
+        </button>
+      </span>
+    </div>
     <div class="clip-setting-row">
       <span>忽略敏感内容</span>
       <button
@@ -116,6 +136,11 @@ function changeRetention(event: Event): void {
   color: var(--color-muted);
   font-size: var(--font-size-label);
   font-variant-numeric: tabular-nums;
+}
+.clip-setting-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .clip-setting-switch {
   position: relative;
