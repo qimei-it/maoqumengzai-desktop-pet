@@ -205,19 +205,13 @@ export function ringMetrics(
 }
 
 /** Segments are omitted entirely when a provider is not configured. */
+export const quotaBarHeight = 60
+
 export function quotaBarWidth(state: AiQuotaState): number {
   const openai = state.openai.configured
   const deepseek = state.deepseek.configured
   if (openai && deepseek) return 240
-  if (openai || deepseek) return 180
-  return 0
-}
-
-export function quotaBarHeight(state: AiQuotaState): number {
-  const openai = state.openai.configured
-  const deepseek = state.deepseek.configured
-  if (openai && deepseek) return 60
-  if (openai || deepseek) return 70
+  if (openai || deepseek) return 150
   return 0
 }
 

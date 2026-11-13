@@ -16,11 +16,6 @@ const openai = computed(() => quota.value?.openai)
 const deepseek = computed(() => quota.value?.deepseek)
 const showOpenAi = computed(() => Boolean(openai.value?.configured))
 const showDeepSeek = computed(() => Boolean(deepseek.value?.configured))
-const openAiSingle = computed(() => showOpenAi.value && !showDeepSeek.value)
-const deepSeekSingle = computed(() => showDeepSeek.value && !showOpenAi.value)
-const ringSize = computed(() => (openAiSingle.value ? 56 : 46))
-const openAiIconSize = computed(() => (openAiSingle.value ? 17 : 14))
-const deepSeekIconSize = computed(() => (deepSeekSingle.value ? 18 : 15))
 
 function windowValue(
   windows: AiQuotaWindow[] | undefined,
@@ -55,12 +50,12 @@ const deepSeekBalance = computed(() => {
     >
       <span class="quota-ring-wrap">
         <QuotaRings
-          :size="ringSize"
+          :size="46"
           :outer="openAiFiveHour"
           :inner="openAiWeek"
           color="var(--color-provider-openai)"
         />
-        <OpenAiMark class="quota-ring-center" :size="openAiIconSize" />
+        <OpenAiMark class="quota-ring-center" :size="14" />
       </span>
       <div class="quota-copy">
         <span class="quota-values">
@@ -79,7 +74,7 @@ const deepSeekBalance = computed(() => {
         stale: deepseek?.status === 'stale' || deepseek?.status === 'error',
       }"
     >
-      <DeepSeekMark :size="deepSeekIconSize" />
+      <DeepSeekMark :size="15" />
       <span class="quota-balance">{{ deepSeekBalance }}</span>
     </section>
   </main>
@@ -134,24 +129,6 @@ const deepSeekBalance = computed(() => {
 }
 .quota-segment.stale {
   opacity: 0.62;
-}
-.quota-surface.single {
-  padding: 6px 12px;
-}
-.quota-surface.single .quota-segment {
-  height: 56px;
-  gap: 10px;
-}
-.quota-surface.single .quota-ring-wrap {
-  width: 56px;
-  height: 56px;
-}
-.quota-surface.single .quota-values {
-  gap: 3px;
-  font-size: calc(var(--font-size-label) + 1px);
-}
-.quota-surface.single .quota-balance {
-  font-size: calc(var(--font-size-title) + 3px);
 }
 .quota-copy {
   display: flex;

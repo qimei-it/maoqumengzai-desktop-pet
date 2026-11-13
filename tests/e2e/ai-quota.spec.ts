@@ -195,14 +195,7 @@ test("shows both providers, then shrinks and hides as configuration changes", as
       });
       return bounds.width;
     })
-    .toBe(180);
-  const singleHeight = await application.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows().find((item) =>
-      item.getTitle().includes("AI 额度"),
-    )!
-    return window.getBounds().height
-  })
-  expect(singleHeight).toBe(70);
+    .toBe(150);
   await expect(quota.locator(".quota-surface")).not.toContainText("DeepSeek");
 
   await pet.evaluate(() =>
