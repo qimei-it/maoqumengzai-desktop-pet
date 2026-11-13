@@ -1,14 +1,16 @@
 /** Direct SMTP delivery through the mailbox provider's own server. */
 import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
+import type { TLSSocket } from 'node:tls'
 import nodemailer from 'nodemailer'
 import sanitizeHtml from 'sanitize-html'
 import {
-  mailSmtpHosts,
+  mailSmtpServer,
   type MailAccount,
   type MailProvider,
 } from '../shared/mail'
 import { appendMailToSent } from './mail-sync'
+import { createProxySocket, mailProxyUrl } from './mail-proxy'
 
 export type OutgoingAttachment = {
   path: string
@@ -76,7 +78,7 @@ export function smtpErrorMessage(error: unknown): string {
 export async function sendMailMessage(
   mail: OutgoingMail,
 ): Promise<SendMailResult> {
-  const smtp = mailSmtpHosts[mail.account.provider]
+  const smtp = mailSmtpServer(mail.account.provider, mail.account.email)
   const from = mail.account.displayName
     ? { name: mail.account.displayName, address: mail.account.email }
     : mail.account.email
@@ -124,7 +126,9 @@ export async function sendMailMessage(
     const built = await compiler.sendMail(mailOptions)
     const raw = built.message
     if (!Buffer.isBuffer(raw)) throw new Error('邮件内容构建失败。')
-    const transporter = nodemailer.createTransport({
+    const proxy =
+      mail.account.provider === 'gmail' ? mailProxyUrl() : undefined
+    const transportOptions = {
       host: smtp.host,
       port: smtp.port,
       secure: true,
@@ -132,7 +136,26 @@ export async function sendMailMessage(
       connectionTimeout: 20_000,
       greetingTimeout: 20_000,
       socketTimeout: 30_000,
-    })
+    }
+    if (proxy) {
+      Object.assign(transportOptions, {
+        getSocket: (
+          options: { host: string; port: number },
+          callback: (error: Error | null, info?: { connection: TLSSocket }) => void,
+        ) => {
+          createProxySocket(proxy, options.host, options.port)
+            .then((connection) =>
+              callback(null, { connection: connection as TLSSocket }),
+            )
+            .catch((error) =>
+              callback(
+                error instanceof Error ? error : new Error(String(error)),
+              ),
+            )
+        },
+      })
+    }
+    const transporter = nodemailer.createTransport(transportOptions)
     await transporter.sendMail({
       envelope: built.envelope as nodemailer.SendMailOptions['envelope'],
       raw,

@@ -3,8 +3,9 @@ import { ImapFlow, type FetchMessageObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import sanitizeHtml from 'sanitize-html'
 import { detectVerificationCode } from '../shared/mail-code'
+import { mailProxyUrl } from './mail-proxy'
 import {
-  mailProviderHosts,
+  mailImapServer,
   type MailAttachmentInfo,
   type MailFolder,
   type MailFolderKind,
@@ -46,7 +47,8 @@ function providerClient(
   email: string,
   secret: string,
 ): ImapFlow {
-  const server = mailProviderHosts[provider]
+  const server = mailImapServer(provider, email)
+  const proxy = provider === 'gmail' ? mailProxyUrl() : undefined
   return new ImapFlow({
     host: server.host,
     port: server.port,
@@ -54,6 +56,7 @@ function providerClient(
     auth: { user: email, pass: secret },
     logger: false,
     socketTimeout: 20_000,
+    ...(proxy ? { proxy } : {}),
     ...(provider === '163' ? { clientInfo: mailClientInfo } : {}),
   })
 }

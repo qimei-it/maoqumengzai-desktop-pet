@@ -14,6 +14,8 @@ import {
   mailDisplayNameLimit,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
+  mailImapServer,
+  mailSmtpServer,
   mailRecipientError,
   mailUnreadTotal,
   formatMailBadge,
@@ -440,5 +442,22 @@ describe('mail config', () => {
     expect(await loadMailConfig(path, downloads)).toEqual(
       defaultMailConfig(downloads),
     )
+  })
+})
+
+describe('mail server selection', () => {
+  test('uses the 126 hosts for a 126 address under the 163 provider', () => {
+    expect(mailImapServer('163', 'name@126.com')).toEqual({
+      host: 'imap.126.com',
+      port: 993,
+    })
+    expect(mailSmtpServer('163', 'name@126.com')).toEqual({
+      host: 'smtp.126.com',
+      port: 465,
+    })
+    expect(mailImapServer('163', 'name@163.com')).toEqual({
+      host: 'imap.163.com',
+      port: 993,
+    })
   })
 })

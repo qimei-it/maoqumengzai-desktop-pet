@@ -162,6 +162,25 @@ export const mailProviderHosts: Record<
   gmail: { host: 'imap.gmail.com', port: 993 },
 }
 
+/** 163 accounts may use either @163.com or @126.com; both are NetEase. */
+export function mailImapServer(
+  provider: MailProvider,
+  email: string,
+): { host: string; port: number } {
+  if (provider === '163' && email.toLowerCase().endsWith('@126.com'))
+    return { host: 'imap.126.com', port: 993 }
+  return mailProviderHosts[provider]
+}
+
+export function mailSmtpServer(
+  provider: MailProvider,
+  email: string,
+): { host: string; port: number } {
+  if (provider === '163' && email.toLowerCase().endsWith('@126.com'))
+    return { host: 'smtp.126.com', port: 465 }
+  return mailSmtpHosts[provider]
+}
+
 export const mailSyncOptions = [5, 10, 15, 30, 45, 60] as const
 export const mailRetentionOptions = [30, 90, 180, 0] as const
 
