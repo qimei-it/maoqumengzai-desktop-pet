@@ -52,6 +52,7 @@ import catPonder from "./assets/pet/ragdoll/ponder.png";
 import catFocus from "./assets/pet/ragdoll/focus.png";
 import AskPanel from "./AskPanel.vue";
 import MailPanel from "./MailPanel.vue";
+import MailCompose from "./MailCompose.vue";
 import BatchRenamePanel from "./BatchRenamePanel.vue";
 import ConvertPanel from "./ConvertPanel.vue";
 import DonutMenu from "./DonutMenu.vue";
@@ -82,6 +83,8 @@ const bubbleView =
   new URLSearchParams(location.search).get("view") === "bubble";
 const askView = new URLSearchParams(location.search).get("view") === "ask";
 const mailView = new URLSearchParams(location.search).get("view") === "mail";
+const composeView =
+  new URLSearchParams(location.search).get("view") === "compose";
 const convertView =
   new URLSearchParams(location.search).get("view") === "convert";
 const toastView = new URLSearchParams(location.search).get("view") === "toast";
@@ -130,6 +133,7 @@ if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 if (bubbleView) document.title = "毛趣萌仔 · 气泡";
 if (askView) document.title = "毛趣萌仔 · 智能问答";
 if (mailView) document.title = "毛趣萌仔 · 邮件";
+if (composeView) document.title = "毛趣萌仔 · 撰写";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
 if (toastView) document.title = "毛趣萌仔 · 提示";
 if (renameView) document.title = "毛趣萌仔 · 批量重命名";
@@ -1669,6 +1673,11 @@ onUnmounted(() => {
     @command="command"
   />
 
+  <MailCompose
+    v-else-if="composeView"
+    :state="state"
+    @command="command"
+  />
   <MailPanel
     v-else-if="mailView"
     :state="state"

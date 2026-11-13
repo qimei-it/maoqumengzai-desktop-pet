@@ -446,7 +446,15 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('mail-compose-open'),
+      accountId: z.string().uuid().optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal('mail-compose-close') }).strict(),
+  z
+    .object({
       type: z.literal('mail-send'),
+      accountId: z.string().uuid(),
       to: z.string().min(1).max(1000),
       cc: z.string().max(1000).optional(),
       subject: z.string().max(500),

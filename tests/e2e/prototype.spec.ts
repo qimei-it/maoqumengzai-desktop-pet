@@ -90,7 +90,7 @@ test.beforeAll(async () => {
     args: [resolve(".")],
     env: environment,
   });
-  await expect.poll(() => application.windows().length).toBe(22);
+  await expect.poll(() => application.windows().length).toBe(23);
   const windows = await Promise.all(
     application
       .windows()
@@ -3562,7 +3562,7 @@ test("receiving persists a local index across restart and removing the card pres
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(22);
+  await expect.poll(() => application.windows().length).toBe(23);
   pocket = (
     await Promise.all(
       application
@@ -3608,7 +3608,7 @@ test("settings persist across restart", async () => {
     args: [resolve(".")],
     env: launchEnvironment,
   });
-  await expect.poll(() => application.windows().length).toBe(22);
+  await expect.poll(() => application.windows().length).toBe(23);
   const restarted = await Promise.all(
     application
       .windows()

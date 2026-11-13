@@ -174,6 +174,7 @@ import {
   type MailAttachmentPick,
 } from '../shared/mail'
 import type {
+  MailComposeState,
   MailConfig,
   MailMessageDetail,
   MailMessageSummary,
@@ -287,13 +288,17 @@ let mailSyncing = false
 let mailError: string | undefined
 let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let mailWindow: BrowserWindow | undefined
+let mailComposeWindow: BrowserWindow | undefined
+let mailComposeAccountId: string | undefined
+let mailComposeSending = false
+let mailComposeError: string | undefined
+let mailComposeRevision = 0
 let mailBadgeImage: ReturnType<typeof nativeImage.createFromPath> | undefined
 let mailBadgeTotal = -1
 let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelLoading = false
 let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
-let mailPanelSending = false
 let mailPanelHasMore = false
 let mailPanelQuery = ''
 const mailComposeAttachments = new Map<string, OutgoingAttachment>()
@@ -527,6 +532,7 @@ function snapshot(): Snapshot {
     },
     mail: mailState(),
     mailPanel: mailPanelState(),
+    mailCompose: mailComposeState(),
     focus: {
       phase: focusData.phase,
       running: focusData.running,
@@ -589,6 +595,7 @@ function broadcast(): void {
       renameWindow,
       settingsWindow,
       mailWindow,
+      mailComposeWindow,
       pomodoroWindow,
       waterWindow,
       breakWindow,
@@ -2241,7 +2248,6 @@ function mailPanelState(): MailPanelState {
     ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
     loading: mailPanelLoading,
     ...(mailPanelLoadingKind ? { loadingKind: mailPanelLoadingKind } : {}),
-    sending: mailPanelSending,
     hasMore: mailPanelQuery ? false : mailPanelHasMore,
     ...(mailPanelQuery ? { query: mailPanelQuery } : {}),
     messages: mailPanelMessages,
@@ -2250,6 +2256,59 @@ function mailPanelState(): MailPanelState {
     ...(mailPanelNotice ? { notice: mailPanelNotice } : {}),
     ...(mailPanelNoticeId ? { noticeId: mailPanelNoticeId } : {}),
   }
+}
+function mailComposeState(): MailComposeState {
+  return {
+    open: windowVisible(mailComposeWindow),
+    ...(mailComposeAccountId ? { accountId: mailComposeAccountId } : {}),
+    revision: mailComposeRevision,
+    sending: mailComposeSending,
+    ...(mailComposeError ? { error: mailComposeError } : {}),
+  }
+}
+function positionMailCompose(): void {
+  if (!mailComposeWindow || mailComposeWindow.isDestroyed()) return
+  const b = pet.getBounds()
+  const a = screen.getDisplayMatching(b).workArea
+  const width = 760
+  const height = 620
+  const x = a.x + Math.round((a.width - width) / 2)
+  const y = a.y + Math.round((a.height - height) / 2)
+  mailComposeWindow.setBounds(
+    fitToDisplays({ x, y, width, height }, [a]),
+  )
+}
+function openMailCompose(accountId?: string): void {
+  if (!mailDb) return
+  const accounts = mailDb.listAccounts()
+  if (!accounts.length) {
+    settingsSection = 'mail'
+    openSettings()
+    showToast('请先添加邮箱账户')
+    return
+  }
+  mailComposeAccountId =
+    accounts.find((account) => account.id === accountId)?.id ??
+    mailPanelAccountId ??
+    accounts[0].id
+  mailComposeRevision += 1
+  mailComposeError = undefined
+  mailComposeSending = false
+  if (mailComposeWindow && !mailComposeWindow.isDestroyed()) {
+    positionMailCompose()
+    if (process.platform === 'darwin' || mailComposeWindow.isMinimized())
+      mailComposeWindow.restore()
+    mailComposeWindow.show()
+    mailComposeWindow.moveTop()
+    mailComposeWindow.focus()
+  }
+  broadcast()
+}
+function closeMailCompose(): void {
+  mailComposeWindow?.hide()
+  mailComposeSending = false
+  mailComposeError = undefined
+  broadcast()
 }
 function loadMailMessages(accountId: string): void {
   if (!mailDb) return
@@ -2524,16 +2583,16 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
   broadcast()
 }
 async function sendMail(command: {
+  accountId: string
   to: string
   cc?: string
   subject: string
   body: string
   attachmentIds: string[]
 }): Promise<void> {
-  if (!mailPanelAccountId || !mailDb)
-    throw new Error('邮件账户不存在。')
-  if (mailPanelSending) throw new Error('正在发送邮件，请稍候。')
-  const account = mailDb.account(mailPanelAccountId)
+  if (!mailDb) throw new Error('邮件数据库尚未就绪。')
+  if (mailComposeSending) throw new Error('正在发送邮件，请稍候。')
+  const account = mailDb.account(command.accountId)
   if (!account) throw new Error('邮件账户不存在。')
   const secret = await loadMailSecret(mailSecretsPath, account.id)
   if (!secret) throw new Error('授权已失效，请重新授权。')
@@ -2545,9 +2604,8 @@ async function sendMail(command: {
   const totalBytes = attachments.reduce((total, item) => total + item.size, 0)
   if (totalBytes > 25 * 1024 * 1024)
     throw new Error('附件总大小不能超过 25 MB。')
-  mailPanelSending = true
-  mailPanelError = undefined
-  mailPanelErrorKind = undefined
+  mailComposeSending = true
+  mailComposeError = undefined
   broadcast()
   try {
     const result = await sendMailMessage({
@@ -2564,12 +2622,14 @@ async function sendMail(command: {
       : '邮件已发送，但未能保存到已发送。'
     mailPanelNoticeId += 1
     mailComposeAttachments.clear()
+    mailComposeSending = false
+    closeMailCompose()
+    showToast(mailPanelNotice)
   } catch (error) {
-    mailPanelError =
+    mailComposeError =
       error instanceof Error ? error.message : '邮件发送失败，请稍后重试。'
-    mailPanelErrorKind = 'detail'
   } finally {
-    mailPanelSending = false
+    mailComposeSending = false
     broadcast()
   }
 }
@@ -5551,6 +5611,7 @@ function authorized(
       window !== renameWindow &&
       window !== settingsWindow &&
       window !== mailWindow &&
+      window !== mailComposeWindow &&
       window !== pomodoroWindow &&
       window !== waterWindow &&
       window !== breakWindow &&
@@ -5741,10 +5802,10 @@ function setupIpc(): void {
   })
   handle(channels.mailAttachments, 'either', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
-    if (window !== mailWindow)
-      throw new Error('仅邮件面板可以选择附件。')
-    if (!mailWindow) return []
-    const result = await dialog.showOpenDialog(mailWindow, {
+    if (window !== mailComposeWindow)
+      throw new Error('仅撰写窗口可以选择附件。')
+    if (!mailComposeWindow) return []
+    const result = await dialog.showOpenDialog(mailComposeWindow, {
       title: '选择邮件附件',
       properties: ['openFile', 'multiSelections'],
     })
@@ -5887,6 +5948,8 @@ function setupIpc(): void {
       'mail-search',
       'mail-set-unread',
       'mail-send',
+      'mail-compose-open',
+      'mail-compose-close',
       'mail-update-config',
       'mail-clear-cache',
       'mail-choose-attachment-dir',
@@ -6272,6 +6335,12 @@ function setupIpc(): void {
         break
       case 'mail-set-unread':
         await setMailUnread(command.uid, command.unread)
+        break
+      case 'mail-compose-open':
+        openMailCompose(command.accountId)
+        break
+      case 'mail-compose-close':
+        closeMailCompose()
         break
       case 'mail-send':
         await sendMail(command)
@@ -7014,6 +7083,29 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
+  mailComposeWindow = new BrowserWindow({
+    width: 760,
+    height: 620,
+    minWidth: 660,
+    minHeight: 520,
+    title: '毛趣萌仔 · 撰写',
+    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+    ...panelChrome,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
   pomodoroWindow = new BrowserWindow({
     width: 360,
     height: 600,
@@ -7146,6 +7238,7 @@ async function createWindows(): Promise<void> {
     convertWindow,
     renameWindow,
     settingsWindow,
+    mailComposeWindow,
     pomodoroWindow,
     waterWindow,
     breakWindow,
@@ -7198,7 +7291,7 @@ async function createWindows(): Promise<void> {
         },
       })
     : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  for (const window of [pet, pocket, askWindow, convertWindow, renameWindow, settingsWindow, mailComposeWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
   pocket.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -7237,6 +7330,12 @@ async function createWindows(): Promise<void> {
     if (!shuttingDown) {
       event.preventDefault()
       closeSettings()
+    }
+  })
+  mailComposeWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeMailCompose()
     }
   })
   pomodoroWindow?.on('close', (event) => {
@@ -7347,6 +7446,7 @@ async function createWindows(): Promise<void> {
     load(renameWindow, 'rename'),
     load(settingsWindow, 'settings'),
     load(mailWindow, 'mail'),
+    load(mailComposeWindow, 'compose'),
     load(pomodoroWindow, 'focus'),
     load(waterWindow, 'water'),
     load(breakWindow, 'break'),

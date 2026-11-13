@@ -8,6 +8,7 @@ import { MailDatabase } from '../../src/main/mail-db'
 let application: ElectronApplication
 let pet: Page
 let mail: Page
+let compose: Page
 let settings: Page
 let directory: string
 let accountId: string
@@ -105,7 +106,7 @@ test.beforeAll(async () => {
     args: [resolve('.')],
     env: environment,
   })
-  await expect.poll(() => application.windows().length).toBe(22)
+  await expect.poll(() => application.windows().length).toBe(23)
   const windows = await Promise.all(
     application.windows().map(async (page) => ({
       page,
@@ -114,6 +115,7 @@ test.beforeAll(async () => {
   )
   pet = windows.find((item) => item.title.includes('交互标记'))!.page
   mail = windows.find((item) => item.title.includes('邮件'))!.page
+  compose = windows.find((item) => item.title.includes('撰写'))!.page
   settings = windows.find((item) => item.title.includes('设置'))!.page
 })
 
@@ -197,12 +199,13 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-message')).toHaveCount(2)
 
   await mail.getByRole('button', { name: '新建邮件' }).click()
+  await expect(compose.locator('.compose-surface')).toBeVisible()
   await expect(
-    mail.getByRole('heading', { name: '新邮件', exact: true }),
+    compose.getByRole('heading', { name: '新邮件', exact: true }),
   ).toBeVisible()
-  await mail.getByRole('button', { name: '发送', exact: true }).click()
+  await compose.getByRole('button', { name: '发送', exact: true }).click()
   await expect(
-    mail.locator('.toast-item.toast-error').last(),
+    compose.locator('.toast-item.toast-error').last(),
   ).toContainText('请填写收件人')
   await application.evaluate(({ dialog }, path) => {
     dialog.showOpenDialog = async () => ({
@@ -210,12 +213,19 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
       filePaths: [path],
     })
   }, attachmentPath)
-  await mail.getByRole('button', { name: '添加附件', exact: true }).click()
-  await expect(mail.locator('.mail-compose-attachments')).toContainText(
+  await compose
+    .getByRole('button', { name: '添加附件', exact: true })
+    .click()
+  await expect(compose.locator('.compose-attachments')).toContainText(
     '1-report.txt',
   )
-  await mail.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(mail.locator('.mail-compose-form')).toHaveCount(0)
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailCompose.open : true
+    })
+    .toBe(false)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {

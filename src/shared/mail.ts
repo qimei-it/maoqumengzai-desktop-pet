@@ -138,6 +138,14 @@ export type MailMessageDetail = MailMessageSummary & {
   codeSuperseded?: boolean
 }
 
+export type MailComposeState = {
+  open: boolean
+  accountId?: string
+  revision: number
+  sending: boolean
+  error?: string
+}
+
 export type MailPanelState = {
   open: boolean
   accountId?: string
@@ -145,7 +153,6 @@ export type MailPanelState = {
   loadingKind?: 'sync' | 'detail' | 'more'
   hasMore: boolean
   query?: string
-  sending: boolean
   messages: MailMessageSummary[]
   selected?: MailMessageDetail
   error?: string
