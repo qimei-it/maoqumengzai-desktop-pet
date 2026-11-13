@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { requestCompletion, searchWeb } from '../shared/deepseek'
 import type { MusicMood } from '../shared/music-bubbles'
@@ -61,6 +61,92 @@ export function musicAiCachePath(dataRoot: string, trackKey: string): string {
   return join(musicAiDirectory(dataRoot), `${musicAiCacheKey(trackKey)}.json`)
 }
 
+export const musicAiDailyLimit = 30
+
+function localDateKey(): string {
+  const now = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+function musicAiUsagePath(dataRoot: string): string {
+  return join(musicAiDirectory(dataRoot), 'usage.json')
+}
+
+export type MusicAiUsage = { date: string; count: number }
+
+export async function readMusicAiUsage(
+  dataRoot: string,
+): Promise<MusicAiUsage> {
+  const today = localDateKey()
+  try {
+    const parsed = JSON.parse(
+      await readFile(musicAiUsagePath(dataRoot), 'utf8'),
+    ) as Partial<MusicAiUsage>
+    if (
+      parsed.date === today &&
+      typeof parsed.count === 'number' &&
+      parsed.count >= 0
+    )
+      return { date: today, count: Math.floor(parsed.count) }
+  } catch {
+    // Missing or malformed usage starts a fresh day.
+  }
+  return { date: today, count: 0 }
+}
+
+export async function incrementMusicAiUsage(
+  dataRoot: string,
+): Promise<MusicAiUsage> {
+  const usage = await readMusicAiUsage(dataRoot)
+  const next = { date: usage.date, count: usage.count + 1 }
+  await mkdir(musicAiDirectory(dataRoot), { recursive: true })
+  await writeFile(musicAiUsagePath(dataRoot), `${JSON.stringify(next)}\n`, 'utf8')
+  return next
+}
+
+export async function getMusicAiCacheStats(
+  dataRoot: string,
+): Promise<{ count: number; bytes: number }> {
+  const directory = musicAiDirectory(dataRoot)
+  let entries: string[]
+  try {
+    entries = await readdir(directory)
+  } catch {
+    return { count: 0, bytes: 0 }
+  }
+  let count = 0
+  let bytes = 0
+  for (const entry of entries) {
+    if (!entry.endsWith('.json') || entry === 'usage.json') continue
+    try {
+      const info = await stat(join(directory, entry))
+      count += 1
+      bytes += info.size
+    } catch {
+      // A concurrent prune may remove the file.
+    }
+  }
+  return { count, bytes }
+}
+
+export async function clearMusicAiCache(dataRoot: string): Promise<number> {
+  const directory = musicAiDirectory(dataRoot)
+  let entries: string[]
+  try {
+    entries = await readdir(directory)
+  } catch {
+    return 0
+  }
+  const files = entries.filter(
+    (entry) => entry.endsWith('.json') && entry !== 'usage.json',
+  )
+  await Promise.all(
+    files.map((entry) => unlink(join(directory, entry)).catch(() => {})),
+  )
+  return files.length
+}
+
 /** Drop caches produced by older prompts so the longer copy replaces them. */
 export async function pruneMusicAiCache(dataRoot: string): Promise<void> {
   const directory = musicAiDirectory(dataRoot)
@@ -72,7 +158,7 @@ export async function pruneMusicAiCache(dataRoot: string): Promise<void> {
   }
   await Promise.all(
     entries
-      .filter((entry) => entry.endsWith('.json'))
+      .filter((entry) => entry.endsWith('.json') && entry !== 'usage.json')
       .map(async (entry) => {
         const file = join(directory, entry)
         try {
@@ -250,21 +336,93 @@ function buildUserPrompt(
   ].join('\n')
 }
 
-function extractJson(text: string): unknown {
+function extractLinesArrays(text: string): string[][] {
+  const results: string[][] = []
+  const pattern = /"lines"\s*:\s*\[/g
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text)) && results.length < 6) {
+    const start = pattern.lastIndex - 1
+    let depth = 0
+    let inString = false
+    let escaped = false
+    let end = -1
+    for (let index = start; index < text.length; index += 1) {
+      const char = text[index]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (char === '\\') escaped = true
+        else if (char === '"') inString = false
+        continue
+      }
+      if (char === '"') {
+        inString = true
+        continue
+      }
+      if (char === '[') depth += 1
+      else if (char === ']') {
+        depth -= 1
+        if (depth === 0) {
+          end = index
+          break
+        }
+      }
+    }
+    if (end <= start) continue
+    try {
+      const array = JSON.parse(text.slice(start, end + 1))
+      if (
+        Array.isArray(array) &&
+        array.length > 0 &&
+        array.every((line) => typeof line === 'string')
+      )
+        results.push(array)
+    } catch {
+      // Not a valid lines array; keep scanning.
+    }
+    pattern.lastIndex = end + 1
+  }
+  return results
+}
+
+function salvageStages(text: string): unknown {
+  const lines = extractLinesArrays(text)
+  if (lines.length < 4) return null
+  const mood = text.match(/"mood"\s*:\s*"([^"]*)"/)?.[1]
+  const energy = text.match(/"energy"\s*:\s*"([^"]*)"/)?.[1]
+  return {
+    ...(mood ? { mood } : {}),
+    ...(energy ? { energy } : {}),
+    stages: lines.slice(0, 4).map((stage) => ({ lines: stage })),
+  }
+}
+
+export function parseMusicAiAnswer(text: string): unknown {
   const trimmed = text.trim()
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const candidate = fenced ? fenced[1] : trimmed
   const start = candidate.indexOf('{')
   const end = candidate.lastIndexOf('}')
-  if (start < 0 || end <= start) return null
-  // Models occasionally leave a trailing comma before a closing bracket.
+  if (start < 0 || end <= start) return salvageStages(candidate)
+  // Models occasionally close a stage and then continue with `"lines": [...]`
+  // without opening the next object, repeat the `"stages"` key inside the
+  // array, or leave a trailing comma.
   const body = candidate
     .slice(start, end + 1)
+    .replace(/}\s*,\s*"lines"\s*:/g, '},{"lines":')
+    .replace(/,\s*"stages"\s*:\s*\[\s*\{/g, ',{')
     .replace(/,\s*([}\]])/g, '$1')
   try {
-    return JSON.parse(body)
+    const parsed = JSON.parse(body)
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      Array.isArray((parsed as { stages?: unknown }).stages) &&
+      (parsed as { stages: unknown[] }).stages.length >= 4
+    )
+      return parsed
+    return salvageStages(candidate) ?? parsed
   } catch {
-    return null
+    return salvageStages(candidate)
   }
 }
 
@@ -333,7 +491,7 @@ export async function generateMusicAiContent(options: {
       timeoutMs: 45_000,
     },
   )
-  const parsed = extractJson(answer)
+  const parsed = parseMusicAiAnswer(answer)
   if (!parsed || typeof parsed !== 'object') {
     console.warn('[music-ai] unparsable answer:', answer.slice(0, 2000))
     throw new Error('DeepSeek 没有返回可解析的互动内容。')

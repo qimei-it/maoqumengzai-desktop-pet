@@ -1152,8 +1152,13 @@ footer button {
   text-wrap: balance;
 }
 .bubble-surface.ai .bubble-text {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
   -webkit-line-clamp: 3;
-  padding: 0 2em;
+  padding: 0;
+  text-align: left;
+  text-indent: 2em;
   line-height: 1.5;
 }
 .toast-body {

@@ -93,6 +93,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('bar-toggle') }).strict(),
+  z.object({ type: z.literal('music-ai-clear') }).strict(),
   z.object({ type: z.literal('lyrics') }).strict(),
   z
     .object({

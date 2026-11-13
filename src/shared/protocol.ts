@@ -399,6 +399,12 @@ export type Snapshot = {
   lyrics?: LyricsState
   lyricsAvailable?: boolean
   bubble?: BubbleState
+  musicAiCache: {
+    count: number
+    bytes: number
+    today: number
+    limit: number
+  }
   toast?: string
   mailAlert?: MailAlert
   aiOpen: boolean
@@ -453,6 +459,7 @@ export type Command =
       type: 'music-control'
       action: 'previous' | 'toggle' | 'next' | 'shuffle' | 'repeat' | 'mute'
     }
+  | { type: 'music-ai-clear' }
   | { type: 'bar-toggle' }
   | { type: 'lyrics' }
   | { type: 'lyrics-width'; width: number }

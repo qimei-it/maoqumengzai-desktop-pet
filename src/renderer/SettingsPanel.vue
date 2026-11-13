@@ -69,6 +69,21 @@ const wheelEditor = ref<'hover' | 'file' | null>(null)
 const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
+const musicAiCache = computed(() => props.state?.musicAiCache)
+const musicAiCacheLabel = computed(() => {
+  const cache = musicAiCache.value
+  if (!cache?.count) return '暂无缓存'
+  const mb = cache.bytes / (1024 * 1024)
+  const size =
+    mb >= 1
+      ? `${mb.toFixed(1)} MB`
+      : `${Math.max(1, Math.round(cache.bytes / 1024))} KB`
+  return `${cache.count} 首 · ${size}`
+})
+const musicAiTodayLabel = computed(() => {
+  const cache = musicAiCache.value
+  return cache ? `${cache.today} / ${cache.limit} 首` : '0 / 30 首'
+})
 const clipboardConfig = computed<ClipboardConfig>(
   () => props.state?.clipboard ?? clipboardDefaults,
 )
@@ -854,7 +869,7 @@ function onEscape(): void {
                   <span class="settings-switch-thumb" />
                 </button>
               </div>
-              <div class="settings-row settings-row-last">
+              <div class="settings-row">
                 <span id="setting-music-ai" class="settings-label"
                   >AI 智能互动</span
                 >
@@ -874,6 +889,24 @@ function onEscape(): void {
                 >
                   <span class="settings-switch-thumb" />
                 </button>
+              </div>
+              <div class="settings-row">
+                <span class="settings-label">AI 互动缓存</span>
+                <span class="settings-inline">
+                  <span class="settings-value">{{ musicAiCacheLabel }}</span>
+                  <button
+                    type="button"
+                    class="settings-button"
+                    :disabled="!musicAiCache?.count"
+                    @click="emit('command', { type: 'music-ai-clear' })"
+                  >
+                    清除
+                  </button>
+                </span>
+              </div>
+              <div class="settings-row settings-row-last">
+                <span class="settings-label">今日 AI 生成</span>
+                <span class="settings-value">{{ musicAiTodayLabel }}</span>
               </div>
             </div>
           </template>

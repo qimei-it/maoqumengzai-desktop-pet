@@ -96,9 +96,14 @@ import { ffmpegBuild, emptyFfmpegState } from '../shared/ffmpeg'
 import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   aiMoodToMusicMood,
+  clearMusicAiCache,
   generateMusicAiContent,
+  getMusicAiCacheStats,
+  incrementMusicAiUsage,
+  musicAiDailyLimit,
   pruneMusicAiCache,
   readMusicAiCache,
+  readMusicAiUsage,
   type MusicAiContent,
 } from './music-ai'
 import {
@@ -494,6 +499,14 @@ let bubbleAiGeneratingKey: string | undefined
 let bubbleAiUsed = new Set<string>()
 let bubbleAiLastLine: string | undefined
 let bubbleAiTimer: ReturnType<typeof setTimeout> | undefined
+const musicAiCacheState = {
+  count: 0,
+  bytes: 0,
+  today: 0,
+  limit: musicAiDailyLimit,
+}
+let musicAiErrorNotified = false
+let musicAiLimitNotified = false
 let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
@@ -674,6 +687,7 @@ function snapshot(): Snapshot {
     ...(bubbleText
       ? { bubble: { text: bubbleText, mood: bubbleMood, ai: bubbleAiStyle } }
       : {}),
+    musicAiCache: { ...musicAiCacheState },
     ...(toastText ? { toast: toastText } : {}),
     ...(mailAlert ? { mailAlert } : {}),
   }
@@ -6534,6 +6548,43 @@ function currentBubbleKey(): string | undefined {
 function bubbleBlocked(): boolean {
   return dropMode || !barVisible || Boolean(drag?.moving)
 }
+async function refreshMusicAiCacheStats(): Promise<void> {
+  const stats = await getMusicAiCacheStats(dataRoot)
+  const usage = await readMusicAiUsage(dataRoot)
+  musicAiCacheState.count = stats.count
+  musicAiCacheState.bytes = stats.bytes
+  musicAiCacheState.today = usage.count
+  musicAiCacheState.limit = musicAiDailyLimit
+  broadcast()
+}
+function musicAiFailureNotice(message: string): string {
+  if (/API Key|401|403/.test(message))
+    return 'DeepSeek Key 失效，已回退本地互动'
+  if (/余额|402/.test(message)) return 'DeepSeek 余额不足，已回退本地互动'
+  if (/频繁|429/.test(message)) return 'DeepSeek 请求过多，已回退本地互动'
+  if (/网络|连接/.test(message)) return 'DeepSeek 连接失败，已回退本地互动'
+  return 'AI 互动生成失败，已回退本地互动'
+}
+async function clearAiInteractionCache(): Promise<void> {
+  if (!musicAiCacheState.count) {
+    showToast('AI 互动缓存已经是空的')
+    return
+  }
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '清除 AI 互动缓存',
+    message: `清除 ${musicAiCacheState.count} 首歌曲的 AI 互动缓存？`,
+    detail: '下次播放会重新请求 DeepSeek 生成；今日生成次数不会重置。',
+    buttons: ['取消', '清除'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  const removed = await clearMusicAiCache(dataRoot)
+  await refreshMusicAiCacheStats()
+  showToast(removed ? 'AI 互动缓存已清除' : 'AI 互动缓存已经是空的')
+}
 function scheduleMusicAi(): void {
   if (bubbleAiTimer) {
     clearTimeout(bubbleAiTimer)
@@ -6569,19 +6620,37 @@ async function ensureMusicAi(): Promise<void> {
         bubbleAiContent = { key: trackKey, data: cached }
       return
     }
+    const usage = await readMusicAiUsage(dataRoot)
+    if (musicAiCacheState.today !== usage.count) {
+      musicAiCacheState.today = usage.count
+      broadcast()
+    }
+    if (usage.count >= musicAiDailyLimit) {
+      if (!musicAiLimitNotified) {
+        musicAiLimitNotified = true
+        showToast(`今日 AI 互动已达 ${musicAiDailyLimit} 首，先使用本地文案`)
+      }
+      return
+    }
+    musicAiLimitNotified = false
     const data = await generateMusicAiContent({
       apiKey: aiKey,
       dataRoot,
       trackKey,
       track,
     })
+    await incrementMusicAiUsage(dataRoot)
+    musicAiErrorNotified = false
     if (currentTrackKey() === trackKey)
       bubbleAiContent = { key: trackKey, data }
+    void refreshMusicAiCacheStats()
   } catch (error) {
-    console.warn(
-      '[music-ai] generation failed:',
-      error instanceof Error ? error.message : error,
-    )
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('[music-ai] generation failed:', message)
+    if (!musicAiErrorNotified) {
+      musicAiErrorNotified = true
+      showToast(musicAiFailureNotice(message))
+    }
   } finally {
     if (bubbleAiGeneratingKey === trackKey) bubbleAiGeneratingKey = undefined
     if (settings.musicAiEnabled && aiKey && currentTrackKey() !== trackKey)
@@ -7557,6 +7626,7 @@ function setupIpc(): void {
       'eat-files',
       'restore-eaten',
       'music-control',
+      'music-ai-clear',
       'volume-popup',
       'volume',
       'bar-toggle',
@@ -7785,6 +7855,9 @@ function setupIpc(): void {
         break
       case 'music-control':
         controlMusic(command.action)
+        break
+      case 'music-ai-clear':
+        await clearAiInteractionCache()
         break
       case 'lyrics':
         void toggleLyrics()
@@ -9342,7 +9415,7 @@ async function createWindows(): Promise<void> {
     void runMaintenance()
   }, 15 * 60_000)
   pollMusic()
-  void pruneMusicAiCache(dataRoot)
+  void pruneMusicAiCache(dataRoot).then(() => refreshMusicAiCacheStats())
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
   bubbleTickTimer = setInterval(bubbleTick, 1000)
