@@ -420,6 +420,9 @@ function size(bytes: number): string {
   min-height: 180px;
   overflow-y: auto;
   padding: 10px 2px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
   border: 0;
   background: transparent;
   color: var(--color-ink);
@@ -427,6 +430,19 @@ function size(bytes: number): string {
   font-size: var(--font-size-body);
   line-height: 1.6;
   outline: none;
+}
+.compose-content::-webkit-scrollbar {
+  width: 6px;
+}
+.compose-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.compose-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-line);
+}
+.compose-content::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
 .compose-content:empty::before {
   content: attr(data-placeholder);

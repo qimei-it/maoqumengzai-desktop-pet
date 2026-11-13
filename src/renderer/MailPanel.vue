@@ -561,6 +561,9 @@ watch(
   overflow-y: auto;
   padding-right: 12px;
   border-right: 1px solid var(--color-line);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
 }
 .mail-account-group {
   display: flex;
@@ -706,6 +709,9 @@ watch(
   gap: 2px;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
 }
 .mail-search {
   display: flex;
@@ -807,16 +813,24 @@ watch(
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
 }
+.mail-accounts::-webkit-scrollbar,
+.mail-list::-webkit-scrollbar,
 .mail-reader::-webkit-scrollbar {
   width: 6px;
 }
+.mail-accounts::-webkit-scrollbar-track,
+.mail-list::-webkit-scrollbar-track,
 .mail-reader::-webkit-scrollbar-track {
   background: transparent;
 }
+.mail-accounts::-webkit-scrollbar-thumb,
+.mail-list::-webkit-scrollbar-thumb,
 .mail-reader::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: var(--color-line);
 }
+.mail-accounts::-webkit-scrollbar-thumb:hover,
+.mail-list::-webkit-scrollbar-thumb:hover,
 .mail-reader::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted);
 }
