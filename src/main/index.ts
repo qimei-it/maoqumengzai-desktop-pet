@@ -32,7 +32,7 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
@@ -6177,7 +6177,7 @@ function pollMusic(): void {
               muted,
               volume,
               positionAt: sampledAt,
-              positionReliable: false,
+              positionReliable: system.positionReliable ?? false,
             })
             finish()
             return
@@ -6217,34 +6217,112 @@ function pollMusic(): void {
     },
   )
 }
-function pollSystemMusic(done: (state: MusicState | null) => void): void {
-  execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
-    if (error) {
-      done(null)
-      return
+type MediaRemotePayload = {
+  title?: string
+  artist?: string
+  album?: string
+  rate?: number
+  playbackRate?: number
+  playing?: boolean
+  duration?: number
+  elapsed?: number
+  elapsedTime?: number
+  timestamp?: string
+}
+function musicStateFromPayload(
+  parsed: MediaRemotePayload,
+  fromTimestamp: boolean,
+): MusicState | null {
+  if (!parsed.title) return null
+  const rate =
+    typeof parsed.rate === 'number'
+      ? parsed.rate
+      : typeof parsed.playbackRate === 'number'
+        ? parsed.playbackRate
+        : parsed.playing
+          ? 1
+          : 0
+  let position =
+    typeof parsed.elapsed === 'number'
+      ? parsed.elapsed
+      : typeof parsed.elapsedTime === 'number'
+        ? parsed.elapsedTime
+        : undefined
+  let positionReliable = false
+  if (fromTimestamp && typeof parsed.timestamp === 'string') {
+    const stamp = Date.parse(parsed.timestamp)
+    if (Number.isFinite(stamp)) {
+      position =
+        (position ?? 0) +
+        Math.max(0, (Date.now() - stamp) / 1000) * Math.max(0, rate)
+      positionReliable = true
     }
-    try {
-      const parsed = JSON.parse(stdout.trim() || '{}') as {
-        title?: string
-        artist?: string
-        rate?: number
-        duration?: number
-        elapsed?: number
-      }
-      if (!parsed.title) {
+  }
+  if (
+    position !== undefined &&
+    typeof parsed.duration === 'number' &&
+    position > parsed.duration
+  )
+    position = parsed.duration
+  return {
+    playing: rate === 1,
+    title: parsed.title,
+    artist: parsed.artist,
+    album: parsed.album,
+    duration: parsed.duration,
+    position,
+    positionReliable,
+  }
+}
+function mediaRemoteMiniPaths(): { loader: string; dylib: string } {
+  const directory = app.isPackaged
+    ? join(process.resourcesPath, 'helpers')
+    : join(app.getAppPath(), 'resources/helpers')
+  return {
+    loader: join(directory, 'mediaremote-mini-loader.pl'),
+    dylib: join(directory, 'MediaRemoteMini.dylib'),
+  }
+}
+function pollMediaRemoteMini(
+  done: (state: MusicState | null) => void,
+): void {
+  const { loader, dylib } = mediaRemoteMiniPaths()
+  execFile(
+    '/usr/bin/perl',
+    [loader, dylib, 'adapter_get_env'],
+    { timeout: 3000, maxBuffer: 2 * 1024 * 1024 },
+    (error, stdout) => {
+      if (error) {
         done(null)
         return
       }
-      done({
-        playing: parsed.rate === 1,
-        title: parsed.title,
-        artist: parsed.artist,
-        duration: parsed.duration,
-        position: parsed.elapsed,
-      })
-    } catch {
-      done(null)
+      try {
+        const parsed = JSON.parse(stdout.trim() || '{}') as MediaRemotePayload
+        done(musicStateFromPayload(parsed, true))
+      } catch {
+        done(null)
+      }
+    },
+  )
+}
+function pollSystemMusic(done: (state: MusicState | null) => void): void {
+  execFile(musicHelperPath(), ['info'], { timeout: 2000 }, (error, stdout) => {
+    let state: MusicState | null = null
+    if (!error) {
+      try {
+        state = musicStateFromPayload(
+          JSON.parse(stdout.trim() || '{}') as MediaRemotePayload,
+          false,
+        )
+      } catch {
+        state = null
+      }
     }
+    if (state) {
+      done(state)
+      return
+    }
+    pollMediaRemoteMini(done)
   })
 }
 type MusicAction =
@@ -7969,13 +8047,17 @@ function setupIpc(): void {
     if (owner !== pet) showPocket()
     return snapshot()
   })
-  ipcMain.on(channels.startDrag, async (event, payload) => {
+  ipcMain.on(channels.startDrag, (event, payload) => {
     try {
       authorized(event)
-      const path = await registeredFile(fileIdSchema.parse(payload))
+      // startDrag must run synchronously inside the dragstart turn; awaiting
+      // registeredFile() dropped the native drag session before it started.
+      const file = files.get(fileIdSchema.parse(payload))
+      if (!file || !existsSync(file.path))
+        throw new Error('文件记录不存在。')
       if (event.sender.isDestroyed()) return
       event.sender.startDrag({
-        file: path,
+        file: file.path,
         icon: nativeImage.createFromPath(iconPath('file-drag.png')),
       })
       addEvent('已调用系统文件拖出；是否落入目标应用需按原生投递结果核验。')
@@ -8072,6 +8154,9 @@ function configurePanelChrome(window: BrowserWindow): void {
  */
 function configurePetOverlay(window: BrowserWindow): void {
   if (process.platform !== 'darwin') return
+  // Child windows move with the pet as one unit, so Mission Control and
+  // Exposé never detach the pill from the pet.
+  window.setParentWindow(pet)
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   window.setHiddenInMissionControl(false)
 }

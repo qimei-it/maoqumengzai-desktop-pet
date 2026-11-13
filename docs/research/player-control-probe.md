@@ -90,8 +90,10 @@ Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
 
 - Apple Music：使用本地临时音轨完成真实播放、暂停、恢复与进度读取；播放位置随时间推进，曲目名称正确，面板切换为 Apple Music 来源。
 - Apple Music 歌词：LRCLIB 无结果时读取当前曲目的 `lyrics` 属性作为纯文本回退；AppleScript 返回的 `\r` 换行已统一转换为 `\n`。
-- QQ 音乐、酷狗、网易云：保持既有 MediaRemote 控制与歌曲信息能力；播放位置标记为不可靠，歌词卡与控制条改为静态纯文本展示，不再按不可靠位置滚动。
-- 定向验证：Apple Music 播放控制、进度推进、歌词回退；模拟系统播放器返回 `positionReliable=false`，歌词显示静态纯文本且不误用同步滚动。
+- macOS 15.4+ 的旧 MediaRemote C API 对 QQ 音乐返回空字典，导致桌宠无法识别正在播放。新增随包的 `MediaRemoteMini.dylib`（BSD-3-Clause）作为信息读取回退：QQ 音乐当前曲目、歌手、专辑、时长、播放位置恢复。
+- QQ 音乐回退数据带 `timestamp`，按时间戳外推当前位置并标记 `positionReliable=true`；无时间戳的播放器仍标记不可靠，歌词使用静态纯文本，不误用同步滚动。
+- 当前 QQ 音乐版本对 `MRMediaRemoteSendCommand` 的暂停/播放命令不响应；系统媒体键可切换（需播放器激活或辅助功能授权），控制键回退仍待补。酷狗、网易云需在新回退路径下复测。
+- 定向验证：Apple Music 播放控制、进度推进、歌词回退；QQ 音乐通过 MediaRemoteMini 读取真实播放信息；模拟系统播放器返回 `positionReliable=false` 时歌词静态回退。
 
 ## 待验证
 
