@@ -502,7 +502,9 @@ watch(
         <section class="mail-list" aria-label="邮件列表">
           <div class="mail-list-head">
             <span>{{ currentFolderName }}</span>
-            <span>{{ messages.length }} 封</span>
+            <span>{{
+              inLocalDrafts ? localDrafts.length : messages.length
+            }} 封</span>
           </div>
           <label class="mail-search">
             <Search :size="14" :stroke-width="2" aria-hidden="true" />
@@ -575,7 +577,6 @@ watch(
             @click="openDraft(draft)"
             @keydown.enter.prevent="openDraft(draft)"
           >
-            <PenLine :size="14" :stroke-width="2" aria-hidden="true" />
             <span class="mail-draft-meta">
               <span class="mail-draft-to">{{
                 draft.to || '未填写收件人'
@@ -833,7 +834,7 @@ watch(
   align-items: center;
   justify-content: space-between;
   min-height: 28px;
-  padding: 0 4px;
+  padding: 0 0 0 4px;
   color: var(--color-ink);
   font-size: var(--font-size-label);
   font-weight: 600;
@@ -848,6 +849,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 2px;
+  margin-right: -12px;
 }
 .mail-account-add,
 .mail-compose,
@@ -1024,7 +1026,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 8px;
+  padding: 8px 8px 8px 10px;
   border-radius: var(--radius-control);
   color: var(--color-ink);
   cursor: pointer;

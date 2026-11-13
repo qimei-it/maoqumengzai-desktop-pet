@@ -422,6 +422,7 @@ test('草稿自动保存、继续编辑与删除', async () => {
     .toBe(false)
   await mail.locator('.mail-folder-drafts').first().click()
   await expect(mail.locator('.mail-list-head')).toContainText('草稿')
+  await expect(mail.locator('.mail-list-head')).not.toContainText('0 封')
   const draft = mail.locator('.mail-draft-row', { hasText: '草稿自动保存' })
   await expect(draft).toHaveCount(1)
   await draft.click()
