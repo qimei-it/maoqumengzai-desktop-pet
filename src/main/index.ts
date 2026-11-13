@@ -6015,7 +6015,17 @@ function musicHelperPath(): string {
     : join(app.getAppPath(), 'resources/helpers/mqmz-nowplaying')
 }
 function applyMusic(next: MusicState): void {
+  const previousKey = currentBubbleKey()
+  const previousCoverKey = coverKey(music)
+  const nextCoverKey = coverKey(next)
+  const artwork = mediaRemoteArtwork
+  const providedArtwork =
+    artwork && artwork.key === nextCoverKey ? artwork.data : undefined
+  const needsArtwork = Boolean(
+    nextCoverKey && !music.cover && providedArtwork,
+  )
   if (
+    !needsArtwork &&
     music.playing === next.playing &&
     music.title === next.title &&
     music.artist === next.artist &&
@@ -6031,26 +6041,17 @@ function applyMusic(next: MusicState): void {
     music.genre === next.genre
   )
     return
-  const previousKey = currentBubbleKey()
-  const previousCoverKey = coverKey(music)
-  const nextCoverKey = coverKey(next)
   music = {
     ...next,
     ...(nextCoverKey && nextCoverKey === previousCoverKey && music.cover
       ? { cover: music.cover }
       : {}),
   }
-  if (nextCoverKey !== previousCoverKey) {
+  if (nextCoverKey !== previousCoverKey || needsArtwork) {
     coverRequest += 1
     const request = coverRequest
     if (nextCoverKey)
-      void loadCover(
-        dataRoot,
-        music,
-        mediaRemoteArtwork?.key === nextCoverKey
-          ? mediaRemoteArtwork.data
-          : undefined,
-      ).then((cover) => {
+      void loadCover(dataRoot, music, providedArtwork).then((cover) => {
         if (request !== coverRequest || coverKey(music) !== nextCoverKey) return
         if (!cover) return
         music = { ...music, cover: cover.dataUrl }
@@ -6261,14 +6262,15 @@ function musicStateFromPayload(
         : undefined
   let positionReliable = false
   const elapsedAtSnapshot = position
-  // elapsed=0 with a fresh timestamp only means "playback started"; it is not
-  // a usable seek position (Kugou reports this for every track). Keep lyrics
-  // static instead of falsely restarting them from the beginning.
+  // A near-zero elapsed value with a fresh timestamp only means "playback
+  // started"; it is not a usable seek position (Kugou reports ~0.06 s for
+  // every track). Keep lyrics static instead of falsely restarting them from
+  // the beginning.
   if (
     fromTimestamp &&
     typeof parsed.timestamp === 'string' &&
     typeof elapsedAtSnapshot === 'number' &&
-    elapsedAtSnapshot > 0
+    elapsedAtSnapshot >= 1
   ) {
     const stamp = Date.parse(parsed.timestamp)
     if (Number.isFinite(stamp)) {
