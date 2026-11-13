@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   Archive,
   CornerUpLeft,
@@ -18,7 +18,6 @@ import {
   Send,
   Settings,
   ShieldAlert,
-  ShieldCheck,
   Trash2,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
@@ -88,7 +87,7 @@ const currentFolderKind = computed<MailFolderKind>(() => {
   )
 })
 const inTrash = computed(() => currentFolderKind.value === 'trash')
-const inJunk = computed(() => currentFolderKind.value === 'junk')
+const moveOpen = ref(false)
 const moveTargets = computed(() => {
   const id = accountId.value
   if (!id) return []
@@ -176,23 +175,17 @@ function onMessageKeydown(
   event.stopPropagation()
   deleteMessage(message)
 }
-function moveMessage(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value
-  ;(event.target as HTMLSelectElement).value = ''
-  if (!value || !selected.value) return
+function moveTo(folder: string): void {
+  if (!folder || !selected.value) return
   emit('command', {
     type: 'mail-move',
     uid: selected.value.uid,
-    folder: value,
+    folder,
   })
+  moveOpen.value = false
 }
-function spamMessage(): void {
-  if (!selected.value) return
-  emit('command', {
-    type: 'mail-spam',
-    uid: selected.value.uid,
-    spam: !inJunk.value,
-  })
+function closeMoveMenu(): void {
+  moveOpen.value = false
 }
 function openDraft(draft: MailDraftSummary): void {
   emit('command', {
@@ -304,15 +297,6 @@ function deleteMail(): void {
     uid: selected.value.uid,
   })
 }
-function toggleUnread(): void {
-  const message = selected.value
-  if (!message) return
-  emit('command', {
-    type: 'mail-set-unread',
-    uid: message.uid,
-    unread: !message.unread,
-  })
-}
 function openMailSettings(): void {
   emit('command', { type: 'settings-section', section: 'mail' })
 }
@@ -356,7 +340,11 @@ watch(
   },
   { immediate: true },
 )
+onMounted(() => {
+  document.addEventListener('pointerdown', closeMoveMenu)
+})
 onUnmounted(() => {
+  document.removeEventListener('pointerdown', closeMoveMenu)
   if (codeTimer) clearInterval(codeTimer)
 })
 watch(
@@ -558,15 +546,6 @@ watch(
               </span>
               <span v-if="message.snippet" class="mail-snippet">{{ message.snippet }}</span>
             </button>
-            <button
-              type="button"
-              class="mail-row-delete"
-              title="删除"
-              aria-label="删除邮件"
-              @click.stop="deleteMessage(message)"
-            >
-              <Trash2 :size="13" :stroke-width="2" aria-hidden="true" />
-            </button>
           </div>
           <div
             v-for="draft in localDrafts"
@@ -652,33 +631,38 @@ watch(
                   >
                     <Archive :size="15" :stroke-width="2" aria-hidden="true" />
                   </button>
-                  <label class="mail-reader-move" title="移动到文件夹">
-                    <FolderInput :size="15" :stroke-width="2" aria-hidden="true" />
-                    <select aria-label="移动到文件夹" @change="moveMessage">
-                      <option value="">移动</option>
-                      <option
+                  <div class="mail-move-wrap" @pointerdown.stop>
+                    <button
+                      type="button"
+                      class="mail-reader-icon"
+                      aria-label="移动"
+                      title="移动"
+                      :aria-expanded="moveOpen"
+                      @click.stop="moveOpen = !moveOpen"
+                    >
+                      <FolderInput :size="15" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                    <div
+                      v-if="moveOpen"
+                      class="mail-move-menu"
+                      role="menu"
+                      aria-label="移动到文件夹"
+                      @click.stop
+                    >
+                      <button
                         v-for="folder in moveTargets"
                         :key="folder.path"
-                        :value="folder.path"
+                        type="button"
+                        role="menuitem"
+                        @click="moveTo(folder.path)"
                       >
                         {{ folder.name }}
-                      </option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    class="mail-reader-icon"
-                    :aria-label="inJunk ? '移出垃圾邮件' : '标记为垃圾邮件'"
-                    :title="inJunk ? '移出垃圾邮件' : '标记为垃圾邮件'"
-                    @click="spamMessage"
-                  >
-                    <component
-                      :is="inJunk ? ShieldCheck : ShieldAlert"
-                      :size="15"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </button>
+                      </button>
+                      <span v-if="!moveTargets.length" class="mail-move-empty">
+                        没有其他文件夹
+                      </span>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     class="mail-reader-icon danger"
@@ -687,13 +671,6 @@ watch(
                     @click="deleteMail"
                   >
                     <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    class="settings-button mail-read-toggle"
-                    @click="toggleUnread"
-                  >
-                    {{ selected.unread ? '标记已读' : '标记未读' }}
                   </button>
                 </div>
               </div>
@@ -990,7 +967,7 @@ watch(
   min-width: 0;
   flex-direction: column;
   gap: 3px;
-  padding: 9px 30px 9px 10px;
+  padding: 9px 10px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
@@ -999,28 +976,8 @@ watch(
   text-align: left;
 }
 .mail-message-row {
-  position: relative;
   display: flex;
   align-items: flex-start;
-}
-.mail-row-delete {
-  position: absolute;
-  top: 5px;
-  right: 4px;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-.mail-row-delete:hover {
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
 }
 .mail-draft-row {
   display: flex;
@@ -1217,38 +1174,48 @@ watch(
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
-.mail-reader-move {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  height: 26px;
-  padding: 0 2px 0 5px;
+.mail-move-wrap {
+  position: relative;
+  flex: none;
+}
+.mail-move-menu {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 132px;
+  max-height: 236px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-stage);
+}
+.mail-move-menu > button {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
   border-radius: var(--radius-sm);
-  color: var(--color-muted);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
-.mail-reader-move:hover {
+.mail-move-menu > button:hover {
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }
-.mail-reader-move select {
-  width: 54px;
-  height: 24px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
+.mail-move-empty {
+  display: block;
+  padding: 8px 10px;
+  color: var(--color-muted);
   font-size: var(--font-size-caption);
-  cursor: pointer;
-}
-.mail-reader-move select:focus {
-  width: 88px;
-  outline: none;
-}
-.mail-read-toggle {
-  flex: none;
-  min-height: 26px;
-  padding: 0 10px;
 }
 .mail-reader-head h2 {
   margin: 0 0 6px;

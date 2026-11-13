@@ -2769,42 +2769,6 @@ function searchMail(query: string): void {
   loadMailMessages(mailPanelAccountId, mailPanelFolder)
   broadcast()
 }
-async function setMailUnread(uid: number, unread: boolean): Promise<void> {
-  if (!mailPanelAccountId || !mailDb) return
-  if (mailPanelFolder === mailLocalDraftsFolder) return
-  const accountId = mailPanelAccountId
-  const account = mailDb.account(accountId)
-  const folder = mailPanelFolder
-  const message = mailDb.message(accountId, folder, uid)
-  if (!account || !message) throw new Error('邮件不存在。')
-  if (message.unread === unread) return
-  const secret = await loadMailSecret(mailSecretsPath, accountId)
-  if (!secret) throw new Error('授权已失效，请重新授权。')
-  try {
-    await setMailSeen(
-      account.provider,
-      account.email,
-      secret,
-      uid,
-      !unread,
-      folder,
-    )
-    mailDb.setUnread(accountId, folder, uid, unread)
-    if (folder === 'INBOX')
-      mailDb.updateAccount(accountId, {
-        unread: Math.max(0, account.unread + (unread ? 1 : -1)),
-      })
-    if (mailPanelSelected?.uid === uid)
-      mailPanelSelected = { ...mailPanelSelected, unread }
-    loadMailMessages(accountId, folder)
-    void updateMailBadge()
-  } catch (error) {
-    mailPanelError =
-      error instanceof Error ? error.message : '无法更新邮件状态。'
-    mailPanelErrorKind = 'detail'
-  }
-  broadcast()
-}
 function mailFolderKind(
   accountId: string,
   folder: string,
@@ -2824,30 +2788,25 @@ function reduceAccountUnread(
     unread: Math.max(0, account.unread - count),
   })
 }
-type MailMoveMode = 'archive' | 'delete' | 'spam' | 'ham' | 'move'
-async function moveMailMessagesOperation(
-  uids: number[],
+type MailMoveMode = 'archive' | 'delete' | 'move'
+async function moveMailMessageOperation(
+  uid: number,
   mode: MailMoveMode,
   targetFolder?: string,
 ): Promise<void> {
-  if (!mailPanelAccountId || !mailDb || !uids.length) return
+  if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
   const folder = mailPanelFolder
-  const messages = uids
-    .map((uid) => mailDb!.message(accountId, folder, uid))
-    .filter((item): item is MailMessageDetail => Boolean(item))
-  if (!account || !messages.length) throw new Error('邮件不存在。')
+  const message = mailDb.message(accountId, folder, uid)
+  if (!account || !message) throw new Error('邮件不存在。')
   const permanent =
     mode === 'delete' && mailFolderKind(accountId, folder) === 'trash'
-  const single = messages.length === 1
   if (mode === 'delete') {
     const choice = await dialog.showMessageBox(mailWindow ?? pet, {
       type: 'warning',
       title: permanent ? '永久删除邮件' : '删除邮件',
-      message: single
-        ? `确定删除「${messages[0].subject}」？`
-        : `确定删除选中的 ${messages.length} 封邮件？`,
+      message: `确定删除「${message.subject}」？`,
       detail: permanent
         ? '邮件将从邮箱中永久删除，无法恢复。'
         : '邮件将移动到邮箱的已删除文件夹。',
@@ -2867,7 +2826,7 @@ async function moveMailMessagesOperation(
         account.provider,
         account.email,
         secret,
-        uids,
+        [uid],
         folder,
       )
     } else if (mode === 'move') {
@@ -2875,24 +2834,18 @@ async function moveMailMessagesOperation(
         account.provider,
         account.email,
         secret,
-        uids,
+        [uid],
         targetFolder!,
         folder,
       )
     } else {
-      const target: 'archive' | 'trash' | 'junk' | 'inbox' =
-        mode === 'archive'
-          ? 'archive'
-          : mode === 'delete'
-            ? 'trash'
-            : mode === 'spam'
-              ? 'junk'
-              : 'inbox'
+      const target: 'archive' | 'trash' =
+        mode === 'archive' ? 'archive' : 'trash'
       const moved = await moveMailMessages(
         account.provider,
         account.email,
         secret,
-        uids,
+        [uid],
         target,
         folder,
       )
@@ -2900,31 +2853,19 @@ async function moveMailMessagesOperation(
         throw new Error(
           target === 'archive'
             ? '未找到归档文件夹，无法归档。'
-            : target === 'junk'
-              ? '未找到垃圾邮件文件夹，无法标记。'
-              : target === 'inbox'
-                ? '未找到收件箱，无法移出垃圾邮件。'
-                : '未找到已删除文件夹，无法删除。',
+            : '未找到已删除文件夹，无法删除。',
         )
     }
-    for (const message of messages) {
-      mailDb.removeMessage(accountId, folder, message.uid)
-      await rm(
-        join(dataRoot, 'mail-cache', accountId, folder, String(message.uid)),
-        { recursive: true, force: true },
-      ).catch(() => {})
-    }
+    mailDb.removeMessage(accountId, folder, uid)
+    await rm(
+      join(dataRoot, 'mail-cache', accountId, folder, String(uid)),
+      { recursive: true, force: true },
+    ).catch(() => {})
     reduceAccountUnread(
       accountId,
-      folder === 'INBOX'
-        ? messages.filter((message) => message.unread).length
-        : 0,
+      folder === 'INBOX' && message.unread ? 1 : 0,
     )
-    if (
-      mailPanelSelected &&
-      uids.includes(mailPanelSelected.uid)
-    )
-      mailPanelSelected = undefined
+    if (mailPanelSelected?.uid === uid) mailPanelSelected = undefined
     if (mailPanelFolder === folder) loadMailMessages(accountId, folder)
     void refreshMailCacheSize()
     void updateMailBadge()
@@ -6517,7 +6458,6 @@ function setupIpc(): void {
       'mail-sync',
       'mail-load-more',
       'mail-search',
-      'mail-set-unread',
       'mail-send',
       'mail-compose-open',
       'mail-compose-close',
@@ -6527,7 +6467,6 @@ function setupIpc(): void {
       'mail-archive',
       'mail-delete',
       'mail-move',
-      'mail-spam',
       'mail-alert-copy',
       'mail-alert-open',
       'mail-alert-dismiss',
@@ -6915,9 +6854,6 @@ function setupIpc(): void {
       case 'mail-search':
         searchMail(command.query)
         break
-      case 'mail-set-unread':
-        await setMailUnread(command.uid, command.unread)
-        break
       case 'mail-compose-open':
         openMailCompose(
           command.accountId,
@@ -6938,22 +6874,16 @@ function setupIpc(): void {
         removeComposeAttachment(command.id)
         break
       case 'mail-archive':
-        await moveMailMessagesOperation([command.uid], 'archive')
+        await moveMailMessageOperation(command.uid, 'archive')
         break
       case 'mail-delete':
-        await moveMailMessagesOperation([command.uid], 'delete')
+        await moveMailMessageOperation(command.uid, 'delete')
         break
       case 'mail-move':
-        await moveMailMessagesOperation(
-          [command.uid],
+        await moveMailMessageOperation(
+          command.uid,
           'move',
           command.folder,
-        )
-        break
-      case 'mail-spam':
-        await moveMailMessagesOperation(
-          [command.uid],
-          command.spam ? 'spam' : 'ham',
         )
         break
       case 'mail-alert-copy':

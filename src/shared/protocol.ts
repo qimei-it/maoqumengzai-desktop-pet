@@ -495,7 +495,6 @@ export type Command =
   | { type: 'mail-sync'; accountId?: string }
   | { type: 'mail-load-more' }
   | { type: 'mail-search'; query: string }
-  | { type: 'mail-set-unread'; uid: number; unread: boolean }
   | {
       type: 'mail-compose-open'
       accountId?: string
@@ -520,7 +519,6 @@ export type Command =
   | { type: 'mail-archive'; uid: number }
   | { type: 'mail-delete'; uid: number }
   | { type: 'mail-move'; uid: number; folder: string }
-  | { type: 'mail-spam'; uid: number; spam: boolean }
   | { type: 'mail-alert-copy' }
   | { type: 'mail-alert-open' }
   | { type: 'mail-alert-dismiss' }

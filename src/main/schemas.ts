@@ -442,13 +442,6 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
-      type: z.literal('mail-set-unread'),
-      uid: z.number().int().nonnegative(),
-      unread: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
       type: z.literal('mail-compose-open'),
       accountId: z.string().uuid().optional(),
       draftId: z.string().uuid().optional(),
@@ -521,13 +514,6 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('mail-move'),
       uid: z.number().int().nonnegative(),
       folder: z.string().min(1).max(500),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('mail-spam'),
-      uid: z.number().int().nonnegative(),
-      spam: z.boolean(),
     })
     .strict(),
   z.object({ type: z.literal('mail-alert-copy') }).strict(),

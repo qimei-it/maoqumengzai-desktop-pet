@@ -405,25 +405,17 @@ export async function setMailSeen(
   }
 }
 
-type SpecialTarget = 'archive' | 'trash' | 'junk' | 'inbox'
+type SpecialTarget = 'archive' | 'trash'
 
 const archiveNames = /^(archive|archives|all mail|归档|存档|所有邮件)$/i
 const trashNames = /^(trash|deleted messages|deleted items|已删除|已删除邮件|废纸篓)$/i
-const junkNames = /^(junk|spam|垃圾邮件|垃圾箱|广告邮件)$/i
 
 function specialTargetPath(
   boxes: Array<{ path: string; name: string; specialUse?: string }>,
   target: SpecialTarget,
 ): string | undefined {
-  if (target === 'inbox') return 'INBOX'
-  const specialUse =
-    target === 'archive'
-      ? ['\\archive', '\\all']
-      : target === 'trash'
-        ? ['\\trash']
-        : ['\\junk', '\\spam']
-  const names =
-    target === 'archive' ? archiveNames : target === 'trash' ? trashNames : junkNames
+  const specialUse = target === 'archive' ? ['\\archive', '\\all'] : ['\\trash']
+  const names = target === 'archive' ? archiveNames : trashNames
   return (
     boxes.find((box) =>
       specialUse.includes(box.specialUse?.toLowerCase() ?? ''),

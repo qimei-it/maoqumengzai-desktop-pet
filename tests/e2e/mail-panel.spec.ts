@@ -175,7 +175,6 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(
     mail.getByRole('button', { name: '邮件设置' }),
   ).toBeVisible()
-  await expect(mail.locator('.mail-row-delete')).toHaveCount(2)
   await mail.getByRole('button', { name: '邮件设置' }).click()
   await expect
     .poll(async () => {
@@ -252,11 +251,24 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-code')).toHaveText('333333')
   await expect(mail.locator('.mail-code-note')).toContainText('有效期至')
   await expect(mail.locator('.mail-unread')).toHaveCount(0)
-  for (const name of ['回复', '转发', '归档', '删除']) {
+  for (const name of ['回复', '转发', '归档', '移动', '删除']) {
     await expect(
       mail.getByRole('button', { name, exact: true }),
     ).toBeVisible()
   }
+  await expect(
+    mail.getByRole('button', { name: '标记未读', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    mail.getByRole('button', { name: '标记为垃圾邮件', exact: true }),
+  ).toHaveCount(0)
+  await expect(mail.locator('.mail-reader-actions > *')).toHaveCount(5)
+
+  await mail.getByRole('button', { name: '移动', exact: true }).click()
+  await expect(mail.locator('.mail-move-menu')).toBeVisible()
+  await expect(mail.locator('.mail-move-menu')).toContainText('已发送')
+  await mail.getByRole('button', { name: '移动', exact: true }).click()
+  await expect(mail.locator('.mail-move-menu')).toHaveCount(0)
 
   await mail.getByRole('button', { name: '回复', exact: true }).click()
   await expect(compose.locator('.compose-surface')).toBeVisible()
@@ -325,9 +337,6 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   )
   await expect(mail.locator('.mail-code')).toBeDisabled()
   await expect(mail.locator('.mail-loading')).toHaveCount(0)
-  await expect(
-    mail.getByRole('button', { name: '标记未读', exact: true }),
-  ).toBeVisible()
 
   await mail.getByLabel('搜索邮件').fill('旧验证码')
   await expect(mail.locator('.mail-message')).toHaveCount(1)
@@ -480,16 +489,6 @@ test('邮件列表支持 Delete 和 Backspace 删除并进入确认', async () =
       ),
     )
     .toBe(2)
-  await mail.locator('.mail-row-delete').first().click()
-  await expect
-    .poll(() =>
-      application.evaluate(
-        () =>
-          (globalThis as typeof globalThis & { __mailDeleteCalls: number })
-            .__mailDeleteCalls,
-      ),
-    )
-    .toBe(3)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {
