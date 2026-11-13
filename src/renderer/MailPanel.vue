@@ -28,11 +28,9 @@ import {
   formatMailDateTime,
   formatMailListDate,
 } from '../shared/mail-date'
+import MailProviderIcon from './MailProviderIcon.vue'
 import PanelHeader from './PanelHeader.vue'
 import { pushToast } from './toasts'
-import qqIcon from './assets/mail/qq.svg'
-import mail163Icon from './assets/mail/163.svg'
-import gmailIcon from './assets/mail/gmail.svg'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -99,10 +97,6 @@ const codeNote = computed(() => {
     return `有效期至 ${formatMailDateTime(detail.codeExpiresAt)}`
   return ''
 })
-const icons = { qq: qqIcon, '163': mail163Icon, gmail: gmailIcon }
-function providerIcon(provider: string): string {
-  return icons[provider as keyof typeof icons] ?? qqIcon
-}
 function selectAccount(id: string): void {
   emit('command', { type: 'mail-open', accountId: id })
 }
@@ -329,7 +323,7 @@ watch(
               :class="{ active: item.id === accountId }"
               @click="selectAccount(item.id)"
             >
-              <img :src="providerIcon(item.provider)" alt="" draggable="false" />
+              <MailProviderIcon :provider="item.provider" />
               <span class="mail-account-label" :title="mailAccountLabel(item)">{{
                 mailAccountLabel(item)
               }}</span>
@@ -682,12 +676,6 @@ watch(
   font: inherit;
   font-size: var(--font-size-label);
   text-align: left;
-}
-.mail-account img {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  object-fit: contain;
 }
 .mail-account-label {
   flex: 1 1 auto;

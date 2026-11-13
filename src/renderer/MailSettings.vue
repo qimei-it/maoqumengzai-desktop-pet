@@ -22,10 +22,8 @@ import {
   mailRetentionOptions,
   mailSyncOptions,
 } from '../shared/mail'
-import qqIcon from './assets/mail/qq.svg'
-import mail163Icon from './assets/mail/163.svg'
-import gmailIcon from './assets/mail/gmail.svg'
 import SelectField from './SelectField.vue'
+import MailProviderIcon from './MailProviderIcon.vue'
 import { pushToast } from './toasts'
 
 const props = defineProps<{ mail?: MailState }>()
@@ -54,15 +52,11 @@ function formatBytes(bytes: number): string {
 const providerOptions: Array<{
   id: MailProvider
   label: string
-  icon: string
 }> = [
-  { id: 'qq', label: mailProviderLabels.qq, icon: qqIcon },
-  { id: '163', label: mailProviderLabels['163'], icon: mail163Icon },
-  { id: 'gmail', label: mailProviderLabels.gmail, icon: gmailIcon },
+  { id: 'qq', label: mailProviderLabels.qq },
+  { id: '163', label: mailProviderLabels['163'] },
+  { id: 'gmail', label: mailProviderLabels.gmail },
 ]
-function providerIcon(provider: MailProvider): string {
-  return providerOptions.find((item) => item.id === provider)?.icon ?? qqIcon
-}
 
 const formOpen = ref(false)
 const formProvider = ref<MailProvider>('qq')
@@ -249,12 +243,7 @@ watch(
           class="mail-account"
           :title="account.error"
         >
-          <img
-            class="mail-account-icon"
-            :src="providerIcon(account.provider)"
-            alt=""
-            draggable="false"
-          />
+          <MailProviderIcon :provider="account.provider" />
           <span class="mail-account-email" :title="mailAccountLabel(account)">
             {{ mailAccountLabel(account) }}
           </span>
@@ -318,7 +307,7 @@ watch(
             :aria-pressed="formProvider === provider.id"
             @click="formProvider = provider.id"
           >
-            <img :src="provider.icon" alt="" draggable="false" />
+            <MailProviderIcon :provider="provider.id" />
             {{ provider.label }}
           </button>
         </div>
@@ -528,12 +517,6 @@ watch(
   border-radius: var(--radius-control);
   background: var(--color-surface);
 }
-.mail-account-icon {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  object-fit: contain;
-}
 .mail-account-email {
   flex: 1;
   min-width: 0;
@@ -625,11 +608,6 @@ watch(
   font-size: var(--font-size-label);
   font-weight: 600;
   cursor: pointer;
-}
-.mail-provider img {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
 }
 .mail-provider.active {
   color: var(--color-brand-ink);
