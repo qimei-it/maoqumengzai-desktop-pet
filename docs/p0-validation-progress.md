@@ -82,7 +82,8 @@
 - macOS 音乐播放器收尾（2026-11-13）：Apple Music 使用本地测试音轨完成真实播放/暂停/恢复与进度读取，曲目信息和控制状态正确；LRCLIB 无结果时回退读取 Apple Music 自带歌词并按 `\n` 统一换行。macOS 15.4+ 旧 MediaRemote API 对 QQ 音乐返回空，新增随包 MediaRemoteMini（BSD-3-Clause）回退，QQ 当前曲目、歌手、专辑、时长与基于 timestamp 的播放位置恢复，额度药丸在音乐控制栏显示时隐藏。无 timestamp 的播放器继续使用静态纯文本歌词。QQ 当前版本对 MediaRemote 暂停/播放命令不响应，媒体键回退待补；酷狗、网易云需按新回退路径复测。Windows 四款播放器仍待统一验收。
 - 文件夹归档与吃掉（macOS arm64，2026-11-13）：文件拖拽轮盘的“打包归档”支持文件夹递归打包，ZIP/7Z/TAR/TGZ 保留内部目录结构，文件夹可与普通文件同批处理；单文件格式 GZ/BZ2/XZ 仍拒绝文件夹；符号链接跳过，接收批次不再因单个无效项整批失败，未参与动作的文件夹通过气泡点名（如“素材”）；“吃掉”支持文件夹，移入回收区并可在 7 天内取回。真实 Finder 拖拽“视频+文件夹”验证：面板列出 2 项，输出 ZIP 含 `素材/说明.txt` 与 `素材/子目录/画面.txt`，提示“已打包 2 项”；文件夹吃掉后回收区出现 `kind=folder` 条目并可原路径取回；拖入符号链接文件夹时提示“文件夹“链接素材”未打包归档”。定向单元与 Electron 用例通过；Windows x64 待验证。
 - 面板层级与窗口控件统一（macOS arm64，2026-11-13）：补全打包归档、邮件、撰写窗口的透明 `body`/`#app` 规则，移除 7px 外边距内多余的不透明背景，面板只保留一层圆角表面；交通灯位置统一由 7px 面板内边距推导并共用 `panelChrome`，邮件窗口补入面板控件配置。原生窗口截图核对归档、邮件、撰写与设置一致；定向 Electron 用例通过；Windows x64 待验证。
-- 跟宠浮层 Mission Control 行为修复（macOS arm64，2026-11-13）：额度药丸、音乐栏、歌词、音符、音量、眼睛、气泡、提示和专注环统一改用 `configurePetOverlay`，移除 `setHiddenInMissionControl(true)` 带来的 Transient 行为，与桌宠共用 `CanJoinAllSpaces + Managed`。真实 Mission Control 验证额度药丸与桌宠一起缩放并保持相对位置；新增源码回归测试禁止重新引入 `setHiddenInMissionControl(true)`。Windows 无 Mission Control，相关平台行为未验证。
+- 跟宠浮层 Mission Control 收口（macOS arm64，2026-11-13）：额度药丸、音乐栏、歌词、音符、音量、眼睛、气泡、提示和专注环统一改用 `configurePetOverlay`，作为桌宠子窗口并保留 `CanJoinAllSpaces`；仅移除 `setHiddenInMissionControl(true)` 仍会被 Mission Control 分开排列，补上 `setParentWindow(pet)` 后额度药丸与桌宠一起缩放并保持相对位置。新增回归测试禁止重新引入 `setHiddenInMissionControl(true)`。Windows 无 Mission Control，相关行为未验证。
+- 置物架拖出修复（macOS arm64，2026-11-13）：`startDrag` 改为同步读取已登记路径并检查存在性，避免等待 `registeredFile()` 导致原生拖拽会话失效；真实 Finder 拖出验证文件落入目标目录。Windows 拖出待平台复验。
 - 本轮先整理并提交当前资料，按 GitHub → GitLab 顺序同步；两个远端已在本地配置。
 - 默认角色先验证布偶猫，继续遵守 2.5D 像素风、无衣物与透明背景要求。
 - 当前样例改为用户先在 ChatGPT App 制作，不启动火山方舟付费生成；生产端火山方舟、积分与资源包交付方案仍按需求基线保留，尚未验证。
