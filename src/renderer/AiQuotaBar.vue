@@ -59,8 +59,14 @@ const deepSeekBalance = computed(() => {
       </span>
       <div class="quota-copy">
         <span class="quota-values">
-          <span>5h {{ formatQuotaPercent(openAiFiveHour) }}</span>
-          <span>1w {{ formatQuotaPercent(openAiWeek) }}</span>
+          <span class="quota-value-label">5h</span>
+          <span class="quota-value-number">{{
+            formatQuotaPercent(openAiFiveHour)
+          }}</span>
+          <span class="quota-value-label">1w</span>
+          <span class="quota-value-number">{{
+            formatQuotaPercent(openAiWeek)
+          }}</span>
         </span>
       </div>
     </section>
@@ -143,15 +149,19 @@ const deepSeekBalance = computed(() => {
   min-width: 0;
 }
 .quota-values {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  column-gap: 4px;
+  row-gap: 2px;
   color: var(--color-ink);
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
   white-space: nowrap;
+}
+.quota-value-number {
+  text-align: right;
 }
 .quota-balance {
   color: var(--color-provider-deepseek);
