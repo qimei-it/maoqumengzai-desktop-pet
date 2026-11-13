@@ -5506,23 +5506,23 @@ function hideToast(): void {
   broadcast()
 }
 const notesWindowSize = 240
-// music-notes.png is 512×512 with its visible glyphs starting at y≈172.
-const notesArtTop = Math.round((notesWindowSize * 172) / 512)
 function positionNotes(): void {
   if (!notes || notes.isDestroyed()) return
   const b = pet.getBounds()
   const area = screen.getDisplayMatching(b).workArea
   const x = Math.round(b.x + b.width / 2 - notesWindowSize / 2)
   const y = Math.round(b.y + 60 * scale - notesWindowSize)
-  const fitted = fitToDisplays(
-    { x, y, width: notesWindowSize, height: notesWindowSize },
-    [area],
-  )
-  // Keep the visible notes at head height when the pet is against the top
-  // edge. The transparent padding may extend above the screen, but the
-  // animation must not be pushed down over the pet's body.
-  if (y < area.y) fitted.y = Math.max(y, area.y - notesArtTop)
-  notes.setBounds(fitted)
+  // Keep the notes anchored above the head even when the pet is against the
+  // top edge. The transparent part of the overlay may extend above the
+  // screen; clamping it down would put the visible notes over the body.
+  notes.setBounds({
+    x: Math.round(
+      Math.max(area.x, Math.min(x, area.x + area.width - notesWindowSize)),
+    ),
+    y: Math.round(y),
+    width: notesWindowSize,
+    height: notesWindowSize,
+  })
 }
 function pillSize(): { width: number; height: number } {
   const style = settings.musicBarStyle
@@ -6251,6 +6251,7 @@ type MediaRemotePayload = {
   timestamp?: string
   artworkData?: string
   artworkMimeType?: string
+  bundleIdentifier?: string
 }
 function musicStateFromPayload(
   parsed: MediaRemotePayload,
@@ -6316,6 +6317,35 @@ function mediaRemoteMiniPaths(): { loader: string; dylib: string } {
     dylib: join(directory, 'MediaRemoteMini.dylib'),
   }
 }
+const axPlaybackBundles = new Set(['com.tencent.QQMusicMac'])
+function readAxPlaybackState(
+  bundleId: string,
+  done: (playing: boolean | undefined) => void,
+): void {
+  execFile(
+    musicHelperPath(),
+    ['ax-state', bundleId],
+    { timeout: 1500 },
+    (error, stdout) => {
+      if (error) {
+        done(undefined)
+        return
+      }
+      try {
+        const parsed = JSON.parse(stdout.trim() || '{}') as { state?: string }
+        done(
+          parsed.state === 'playing'
+            ? true
+            : parsed.state === 'paused'
+              ? false
+              : undefined,
+        )
+      } catch {
+        done(undefined)
+      }
+    },
+  )
+}
 function pollMediaRemoteMini(
   done: (state: MusicState | null) => void,
 ): void {
@@ -6350,7 +6380,22 @@ function pollMediaRemoteMini(
           const data = Buffer.from(parsed.artworkData, 'base64')
           if (data.length) mediaRemoteArtwork = { key, data }
         }
-        done(state)
+        const bundleId = parsed.bundleIdentifier
+        if (!bundleId || !axPlaybackBundles.has(bundleId)) {
+          done(state)
+          return
+        }
+        readAxPlaybackState(bundleId, (playing) => {
+          if (playing === undefined) {
+            // QQ Music reports playbackRate=1 even while paused and exposes
+            // no usable MediaRemote state. Keep the last known state for the
+            // same track so a user command is not reverted by a stale poll.
+            if (state.title === music.title) state.playing = music.playing
+          } else {
+            state.playing = playing
+          }
+          done(state)
+        })
       } catch {
         mediaRemoteArtwork = undefined
         done(null)
@@ -6829,7 +6874,12 @@ function controlMusic(action: MusicAction): void {
     return
   }
   const command = action === 'previous' ? 'previous' : action === 'toggle' ? 'toggle' : 'next'
-  execFile(musicHelperPath(), [command], () => setTimeout(pollMusic, 700))
+  // MediaRemote already reaches QQ Music and Kugou (verified with their UI
+  // state), so no media-key fallback is needed. A fallback would double-toggle
+  // players that do not report a usable playback state.
+  execFile(musicHelperPath(), [command], { timeout: 2500 }, () => {
+    setTimeout(pollMusic, 900)
+  })
 }
 function areas(): Rect[] {
   return screen.getAllDisplays().map((d) => d.workArea)

@@ -41,12 +41,12 @@ macOS 上四款播放器的能力并不对等：
 - Apple Music：`sdef /System/Applications/Music.app` 中存在 `playpause`、`play`、`pause`、`next track`、`previous track` 命令，以及 `player state`、`player position`、`current track`、`name`、`artist`、`duration`、`lyrics` 属性。
 - 网易云音乐：`sdef /Applications/NeteaseMusic.app` 返回 `error -192`；`Info.plist` 没有 `OSAScriptingDefinition` 或 `NSAppleScriptEnabled`，说明它不提供 AppleScript 控制。
 - 系统存在 `/System/Library/PrivateFrameworks/MediaRemote.framework`，但属于私有框架，且新系统对调用方有限制；不纳入正式方案。
-- 本机 `AXIsProcessTrusted()` 为 `false`。若采用媒体键模拟控制第三方播放器，需要用户在系统设置中授予“辅助功能”权限；这应作为明确的安装引导，而不是静默失败。
+- 本机 `AXIsProcessTrusted()` 在 2026-11-10 探针进程中为 `false`；2026-11-13 由应用启动的 helper 已可用辅助功能读取 QQ 音乐的播放/暂停状态。辅助功能仍属于可选增强：未授权时控制照常，状态退回乐观显示。
 
 ## 对首版的含义
 
 1. **macOS 上不要承诺四款播放器都能显示歌词。** Apple Music 可以；其余三款在公开接口下拿不到歌名/歌手，也就无法可靠匹配歌词。
-2. **媒体键是 macOS 控制第三方播放器的唯一通用路径。** 它能覆盖上一首/下一首/播放暂停，但需要辅助功能授权，并且无法区分当前是哪个播放器。
+2. **MediaRemote 是 macOS 控制第三方播放器的主路径。** 播放/暂停、上一首/下一首对网易云、QQ 音乐、酷狗均已实测生效；媒体键只作为最后的兜底，且不能用来判断命令是否成功。
 3. **Windows 的预期更好。** `GlobalSystemMediaTransportControlsSession` 可提供歌名、歌手、时长、播放位置和控制命令，但需要逐款实测（QQ 音乐、网易云、酷狗是否接入 SMTC）。
 4. **产品文案要如实。** 无法读取信息时显示“已连接控制，系统未提供歌曲信息”，不能显示空白或假歌词。
 
@@ -93,7 +93,10 @@ Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
 - macOS 15.4+ 的旧 MediaRemote C API 对 QQ 音乐返回空字典，导致桌宠无法识别正在播放。新增随包的 `MediaRemoteMini.dylib`（BSD-3-Clause）作为信息读取回退：QQ 音乐当前曲目、歌手、专辑、时长、播放位置恢复。
 - macOS 15.4+ 优先使用 MediaRemoteMini 读取，确保封面和 timestamp 都来自同一份数据；旧 helper 仅作为回退。
 - 只有 `elapsedTime >= 1` 且 `timestamp` 有效时才标记播放位置可靠并按时间戳外推。酷狗当前版本始终上报接近 0 的 `elapsedTime`（约 0.06 秒），这不是“从 0 秒开始”，而是没有提供可用的 seek 位置；此时歌词使用静态纯文本，避免从第一句重新开始滚动。QQ/网易云等能上报有效非零位置的播放器继续显示同步歌词。
-- 当前 QQ 音乐版本对 `MRMediaRemoteSendCommand` 的暂停/播放命令不响应；系统媒体键可切换（需播放器激活或辅助功能授权），控制键回退仍待补。酷狗、网易云需在新回退路径下复测。
+- 当前 QQ 音乐版本对 `MRMediaRemoteSendCommand` 的暂停/播放命令**是响应的**；之前误判为不响应，是因为 QQ 的 `playbackRate` 在暂停后仍为 1。系统媒体键也能切换，但基于 `playbackRate` 校验“未变化”后会再发一次媒体键，形成双切换；该回退已移除。
+- QQ 音乐播放状态改由辅助功能读取：QQ 的播放控制按钮在播放时描述为“暂停播放”，暂停时为“播放”。helper 新增 `ax-state <bundle-id>`，媒体轮询时用该状态覆盖不可靠的 `playbackRate`；未授权辅助功能时保留同一曲目的上一次状态，避免按钮被旧轮询弹回。
+- 酷狗 `playbackRate` 可靠（1 播放、0 暂停），MediaRemote 控制已用真实播放会话验证；其辅助功能树还暴露播放位置/时长文本，可作为后续歌词进度来源。
+- 2026-11-13 真实播放会话验证：QQ 音乐《蓝色梦境》经控制条暂停/恢复，QQ 自身按钮在“暂停播放/播放”间切换；酷狗《偏爱》经控制条暂停/恢复，位置从 00:21 停住后继续到 00:25。
 - 第三方播放器无法读取或设置随机/循环状态时，控制条仍显示两个按钮，但使用禁用和浅色样式，避免功能直接消失造成误解。
 - LRCLIB 获取改为“精确结果优先、按标题搜索补充、优先同步歌词”：同一个中文歌可能有英文/拼音艺人名和多个投稿，旧实现会拿到只有纯文本歌词的条目，控制条因此一直停在静态某一句。先取 `/api/get`，缺同步歌词时用 `/api/search?track_name=` 按标题召回，再按标题、时长和艺人相似度选择同步歌词；艺人名不一致时只接受时长差 5 秒内的候选，避免同名不同歌手误配。歌词缓存版本升级为 2，旧缓存自动重新获取。
 - 第三方播放器封面优先使用 MediaRemote 的 `artworkData`，解码后写入本地 WebP 缓存；iTunes 搜索仅作为没有系统封面时的兜底，避免 QQ 音乐等播放器显示占位图标。新曲目先拿到元数据、稍后才拿到封面时，也会在同一曲目 key 下补加载系统封面，不会因为没有切歌而错过。
@@ -102,5 +105,6 @@ Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
 ## 待验证
 
 - 网易云、QQ、酷狗在 macOS 的媒体键响应与辅助功能授权（真实播放会话需再次复验）。
+- 未授予辅助功能时，QQ 音乐暂停后按钮为乐观状态；后续可增加设置页引导。
 - Windows 四款播放器的 SMTC 支持矩阵。
 - 歌词来源（LRCLIB / AMLL）与本地 LRC 的匹配效果。
