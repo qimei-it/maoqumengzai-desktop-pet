@@ -1,8 +1,16 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  connect: vi.fn(async () => {}),
+  mailboxOpen: vi.fn(async () => ({ exists: 4, unseen: 2 })),
+  run: vi.fn(async () => ({
+    name: 'Coremail Imap',
+    vendor: 'Mailtech',
+    TransID: 'abc',
+  })),
   fetchOne: vi.fn(async () => ({ source: Buffer.from('mail') })),
   flagsAdd: vi.fn(async () => true),
+  logout: vi.fn(async () => {}),
   parse: vi.fn(async () => ({
     subject: '登录验证码',
     from: { value: [{ name: 'Example', address: 'security@example.com' }] },
@@ -15,11 +23,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('imapflow', () => ({
   ImapFlow: class {
-    connect = vi.fn(async () => {})
-    mailboxOpen = vi.fn(async () => ({ exists: 1, unseen: 0 }))
+    connect = mocks.connect
+    mailboxOpen = mocks.mailboxOpen
+    run = mocks.run
     fetchOne = mocks.fetchOne
     messageFlagsAdd = mocks.flagsAdd
-    logout = vi.fn(async () => {})
+    logout = mocks.logout
   },
 }))
 
@@ -27,13 +36,15 @@ vi.mock('mailparser', () => ({
   simpleParser: mocks.parse,
 }))
 
-import { fetchMailDetail } from '../../src/main/mail-sync'
+import {
+  fetchMailDetail,
+  mailErrorMessage,
+  probeMailAccount,
+} from '../../src/main/mail-sync'
 
 describe('mail detail fetch', () => {
   beforeEach(() => {
-    mocks.fetchOne.mockClear()
-    mocks.flagsAdd.mockClear()
-    mocks.parse.mockClear()
+    vi.clearAllMocks()
   })
 
   test('fetches and marks the selected message by UID', async () => {
@@ -43,6 +54,7 @@ describe('mail detail fetch', () => {
       'auth-code',
       3013,
     )
+    expect(mocks.run).not.toHaveBeenCalled()
     expect(mocks.fetchOne).toHaveBeenCalledWith(
       '3013',
       { source: true },
@@ -57,5 +69,47 @@ describe('mail detail fetch', () => {
     expect(detail.codeExpiresAt).toBe(
       new Date('2026-01-01T08:00:00Z').getTime() + 5 * 60_000,
     )
+  })
+
+  test('resends IMAP ID after login for 163 before opening mailboxes', async () => {
+    await probeMailAccount('163', 'demo@163.com', 'auth-code')
+    expect(mocks.run).toHaveBeenCalledWith('ID', {
+      name: 'MaoquMengzai',
+      version: '0.0.1',
+      vendor: 'mqmz',
+    })
+    const connectOrder = mocks.connect.mock.invocationCallOrder[0]
+    const idOrder = mocks.run.mock.invocationCallOrder[0]
+    const openOrder = mocks.mailboxOpen.mock.invocationCallOrder[0]
+    expect(idOrder).toBeGreaterThan(connectOrder)
+    expect(openOrder).toBeGreaterThan(idOrder)
+  })
+
+  test('resends IMAP ID for 163 before fetching message details', async () => {
+    await fetchMailDetail('163', 'demo@163.com', 'auth-code', 3013)
+    const idOrder = mocks.run.mock.invocationCallOrder[0]
+    const openOrder = mocks.mailboxOpen.mock.invocationCallOrder[0]
+    const fetchOrder = mocks.fetchOne.mock.invocationCallOrder[0]
+    expect(openOrder).toBeGreaterThan(idOrder)
+    expect(fetchOrder).toBeGreaterThan(openOrder)
+  })
+})
+
+describe('mail error mapping', () => {
+  test('surfaces Unsafe Login from the IMAP response text', () => {
+    const error = Object.assign(new Error('Command failed'), {
+      responseStatus: 'NO',
+      responseText: 'SELECT Unsafe Login. Please contact kefu@188.com for help',
+    })
+    expect(mailErrorMessage(error)).toBe(
+      '邮箱要求客户端标识，请更换授权码后重试。',
+    )
+  })
+
+  test('surfaces authentication failures from the response text', () => {
+    const error = Object.assign(new Error('Command failed'), {
+      responseText: '[AUTHENTICATIONFAILED] Invalid credentials',
+    })
+    expect(mailErrorMessage(error)).toBe('授权码或应用专用密码不正确。')
   })
 })

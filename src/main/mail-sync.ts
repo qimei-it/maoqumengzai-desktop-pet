@@ -26,6 +26,12 @@ export type MailFetchedDetail = {
   attachments: Array<MailAttachmentInfo & { data: Buffer }>
 }
 
+const mailClientInfo = {
+  name: 'MaoquMengzai',
+  version: '0.0.1',
+  vendor: 'mqmz',
+} as const
+
 function providerClient(
   provider: MailProvider,
   email: string,
@@ -39,20 +45,41 @@ function providerClient(
     auth: { user: email, pass: secret },
     logger: false,
     socketTimeout: 20_000,
-    ...(provider === '163'
-      ? {
-          clientInfo: {
-            name: 'MaoquMengzai',
-            version: '0.0.1',
-            vendor: 'mqmz',
-          },
-        }
-      : {}),
+    ...(provider === '163' ? { clientInfo: mailClientInfo } : {}),
   })
 }
 
+/**
+ * 163/126 only trusts an ID command sent after authentication. ImapFlow sends
+ * ID before LOGIN and skips the post-login repeat when the server already
+ * answered, so force it again before selecting a mailbox.
+ */
+async function identifyClient(
+  client: ImapFlow,
+  provider: MailProvider,
+): Promise<void> {
+  if (provider !== '163') return
+  const internal = client as unknown as {
+    run: (command: string, ...args: unknown[]) => Promise<unknown>
+  }
+  if (typeof internal.run !== 'function') return
+  await internal.run('ID', mailClientInfo)
+}
+
 export function mailErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error)
+  const record =
+    typeof error === 'object' && error !== null
+      ? (error as Record<string, unknown>)
+      : {}
+  const message = [
+    record.message,
+    record.responseText,
+    record.code,
+    record.responseStatus,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .trim() || String(error)
   if (/unsafe login|id required|client.*id|please.*id/i.test(message))
     return '邮箱要求客户端标识，请更换授权码后重试。'
   if (
@@ -74,6 +101,7 @@ export async function probeMailAccount(
   const client = providerClient(provider, email, secret)
   try {
     await client.connect()
+    await identifyClient(client, provider)
     const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
     return { unread: Math.max(0, mailbox.unseen ?? 0) }
   } catch (error) {
@@ -110,6 +138,7 @@ export async function syncMailInbox(
   const client = providerClient(provider, email, secret)
   try {
     await client.connect()
+    await identifyClient(client, provider)
     const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
     const total = mailbox.exists
     const start = Math.max(1, total - 49)
@@ -156,6 +185,7 @@ export async function fetchMailDetail(
   const client = providerClient(provider, email, secret)
   try {
     await client.connect()
+    await identifyClient(client, provider)
     await client.mailboxOpen('INBOX', { readOnly: false })
     const message = await client.fetchOne(
       String(uid),
