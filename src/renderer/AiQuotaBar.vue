@@ -96,6 +96,10 @@ const deepSeekBalance = computed(() => {
   color: var(--color-ink);
   user-select: none;
 }
+.quota-surface.single {
+  padding-left: 6px;
+  padding-right: 6px;
+}
 .quota-segment {
   display: flex;
   align-items: center;

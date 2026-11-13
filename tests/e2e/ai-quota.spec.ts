@@ -195,7 +195,7 @@ test("shows both providers, then shrinks and hides as configuration changes", as
       });
       return bounds.width;
     })
-    .toBe(150);
+    .toBe(120);
   await expect(quota.locator(".quota-surface")).not.toContainText("DeepSeek");
 
   await pet.evaluate(() =>

@@ -211,7 +211,7 @@ export function quotaBarWidth(state: AiQuotaState): number {
   const openai = state.openai.configured
   const deepseek = state.deepseek.configured
   if (openai && deepseek) return 240
-  if (openai || deepseek) return 150
+  if (openai || deepseek) return 120
   return 0
 }
 

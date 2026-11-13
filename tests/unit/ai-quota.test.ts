@@ -115,7 +115,7 @@ describe('quota presentation helpers', () => {
     const state = emptyAiQuotaState()
     expect(quotaBarWidth(state)).toBe(0)
     state.openai.configured = true
-    expect(quotaBarWidth(state)).toBe(150)
+    expect(quotaBarWidth(state)).toBe(120)
     state.deepseek.configured = true
     expect(quotaBarWidth(state)).toBe(240)
   })
