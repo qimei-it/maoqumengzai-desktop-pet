@@ -176,9 +176,7 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
     '已被新验证码替代',
   )
   await expect(mail.locator('.mail-code')).toBeDisabled()
-  await expect(
-    mail.locator('.mail-empty', { hasText: '正在读取邮件…' }),
-  ).toHaveCount(0)
+  await expect(mail.locator('.mail-loading')).toHaveCount(0)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {

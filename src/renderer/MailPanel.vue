@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { Mail, Paperclip, RefreshCw } from '@lucide/vue'
+import { LoaderCircle, Mail, Paperclip, RefreshCw } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
@@ -145,7 +145,7 @@ watch(
             @click="selectAccount(item.id)"
           >
             <img :src="providerIcon(item.provider)" alt="" draggable="false" />
-            <span :title="mailAccountLabel(item)">{{
+            <span class="mail-account-label" :title="mailAccountLabel(item)">{{
               mailAccountLabel(item)
             }}</span>
             <span
@@ -180,7 +180,6 @@ watch(
               </button>
             </div>
           </div>
-          <div v-if="panel?.loading" class="mail-empty">正在读取邮件…</div>
           <button
             v-for="message in messages"
             :key="message.uid"
@@ -205,7 +204,15 @@ watch(
           </div>
         </section>
         <article class="mail-reader">
-          <template v-if="selected">
+          <div v-if="panel?.loading" class="mail-loading" role="status">
+            <LoaderCircle
+              :size="22"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+            <span>正在读取邮件…</span>
+          </div>
+          <template v-else-if="selected">
             <header class="mail-reader-head">
               <h2>{{ selected.subject }}</h2>
               <p>
@@ -304,7 +311,8 @@ watch(
   flex: none;
   object-fit: contain;
 }
-.mail-account span:nth-child(2) {
+.mail-account-label {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -405,6 +413,28 @@ watch(
   min-width: 0;
   overflow-y: auto;
   padding-left: 4px;
+}
+.mail-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.mail-loading svg {
+  animation: mail-spin 900ms linear infinite;
+}
+@keyframes mail-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-loading svg {
+    animation: none;
+  }
 }
 .mail-reader-head {
   padding-bottom: 12px;
