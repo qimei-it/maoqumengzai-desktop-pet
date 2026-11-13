@@ -71,6 +71,22 @@ describe('mail detail fetch', () => {
     )
   })
 
+  test('retries a transient network failure once', async () => {
+    mocks.connect.mockRejectedValueOnce(
+      Object.assign(new Error('connect ETIMEDOUT'), {
+        code: 'ETIMEDOUT',
+      }),
+    )
+    const probe = await probeMailAccount(
+      'gmail',
+      'demo@gmail.com',
+      'abcd efgh ijkl mnop',
+    )
+    expect(probe.unread).toBe(2)
+    expect(mocks.connect).toHaveBeenCalledTimes(2)
+    expect(mocks.run).not.toHaveBeenCalled()
+  })
+
   test('resends IMAP ID after login for 163 before opening mailboxes', async () => {
     await probeMailAccount('163', 'demo@163.com', 'auth-code')
     expect(mocks.run).toHaveBeenCalledWith('ID', {
@@ -103,6 +119,15 @@ describe('mail error mapping', () => {
     })
     expect(mailErrorMessage(error)).toBe(
       '邮箱要求客户端标识，请更换授权码后重试。',
+    )
+  })
+
+  test('includes a network error code for diagnostics', () => {
+    const error = Object.assign(new Error('connect ETIMEDOUT'), {
+      code: 'ETIMEDOUT',
+    })
+    expect(mailErrorMessage(error)).toBe(
+      '无法连接邮箱服务器（ETIMEDOUT），请检查网络或代理。',
     )
   })
 

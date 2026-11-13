@@ -66,12 +66,12 @@ async function identifyClient(
   await internal.run('ID', mailClientInfo)
 }
 
-export function mailErrorMessage(error: unknown): string {
+function errorText(error: unknown): string {
   const record =
     typeof error === 'object' && error !== null
       ? (error as Record<string, unknown>)
       : {}
-  const message = [
+  return [
     record.message,
     record.responseText,
     record.code,
@@ -80,6 +80,26 @@ export function mailErrorMessage(error: unknown): string {
     .filter((value): value is string => typeof value === 'string')
     .join(' ')
     .trim() || String(error)
+}
+
+function isTransientNetworkError(error: unknown): boolean {
+  return /ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ECONNRESET|timeout|network|socket/i.test(
+    errorText(error),
+  )
+}
+
+async function retryNetwork<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (!isTransientNetworkError(error)) throw error
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    return operation()
+  }
+}
+
+export function mailErrorMessage(error: unknown): string {
+  const message = errorText(error)
   if (/unsafe login|id required|client.*id|please.*id/i.test(message))
     return '邮箱要求客户端标识，请更换授权码后重试。'
   if (
@@ -88,8 +108,13 @@ export function mailErrorMessage(error: unknown): string {
     )
   )
     return '授权码或应用专用密码不正确。'
-  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|timeout|network|socket/i.test(message))
-    return '无法连接邮箱服务器，请检查网络。'
+  if (isTransientNetworkError(error)) {
+    const code =
+      typeof (error as { code?: unknown })?.code === 'string'
+        ? `（${(error as { code: string }).code}）`
+        : ''
+    return `无法连接邮箱服务器${code}，请检查网络或代理。`
+  }
   return '邮箱连接失败，请检查账户与授权码。'
 }
 
@@ -98,16 +123,20 @@ export async function probeMailAccount(
   email: string,
   secret: string,
 ): Promise<MailProbe> {
-  const client = providerClient(provider, email, secret)
   try {
-    await client.connect()
-    await identifyClient(client, provider)
-    const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
-    return { unread: Math.max(0, mailbox.unseen ?? 0) }
+    return await retryNetwork(async () => {
+      const client = providerClient(provider, email, secret)
+      try {
+        await client.connect()
+        await identifyClient(client, provider)
+        const mailbox = await client.mailboxOpen('INBOX', { readOnly: true })
+        return { unread: Math.max(0, mailbox.unseen ?? 0) }
+      } finally {
+        await client.logout().catch(() => {})
+      }
+    })
   } catch (error) {
     throw new Error(mailErrorMessage(error))
-  } finally {
-    await client.logout().catch(() => {})
   }
 }
 
