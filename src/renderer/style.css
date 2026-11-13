@@ -879,17 +879,12 @@ footer button {
   transform: scale(0.96);
 }
 .pill-lyric-lines {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: pre-line;
   overflow: hidden;
   line-height: 1.3;
-}
-.pill-lyric-line {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .pill-surface.double {
   flex-direction: column;

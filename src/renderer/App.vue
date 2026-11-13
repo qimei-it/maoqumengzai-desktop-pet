@@ -1138,6 +1138,9 @@ const pillLyric = computed(() => {
     return plainLines.value[plainCurrent.value] ?? "";
   return hasLyrics.value ? "♪" : "";
 });
+const pillLyricLinesText = computed(() =>
+  [pillLyric.value, pillLyricNext.value].filter(Boolean).join("\n"),
+);
 const pillSubline = computed(() => {
   if (pillLyric.value) return pillLyric.value;
   if (hasLyrics.value) return "♪";
@@ -1465,16 +1468,12 @@ onUnmounted(() => {
         </span>
         <span
           v-if="isTwoLineBar"
-          :key="`${pillLyric}|${pillLyricNext}`"
+          :key="pillLyricLinesText"
           class="pill-lyric pill-lyric-lines"
           :class="{ placeholder: !pillLyric }"
-          :title="[pillLyric, pillLyricNext].filter(Boolean).join(' / ')"
+          :title="pillLyricLinesText"
+          >{{ pillLyricLinesText }}</span
         >
-          <span class="pill-lyric-line">{{ pillLyric }}</span>
-          <span v-if="pillLyricNext" class="pill-lyric-line">{{
-            pillLyricNext
-          }}</span>
-        </span>
         <span
           v-else
           ref="pillLyricEl"
