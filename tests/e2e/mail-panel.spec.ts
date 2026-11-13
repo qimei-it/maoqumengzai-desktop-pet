@@ -31,6 +31,22 @@ test.beforeAll(async () => {
   })
   accountId = account.id
   db.updateAccount(accountId, { unread: 1 })
+  db.replaceFolders(accountId, [
+    {
+      path: 'INBOX',
+      name: '收件箱',
+      kind: 'inbox',
+      unread: 1,
+      total: 2,
+    },
+    {
+      path: 'Sent',
+      name: '已发送',
+      kind: 'sent',
+      unread: 0,
+      total: 0,
+    },
+  ])
   await new Promise((resolve) => setTimeout(resolve, 5))
   backupAccountId = db.addAccount({
     provider: 'gmail',
@@ -137,6 +153,16 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(
     mail.getByRole('button', { name: '添加邮箱账户' }),
   ).toBeVisible()
+  await expect(mail.locator('.mail-folder')).toHaveCount(2)
+  await expect(mail.locator('.mail-folder')).toHaveText([
+    '收件箱1',
+    '已发送',
+  ])
+  await mail.locator('.mail-folder', { hasText: '已发送' }).click()
+  await expect(mail.locator('.mail-folder.active')).toContainText('已发送')
+  await expect(mail.locator('.mail-message')).toHaveCount(0)
+  await mail.locator('.mail-folder', { hasText: '收件箱' }).click()
+  await expect(mail.locator('.mail-message')).toHaveCount(2)
   await expect(
     mail.getByRole('button', { name: '新建邮件' }),
   ).toBeEnabled()
@@ -181,8 +207,8 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
       .locator('.compose-field', { hasText: '主题' })
       .locator('input'),
   ).toHaveValue('Re: 最新验证码')
-  await expect(compose.locator('.compose-content')).toHaveValue(
-    /----- 原邮件 -----/,
+  await expect(compose.locator('.compose-content')).toContainText(
+    '----- 原邮件 -----',
   )
   await compose.getByRole('button', { name: '取消', exact: true }).click()
   await expect
@@ -245,6 +271,12 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(
     compose.getByRole('heading', { name: '新邮件', exact: true }),
   ).toBeVisible()
+  await expect(
+    compose.getByRole('button', { name: '加粗', exact: true }),
+  ).toBeVisible()
+  await expect(
+    compose.locator('#mail-contact-options option'),
+  ).not.toHaveCount(0)
   await compose.getByRole('button', { name: '发送', exact: true }).click()
   await expect(
     compose.locator('.toast-item.toast-error').last(),

@@ -8,6 +8,8 @@ import type {
   MailAccountStatus,
   MailAttachmentInfo,
   MailAuthType,
+  MailFolder,
+  MailFolderKind,
   MailMessageDetail,
   MailMessageSummary,
   MailProvider,
@@ -67,6 +69,7 @@ export class MailDatabase {
         account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
         path TEXT NOT NULL,
         name TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'other',
         delimiter TEXT,
         uid_validity INTEGER,
         uid_next INTEGER,
@@ -116,6 +119,11 @@ export class MailDatabase {
         copied_at INTEGER,
         PRIMARY KEY(account_id, folder, uid, code)
       );
+      CREATE TABLE IF NOT EXISTS mail_contacts (
+        address TEXT PRIMARY KEY COLLATE NOCASE,
+        name TEXT,
+        last_used_at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS mail_sync_state (
         account_id TEXT NOT NULL REFERENCES mail_accounts(id) ON DELETE CASCADE,
         folder TEXT NOT NULL,
@@ -125,6 +133,13 @@ export class MailDatabase {
         PRIMARY KEY(account_id, folder)
       );
     `)
+    try {
+      this.db.exec(
+        "ALTER TABLE mail_folders ADD COLUMN kind TEXT NOT NULL DEFAULT 'other'",
+      )
+    } catch {
+      /* column already exists */
+    }
   }
 
   listAccounts(): MailAccount[] {
@@ -224,6 +239,90 @@ export class MailDatabase {
 
   removeAccount(id: string): void {
     this.db.prepare('DELETE FROM mail_accounts WHERE id = ?').run(id)
+  }
+
+  replaceFolders(accountId: string, folders: MailFolder[]): void {
+    this.db.exec('BEGIN')
+    try {
+      this.db
+        .prepare('DELETE FROM mail_folders WHERE account_id = ?')
+        .run(accountId)
+      const insert = this.db.prepare(
+        `INSERT INTO mail_folders
+          (account_id, path, name, kind, unread, total, last_sync_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      const now = Date.now()
+      for (const folder of folders) {
+        insert.run(
+          accountId,
+          folder.path,
+          folder.name,
+          folder.kind,
+          Math.max(0, folder.unread),
+          Math.max(0, folder.total),
+          now,
+        )
+      }
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
+  updateFolder(
+    accountId: string,
+    path: string,
+    unread: number,
+    total: number,
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE mail_folders
+         SET unread = ?, total = ?, last_sync_at = ?
+         WHERE account_id = ? AND path = ?`,
+      )
+      .run(
+        Math.max(0, unread),
+        Math.max(0, total),
+        Date.now(),
+        accountId,
+        path,
+      )
+  }
+
+  listFolders(accountId: string): MailFolder[] {
+    const rows = this.db
+      .prepare(
+        `SELECT path, name, kind, unread, total
+         FROM mail_folders
+         WHERE account_id = ?
+         ORDER BY CASE kind
+           WHEN 'inbox' THEN 0
+           WHEN 'sent' THEN 1
+           WHEN 'drafts' THEN 2
+           WHEN 'archive' THEN 3
+           WHEN 'junk' THEN 4
+           WHEN 'trash' THEN 5
+           WHEN 'all' THEN 6
+           ELSE 7
+         END, name ASC`,
+      )
+      .all(accountId) as unknown as Array<{
+      path: string
+      name: string
+      kind: MailFolderKind
+      unread: number
+      total: number
+    }>
+    return rows.map((row) => ({
+      path: row.path,
+      name: row.name,
+      kind: row.kind,
+      unread: row.unread,
+      total: row.total,
+    }))
   }
 
   /** Removes cached messages older than the cutoff and returns their keys. */
@@ -374,6 +473,50 @@ export class MailDatabase {
       DELETE FROM mail_attachments;
       DELETE FROM mail_codes;
     `)
+  }
+
+  recordContacts(addresses: Array<{ address: string; name?: string }>): void {
+    const statement = this.db.prepare(
+      `INSERT INTO mail_contacts (address, name, last_used_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(address) DO UPDATE SET
+         name = COALESCE(excluded.name, mail_contacts.name),
+         last_used_at = excluded.last_used_at`,
+    )
+    const now = Date.now()
+    for (const contact of addresses) {
+      const address = contact.address.trim()
+      if (!address) continue
+      statement.run(address, contact.name?.trim() || null, now)
+    }
+  }
+
+  contacts(limit = 50): Array<{ name?: string; address: string }> {
+    const rows = this.db
+      .prepare(
+        `SELECT address, name, latest FROM (
+           SELECT LOWER(from_address) AS address,
+                  MAX(from_name) AS name,
+                  MAX(date) AS latest
+           FROM mail_messages
+           WHERE from_address IS NOT NULL AND from_address <> ''
+           GROUP BY LOWER(from_address)
+           UNION ALL
+           SELECT LOWER(address) AS address, name, last_used_at AS latest
+           FROM mail_contacts
+         )
+         GROUP BY address
+         ORDER BY latest DESC, address ASC
+         LIMIT ?`,
+      )
+      .all(limit) as unknown as Array<{
+      name: string | null
+      address: string
+    }>
+    return rows.map((row) => ({
+      ...(row.name ? { name: row.name } : {}),
+      address: row.address,
+    }))
   }
 
   countMessages(accountId: string, folder = 'INBOX'): number {

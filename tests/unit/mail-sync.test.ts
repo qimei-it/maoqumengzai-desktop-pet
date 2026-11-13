@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
       Array<{ path: string; name: string; specialUse?: string }>
     > => [],
   ),
+  status: vi.fn(async () => ({ messages: 2, unseen: 1 })),
   move: vi.fn(async () => ({ uidMap: new Map() })),
   flagsAdd: vi.fn(async () => true),
   flagsRemove: vi.fn(async () => true),
@@ -39,6 +40,7 @@ vi.mock('imapflow', () => ({
     fetch = mocks.fetch
     fetchOne = mocks.fetchOne
     list = mocks.list
+    status = mocks.status
     messageMove = mocks.move
     messageFlagsAdd = mocks.flagsAdd
     messageFlagsRemove = mocks.flagsRemove
@@ -52,6 +54,7 @@ vi.mock('mailparser', () => ({
 
 import {
   fetchMailDetail,
+  fetchMailFolders,
   fetchOlderMailInbox,
   mailErrorMessage,
   moveMailMessage,
@@ -115,6 +118,37 @@ describe('mail detail fetch', () => {
       fromAddress: 'old@example.com',
     })
     expect(result.hasMore).toBe(false)
+  })
+
+  test('maps IMAP special-use folders to localized categories', async () => {
+    mocks.list.mockResolvedValueOnce([
+      {
+        path: 'INBOX',
+        name: 'Inbox',
+        specialUse: '\\Inbox',
+      },
+      {
+        path: '[Gmail]/Sent Mail',
+        name: 'Sent Mail',
+        specialUse: '\\Sent',
+      },
+      {
+        path: '[Gmail]/Trash',
+        name: 'Trash',
+        specialUse: '\\Trash',
+      },
+    ])
+    const folders = await fetchMailFolders(
+      'gmail',
+      'demo@gmail.com',
+      'auth-code',
+    )
+    expect(folders.map((folder) => [folder.kind, folder.name])).toEqual([
+      ['inbox', '收件箱'],
+      ['sent', '已发送'],
+      ['trash', '已删除'],
+    ])
+    expect(folders[0]).toMatchObject({ unread: 1, total: 2 })
   })
 
   test('moves Gmail mail to All Mail when archiving', async () => {

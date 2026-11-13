@@ -509,13 +509,15 @@ export type Command =
       cc?: string
       subject: string
       body: string
+      bodyHtml?: string
       attachmentIds: string[]
     }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
   | { type: 'mail-clear-cache' }
   | { type: 'mail-choose-attachment-dir' }
   | { type: 'mail-open-attachment-dir' }
-  | { type: 'mail-open'; accountId?: string }
+  | { type: 'mail-open'; accountId?: string; folder?: string }
+  | { type: 'mail-folder'; accountId: string; folder: string }
   | { type: 'mail-close' }
   | { type: 'mail-refresh' }
   | { type: 'mail-select'; uid: number }

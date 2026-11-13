@@ -12,7 +12,10 @@ import {
   minWheelActions,
   sliceActions,
 } from '../shared/donut'
-import { mailDisplayNameError } from '../shared/mail'
+import {
+  mailDisplayNameError,
+  mailRecipientError,
+} from '../shared/mail'
 
 const wheelActions = <T extends string>(catalog: readonly T[]) =>
   z
@@ -476,10 +479,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('mail-send'),
       accountId: z.string().uuid(),
-      to: z.string().min(1).max(1000),
-      cc: z.string().max(1000).optional(),
+      to: z
+        .string()
+        .min(1)
+        .max(1000)
+        .refine((value) => !mailRecipientError(value, true)),
+      cc: z
+        .string()
+        .max(1000)
+        .optional()
+        .refine((value) => !mailRecipientError(value ?? '')),
       subject: z.string().max(500),
       body: z.string().max(1_000_000),
+      bodyHtml: z.string().max(1_000_000).optional(),
       attachmentIds: z.array(z.string().uuid()).max(20),
     })
     .strict(),
@@ -517,6 +529,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('mail-open'),
       accountId: z.string().uuid().optional(),
+      folder: z.string().min(1).max(500).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('mail-folder'),
+      accountId: z.string().uuid(),
+      folder: z.string().min(1).max(500),
     })
     .strict(),
   z.object({ type: z.literal('mail-close') }).strict(),

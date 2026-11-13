@@ -4,6 +4,9 @@ import {
   Archive,
   CornerUpLeft,
   CornerUpRight,
+  FileText,
+  Folder,
+  Inbox,
   LoaderCircle,
   Mail,
   MailPlus,
@@ -11,11 +14,14 @@ import {
   PenLine,
   RefreshCw,
   Search,
+  Send,
+  ShieldAlert,
   Trash2,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
+  type MailFolderKind,
   type MailMessageSummary,
 } from '../shared/mail'
 import {
@@ -32,6 +38,23 @@ const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 const panel = computed(() => props.state?.mailPanel)
 const accounts = computed(() => props.state?.mail.accounts ?? [])
+const folderMap = computed(() => props.state?.mail.folders ?? {})
+const folderIcons: Record<MailFolderKind, unknown> = {
+  inbox: Inbox,
+  sent: Send,
+  drafts: FileText,
+  archive: Archive,
+  junk: ShieldAlert,
+  trash: Trash2,
+  all: Folder,
+  other: Folder,
+}
+function foldersFor(accountId: string) {
+  return folderMap.value[accountId] ?? []
+}
+function folderIcon(kind: MailFolderKind): unknown {
+  return folderIcons[kind] ?? Folder
+}
 const selected = computed(() => panel.value?.selected)
 const attachmentTotal = computed(() =>
   (selected.value?.attachments ?? []).reduce(
@@ -82,6 +105,13 @@ function providerIcon(provider: string): string {
 }
 function selectAccount(id: string): void {
   emit('command', { type: 'mail-open', accountId: id })
+}
+function selectFolder(accountId: string, folder: string): void {
+  emit('command', {
+    type: 'mail-folder',
+    accountId,
+    folder,
+  })
 }
 function selectMessage(message: MailMessageSummary): void {
   emit('command', { type: 'mail-select', uid: message.uid })
@@ -276,25 +306,52 @@ watch(
               </button>
             </div>
           </div>
-          <button
+          <div
             v-for="item in accounts"
             :key="item.id"
-            type="button"
-            class="mail-account"
-            :class="{ active: item.id === accountId }"
-            @click="selectAccount(item.id)"
+            class="mail-account-group"
           >
-            <img :src="providerIcon(item.provider)" alt="" draggable="false" />
-            <span class="mail-account-label" :title="mailAccountLabel(item)">{{
-              mailAccountLabel(item)
-            }}</span>
-            <span
-              v-if="item.unread && (state?.mail.config.unreadBadge ?? true)"
-              class="mail-unread"
-              :title="`${item.unread} 封未读`"
-              >{{ item.unread }}</span
+            <button
+              type="button"
+              class="mail-account"
+              :class="{ active: item.id === accountId }"
+              @click="selectAccount(item.id)"
             >
-          </button>
+              <img :src="providerIcon(item.provider)" alt="" draggable="false" />
+              <span class="mail-account-label" :title="mailAccountLabel(item)">{{
+                mailAccountLabel(item)
+              }}</span>
+              <span
+                v-if="item.unread && (state?.mail.config.unreadBadge ?? true)"
+                class="mail-unread"
+                :title="`${item.unread} 封未读`"
+                >{{ item.unread }}</span
+              >
+            </button>
+            <button
+              v-for="folder in foldersFor(item.id)"
+              :key="`${item.id}:${folder.path}`"
+              type="button"
+              class="mail-folder"
+              :class="{
+                active:
+                  item.id === accountId && folder.path === panel?.folder,
+              }"
+              :title="folder.name"
+              @click="selectFolder(item.id, folder.path)"
+            >
+              <component
+                :is="folderIcon(folder.kind)"
+                :size="14"
+                :stroke-width="1.8"
+                aria-hidden="true"
+              />
+              <span class="mail-folder-name">{{ folder.name }}</span>
+              <span v-if="folder.unread" class="mail-folder-unread">{{
+                folder.unread
+              }}</span>
+            </button>
+          </div>
           <button type="button" class="mail-refresh" @click="refresh">
             <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
             刷新
@@ -500,8 +557,58 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
   padding-right: 12px;
   border-right: 1px solid var(--color-line);
+}
+.mail-account-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mail-folder {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 8px 0 30px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+  cursor: pointer;
+}
+.mail-folder:hover {
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+}
+.mail-folder.active {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.mail-folder svg {
+  flex: none;
+}
+.mail-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-folder-unread {
+  flex: none;
+  min-width: 16px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+  text-align: center;
 }
 .mail-accounts-head {
   display: flex;
@@ -740,7 +847,7 @@ watch(
 }
 .mail-reader-title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -755,6 +862,7 @@ watch(
   align-items: center;
   flex: none;
   gap: 2px;
+  transform: translateY(3px);
 }
 .mail-reader-icon {
   display: grid;

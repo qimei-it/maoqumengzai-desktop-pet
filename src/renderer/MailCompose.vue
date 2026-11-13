@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { Paperclip, X } from '@lucide/vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import {
+  Bold,
+  Italic,
+  List as ListIcon,
+  ListOrdered,
+  Paperclip,
+  Redo2,
+  Underline,
+  Undo2,
+  X,
+} from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   mailAccountLabel,
+  mailRecipientError,
   type MailAttachmentPick,
 } from '../shared/mail'
 import PanelHeader from './PanelHeader.vue'
@@ -19,18 +30,43 @@ const accountId = ref('')
 const to = ref('')
 const cc = ref('')
 const subject = ref('')
-const body = ref('')
+const bodyHtml = ref('')
 const attachments = ref<MailAttachmentPick[]>([])
+const editor = ref<HTMLDivElement>()
+const contacts = computed(() => compose.value?.contacts ?? [])
+const contactOptions = computed(() =>
+  contacts.value.map((contact) => ({
+    ...contact,
+    label: contact.name
+      ? `${contact.name}（${contact.address}）`
+      : contact.address,
+  })),
+)
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+function textToHtml(value: string): string {
+  return value
+    .split('\n')
+    .map((line) => `<div>${line ? escapeHtml(line) : '<br>'}</div>`)
+    .join('')
+}
 function reset(): void {
   const draft = compose.value?.draft
   to.value = draft?.to ?? ''
   cc.value = draft?.cc ?? ''
   subject.value = draft?.subject ?? ''
-  body.value = draft?.body ?? ''
+  bodyHtml.value = textToHtml(draft?.body ?? '')
   attachments.value = []
   accountId.value =
     compose.value?.accountId ?? accounts.value[0]?.id ?? ''
+  void nextTick(() => {
+    if (editor.value) editor.value.innerHTML = bodyHtml.value
+  })
 }
 watch(() => compose.value?.revision, reset, { immediate: true })
 watch(
@@ -55,6 +91,14 @@ async function chooseAttachments(): Promise<void> {
   }
   attachments.value = result.value
 }
+function syncBody(): void {
+  bodyHtml.value = editor.value?.innerHTML ?? ''
+}
+function format(command: string): void {
+  editor.value?.focus()
+  document.execCommand(command, false)
+  syncBody()
+}
 function removeAttachment(id: string): void {
   attachments.value = attachments.value.filter((item) => item.id !== id)
 }
@@ -68,8 +112,24 @@ function send(): void {
     pushToast('请选择发件账户。', 'error')
     return
   }
-  if (!to.value.trim()) {
-    pushToast('请填写收件人。', 'error')
+  const recipientError = mailRecipientError(to.value, true)
+  if (recipientError) {
+    pushToast(recipientError, 'error')
+    return
+  }
+  const ccError = mailRecipientError(cc.value)
+  if (ccError) {
+    pushToast(ccError, 'error')
+    return
+  }
+  if (subject.value.length > 500) {
+    pushToast('主题不能超过 500 个字符。', 'error')
+    return
+  }
+  syncBody()
+  const body = editor.value?.innerText ?? ''
+  if (bodyHtml.value.length > 1_000_000) {
+    pushToast('正文过长，请精简后发送。', 'error')
     return
   }
   emit('command', {
@@ -78,7 +138,8 @@ function send(): void {
     to: to.value.trim(),
     ...(cc.value.trim() ? { cc: cc.value.trim() } : {}),
     subject: subject.value,
-    body: body.value,
+    body,
+    bodyHtml: bodyHtml.value,
     attachmentIds: attachments.value.map((item) => item.id),
   })
 }
@@ -104,6 +165,14 @@ function size(bytes: number): string {
         @close="close"
       />
       <div class="compose-body">
+        <datalist id="mail-contact-options">
+          <option
+            v-for="contact in contactOptions"
+            :key="contact.address"
+            :value="contact.address"
+            :label="contact.label"
+          />
+        </datalist>
         <label class="compose-field">
           <span>发件人</span>
           <select v-model="accountId" :disabled="sending">
@@ -122,6 +191,7 @@ function size(bytes: number): string {
             v-model="to"
             type="text"
             autocomplete="off"
+            list="mail-contact-options"
             placeholder="name@example.com"
           />
         </label>
@@ -131,6 +201,7 @@ function size(bytes: number): string {
             v-model="cc"
             type="text"
             autocomplete="off"
+            list="mail-contact-options"
             placeholder="可选"
           />
         </label>
@@ -138,11 +209,83 @@ function size(bytes: number): string {
           <span>主题</span>
           <input v-model="subject" type="text" maxlength="500" />
         </label>
-        <textarea
-          v-model="body"
+        <div class="compose-formatbar" role="toolbar" aria-label="正文格式">
+          <button
+            type="button"
+            class="compose-format-button"
+            title="撤销"
+            aria-label="撤销"
+            @mousedown.prevent="format('undo')"
+          >
+            <Undo2 :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="compose-format-button"
+            title="重做"
+            aria-label="重做"
+            @mousedown.prevent="format('redo')"
+          >
+            <Redo2 :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <span class="compose-format-separator" />
+          <button
+            type="button"
+            class="compose-format-button"
+            title="加粗"
+            aria-label="加粗"
+            @mousedown.prevent="format('bold')"
+          >
+            <Bold :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="compose-format-button"
+            title="斜体"
+            aria-label="斜体"
+            @mousedown.prevent="format('italic')"
+          >
+            <Italic :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="compose-format-button"
+            title="下划线"
+            aria-label="下划线"
+            @mousedown.prevent="format('underline')"
+          >
+            <Underline :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <span class="compose-format-separator" />
+          <button
+            type="button"
+            class="compose-format-button"
+            title="无序列表"
+            aria-label="无序列表"
+            @mousedown.prevent="format('insertUnorderedList')"
+          >
+            <ListIcon :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="compose-format-button"
+            title="有序列表"
+            aria-label="有序列表"
+            @mousedown.prevent="format('insertOrderedList')"
+          >
+            <ListOrdered :size="14" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </div>
+        <div
+          ref="editor"
           class="compose-content"
-          placeholder="正文"
+          contenteditable="true"
+          role="textbox"
+          aria-label="正文"
+          aria-multiline="true"
+          data-placeholder="正文"
           spellcheck="false"
+          @input="syncBody"
         />
         <ul v-if="attachments.length" class="compose-attachments">
           <li v-for="attachment in attachments" :key="attachment.id">
@@ -242,10 +385,40 @@ function size(bytes: number): string {
   font-size: var(--font-size-label);
   outline: none;
 }
+.compose-formatbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.compose-format-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.compose-format-button:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.compose-format-separator {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--color-line);
+}
 .compose-content {
   flex: 1;
   min-height: 180px;
-  resize: none;
+  overflow-y: auto;
   padding: 10px 2px;
   border: 0;
   background: transparent;
@@ -254,6 +427,10 @@ function size(bytes: number): string {
   font-size: var(--font-size-body);
   line-height: 1.6;
   outline: none;
+}
+.compose-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-muted);
 }
 .compose-attachments {
   display: flex;

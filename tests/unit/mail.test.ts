@@ -14,6 +14,7 @@ import {
   mailDisplayNameLimit,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
+  mailRecipientError,
   mailUnreadTotal,
   normalizeMailSecret,
 } from '../../src/shared/mail'
@@ -115,6 +116,47 @@ describe('mail database', () => {
     ])
     expect(db.listMessages(account.id).map((item) => item.uid)).toEqual([2])
     expect(db.message(account.id, 'INBOX', 1)).toBeUndefined()
+    db.close()
+  })
+
+  test('stores and orders IMAP folder categories', async () => {
+    const directory = await tempDirectory()
+    const db = new MailDatabase(join(directory, 'mail.db'))
+    const account = db.addAccount({ provider: 'gmail', email: 'f@gmail.com' })
+    db.replaceFolders(account.id, [
+      {
+        path: '[Gmail]/Trash',
+        name: '已删除',
+        kind: 'trash',
+        unread: 0,
+        total: 3,
+      },
+      {
+        path: 'INBOX',
+        name: '收件箱',
+        kind: 'inbox',
+        unread: 2,
+        total: 8,
+      },
+      {
+        path: '[Gmail]/Sent Mail',
+        name: '已发送',
+        kind: 'sent',
+        unread: 0,
+        total: 4,
+      },
+    ])
+    expect(db.listFolders(account.id).map((folder) => folder.kind)).toEqual([
+      'inbox',
+      'sent',
+      'trash',
+    ])
+    expect(db.listFolders(account.id)[0]).toMatchObject({
+      path: 'INBOX',
+      name: '收件箱',
+      unread: 2,
+      total: 8,
+    })
     db.close()
   })
 
@@ -260,6 +302,16 @@ describe('mail unread total', () => {
     expect(mailGmailAppPasswordUrl).toContain(
       'blog.csdn.net/weixin_54689482/article/details/146033946',
     )
+  })
+
+  test('validates recipient lists', () => {
+    expect(mailRecipientError('a@example.com', true)).toBeUndefined()
+    expect(
+      mailRecipientError('Me <a@example.com>, b@example.com'),
+    ).toBeUndefined()
+    expect(mailRecipientError('', true)).toContain('收件人')
+    expect(mailRecipientError('not-an-address', true)).toContain('地址无效')
+    expect(mailRecipientError('a@example.com', false)).toBeUndefined()
   })
 
   test('removes spaces from Google app passwords', () => {

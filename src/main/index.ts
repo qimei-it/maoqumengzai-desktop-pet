@@ -157,6 +157,7 @@ import {
 } from './mail-secrets'
 import {
   fetchMailDetail,
+  fetchMailFolders,
   fetchOlderMailInbox,
   moveMailMessage,
   probeMailAccount,
@@ -171,6 +172,7 @@ import {
   mailAccountLabel,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
+  mailRecipientAddresses,
   mailUnreadTotal,
   type MailAttachmentPick,
 } from '../shared/mail'
@@ -293,6 +295,7 @@ let mailWindow: BrowserWindow | undefined
 let mailComposeWindow: BrowserWindow | undefined
 let mailComposeAccountId: string | undefined
 let mailComposeDraft: MailComposeDraft | undefined
+let mailComposeContacts: Array<{ name?: string; address: string }> = []
 let mailComposeSending = false
 let mailComposeError: string | undefined
 let mailComposeRevision = 0
@@ -300,6 +303,7 @@ let mailBadgeImage: ReturnType<typeof nativeImage.createFromPath> | undefined
 let mailBadgeTotal = -1
 let mailPruning = false
 let mailPanelAccountId: string | undefined
+let mailPanelFolder = 'INBOX'
 let mailPanelLoading = false
 let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
 let mailPanelHasMore = false
@@ -2249,6 +2253,7 @@ function mailPanelState(): MailPanelState {
   return {
     open: windowVisible(mailWindow),
     ...(mailPanelAccountId ? { accountId: mailPanelAccountId } : {}),
+    folder: mailPanelFolder,
     loading: mailPanelLoading,
     ...(mailPanelLoadingKind ? { loadingKind: mailPanelLoadingKind } : {}),
     hasMore: mailPanelQuery ? false : mailPanelHasMore,
@@ -2267,6 +2272,7 @@ function mailComposeState(): MailComposeState {
     revision: mailComposeRevision,
     sending: mailComposeSending,
     ...(mailComposeDraft ? { draft: mailComposeDraft } : {}),
+    contacts: mailComposeContacts,
     ...(mailComposeError ? { error: mailComposeError } : {}),
   }
 }
@@ -2300,6 +2306,19 @@ function openMailCompose(
     accounts[0].id
   mailComposeRevision += 1
   mailComposeDraft = draft
+  const seen = new Set<string>()
+  mailComposeContacts = [
+    ...accounts.map((item) => ({
+      ...(item.displayName ? { name: item.displayName } : {}),
+      address: item.email,
+    })),
+    ...mailDb.contacts(50),
+  ].filter((contact) => {
+    const key = contact.address.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
   mailComposeError = undefined
   mailComposeSending = false
   if (mailComposeWindow && !mailComposeWindow.isDestroyed()) {
@@ -2322,8 +2341,8 @@ function closeMailCompose(): void {
 function loadMailMessages(accountId: string): void {
   if (!mailDb) return
   mailPanelMessages = mailPanelQuery
-    ? mailDb.searchMessages(accountId, 'INBOX', mailPanelQuery, 500)
-    : mailDb.listMessages(accountId, 'INBOX', 500)
+    ? mailDb.searchMessages(accountId, mailPanelFolder, mailPanelQuery, 500)
+    : mailDb.listMessages(accountId, mailPanelFolder, 500)
 }
 function positionMail(): void {
   if (!mailWindow || mailWindow.isDestroyed()) return
@@ -2335,7 +2354,7 @@ function positionMail(): void {
   const y = a.y + Math.round((a.height - height) / 2)
   mailWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-async function openMail(accountId?: string): Promise<void> {
+async function openMail(accountId?: string, folder?: string): Promise<void> {
   if (!mailDb) return
   const accounts = mailDb.listAccounts()
   if (!accounts.length) {
@@ -2347,6 +2366,7 @@ async function openMail(accountId?: string): Promise<void> {
   const account =
     accounts.find((item) => item.id === accountId) ?? accounts[0]
   mailPanelAccountId = account.id
+  mailPanelFolder = folder || 'INBOX'
   mailPanelSelected = undefined
   mailPanelError = undefined
   mailPanelErrorKind = undefined
@@ -2373,17 +2393,50 @@ function closeMail(): void {
   mailWindow?.hide()
   broadcast()
 }
+async function refreshMailFolders(accountId: string): Promise<void> {
+  if (!mailDb) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) return
+  try {
+    const folders = await fetchMailFolders(
+      account.provider,
+      account.email,
+      secret,
+    )
+    mailDb.replaceFolders(
+      accountId,
+      folders.length
+        ? folders
+        : [
+            {
+              path: 'INBOX',
+              name: '收件箱',
+              kind: 'inbox',
+              unread: account.unread,
+              total: 0,
+            },
+          ],
+    )
+    broadcast()
+  } catch {
+    /* folder listing is best effort */
+  }
+}
 async function refreshMailPanel(): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
+  const folder = mailPanelFolder
   mailPanelLoading = true
   mailPanelLoadingKind = 'sync'
   mailPanelError = undefined
   mailPanelErrorKind = undefined
   broadcast()
   try {
-    await syncMailAccount(accountId, true)
-    if (mailPanelAccountId !== accountId) return
+    await syncMailAccount(accountId, true, folder)
+    await refreshMailFolders(accountId)
+    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
     loadMailMessages(accountId)
     const account = mailDb.account(accountId)
     if (account?.status === 'error') {
@@ -2391,12 +2444,12 @@ async function refreshMailPanel(): Promise<void> {
       mailPanelErrorKind = 'sync'
     }
   } catch (error) {
-    if (mailPanelAccountId !== accountId) return
+    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
     mailPanelError =
       error instanceof Error ? error.message : '邮件同步失败。'
     mailPanelErrorKind = 'sync'
   } finally {
-    if (mailPanelAccountId === accountId) {
+    if (mailPanelAccountId === accountId && mailPanelFolder === folder) {
       mailPanelLoading = false
       mailPanelLoadingKind = undefined
     }
@@ -2406,9 +2459,10 @@ async function refreshMailPanel(): Promise<void> {
 async function ensureMailDetail(
   accountId: string,
   uid: number,
+  folder = mailPanelFolder,
 ): Promise<MailMessageDetail | undefined> {
   if (!mailDb) return undefined
-  const cached = mailDb.message(accountId, 'INBOX', uid)
+  const cached = mailDb.message(accountId, folder, uid)
   if (cached?.bodyText || cached?.bodyHtml || cached?.attachments.length)
     return cached
   const account = mailDb.account(accountId)
@@ -2420,22 +2474,23 @@ async function ensureMailDetail(
     account.email,
     secret,
     uid,
+    folder,
   )
-  const folder = join(
+  const cacheFolder = join(
     dataRoot,
     'mail-cache',
     accountId,
-    'INBOX',
+    folder,
     String(uid),
   )
-  await mkdir(folder, { recursive: true, mode: 0o700 })
+  await mkdir(cacheFolder, { recursive: true, mode: 0o700 })
   const attachments = []
   for (const [index, attachment] of detail.attachments.entries()) {
     const safe = basename(attachment.filename)
       .replace(/[\\/:*?"<>|]/g, '_')
       .trim()
     const filename = safe || `attachment-${index + 1}`
-    const localPath = join(folder, `${index + 1}-${filename}`)
+    const localPath = join(cacheFolder, `${index + 1}-${filename}`)
     await writeFile(localPath, attachment.data, { mode: 0o600 })
     attachments.push({
       part: attachment.part,
@@ -2445,7 +2500,7 @@ async function ensureMailDetail(
       localPath,
     })
   }
-  mailDb.saveMessageDetail(accountId, 'INBOX', uid, {
+  mailDb.saveMessageDetail(accountId, folder, uid, {
     ...(detail.bodyText ? { bodyText: detail.bodyText } : {}),
     ...(detail.bodyHtml ? { bodyHtml: detail.bodyHtml } : {}),
     ...(detail.snippet ? { snippet: detail.snippet } : {}),
@@ -2456,12 +2511,13 @@ async function ensureMailDetail(
     attachments,
   })
   void refreshMailCacheSize()
-  return mailDb.message(accountId, 'INBOX', uid)
+  return mailDb.message(accountId, folder, uid)
 }
 async function selectMail(uid: number): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
-  const before = mailDb.message(accountId, 'INBOX', uid)
+  const folder = mailPanelFolder
+  const before = mailDb.message(accountId, folder, uid)
   const cached = Boolean(
     before?.bodyText || before?.bodyHtml || before?.attachments.length,
   )
@@ -2473,10 +2529,10 @@ async function selectMail(uid: number): Promise<void> {
   try {
     const detail = cached
       ? before
-      : await ensureMailDetail(accountId, uid)
+      : await ensureMailDetail(accountId, uid, folder)
     if (!detail) throw new Error('邮件不存在。')
     if (before?.unread) {
-      mailDb.setUnread(accountId, 'INBOX', uid, false)
+      mailDb.setUnread(accountId, folder, uid, false)
       const account = mailDb.account(accountId)
       if (account) {
         mailDb.updateAccount(accountId, {
@@ -2516,7 +2572,8 @@ async function loadMoreMail(): Promise<void> {
     broadcast()
     return
   }
-  const beforeUid = mailDb.oldestUid(accountId, 'INBOX')
+  const folder = mailPanelFolder
+  const beforeUid = mailDb.oldestUid(accountId, folder)
   if (!beforeUid) {
     mailPanelHasMore = false
     broadcast()
@@ -2533,9 +2590,10 @@ async function loadMoreMail(): Promise<void> {
       account.email,
       secret,
       beforeUid,
+      folder,
     )
-    if (mailPanelAccountId !== accountId) return
-    mailDb.upsertMessages(accountId, 'INBOX', result.messages)
+    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
+    mailDb.upsertMessages(accountId, folder, result.messages)
     mailPanelHasMore = result.hasMore
     loadMailMessages(accountId)
   } catch (error) {
@@ -2563,7 +2621,8 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
-  const message = mailDb.message(accountId, 'INBOX', uid)
+  const folder = mailPanelFolder
+  const message = mailDb.message(accountId, folder, uid)
   if (!account || !message) throw new Error('邮件不存在。')
   if (message.unread === unread) return
   const secret = await loadMailSecret(mailSecretsPath, accountId)
@@ -2575,8 +2634,9 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
       secret,
       uid,
       !unread,
+      folder,
     )
-    mailDb.setUnread(accountId, 'INBOX', uid, unread)
+    mailDb.setUnread(accountId, folder, uid, unread)
     mailDb.updateAccount(accountId, {
       unread: Math.max(0, account.unread + (unread ? 1 : -1)),
     })
@@ -2598,7 +2658,8 @@ async function moveCurrentMail(
   if (!mailPanelAccountId || !mailDb) throw new Error('邮件账户不存在。')
   const accountId = mailPanelAccountId
   const account = mailDb.account(accountId)
-  const message = mailDb.message(accountId, 'INBOX', uid)
+  const folder = mailPanelFolder
+  const message = mailDb.message(accountId, folder, uid)
   if (!account || !message) throw new Error('邮件不存在。')
   if (target === 'delete') {
     const choice = await dialog.showMessageBox(mailWindow ?? pet, {
@@ -2622,6 +2683,7 @@ async function moveCurrentMail(
       secret,
       uid,
       target === 'archive' ? 'archive' : 'trash',
+      folder,
     )
     if (!moved)
       throw new Error(
@@ -2629,9 +2691,9 @@ async function moveCurrentMail(
           ? '未找到归档文件夹，无法归档。'
           : '未找到已删除文件夹，无法删除。',
       )
-    mailDb.removeMessage(accountId, 'INBOX', uid)
+    mailDb.removeMessage(accountId, folder, uid)
     await rm(
-      join(dataRoot, 'mail-cache', accountId, 'INBOX', String(uid)),
+      join(dataRoot, 'mail-cache', accountId, folder, String(uid)),
       { recursive: true, force: true },
     ).catch(() => {})
     if (message.unread) {
@@ -2657,6 +2719,7 @@ async function sendMail(command: {
   cc?: string
   subject: string
   body: string
+  bodyHtml?: string
   attachmentIds: string[]
 }): Promise<void> {
   if (!mailDb) throw new Error('邮件数据库尚未就绪。')
@@ -2684,12 +2747,18 @@ async function sendMail(command: {
       ...(command.cc ? { cc: command.cc } : {}),
       subject: command.subject,
       body: command.body,
+      ...(command.bodyHtml ? { bodyHtml: command.bodyHtml } : {}),
       attachments,
     })
     mailPanelNotice = result.savedToSent
       ? '邮件已发送'
       : '邮件已发送，但未能保存到已发送。'
     mailPanelNoticeId += 1
+    mailDb.recordContacts(
+      mailRecipientAddresses(
+        `${command.to}${command.cc ? `,${command.cc}` : ''}`,
+      ).map((address) => ({ address })),
+    )
     mailComposeAttachments.clear()
     mailComposeSending = false
     closeMailCompose()
@@ -2709,10 +2778,11 @@ async function saveMailAttachment(
 ): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
-  let attachment = mailDb.attachment(accountId, 'INBOX', uid, part)
+  const folder = mailPanelFolder
+  let attachment = mailDb.attachment(accountId, folder, uid, part)
   if (!attachment?.localPath) {
     await selectMail(uid)
-    attachment = mailDb.attachment(accountId, 'INBOX', uid, part)
+    attachment = mailDb.attachment(accountId, folder, uid, part)
   }
   if (!attachment?.localPath) throw new Error('附件内容尚未缓存。')
   const bytes = await readFile(attachment.localPath)
@@ -2734,8 +2804,15 @@ async function saveMailAttachment(
   broadcast()
 }
 function mailState(): MailState {
+  const accounts = mailDb?.listAccounts() ?? []
   return {
-    accounts: mailDb?.listAccounts() ?? [],
+    accounts,
+    folders: Object.fromEntries(
+      accounts.map((account) => [
+        account.id,
+        mailDb?.listFolders(account.id) ?? [],
+      ]),
+    ),
     config: mailConfig,
     busy: mailBusy,
     cacheBytes: mailCacheBytes,
@@ -2894,6 +2971,7 @@ async function addMailAccount(
       error: null,
     })
     void updateMailBadge()
+    void refreshMailFolders(account.id)
     addEvent(`邮件账户 ${email} 已添加。`)
     showToast('邮箱账户已添加')
   } catch (error) {
@@ -2933,6 +3011,7 @@ async function reauthorizeMail(
         : {}),
     })
     void updateMailBadge()
+    void refreshMailFolders(account.id)
     showToast('邮箱账户已保存')
   } catch (error) {
     mailError = error instanceof Error ? error.message : '邮箱授权更新失败。'
@@ -2972,6 +3051,7 @@ async function removeMailAccount(accountId: string): Promise<void> {
     mailPanelErrorKind = undefined
     mailPanelHasMore = false
     mailPanelQuery = ''
+    mailPanelFolder = 'INBOX'
     mailPanelLoading = false
     mailPanelLoadingKind = undefined
     if (next) {
@@ -2991,6 +3071,7 @@ async function removeMailAccount(accountId: string): Promise<void> {
 async function syncMailAccount(
   accountId: string,
   silent = false,
+  folder = 'INBOX',
 ): Promise<void> {
   if (!mailDb) return
   const account = mailDb.account(accountId)
@@ -3010,22 +3091,29 @@ async function syncMailAccount(
   mailBusy = true
   broadcast()
   try {
-    const probe = await syncMailInbox(account.provider, account.email, secret)
-    mailDb.upsertMessages(accountId, 'INBOX', probe.messages)
+    const probe = await syncMailInbox(
+      account.provider,
+      account.email,
+      secret,
+      folder,
+    )
+    mailDb.upsertMessages(accountId, folder, probe.messages)
+    mailDb.updateFolder(accountId, folder, probe.unread, probe.total)
     mailDb.updateAccount(accountId, {
       status: 'ready',
-      unread: probe.unread,
+      ...(folder === 'INBOX' ? { unread: probe.unread } : {}),
       lastSyncAt: Date.now(),
       error: null,
     })
     await pruneMailCache()
-    if (mailPanelAccountId === accountId) {
+    if (mailPanelAccountId === accountId && mailPanelFolder === folder) {
       mailPanelHasMore =
-        probe.total > mailDb.countMessages(accountId, 'INBOX')
+        probe.total > mailDb.countMessages(accountId, folder)
       loadMailMessages(accountId)
     }
     void updateMailBadge()
-    if (probe.unread > account.unread) notifyMail(account, probe.unread)
+    if (folder === 'INBOX' && probe.unread > account.unread)
+      notifyMail(account, probe.unread)
   } catch (error) {
     const message =
       error instanceof Error ? error.message : '邮箱同步失败，请稍后重试。'
@@ -6026,6 +6114,7 @@ function setupIpc(): void {
       'mail-choose-attachment-dir',
       'mail-open-attachment-dir',
       'mail-open',
+      'mail-folder',
       'mail-close',
       'mail-refresh',
       'mail-select',
@@ -6435,7 +6524,10 @@ function setupIpc(): void {
         await openMailAttachmentDir()
         break
       case 'mail-open':
-        await openMail(command.accountId)
+        await openMail(command.accountId, command.folder)
+        break
+      case 'mail-folder':
+        await openMail(command.accountId, command.folder)
         break
       case 'mail-close':
         closeMail()

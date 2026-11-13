@@ -6,6 +6,8 @@ import { detectVerificationCode } from '../shared/mail-code'
 import {
   mailProviderHosts,
   type MailAttachmentInfo,
+  type MailFolder,
+  type MailFolderKind,
   type MailMessageSummary,
   type MailProvider,
 } from '../shared/mail'
@@ -182,10 +184,116 @@ function summaryOf(message: FetchMessageObject): MailMessageSummary {
   }
 }
 
+function folderKind(
+  specialUse: string | undefined,
+  name: string,
+  path: string,
+): MailFolderKind {
+  const special = specialUse?.toLowerCase() ?? ''
+  if (special === '\\inbox' || path === 'INBOX') return 'inbox'
+  if (special === '\\sent') return 'sent'
+  if (special === '\\drafts') return 'drafts'
+  if (special === '\\trash') return 'trash'
+  if (special === '\\junk') return 'junk'
+  if (special === '\\archive') return 'archive'
+  if (special === '\\all') return 'all'
+  if (/^(inbox|收件箱)$/i.test(name)) return 'inbox'
+  if (/^(sent|sent messages|sent items|已发送|已发送邮件)$/i.test(name))
+    return 'sent'
+  if (/^(drafts|草稿|草稿箱)$/i.test(name)) return 'drafts'
+  if (/^(trash|deleted messages|deleted items|已删除|已删除邮件|废纸篓)$/i.test(name))
+    return 'trash'
+  if (/^(junk|spam|垃圾邮件)$/i.test(name)) return 'junk'
+  if (/^(archive|archives|归档|存档)$/i.test(name)) return 'archive'
+  if (/^(all mail|所有邮件)$/i.test(name)) return 'all'
+  return 'other'
+}
+
+function folderName(kind: MailFolderKind, name: string): string {
+  switch (kind) {
+    case 'inbox':
+      return '收件箱'
+    case 'sent':
+      return '已发送'
+    case 'drafts':
+      return '草稿'
+    case 'trash':
+      return '已删除'
+    case 'junk':
+      return '垃圾邮件'
+    case 'archive':
+      return '归档'
+    case 'all':
+      return '所有邮件'
+    default:
+      return name
+  }
+}
+
+const folderOrder: Record<MailFolderKind, number> = {
+  inbox: 0,
+  sent: 1,
+  drafts: 2,
+  archive: 3,
+  junk: 4,
+  trash: 5,
+  all: 6,
+  other: 7,
+}
+
+export async function fetchMailFolders(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+): Promise<MailFolder[]> {
+  const client = providerClient(provider, email, secret)
+  try {
+    await client.connect()
+    await identifyClient(client, provider)
+    const boxes = await client.list()
+    const folders: MailFolder[] = []
+    for (const box of boxes.slice(0, 50)) {
+      if (box.flags?.has('\\Noselect')) continue
+      let unread = 0
+      let total = 0
+      try {
+        const status = await client.status(box.path, {
+          messages: true,
+          unseen: true,
+        })
+        if (status) {
+          unread = Math.max(0, status.unseen ?? 0)
+          total = Math.max(0, status.messages ?? 0)
+        }
+      } catch {
+        /* some servers refuse STATUS for selected/readonly folders */
+      }
+      const kind = folderKind(box.specialUse, box.name, box.path)
+      folders.push({
+        path: box.path,
+        name: folderName(kind, box.name),
+        kind,
+        unread,
+        total,
+      })
+    }
+    return folders.sort(
+      (a, b) =>
+        folderOrder[a.kind] - folderOrder[b.kind] ||
+        a.name.localeCompare(b.name, 'zh-CN'),
+    )
+  } catch (error) {
+    throw new Error(mailErrorMessage(error))
+  } finally {
+    await client.logout().catch(() => {})
+  }
+}
+
 export async function syncMailInbox(
   provider: MailProvider,
   email: string,
   secret: string,
+  folder = 'INBOX',
 ): Promise<MailInboxSync> {
   const client = providerClient(provider, email, secret)
   try {
@@ -222,6 +330,7 @@ export async function fetchOlderMailInbox(
   email: string,
   secret: string,
   beforeUid: number,
+  folder = 'INBOX',
   limit = 50,
 ): Promise<MailOlderSync> {
   if (beforeUid <= 1) return { messages: [], hasMore: false }
@@ -229,7 +338,7 @@ export async function fetchOlderMailInbox(
   try {
     await client.connect()
     await identifyClient(client, provider)
-    await client.mailboxOpen('INBOX', { readOnly: true })
+    await client.mailboxOpen(folder, { readOnly: true })
     const uids = await client.search(
       { uid: `1:${beforeUid - 1}` },
       { uid: true },
@@ -266,12 +375,13 @@ export async function setMailSeen(
   secret: string,
   uid: number,
   seen: boolean,
+  folder = 'INBOX',
 ): Promise<void> {
   const client = providerClient(provider, email, secret)
   try {
     await client.connect()
     await identifyClient(client, provider)
-    await client.mailboxOpen('INBOX', { readOnly: false })
+    await client.mailboxOpen(folder, { readOnly: false })
     if (seen) {
       await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
     } else {
@@ -290,6 +400,7 @@ export async function moveMailMessage(
   secret: string,
   uid: number,
   target: 'archive' | 'trash',
+  folder = 'INBOX',
 ): Promise<boolean> {
   const client = providerClient(provider, email, secret)
   const archiveNames = /^(archive|archives|all mail|归档|存档|所有邮件)$/i
@@ -297,16 +408,16 @@ export async function moveMailMessage(
   try {
     await client.connect()
     await identifyClient(client, provider)
-    await client.mailboxOpen('INBOX', { readOnly: false })
+    await client.mailboxOpen(folder, { readOnly: false })
     const boxes = await client.list()
     const special = target === 'archive' ? ['\\archive', '\\all'] : ['\\trash']
     const names = target === 'archive' ? archiveNames : trashNames
-    const folder =
+    const targetFolder =
       boxes.find((box) =>
         special.includes(box.specialUse?.toLowerCase() ?? ''),
       ) ?? boxes.find((box) => names.test(box.name))
-    if (!folder) return false
-    await client.messageMove(String(uid), folder.path, { uid: true })
+    if (!targetFolder) return false
+    await client.messageMove(String(uid), targetFolder.path, { uid: true })
     return true
   } catch (error) {
     throw new Error(mailErrorMessage(error))
@@ -346,12 +457,13 @@ export async function fetchMailDetail(
   email: string,
   secret: string,
   uid: number,
+  folder = 'INBOX',
 ): Promise<MailFetchedDetail> {
   const client = providerClient(provider, email, secret)
   try {
     await client.connect()
     await identifyClient(client, provider)
-    await client.mailboxOpen('INBOX', { readOnly: false })
+    await client.mailboxOpen(folder, { readOnly: false })
     const message = await client.fetchOne(
       String(uid),
       { source: true },

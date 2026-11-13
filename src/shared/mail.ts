@@ -2,6 +2,23 @@
 export type MailProvider = 'qq' | '163' | 'gmail'
 export type MailAccountStatus = 'ready' | 'error'
 export type MailAuthType = 'password'
+export type MailFolderKind =
+  | 'inbox'
+  | 'sent'
+  | 'drafts'
+  | 'trash'
+  | 'junk'
+  | 'archive'
+  | 'all'
+  | 'other'
+
+export type MailFolder = {
+  path: string
+  name: string
+  kind: MailFolderKind
+  unread: number
+  total: number
+}
 
 export type MailAccount = {
   id: string
@@ -26,10 +43,52 @@ export type MailConfig = {
 
 export type MailState = {
   accounts: MailAccount[]
+  folders: Record<string, MailFolder[]>
   config: MailConfig
   busy: boolean
   cacheBytes: number
   error?: string
+}
+
+export const mailContactLimit = 50
+export const mailSubjectLimit = 500
+export const mailBodyLimit = 1_000_000
+
+export type MailContact = {
+  name?: string
+  address: string
+}
+
+function addressPart(value: string): string {
+  const match = /<([^>]+)>/.exec(value)
+  return (match?.[1] ?? value).trim()
+}
+
+export function mailRecipientAddresses(value: string): string[] {
+  return value
+    .split(/[;,]/)
+    .map((item) => addressPart(item))
+    .filter(Boolean)
+}
+
+export function mailRecipientError(
+  value: string,
+  required = false,
+): string | undefined {
+  const text = value.trim()
+  if (!text) return required ? '请填写收件人。' : undefined
+  if (text.length > 1000) return '收件人地址过长。'
+  const addresses = mailRecipientAddresses(text)
+  if (!addresses.length) return required ? '请填写收件人。' : undefined
+  if (addresses.length > 50) return '收件人数量不能超过 50 个。'
+  for (const address of addresses) {
+    if (
+      address.length > 254 ||
+      !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)
+    )
+      return `地址无效：${address}`
+  }
+  return undefined
 }
 
 export const mailDisplayNameLimit = 40
@@ -151,6 +210,7 @@ export type MailComposeState = {
   revision: number
   sending: boolean
   draft?: MailComposeDraft
+  contacts: MailContact[]
   error?: string
 }
 
@@ -159,6 +219,7 @@ export type MailPanelState = {
   accountId?: string
   loading: boolean
   loadingKind?: 'sync' | 'detail' | 'more'
+  folder: string
   hasMore: boolean
   query?: string
   messages: MailMessageSummary[]
