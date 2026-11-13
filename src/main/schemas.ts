@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { agentModes } from '../shared/agent'
 import {
   archiveFormats,
   todoListColors,
@@ -786,6 +787,56 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('open-data') }).strict(),
   z.object({ type: z.literal('screen-settings') }).strict(),
   z.object({ type: z.literal('quit') }).strict(),
+  z.object({ type: z.literal('agent-open') }).strict(),
+  z.object({ type: z.literal('agent-close') }).strict(),
+  z
+    .object({
+      type: z.literal('agent-send'),
+      prompt: z.string().trim().min(1).max(8000),
+    })
+    .strict(),
+  z.object({ type: z.literal('agent-cancel') }).strict(),
+  z
+    .object({ type: z.literal('agent-approve'), id: z.string().uuid() })
+    .strict(),
+  z
+    .object({ type: z.literal('agent-deny'), id: z.string().uuid() })
+    .strict(),
+  z.object({ type: z.literal('agent-session-new') }).strict(),
+  z
+    .object({
+      type: z.literal('agent-session-select'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-session-delete'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-mode'),
+      mode: z.enum(agentModes),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-model'),
+      model: z.enum(deepseekModelIds),
+    })
+    .strict(),
+  z.object({ type: z.literal('agent-workspace') }).strict(),
+  z
+    .object({
+      type: z.literal('agent-config'),
+      apiKey: z.string().trim().min(10).max(400),
+    })
+    .strict(),
+  z.object({ type: z.literal('agent-keys') }).strict(),
+  z.object({ type: z.literal('profile-create') }).strict(),
+  z.object({ type: z.literal('profile-bind') }).strict(),
 ])
 export const pathsSchema = z.array(z.string().min(1).max(4096)).min(1).max(32)
 export const fileIdSchema = fileId

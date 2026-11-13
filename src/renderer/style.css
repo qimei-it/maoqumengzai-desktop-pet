@@ -1249,8 +1249,8 @@ footer button {
   overflow: hidden;
 }
 
-.ask-view,
-.ask-view #app {
+.agent-view,
+.agent-view #app {
   background: transparent;
   width: 100vw;
   height: 100vh;

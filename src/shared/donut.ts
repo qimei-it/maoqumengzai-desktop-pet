@@ -78,7 +78,7 @@ export const sliceLabelColumns: Record<DropAction, string[]> = {
   copy: ['另存', '副本'],
   mail: ['发送', '邮件'],
   rename: ['批量', '重命名'],
-  ask: ['智能', '问答'],
+  ask: ['智能体'],
 }
 
 export const sliceLabels: Record<DropAction, string> = {
@@ -91,7 +91,7 @@ export const sliceLabels: Record<DropAction, string> = {
   copy: '另存副本',
   mail: '发送邮件',
   rename: '批量重命名',
-  ask: '智能问答',
+  ask: '智能体',
 }
 
 /** The sprite box drawn inside the hole; the final full-body art replaces it. */

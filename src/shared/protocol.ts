@@ -1,4 +1,6 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
+import type { AgentMode, AgentState } from './agent'
+import type { DeepSeekModel } from './deepseek'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
 import type { AiQuotaState } from './ai-quota'
@@ -15,6 +17,7 @@ import type {
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
+export type { AgentMode, AgentState } from './agent'
 export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
 export type {
   MailAccount,
@@ -409,6 +412,7 @@ export type Snapshot = {
   mailAlert?: MailAlert
   aiOpen: boolean
   ai: AiState
+  agent: AgentState
   aiQuota: AiQuotaState
   convertOpen: boolean
   convert: ConvertState
@@ -481,6 +485,22 @@ export type Command =
   | { type: 'ai-quota-choose-openai' }
   | { type: 'ai-send'; prompt: string }
   | { type: 'ai-keys' }
+  | { type: 'agent-open' }
+  | { type: 'agent-close' }
+  | { type: 'agent-send'; prompt: string }
+  | { type: 'agent-cancel' }
+  | { type: 'agent-approve'; id: string }
+  | { type: 'agent-deny'; id: string }
+  | { type: 'agent-session-new' }
+  | { type: 'agent-session-select'; id: string }
+  | { type: 'agent-session-delete'; id: string }
+  | { type: 'agent-mode'; mode: AgentMode }
+  | { type: 'agent-model'; model: DeepSeekModel }
+  | { type: 'agent-workspace' }
+  | { type: 'agent-config'; apiKey: string }
+  | { type: 'agent-keys' }
+  | { type: 'profile-create' }
+  | { type: 'profile-bind' }
   | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
   | { type: 'convert-start'; action: ConvertAction; password?: string }

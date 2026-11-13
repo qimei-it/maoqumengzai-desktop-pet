@@ -1,0 +1,95 @@
+# 智能体 Harness（方案 A）
+
+更新日期：2026-11-13。首版原生轻量 Harness，不嵌入 OpenCode 运行时。
+
+## 结构
+
+```text
+AgentPanel（view=agent，920×640 可缩放）
+  ↓ command / Snapshot 广播
+Agent Runtime（src/main/agent/runtime.ts）
+  ├─ provider.ts   DeepSeek 流式 + tool_calls
+  ├─ store.ts      会话持久化
+  ├─ tools.ts      工具注册与执行
+  └─ 权限、审批、取消、用量、上下文裁剪
+  ↓
+共享服务层（主进程现有函数）
+  ├─ 置物架、待办、音乐、设置、剪贴板
+  ├─ 邮件账户与发送
+  ├─ shell（用户选择的工作区）
+  └─ 应用面板
+```
+
+工具直接调用主进程服务，不操作渲染层 DOM，也不模拟点击。Agent 修改状态后照常 `broadcast()`，用户手动操作看到的结果与 Agent 操作一致。
+
+## 会话
+
+- `AgentSession { id, title, mode, model, workspace, ui, history, usage }`。
+- 保存在 `userData/mqmz.agent.json`，写入使用临时文件 + 原子重命名，权限 0600。
+- 单会话保留 200 条界面消息、200 条模型上下文；界面只传输最近 80 条。
+- 首条用户消息生成会话标题；切换会话时取消正在执行的请求。
+
+## 模式与权限
+
+- `plan`：只读工具。
+- `build`：默认模式；写操作逐次确认。
+- 权限按工具静态声明，`allow / ask / deny`。
+
+| 工具 | 作用 | plan | build |
+| --- | --- | --- | --- |
+| `shelf_list` | 置物架文件列表 | allow | allow |
+| `file_read` | 读取置物架文本文件 | allow | allow |
+| `todo_list` | 待办与清单 | allow | allow |
+| `todo_create` | 新建待办 | deny | ask |
+| `todo_complete` | 完成待办 | deny | ask |
+| `music_status` | 播放器与歌词 | allow | allow |
+| `music_control` | 播放控制 | deny | allow |
+| `settings_read` | 读取常用设置 | allow | allow |
+| `settings_update` | 修改白名单设置 | deny | ask |
+| `clipboard_list` | 剪贴板记录（脱敏） | allow | allow |
+| `mail_list` | 邮箱与最近摘要 | allow | allow |
+| `mail_send` | 发送邮件 | deny | ask |
+| `shell_run` | 执行命令 | deny | ask（每条） |
+| `ui_open` | 打开功能面板 | allow | allow |
+
+审批卡展示工具标题与参数；拒绝后把拒绝结果写回模型上下文，避免反复重试同一操作。
+
+## Shell
+
+- 工作区由用户在首次调用时选择（系统目录选择框），保存在当前会话。
+- 每条命令都必须确认；确认卡展示完整命令。
+- 每次执行都以工作区为 cwd；命令内的 `cd` 不会延续到下一次调用。
+- 默认超时 30 秒，可设 1–120 秒；支持取消，取消时终止进程组。
+- 输出上限 64 KB，超出截断；返回退出码、标准输出、标准错误与工作目录。
+
+## 宠物人格
+
+当前桌宠只影响称呼、语气和情绪表达：
+
+```text
+# 当前桌宠（只影响表达方式）
+名字：麻薯
+种类：布偶猫
+性格：黏人、温和，喜欢待在主人身边
+以上只影响称呼、语气和情绪表达；不得改变任务判断、工具选择、
+操作安全规则和事实陈述。
+```
+
+工作任务始终由官方 Agent 系统提示词与模型能力决定。切换桌宠后，下一次请求会带上新的桌宠信息，不影响已有会话、工具权限或历史任务。数据来源集中在 `activePetProfile()`，接入真正的档案切换时只改这一处。
+
+## 首版未包含
+
+- 生图 Provider 与 `image_generate` 工具。
+- 宠物档案新建流程与 Seedream 生成。
+- 小程序二维码绑定与档案同步。
+- 格式转换工具、邮件正文读取、邮件归档/删除、剪贴板写入。
+- 子 Agent、项目分组、代码编辑工具。
+
+设置 → 宠物档案已提供“新建桌宠”卡片与“绑定小程序”按钮，点击暂时只给出“即将开放”提示。
+
+## 验证
+
+- 真实 DeepSeek（2026-11-13）：`deepseek-flash` 与 `deepseek-v4-pro` 均完成流式文本与 `tool_calls`，`stream_options` 与 `thinking: disabled` 可用。
+- 运行时真实联调：`shelf_list` 只读调用、`todo_create` 审批后落库、`shell_run` 审批后执行并返回输出、`plan` 模式未产生写入、会话重启后恢复、token 用量累计。
+- 人格切换联调：麻薯 → 小白后，下一次回复使用新名字；同一会话仍正常调用工具。
+- Electron 定向用例：`tests/e2e/agent-panel.spec.ts` 覆盖连接页、模型切换、模式切换、新建会话、宠物档案按钮。

@@ -51,7 +51,7 @@ import catMusic from "./assets/pet/ragdoll/music.png";
 import musicNotes from "./assets/pet/ragdoll/music-notes.png";
 import catPonder from "./assets/pet/ragdoll/ponder.png";
 import catFocus from "./assets/pet/ragdoll/focus.png";
-import AskPanel from "./AskPanel.vue";
+import AgentPanel from "./AgentPanel.vue";
 import MailPanel from "./MailPanel.vue";
 import MailCompose from "./MailCompose.vue";
 import ArchivePanel from "./ArchivePanel.vue";
@@ -84,7 +84,8 @@ const lyricsView =
   new URLSearchParams(location.search).get("view") === "lyrics";
 const bubbleView =
   new URLSearchParams(location.search).get("view") === "bubble";
-const askView = new URLSearchParams(location.search).get("view") === "ask";
+const agentView =
+  new URLSearchParams(location.search).get("view") === "agent";
 const mailView = new URLSearchParams(location.search).get("view") === "mail";
 const composeView =
   new URLSearchParams(location.search).get("view") === "compose";
@@ -116,7 +117,7 @@ document.body.classList.toggle("volume-view", volumeView);
 document.body.classList.toggle("eye-view", eyeView);
 document.body.classList.toggle("lyrics-view", lyricsView);
 document.body.classList.toggle("bubble-view", bubbleView);
-document.body.classList.toggle("ask-view", askView);
+document.body.classList.toggle("agent-view", agentView);
 document.body.classList.toggle("mail-view", mailView);
 document.body.classList.toggle("compose-view", composeView);
 document.body.classList.toggle("convert-view", convertView);
@@ -140,7 +141,7 @@ if (volumeView) document.title = "毛趣萌仔 · 音量";
 if (eyeView) document.title = "毛趣萌仔 · 音乐开关";
 if (lyricsView) document.title = "毛趣萌仔 · 歌词";
 if (bubbleView) document.title = "毛趣萌仔 · 气泡";
-if (askView) document.title = "毛趣萌仔 · 智能问答";
+if (agentView) document.title = "毛趣萌仔 · 智能体";
 if (mailView) document.title = "毛趣萌仔 · 邮件";
 if (composeView) document.title = "毛趣萌仔 · 撰写";
 if (convertView) document.title = "毛趣萌仔 · 文件转换";
@@ -541,7 +542,7 @@ async function attemptDrop(action: () => Promise<void>): Promise<void> {
   }
 }
 const fileOnlyFolderResults: Record<string, string> = {
-  ask: "未参与智能问答",
+  ask: "未参与智能体",
   convert: "未参与格式转换",
   extract: "未参与解压缩",
   shrink: "未参与压缩大小",
@@ -1781,8 +1782,8 @@ onUnmounted(() => {
     <img :src="musicNotes" class="notes-art" alt="" />
   </main>
 
-  <AskPanel
-    v-else-if="askView"
+  <AgentPanel
+    v-else-if="agentView"
     :state="state"
     :error="error"
     @command="command"

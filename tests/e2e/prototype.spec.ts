@@ -102,7 +102,7 @@ test.beforeAll(async () => {
   lab = windows.find((item) => item.title.includes("验证台"))!.page;
   pet = windows.find((item) => item.title.includes("交互标记"))!.page;
   pocket = windows.find((item) => item.title.includes("文件置物架"))!.page;
-  ask = windows.find((item) => item.title.includes("智能问答"))!.page;
+  ask = windows.find((item) => item.title.includes("智能体"))!.page;
   convert = windows.find((item) => item.title.includes("文件转换"))!.page;
   archive = windows.find((item) => item.title.includes("打包归档"))!.page;
   rename = windows.find((item) => item.title.includes("批量重命名"))!.page;
@@ -175,7 +175,7 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
         .filter((window) =>
           [
             "文件置物架",
-            "智能问答",
+            "智能体",
             "文件转换",
             "批量重命名",
             "设置",
@@ -1682,7 +1682,7 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
       ?.visible,
   ).toBe(false);
   expect(
-    startupVisibility.find((window) => window.title.includes("智能问答"))
+    startupVisibility.find((window) => window.title.includes("智能体"))
       ?.visible,
   ).toBe(false);
   expect(
@@ -2337,7 +2337,7 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
     .evaluate((element) => element.remove());
 });
 
-test("dropping on 智能问答 opens the DeepSeek setup", async () => {
+test("dropping on 智能体 opens the DeepSeek setup", async () => {
   const fixture = join(directory, "问答资料.txt");
   await writeFile(fixture, "这是一份用来提问的资料。");
   await dropOnPet(fixture, "ask");
@@ -2353,18 +2353,18 @@ test("dropping on 智能问答 opens the DeepSeek setup", async () => {
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
   await ask.getByLabel("DeepSeek API Key").fill("sk-ask-test");
   await ask.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(ask.getByLabel("模型")).toBeVisible();
-  await ask.getByLabel("模型").selectOption("deepseek-v4-pro");
+  await expect(ask.getByLabel("对话模型")).toBeVisible();
+  await ask.getByLabel("对话模型").selectOption("deepseek-v4-pro");
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.settings.aiModel : "";
+      return snapshot.ok ? snapshot.value.agent.model : "";
     })
     .toBe("deepseek-v4-pro");
   await lab.evaluate(() => window.mqmz!.command({ type: "ai-clear" }));
   const askCenter = await application.evaluate(({ BrowserWindow, screen }) => {
     const bounds = BrowserWindow.getAllWindows()
-      .find((window) => window.getTitle().includes("智能问答"))!
+      .find((window) => window.getTitle().includes("智能体"))!
       .getBounds();
     const area = screen.getDisplayMatching(bounds).workArea;
     return {

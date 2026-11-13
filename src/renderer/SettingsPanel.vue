@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, Database, Info, KeyRound, Mail, Monitor, Palette, PawPrint, SixteenthNotes } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, Database, Info, KeyRound, Mail, Monitor, Palette, PawPrint, Plus, QrCode, SixteenthNotes } from '@lucide/vue'
 import { formatOpenAiAccountStatus } from '../shared/ai-quota'
 import type {
   AiTestState,
@@ -513,6 +513,16 @@ function onEscape(): void {
           </template>
 
           <template v-else-if="section === 'profile'">
+            <div class="pet-head">
+              <button
+                type="button"
+                class="settings-button pet-bind-button"
+                @click="emit('command', { type: 'profile-bind' })"
+              >
+                <QrCode :size="15" :stroke-width="2" aria-hidden="true" />
+                绑定小程序
+              </button>
+            </div>
             <div class="pet-grid">
               <button
                 v-for="pet in petProfiles"
@@ -526,6 +536,17 @@ function onEscape(): void {
                   <img :src="pet.cover" alt="" draggable="false" />
                 </span>
                 <span class="pet-card-name">{{ pet.name }}</span>
+              </button>
+              <button
+                type="button"
+                class="pet-card"
+                aria-label="新建桌宠"
+                @click="emit('command', { type: 'profile-create' })"
+              >
+                <span class="pet-cover pet-cover-add">
+                  <Plus :size="28" :stroke-width="2" aria-hidden="true" />
+                </span>
+                <span class="pet-card-name">新建桌宠</span>
               </button>
             </div>
           </template>
@@ -1346,6 +1367,14 @@ function onEscape(): void {
   align-items: center;
   gap: 8px;
 }
+.pet-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+.pet-bind-button {
+  gap: var(--space-2);
+}
 .pet-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 160px));
@@ -1378,6 +1407,12 @@ function onEscape(): void {
   width: 82%;
   height: 82%;
   object-fit: contain;
+}
+.pet-cover-add {
+  color: var(--color-muted);
+}
+.pet-card:hover .pet-cover-add {
+  color: var(--color-brand-ink);
 }
 .pet-card:hover .pet-cover {
   border-color: var(--color-brand);

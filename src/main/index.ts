@@ -40,6 +40,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
+import type { AgentMode, AgentPetProfile } from '../shared/agent'
+import { createAgentRuntime } from './agent/runtime'
 import { detectClockJump } from '../shared/scheduler'
 import {
   pickLyricsCandidate,
@@ -321,6 +323,19 @@ let settings: Settings = { ...defaultSettings }
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
 let clipboardData: ClipboardData = defaultClipboard()
+
+/**
+ * The active pet only shapes the agent's tone. Task rules stay in the
+ * official assistant prompt, so switching pets never changes what it can do.
+ */
+function activePetProfile(): AgentPetProfile {
+  return {
+    id: 'ragdoll',
+    name: settings.petName || '麻薯',
+    species: '布偶猫',
+    personality: '黏人、温和，喜欢待在主人身边',
+  }
+}
 let clipboardTimer: ReturnType<typeof setInterval> | undefined
 let screenshotTimer: ReturnType<typeof setInterval> | undefined
 let screenshotFolders: string[] = []
@@ -528,6 +543,82 @@ const mailConfigPath = join(dataRoot, 'mqmz.mail.json')
 const mailSecretsPath = join(dataRoot, 'mqmz.mail.secrets.json')
 const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
+const agentPath = join(dataRoot, 'mqmz.agent.json')
+
+const agent = createAgentRuntime({
+  storePath: agentPath,
+  getKey: () => aiKey,
+  getSettings: () => settings,
+  getPetProfile: () => activePetProfile(),
+  updateSettings: (patch) => updateSettings(patch),
+  broadcast: () => broadcast(),
+  shelfFiles: () =>
+    [...files.values()].map(({ id, name, size, status }) => ({
+      id,
+      name,
+      size,
+      status,
+    })),
+  resolveShelfFile: (id) => registeredFile(id),
+  todos: () => focusData.todos,
+  todoLists: () => focusData.todoLists,
+  todoGroups: () => focusData.todoGroups,
+  addTodo: (text, listId, flags) => addTodo(text, listId, flags),
+  toggleTodo: (id) => {
+    if (!focusData.todos.some((todo) => todo.id === id)) return false
+    toggleTodo(id)
+    return true
+  },
+  music: () => music,
+  lyrics: () => lyrics,
+  controlMusic: (action) => controlMusic(action),
+  clipboard: () => clipboardState(),
+  mailAccounts: () => mailDb?.listAccounts() ?? [],
+  mailMessages: (accountId, folder, limit) =>
+    mailDb?.listMessages(accountId, folder, limit) ?? [],
+  mailSecret: async (accountId) =>
+    (await loadMailSecret(mailSecretsPath, accountId)) ?? null,
+  openPanel: (panel) => {
+    switch (panel) {
+      case 'todo':
+        openTodo()
+        break
+      case 'mail':
+        void openMail()
+        break
+      case 'shelf':
+        showPocket()
+        break
+      case 'settings':
+        openSettings()
+        break
+      case 'clipboard':
+        openClipboard()
+        break
+      case 'profile':
+        openProfile()
+        break
+      case 'focus':
+      case 'pomodoro':
+        openPomodoro()
+        break
+      case 'water':
+        openWater()
+        break
+      case 'break':
+        openBreak()
+        break
+    }
+  },
+  pickWorkspace: async () => {
+    const result = await dialog.showOpenDialog(pet, {
+      title: '选择 shell 工作区',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled) return null
+    return result.filePaths[0] ?? null
+  },
+})
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
 let belly: StoredBellyEntry[] = []
@@ -620,6 +711,7 @@ function snapshot(): Snapshot {
     lyricsAvailable,
     aiOpen: windowVisible(askWindow),
     ai: aiState(),
+    agent: agent.state(),
     aiQuota,
     convertOpen: windowVisible(convertWindow),
     convert: convertState(),
@@ -939,22 +1031,13 @@ function positionAsk(): void {
   if (!askWindow || askWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
-  const width = 400
-  const height = 520
+  const width = Math.min(920, a.width - 24)
+  const height = Math.min(640, a.height - 24)
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   askWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-function openAsk(fileIds: string[]): void {
-  aiToken += 1
-  const chosen = fileIds
-    .map((id) => files.get(id))
-    .filter((file): file is NonNullable<typeof file> => Boolean(file))
-    .slice(0, 16)
-  aiFiles = chosen.map(({ id, name, size }) => ({ id, name, size }))
-  aiMessages = []
-  aiBusy = false
-  greetAi()
+function openAgentPanel(): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
@@ -972,7 +1055,11 @@ function closeAsk(): void {
   askWindow?.hide()
   broadcast()
 }
-async function configureAi(apiKey: string, test = false): Promise<void> {
+async function configureAi(
+  apiKey: string,
+  test = false,
+  enableMusicAi = true,
+): Promise<void> {
   const key = apiKey.trim()
   if (key.length < 10) throw new Error('API Key 太短，请检查后重试。')
   if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
@@ -982,7 +1069,8 @@ async function configureAi(apiKey: string, test = false): Promise<void> {
   aiTest = { status: 'idle' }
   aiTestToken += 1
   greetAi()
-  if (!wasConfigured) await updateSettings({ musicAiEnabled: true })
+  if (!wasConfigured && enableMusicAi)
+    await updateSettings({ musicAiEnabled: true })
   void refreshAiQuota()
   broadcast()
   if (test) void testAiConnection()
@@ -7224,7 +7312,7 @@ function reconcileDisplays(): void {
 }
 function authorized(
   event: IpcMainInvokeEvent | IpcMainEvent,
-  role: 'pet' | 'lab' | 'either' = 'either',
+  role: 'pet' | 'lab' | 'agent' | 'either' = 'either',
 ): void {
   const window = BrowserWindow.fromWebContents(event.sender)
   if (
@@ -7253,7 +7341,11 @@ function authorized(
     event.senderFrame !== event.sender.mainFrame
   )
     throw new Error('请求来源未获授权。')
-  if ((role === 'pet' && window !== pet) || (role === 'lab' && window !== lab))
+  if (
+    (role === 'pet' && window !== pet) ||
+    (role === 'lab' && window !== lab) ||
+    (role === 'agent' && window !== askWindow)
+  )
     throw new Error('此窗口没有该操作权限。')
   const source = new URL(event.senderFrame.url)
   if (devUrl) {
@@ -7760,7 +7852,28 @@ function setupIpc(): void {
       'todo-group-add',
       'todo-group-update',
       'todo-group-remove',
+      'agent-open',
+      'agent-close',
+      'agent-send',
+      'agent-cancel',
+      'agent-approve',
+      'agent-deny',
+      'agent-session-new',
+      'agent-session-select',
+      'agent-session-delete',
+      'agent-mode',
+      'agent-model',
+      'agent-workspace',
+      'agent-config',
+      'agent-keys',
+      'profile-create',
+      'profile-bind',
     ]
+    if (
+      command.type.startsWith('agent-') &&
+      command.type !== 'agent-open'
+    )
+      authorized(event, 'agent')
     if (command.type !== 'show-lab' && !sharedActions.includes(command.type))
       authorized(event, 'lab')
     if (command.type === 'show-lab' && app.isPackaged)
@@ -7869,7 +7982,59 @@ function setupIpc(): void {
         void toggleLyrics()
         break
       case 'ai-open':
-        openAsk(command.fileIds)
+        openAgentPanel()
+        break
+      case 'agent-open':
+        openAgentPanel()
+        break
+      case 'agent-close':
+        closeAsk()
+        break
+      case 'agent-send':
+        void agent.send(command.prompt).catch((error) => {
+          showToast(
+            error instanceof Error ? error.message : '智能体执行失败。',
+          )
+        })
+        break
+      case 'agent-cancel':
+        agent.cancel()
+        break
+      case 'agent-approve':
+        agent.approve(command.id)
+        break
+      case 'agent-deny':
+        agent.deny(command.id)
+        break
+      case 'agent-session-new':
+        agent.newSession()
+        break
+      case 'agent-session-select':
+        agent.select(command.id)
+        break
+      case 'agent-session-delete':
+        agent.remove(command.id)
+        break
+      case 'agent-mode':
+        agent.setMode(command.mode as AgentMode)
+        break
+      case 'agent-model':
+        agent.setModel(command.model)
+        break
+      case 'agent-workspace':
+        void agent.chooseWorkspace()
+        break
+      case 'agent-config':
+        await configureAi(command.apiKey, false, false)
+        break
+      case 'agent-keys':
+        await shell.openExternal('https://platform.deepseek.com/api_keys')
+        break
+      case 'profile-create':
+        showToast('新建桌宠即将开放')
+        break
+      case 'profile-bind':
+        showToast('小程序绑定即将开放')
         break
       case 'ai-close':
         closeAsk()
@@ -8846,15 +9011,17 @@ async function createWindows(): Promise<void> {
   toastWindow.setIgnoreMouseEvents(true)
   configurePetOverlay(toastWindow)
   askWindow = new BrowserWindow({
-    width: 400,
-    height: 520,
-    title: '毛趣萌仔 · 智能问答',
+    width: 920,
+    height: 640,
+    minWidth: 720,
+    minHeight: 520,
+    title: '毛趣萌仔 · 智能体',
     ...panelChrome,
     show: false,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
-    resizable: false,
+    resizable: true,
     skipTaskbar: true,
     alwaysOnTop: true,
     webPreferences: {
@@ -9342,7 +9509,7 @@ async function createWindows(): Promise<void> {
     load(lyricsWindow, 'lyrics'),
     load(bubbleWindow, 'bubble'),
     load(toastWindow, 'toast'),
-    load(askWindow, 'ask'),
+    load(askWindow, 'agent'),
     load(convertWindow, 'convert'),
     load(archiveWindow, 'archive'),
     load(renameWindow, 'rename'),
@@ -9377,7 +9544,7 @@ async function createWindows(): Promise<void> {
       { label: '喝水提醒', click: openWater },
       { label: '休息提醒', click: openBreak },
       { label: '待办清单', click: openTodo },
-      { label: '智能问答', click: () => openAsk([]) },
+      { label: '智能体', click: () => openAgentPanel() },
       { label: '设置…', click: openSettings },
       { label: '恢复标记位置', click: recover },
       ...(!app.isPackaged
@@ -9520,6 +9687,7 @@ else {
         }
       }
       clipboardData = await loadClipboardFile(clipboardPath)
+      await agent.load()
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
       await refreshLibreOfficeState()
       builtinHealth = await checkBuiltinEngines(true)
@@ -9602,6 +9770,8 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    agent.cancel()
+    void agent.flush()
     if (focusTimer) {
       clearInterval(focusTimer)
       focusTimer = undefined

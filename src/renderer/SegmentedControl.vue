@@ -5,6 +5,7 @@ const props = defineProps<{
   modelValue: string | number
   options: ReadonlyArray<{ value: string | number; label: string }>
   ariaLabel?: string
+  disabled?: boolean
 }>()
 const emit = defineEmits<{ update: [value: string | number] }>()
 
@@ -31,6 +32,7 @@ const selected = computed(() =>
       v-for="option in options"
       :key="option.value"
       type="button"
+      :disabled="disabled"
       :class="{ active: option.value === modelValue }"
       :aria-pressed="option.value === modelValue"
       @click="emit('update', option.value)"
@@ -78,6 +80,10 @@ const selected = computed(() =>
 }
 .segmented button.active {
   color: var(--color-brand-ink);
+}
+.segmented button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 .segmented button:focus-visible {
   outline: 2px solid var(--color-brand-ink);
