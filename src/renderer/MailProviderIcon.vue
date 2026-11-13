@@ -15,7 +15,6 @@ const icons: Record<MailProvider, string> = {
 <template>
   <img
     class="mail-brand-icon"
-    :class="{ 'is-gmail': props.provider === 'gmail' }"
     :src="icons[props.provider]"
     alt=""
     draggable="false"
@@ -28,10 +27,5 @@ const icons: Record<MailProvider, string> = {
   height: 20px;
   flex: none;
   object-fit: contain;
-}
-/* Gmail's artwork is 4:3 inside a square canvas; scale it optically so its
-   visible height matches the square QQ and NetEase app icons. */
-.mail-brand-icon.is-gmail {
-  transform: scale(1.2);
 }
 </style>
