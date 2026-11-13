@@ -2293,6 +2293,7 @@ async function refreshMailPanel(): Promise<void> {
   broadcast()
   try {
     await syncMailAccount(accountId, true)
+    if (mailPanelAccountId !== accountId) return
     loadMailMessages(accountId)
     const account = mailDb.account(accountId)
     if (account?.status === 'error') {
@@ -2300,11 +2301,12 @@ async function refreshMailPanel(): Promise<void> {
       mailPanelErrorKind = 'sync'
     }
   } catch (error) {
+    if (mailPanelAccountId !== accountId) return
     mailPanelError =
       error instanceof Error ? error.message : '邮件同步失败。'
     mailPanelErrorKind = 'sync'
   } finally {
-    mailPanelLoading = false
+    if (mailPanelAccountId === accountId) mailPanelLoading = false
     broadcast()
   }
 }
@@ -2388,17 +2390,19 @@ async function selectMail(uid: number): Promise<void> {
         void updateMailBadge()
       }
     }
+    if (mailPanelAccountId !== accountId) return
     if (mailPanelErrorKind !== 'sync') {
       mailPanelError = undefined
       mailPanelErrorKind = undefined
     }
     mailPanelSelected = detail
   } catch (error) {
+    if (mailPanelAccountId !== accountId) return
     mailPanelError =
       error instanceof Error ? error.message : '无法读取邮件。'
     mailPanelErrorKind = 'detail'
   } finally {
-    if (!cached) mailPanelLoading = false
+    if (!cached && mailPanelAccountId === accountId) mailPanelLoading = false
     broadcast()
   }
 }
@@ -2618,6 +2622,22 @@ async function removeMailAccount(accountId: string): Promise<void> {
     recursive: true,
     force: true,
   }).catch(() => {})
+  if (mailPanelAccountId === accountId) {
+    const next = mailDb.listAccounts()[0]
+    mailPanelSelected = undefined
+    mailPanelMessages = []
+    mailPanelError = undefined
+    mailPanelErrorKind = undefined
+    mailPanelLoading = false
+    if (next) {
+      mailPanelAccountId = next.id
+      loadMailMessages(next.id)
+      if (windowVisible(mailWindow)) void refreshMailPanel()
+    } else {
+      mailPanelAccountId = undefined
+      closeMail()
+    }
+  }
   mailError = undefined
   void updateMailBadge()
   broadcast()

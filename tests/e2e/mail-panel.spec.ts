@@ -1,0 +1,239 @@
+import { _electron as electron, expect, test } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { MailDatabase } from '../../src/main/mail-db'
+
+let application: ElectronApplication
+let pet: Page
+let mail: Page
+let settings: Page
+let directory: string
+let accountId: string
+let backupAccountId: string
+let attachmentDir: string
+let attachmentPath: string
+const messageBody = '您的验证码是 333333，10 分钟内有效。'
+
+test.beforeAll(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'mqmz-mail-panel-'))
+  const data = join(directory, 'data')
+  attachmentDir = join(directory, 'attachments')
+  await mkdir(data, { recursive: true })
+  await mkdir(attachmentDir, { recursive: true })
+  const db = new MailDatabase(join(data, 'mqmz.mail.db'))
+  const account = db.addAccount({
+    provider: 'qq',
+    email: 'demo@qq.com',
+    displayName: '测试邮箱',
+  })
+  accountId = account.id
+  db.updateAccount(accountId, { unread: 1 })
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  backupAccountId = db.addAccount({
+    provider: 'gmail',
+    email: 'backup@qq.com',
+    displayName: '备用邮箱',
+  }).id
+  const now = Date.now()
+  db.upsertMessages(accountId, 'INBOX', [
+    {
+      uid: 2,
+      subject: '最新验证码',
+      fromName: 'Example',
+      fromAddress: 'security@example.com',
+      date: now,
+      snippet: '您的验证码是 333333',
+      unread: true,
+      hasAttachments: true,
+    },
+    {
+      uid: 1,
+      subject: '旧验证码',
+      fromName: 'Example',
+      fromAddress: 'security@example.com',
+      date: now - 60 * 60_000,
+      snippet: '验证码 222222',
+      unread: false,
+      hasAttachments: false,
+    },
+  ])
+  const cacheDir = join(data, 'mail-cache', accountId, 'INBOX', '2')
+  await mkdir(cacheDir, { recursive: true })
+  attachmentPath = join(cacheDir, '1-report.txt')
+  await writeFile(attachmentPath, 'attachment body')
+  db.saveMessageDetail(accountId, 'INBOX', 2, {
+    bodyText: messageBody,
+    code: '333333',
+    codeExpiresAt: now + 10 * 60_000,
+    attachments: [
+      {
+        part: 'part-1',
+        filename: '报告.txt',
+        size: 15,
+        mime: 'text/plain',
+        localPath: attachmentPath,
+      },
+    ],
+  })
+  db.saveMessageDetail(accountId, 'INBOX', 1, {
+    bodyText: '验证码 222222',
+    code: '222222',
+    attachments: [],
+  })
+  db.close()
+  await writeFile(
+    join(data, 'mqmz.mail.json'),
+    JSON.stringify({
+      version: 1,
+      syncMinutes: 60,
+      notify: false,
+      unreadBadge: true,
+      attachmentDir,
+      retentionDays: 90,
+    }),
+  )
+  const environment: Record<string, string> = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  )
+  environment.MQMZ_DATA_DIR = data
+  delete environment.ELECTRON_RUN_AS_NODE
+  application = await electron.launch({
+    args: [resolve('.')],
+    env: environment,
+  })
+  await expect.poll(() => application.windows().length).toBe(22)
+  const windows = await Promise.all(
+    application.windows().map(async (page) => ({
+      page,
+      title: await page.title(),
+    })),
+  )
+  pet = windows.find((item) => item.title.includes('交互标记'))!.page
+  mail = windows.find((item) => item.title.includes('邮件'))!.page
+  settings = windows.find((item) => item.title.includes('设置'))!.page
+})
+
+test.afterAll(async () => {
+  await application?.close()
+  await rm(directory, { recursive: true, force: true })
+})
+
+test('邮件面板显示缓存正文、验证码与附件并可保存', async () => {
+  await pet.evaluate(
+    (id) => window.mqmz!.command({ type: 'mail-open', accountId: id }),
+    accountId,
+  )
+  await expect(mail.locator('.mail-surface')).toBeVisible()
+  await expect(mail.locator('.mail-message')).toHaveCount(2)
+  await expect(mail.locator('.mail-account.active')).toContainText(
+    '测试邮箱（demo@qq.com）',
+  )
+  await expect(mail.locator('.mail-unread')).toHaveText('1')
+  await expect(mail.locator('.mail-error')).toContainText(
+    '授权已失效，请重新授权。',
+  )
+  await expect(
+    mail.locator('.mail-error').getByRole('button', {
+      name: '重新授权',
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    mail.locator('.mail-error').getByRole('button', {
+      name: '重试',
+      exact: true,
+    }),
+  ).toBeVisible()
+
+  await mail.locator('.mail-message', { hasText: '最新验证码' }).click()
+  await expect(mail.locator('.mail-reader h2')).toHaveText('最新验证码')
+  await expect(mail.locator('.mail-text')).toContainText('333333')
+  await expect(mail.locator('.mail-code')).toHaveText('333333')
+  await expect(mail.locator('.mail-code-note')).toContainText('有效期至')
+  await expect(mail.locator('.mail-unread')).toHaveCount(0)
+
+  await mail.locator('.mail-attachments').getByRole('button', {
+    name: '保存',
+    exact: true,
+  }).click()
+  await expect(mail.locator('.toast-item.toast-success')).toContainText(
+    '已保存到',
+  )
+  await expect
+    .poll(async () => {
+      const { readdir } = await import('node:fs/promises')
+      return readdir(attachmentDir)
+    })
+    .toContain('报告.txt')
+
+  await mail.locator('.mail-message', { hasText: '旧验证码' }).click()
+  await expect(mail.locator('.mail-code')).toHaveText('222222')
+  await expect(mail.locator('.mail-code-note')).toHaveText(
+    '已被新验证码替代',
+  )
+  await expect(mail.locator('.mail-code')).toBeDisabled()
+  await expect(
+    mail.locator('.mail-empty', { hasText: '正在读取邮件…' }),
+  ).toHaveCount(0)
+})
+
+test('添加或编辑账户时隐藏账户卡片', async () => {
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-section', section: 'mail' }),
+  )
+  await expect(settings.locator('.mail-account')).toHaveCount(2)
+  await settings
+    .locator('.mail-row', { hasText: '邮箱账户' })
+    .getByRole('button', { name: '添加', exact: true })
+    .click()
+  await expect(settings.locator('.mail-account')).toHaveCount(0)
+  await settings.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(settings.locator('.mail-account')).toHaveCount(2)
+  await settings
+    .locator('.mail-account')
+    .first()
+    .getByRole('button', { name: '重新授权' })
+    .click()
+  await expect(settings.locator('.mail-account')).toHaveCount(0)
+  await settings.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(settings.locator('.mail-account')).toHaveCount(2)
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-close' }),
+  )
+})
+
+test('删除当前账户后切换到下一个账户，删除全部后关闭邮件面板', async () => {
+  await application.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async () => ({
+      response: 1,
+      checkboxChecked: false,
+    })
+  })
+  await pet.evaluate(
+    (id) => window.mqmz!.command({ type: 'mail-remove-account', accountId: id }),
+    accountId,
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailPanel.accountId : undefined
+    })
+    .toBe(backupAccountId)
+  await expect(mail.locator('.mail-account.active')).toContainText(
+    '备用邮箱',
+  )
+  await pet.evaluate(
+    (id) => window.mqmz!.command({ type: 'mail-remove-account', accountId: id }),
+    backupAccountId,
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailPanel.open : true
+    })
+    .toBe(false)
+})
