@@ -516,6 +516,14 @@ function onEscape(): void {
             <div class="pet-head">
               <button
                 type="button"
+                class="settings-button pet-create-button"
+                @click="emit('command', { type: 'profile-create' })"
+              >
+                <Plus :size="15" :stroke-width="2" aria-hidden="true" />
+                新建桌宠
+              </button>
+              <button
+                type="button"
                 class="settings-button pet-bind-button"
                 @click="emit('command', { type: 'profile-bind' })"
               >
@@ -536,17 +544,6 @@ function onEscape(): void {
                   <img :src="pet.cover" alt="" draggable="false" />
                 </span>
                 <span class="pet-card-name">{{ pet.name }}</span>
-              </button>
-              <button
-                type="button"
-                class="pet-card"
-                aria-label="新建桌宠"
-                @click="emit('command', { type: 'profile-create' })"
-              >
-                <span class="pet-cover pet-cover-add">
-                  <Plus :size="28" :stroke-width="2" aria-hidden="true" />
-                </span>
-                <span class="pet-card-name">新建桌宠</span>
               </button>
             </div>
           </template>
@@ -1370,8 +1367,10 @@ function onEscape(): void {
 .pet-head {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: var(--space-4);
 }
+.pet-create-button,
 .pet-bind-button {
   gap: var(--space-2);
 }
@@ -1407,12 +1406,6 @@ function onEscape(): void {
   width: 82%;
   height: 82%;
   object-fit: contain;
-}
-.pet-cover-add {
-  color: var(--color-muted);
-}
-.pet-card:hover .pet-cover-add {
-  color: var(--color-brand-ink);
 }
 .pet-card:hover .pet-cover {
   border-color: var(--color-brand);
