@@ -361,8 +361,8 @@ watch(
                 aria-hidden="true"
               />
               <span class="mail-folder-name">{{ folder.name }}</span>
-              <span v-if="folder.unread" class="mail-folder-unread">{{
-                folder.unread
+              <span v-if="folder.total" class="mail-folder-count">{{
+                folder.total
               }}</span>
             </button>
           </div>
@@ -617,15 +617,12 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mail-folder-unread {
+.mail-folder-count {
   flex: none;
-  min-width: 16px;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-muted);
   font-size: var(--font-size-caption);
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .mail-accounts-head {
   display: flex;

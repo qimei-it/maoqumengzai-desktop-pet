@@ -178,9 +178,9 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-refresh')).toHaveCount(0)
   await expect(mail.locator('.mail-folder')).toHaveCount(3)
   await expect(mail.locator('.mail-folder')).toHaveText([
-    '收件箱1',
+    '收件箱2',
     '已发送',
-    '已删除',
+    '已删除1',
   ])
   await mail.locator('.mail-folder', { hasText: '已发送' }).click()
   await expect(mail.locator('.mail-folder.active')).toContainText('已发送')
