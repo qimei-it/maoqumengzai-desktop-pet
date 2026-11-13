@@ -864,7 +864,9 @@ footer button {
   right: 6px;
 }
 .pill-button:disabled,
-.pill-button:disabled:hover {
+.pill-button[aria-disabled="true"],
+.pill-button:disabled:hover,
+.pill-button[aria-disabled="true"]:hover {
   opacity: 0.4;
   cursor: default;
   background: transparent;

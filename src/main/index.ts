@@ -6868,8 +6868,14 @@ function controlMusic(action: MusicAction): void {
     }
     return
   }
-  if ((action === 'shuffle' || action === 'repeat') && music.source !== 'apple')
+  if ((action === 'shuffle' || action === 'repeat') && music.source !== 'apple') {
+    showToast(
+      action === 'shuffle'
+        ? '当前播放器不支持随机播放'
+        : '当前播放器不支持循环设置',
+    )
     return
+  }
   if (action === 'toggle') applyMusic({ ...music, playing: !music.playing })
   if (action === 'shuffle') applyMusic({ ...music, shuffle: !music.shuffle })
   if (action === 'repeat') {

@@ -1480,7 +1480,7 @@ onUnmounted(() => {
           active: state?.music.source === 'apple' && state?.music.shuffle,
           unsupported: state?.music.source !== 'apple',
         }"
-        :disabled="state?.music.source !== 'apple'"
+        :aria-disabled="state?.music.source !== 'apple'"
         :aria-label="
           state?.music.source === 'apple'
             ? state?.music.shuffle
@@ -1558,7 +1558,7 @@ onUnmounted(() => {
             state?.music.repeat !== 'off',
           unsupported: state?.music.source !== 'apple',
         }"
-        :disabled="state?.music.source !== 'apple'"
+        :aria-disabled="state?.music.source !== 'apple'"
         :aria-label="
           state?.music.source !== 'apple'
             ? '循环模式不可用'
