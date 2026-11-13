@@ -6986,10 +6986,13 @@ function setupIpc(): void {
       case 'recover':
         recover()
         break
-      case 'drop-mode':
+      case 'drop-mode': {
+        // Drag events repeat while the cursor crosses the pet, so receiving
+        // "enabled" again must not tear down the wheel that is already open.
+        const enabling = command.enabled && !dropMode
         dropMode = command.enabled
         drag = undefined
-        if (dropMode) {
+        if (enabling) {
           received = undefined
           closeWheelWindow()
         }
@@ -7001,6 +7004,7 @@ function setupIpc(): void {
             : '文件投递模式已关闭。',
         )
         break
+      }
       case 'scale': {
         setPetScale(command.scale)
         if (settings.scale !== scale) {

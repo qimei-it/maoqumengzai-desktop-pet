@@ -2148,6 +2148,40 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
   );
   await pet.waitForTimeout(320);
 
+  // Drag events repeat while the cursor crosses the pet. Repeating the same
+  // request must not shrink the window and reopen the wheel, which made the
+  // pet and ring jump around mid-drag.
+  await pet.evaluate(() => {
+    const target = window as unknown as { __wheelResizes?: number[] };
+    target.__wheelResizes = [];
+    window.addEventListener("resize", () =>
+      target.__wheelResizes!.push(innerWidth),
+    );
+    const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+    for (let index = 0; index < 3; index += 1) {
+      const transfer = new DataTransfer();
+      for (const file of input.files!) transfer.items.add(file);
+      document.querySelector(".pet-surface")!.dispatchEvent(
+        new DragEvent("dragenter", {
+          dataTransfer: transfer,
+          bubbles: true,
+          cancelable: true,
+          clientX: 2,
+          clientY: 2,
+        }),
+      );
+    }
+  });
+  await pet.waitForTimeout(200);
+  expect(
+    await pet.evaluate(
+      () =>
+        (window as unknown as { __wheelResizes?: number[] }).__wheelResizes ??
+        [],
+    ),
+  ).toEqual([]);
+  expect(await pet.evaluate(() => innerWidth)).toBe(donutMetrics(1).window);
+
   await hoverSlice("stash");
   await pet.waitForTimeout(240);
   await pet.screenshot({ path: "/tmp/mqmz-donut.png", omitBackground: true });

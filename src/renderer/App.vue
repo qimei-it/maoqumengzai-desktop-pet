@@ -313,11 +313,19 @@ function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
 }
+let dropModeSynced: boolean | undefined;
 function syncDropMode(enabled: boolean): Promise<void> {
+  // dragenter fires again whenever the cursor crosses the pet or a slice;
+  // repeating an unchanged request would close and reopen the wheel window.
+  if (dropModeSynced === enabled) return dropModeChain;
+  dropModeSynced = enabled;
   dropModeChain = dropModeChain.then(() =>
     command({ type: "drop-mode", enabled }),
   );
   return dropModeChain;
+}
+function toggleDropMode(): void {
+  void syncDropMode(!state.value?.dropMode);
 }
 /** Clears a file drag that ended without a drop or dragleave. */
 function resetDragState(): void {
@@ -1200,6 +1208,12 @@ const permissionLabel = computed(
     state.value?.screenPermission ||
     "读取中",
 );
+watch(
+  () => state.value?.dropMode,
+  (value) => {
+    if (typeof value === "boolean") dropModeSynced = value;
+  },
+);
 watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
   await nextTick();
   await updateMask();
@@ -1875,7 +1889,7 @@ onUnmounted(() => {
           class="primary full"
           data-testid="drop-mode"
           :aria-pressed="state?.dropMode || false"
-          @click="command({ type: 'drop-mode', enabled: !state?.dropMode })"
+          @click="toggleDropMode"
         >
           {{ state?.dropMode ? "关闭文件投递区域" : "开启文件投递区域" }}
         </button>
