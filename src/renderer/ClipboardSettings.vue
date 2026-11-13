@@ -86,7 +86,7 @@ function changeRetention(event: Event): void {
       </SelectField>
     </div>
     <div v-if="clearCount !== undefined" class="clip-setting-row">
-      <span>剪贴板</span>
+      <span>剪贴板记录</span>
       <span class="clip-setting-actions">
         <span class="clip-setting-value">{{ clearCount }} 项</span>
         <button

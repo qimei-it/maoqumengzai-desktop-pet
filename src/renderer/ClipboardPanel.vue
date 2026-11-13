@@ -220,7 +220,12 @@ function close(): void {
       </div>
 
       <div v-else class="clipboard-body clipboard-settings panel-scroll">
-        <ClipboardSettings :config="config" @update="updateConfig" />
+        <ClipboardSettings
+          :config="config"
+          :clear-count="unpinned.length"
+          @update="updateConfig"
+          @clear="clear"
+        />
       </div>
 
       <p v-if="error" class="clipboard-error" role="alert">{{ error }}</p>
