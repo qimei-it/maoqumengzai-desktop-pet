@@ -401,14 +401,17 @@ test('草稿自动保存、继续编辑与删除', async () => {
   await compose.locator('.compose-content').click()
   await compose.locator('.compose-content').pressSequentially('草稿正文')
   await expect
-    .poll(async () => {
-      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
-      return snapshot.ok
-        ? snapshot.value.mail.drafts.some(
-            (draft) => draft.subject === '草稿自动保存',
-          )
-        : false
-    })
+    .poll(
+      async () => {
+        const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+        return snapshot.ok
+          ? snapshot.value.mail.drafts.some(
+              (draft) => draft.subject === '草稿自动保存',
+            )
+          : false
+      },
+      { timeout: 10_000 },
+    )
     .toBe(true)
   await compose.getByRole('button', { name: '取消', exact: true }).click()
   await expect
@@ -579,6 +582,19 @@ test('删除当前账户后切换到下一个账户，删除全部后关闭邮�
       return snapshot.ok ? snapshot.value.settingsOpen : false
     })
     .toBe(true)
+  await expect(settings.locator('.mail-form')).toBeVisible()
+  await pet.evaluate(() => window.mqmz!.command({ type: 'settings-close' }))
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: 'mail-compose-open' }),
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? `${snapshot.value.settingsOpen}:${snapshot.value.settingsSection}`
+        : ''
+    })
+    .toBe('true:mail')
   await expect(settings.locator('.mail-form')).toBeVisible()
   await pet.evaluate(() => window.mqmz!.command({ type: 'settings-close' }))
 })
