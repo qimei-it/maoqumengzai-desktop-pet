@@ -1635,6 +1635,7 @@ onUnmounted(() => {
     v-else-if="bubbleView"
     :key="state?.bubble?.text"
     class="bubble-surface"
+    :class="{ ai: state?.bubble?.ai }"
   >
     <div class="bubble-body">
       <span class="bubble-text">{{ state?.bubble?.text }}</span>

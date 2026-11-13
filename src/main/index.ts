@@ -97,6 +97,7 @@ import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
   aiMoodToMusicMood,
   generateMusicAiContent,
+  pruneMusicAiCache,
   readMusicAiCache,
   type MusicAiContent,
 } from './music-ai'
@@ -476,6 +477,7 @@ let toastText: string | undefined
 let toastHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
+let bubbleAiStyle = false
 let bubbleHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleTickTimer: ReturnType<typeof setInterval> | undefined
 let bubbleTrackKey: string | undefined
@@ -669,7 +671,9 @@ function snapshot(): Snapshot {
       sessions: focusData.sessions,
       waterLog: focusData.waterLog,
     },
-    ...(bubbleText ? { bubble: { text: bubbleText, mood: bubbleMood } } : {}),
+    ...(bubbleText
+      ? { bubble: { text: bubbleText, mood: bubbleMood, ai: bubbleAiStyle } }
+      : {}),
     ...(toastText ? { toast: toastText } : {}),
     ...(mailAlert ? { mailAlert } : {}),
   }
@@ -5485,7 +5489,7 @@ async function shrinkSelected(fileIds: string[]): Promise<void> {
 function positionBubble(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
   const b = pet.getBounds()
-  const width = 216
+  const width = bubbleAiStyle ? 260 : 216
   const height = 84
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + Math.round(9 * scale) - 6 - height
@@ -6599,9 +6603,10 @@ function pickAiBubbleLine(): string | undefined {
   bubbleAiLastLine = line
   return line
 }
-function displayBubble(text: string, mood: MusicMood): void {
+function displayBubble(text: string, mood: MusicMood, ai = false): void {
   bubbleText = text
   bubbleMood = mood
+  bubbleAiStyle = ai
   if (bubbleHideTimer) clearTimeout(bubbleHideTimer)
   bubbleHideTimer = setTimeout(hideBubble, 5200)
   syncOverlays()
@@ -6657,6 +6662,7 @@ function showBubble(): boolean {
       displayBubble(
         line,
         aiMoodToMusicMood(bubbleAiContent?.data.mood ?? ''),
+        true,
       )
       return true
     }
@@ -9336,6 +9342,7 @@ async function createWindows(): Promise<void> {
     void runMaintenance()
   }, 15 * 60_000)
   pollMusic()
+  void pruneMusicAiCache(dataRoot)
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
   bubbleTickTimer = setInterval(bubbleTick, 1000)

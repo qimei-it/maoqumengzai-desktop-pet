@@ -838,42 +838,43 @@ function onEscape(): void {
                 }}</span>
               </button>
             </div>
-            <h3 class="settings-group-title spaced">互动</h3>
-            <div class="settings-row">
-              <span id="setting-music-bubbles" class="settings-label"
-                >音乐互动气泡</span
-              >
-              <button
-                type="button"
-                class="settings-switch"
-                role="switch"
-                aria-labelledby="setting-music-bubbles"
-                :aria-checked="settings.musicBubbles"
-                @click="toggle('musicBubbles')"
-              >
-                <span class="settings-switch-thumb" />
-              </button>
-            </div>
-            <div class="settings-row settings-row-last">
-              <span id="setting-music-ai" class="settings-label"
-                >AI 智能互动</span
-              >
-              <button
-                type="button"
-                class="settings-switch"
-                role="switch"
-                aria-labelledby="setting-music-ai"
-                :aria-checked="configured && settings.musicAiEnabled"
-                :aria-disabled="!configured"
-                :title="
-                  configured
-                    ? '根据歌曲信息与歌词生成互动内容，生成时会把歌曲信息与歌词发送至 DeepSeek'
-                    : '请先在 API Key 设置中添加 DeepSeek API Key'
-                "
-                @click="toggle('musicAiEnabled')"
-              >
-                <span class="settings-switch-thumb" />
-              </button>
+            <div class="settings-rows">
+              <div class="settings-row">
+                <span id="setting-music-bubbles" class="settings-label"
+                  >音乐互动气泡</span
+                >
+                <button
+                  type="button"
+                  class="settings-switch"
+                  role="switch"
+                  aria-labelledby="setting-music-bubbles"
+                  :aria-checked="settings.musicBubbles"
+                  @click="toggle('musicBubbles')"
+                >
+                  <span class="settings-switch-thumb" />
+                </button>
+              </div>
+              <div class="settings-row settings-row-last">
+                <span id="setting-music-ai" class="settings-label"
+                  >AI 智能互动</span
+                >
+                <button
+                  type="button"
+                  class="settings-switch"
+                  role="switch"
+                  aria-labelledby="setting-music-ai"
+                  :aria-checked="configured && settings.musicAiEnabled"
+                  :aria-disabled="!configured"
+                  :title="
+                    configured
+                      ? '根据歌曲信息与歌词生成互动内容，生成时会把歌曲信息与歌词发送至 DeepSeek'
+                      : '请先在 API Key 设置中添加 DeepSeek API Key'
+                  "
+                  @click="toggle('musicAiEnabled')"
+                >
+                  <span class="settings-switch-thumb" />
+                </button>
+              </div>
             </div>
           </template>
 
@@ -1467,10 +1468,14 @@ function onEscape(): void {
   margin: 0 0 10px;
   color: var(--color-ink);
   font-size: var(--font-size-body);
-  font-weight: 600;
+  font-weight: 400;
 }
 .settings-group-title.spaced {
   margin-top: 24px;
+}
+.settings-rows {
+  margin-top: 18px;
+  border-top: 1px solid var(--color-line);
 }
 .bar-styles {
   display: flex;

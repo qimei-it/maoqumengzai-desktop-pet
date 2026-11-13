@@ -109,6 +109,7 @@ export type LyricsState = {
 export type BubbleState = {
   text: string
   mood: string
+  ai?: boolean
 }
 export type AiMessage = {
   id: string

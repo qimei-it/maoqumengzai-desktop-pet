@@ -1151,6 +1151,11 @@ footer button {
   color: var(--color-ink);
   text-wrap: balance;
 }
+.bubble-surface.ai .bubble-text {
+  -webkit-line-clamp: 3;
+  padding: 0 2em;
+  line-height: 1.5;
+}
 .toast-body {
   height: 52px;
   padding: 6px 10px;

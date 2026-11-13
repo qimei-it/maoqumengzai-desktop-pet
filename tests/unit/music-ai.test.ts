@@ -65,7 +65,7 @@ describe('music AI cache contract', () => {
     const raw = content()
     raw.stages[0] = { lines: ['字'.repeat(80)] }
     const parsed = parseMusicAiContent(raw, 'key')
-    expect(Array.from(parsed!.stages[0][0])).toHaveLength(41)
+    expect(Array.from(parsed!.stages[0][0])).toHaveLength(61)
     expect(parsed!.stages[0][0].endsWith('…')).toBe(true)
   })
 
