@@ -36,6 +36,7 @@ export type Settings = {
   launchAtLogin: boolean
   statusBubbles: boolean
   musicBubbles: boolean
+  musicAiEnabled: boolean
   musicBarStyle: MusicBarStyle
   shelfAutoScreenshots: boolean
   shelfClipboardImages: boolean
@@ -59,6 +60,7 @@ export const defaultSettings: Settings = {
   launchAtLogin: false,
   statusBubbles: true,
   musicBubbles: true,
+  musicAiEnabled: false,
   musicBarStyle: 'double',
   shelfAutoScreenshots: true,
   shelfClipboardImages: false,

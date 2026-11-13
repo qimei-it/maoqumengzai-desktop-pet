@@ -6,6 +6,9 @@ import {
   detectMood,
   lyricLine,
   pickBubble,
+  musicBubbleStage,
+  nextMusicBubbleAt,
+  pickMusicAiLine,
   type BubbleTrack,
 } from '../../src/shared/music-bubbles'
 
@@ -123,5 +126,68 @@ describe('music bubble copy', () => {
       new Set(),
     )
     expect(picked?.text).toContain('…')
+  })
+})
+
+describe('30-second interaction rhythm', () => {
+  test('next boundary is strictly after the elapsed time', () => {
+    expect(nextMusicBubbleAt(0)).toBe(30)
+    expect(nextMusicBubbleAt(12.4)).toBe(30)
+    expect(nextMusicBubbleAt(29.9)).toBe(30)
+    expect(nextMusicBubbleAt(30)).toBe(60)
+    expect(nextMusicBubbleAt(65)).toBe(90)
+    expect(nextMusicBubbleAt(-4)).toBe(30)
+  })
+
+  test('four stages follow playback progress', () => {
+    expect(musicBubbleStage(0, 240)).toBe(0)
+    expect(musicBubbleStage(59.9, 240)).toBe(0)
+    expect(musicBubbleStage(60, 240)).toBe(1)
+    expect(musicBubbleStage(120, 240)).toBe(2)
+    expect(musicBubbleStage(180, 240)).toBe(3)
+    expect(musicBubbleStage(239, 240)).toBe(3)
+  })
+
+  test('unknown duration falls back to 90-second stages', () => {
+    expect(musicBubbleStage(0)).toBe(0)
+    expect(musicBubbleStage(89)).toBe(0)
+    expect(musicBubbleStage(90)).toBe(1)
+    expect(musicBubbleStage(180)).toBe(2)
+    expect(musicBubbleStage(270)).toBe(3)
+  })
+})
+
+describe('AI interaction line picking', () => {
+  const stages = [
+    ['a1', 'a2', 'a3'],
+    ['b1', 'b2'],
+    ['c1'],
+    ['d1', 'd2'],
+  ]
+
+  test('picks only from the requested stage', () => {
+    const used = new Set<string>()
+    for (let index = 0; index < 3; index++) {
+      expect(pickMusicAiLine(stages, 1, used)).toMatch(/^b/)
+    }
+  })
+
+  test('uses every line before repeating a stage', () => {
+    const used = new Set<string>()
+    const picks = new Set<string>()
+    for (let index = 0; index < 2; index++)
+      picks.add(pickMusicAiLine(stages, 1, used)!)
+    expect([...picks].sort()).toEqual(['b1', 'b2'])
+  })
+
+  test('avoids an immediate repeat when another line exists', () => {
+    for (let index = 0; index < 20; index++) {
+      const used = new Set<string>()
+      expect(pickMusicAiLine(stages, 3, used, 'd1')).toBe('d2')
+    }
+  })
+
+  test('empty stages return undefined', () => {
+    expect(pickMusicAiLine([[], [], [], []], 0, new Set())).toBeUndefined()
   })
 })

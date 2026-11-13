@@ -398,6 +398,52 @@ export function bubbleCategories(
   return categories
 }
 
+export const musicBubbleIntervalSeconds = 30
+export const musicBubbleStageCount = 4
+
+/** Next absolute 30-second boundary strictly after the elapsed time. */
+export function nextMusicBubbleAt(elapsed: number): number {
+  return (
+    (Math.floor(Math.max(0, elapsed) / musicBubbleIntervalSeconds) + 1) *
+    musicBubbleIntervalSeconds
+  )
+}
+
+/** Map playback progress onto one of four stages. */
+export function musicBubbleStage(elapsed: number, duration?: number): number {
+  if (duration && duration > 0)
+    return Math.min(
+      musicBubbleStageCount - 1,
+      Math.max(0, Math.floor((elapsed / duration) * musicBubbleStageCount)),
+    )
+  return Math.min(
+    musicBubbleStageCount - 1,
+    Math.max(0, Math.floor(elapsed / 90)),
+  )
+}
+
+/**
+ * Pick a line for one stage, preferring unused lines and avoiding an immediate
+ * repeat. The used set is mutated so one play does not keep repeating.
+ */
+export function pickMusicAiLine(
+  stages: string[][],
+  stage: number,
+  used: Set<string>,
+  last?: string,
+): string | undefined {
+  const index = Math.max(0, Math.min(stages.length - 1, stage))
+  const pool = stages[index] ?? []
+  if (!pool.length) return undefined
+  const unused = pool.filter((line) => !used.has(line))
+  let candidates = unused.length ? unused : pool
+  if (candidates.length > 1)
+    candidates = candidates.filter((line) => line !== last)
+  const line = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0]
+  used.add(line)
+  return line
+}
+
 export function bubbleMoodLabel(mood: MusicMood): string {
   return {
     tender: '温柔抒情',

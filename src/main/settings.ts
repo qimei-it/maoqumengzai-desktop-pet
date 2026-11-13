@@ -63,6 +63,7 @@ const settingsSchema = z
     launchAtLogin: z.boolean(),
     statusBubbles: z.boolean(),
     musicBubbles: z.boolean(),
+    musicAiEnabled: z.boolean().default(false),
     musicBarStyle: z.enum(musicBarStyles).default('double'),
     shelfAutoScreenshots: z.boolean().default(true),
     shelfClipboardImages: z.boolean().default(false),

@@ -9,6 +9,7 @@ export type DeepSeekMessage = {
 
 export const deepseekEndpoint = 'https://api.deepseek.com/chat/completions'
 export const deepseekModelsEndpoint = 'https://api.deepseek.com/models'
+export const deepseekSearchEndpoint = 'https://api.deepseek.com/v1/tools/search'
 export const deepseekModelIds = ['deepseek-flash', 'deepseek-v4-pro'] as const
 export type DeepSeekModel = (typeof deepseekModelIds)[number]
 export const deepseekModelLabels: Record<DeepSeekModel, string> = {
@@ -20,6 +21,83 @@ type RequestOptions = {
   endpoint?: string
   timeoutMs?: number
   model?: DeepSeekModel
+  temperature?: number
+  maxTokens?: number
+  json?: boolean
+}
+
+export type DeepSeekSearchResult = {
+  title: string
+  url: string
+  snippet: string
+  summary: string
+  content?: string
+  site_name?: string | null
+  date?: string | null
+  authority?: number
+  rerank_score?: number
+}
+
+function friendlySearchError(status: number, detail?: string): Error {
+  if (status === 401 || status === 403)
+    return new Error('API Key 无效，请在设置中更换。')
+  if (status === 402) return new Error('DeepSeek 账户余额不足。')
+  if (status === 429) return new Error('搜索请求太频繁，请稍后再试。')
+  if (status >= 500) return new Error('DeepSeek 服务暂时不可用，请稍后重试。')
+  return new Error(
+    detail ? `DeepSeek 搜索失败：${detail}` : `DeepSeek 搜索失败（${status}）。`,
+  )
+}
+
+/** Web search through DeepSeek's read-only Search tool. */
+export async function searchWeb(
+  apiKey: string,
+  query: string,
+  options: { count?: number; timeoutMs?: number; oriQuestion?: string } = {},
+): Promise<DeepSeekSearchResult[]> {
+  const trimmed = query.trim().slice(0, 128)
+  if (!trimmed) return []
+  let response: Response
+  try {
+    response = await fetch(deepseekSearchEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        query: trimmed,
+        count: Math.min(Math.max(options.count ?? 5, 1), 50),
+        ori_question: options.oriQuestion?.trim().slice(0, 128),
+        need_content: false,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    })
+  } catch {
+    throw new Error('连接 DeepSeek 搜索失败，请检查网络后重试。')
+  }
+
+  const data = (await response.json().catch(() => null)) as
+    | {
+        results?: DeepSeekSearchResult[]
+        error?: { message?: string }
+        message?: string
+      }
+    | null
+
+  if (!response.ok) {
+    throw friendlySearchError(
+      response.status,
+      data?.error?.message || data?.message,
+    )
+  }
+  if (!Array.isArray(data?.results)) return []
+  return data.results.filter(
+    (result) =>
+      typeof result?.title === 'string' &&
+      typeof result?.url === 'string' &&
+      typeof result?.summary === 'string',
+  )
 }
 
 export async function requestCompletion(
@@ -41,8 +119,9 @@ export async function requestCompletion(
         messages,
         thinking: { type: 'disabled' },
         stream: false,
-        max_tokens: 1600,
-        temperature: 0.7,
+        max_tokens: options.maxTokens ?? 1600,
+        temperature: options.temperature ?? 0.7,
+        ...(options.json ? { response_format: { type: 'json_object' } } : {}),
       }),
       signal: AbortSignal.timeout(options.timeoutMs ?? 60_000),
     })

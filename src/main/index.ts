@@ -95,9 +95,19 @@ import { isScreenshotCandidate } from '../shared/screenshot'
 import { ffmpegBuild, emptyFfmpegState } from '../shared/ffmpeg'
 import { loadSettingsFile, saveSettingsFile } from './settings'
 import {
+  aiMoodToMusicMood,
+  generateMusicAiContent,
+  readMusicAiCache,
+  type MusicAiContent,
+} from './music-ai'
+import {
   bubbleCategories,
   detectMood,
+  musicBubbleIntervalSeconds,
+  musicBubbleStage,
+  nextMusicBubbleAt,
   pickBubble,
+  pickMusicAiLine,
   type BubbleCategory,
   type BubbleTrack,
   type MusicMood,
@@ -469,14 +479,19 @@ let bubbleMood: MusicMood = 'generic'
 let bubbleHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleTickTimer: ReturnType<typeof setInterval> | undefined
 let bubbleTrackKey: string | undefined
-let bubbleStep = 0
 let bubbleElapsed = 0
+let bubbleNextAt = 30
 let bubbleLastTick = 0
 let bubbleUsed = new Set<string>()
 let bubbleUsedCategories = new Set<BubbleCategory>()
 let bubbleRecent: string[] = []
 let bubbleLyrics: LyricsState | undefined
 let bubbleLyricsKey: string | undefined
+let bubbleAiContent: { key: string; data: MusicAiContent } | undefined
+let bubbleAiGeneratingKey: string | undefined
+let bubbleAiUsed = new Set<string>()
+let bubbleAiLastLine: string | undefined
+let bubbleAiTimer: ReturnType<typeof setTimeout> | undefined
 let musicSource: 'apple' | 'system' = 'system'
 let persistQueue = Promise.resolve()
 const events: LabEvent[] = []
@@ -944,11 +959,13 @@ async function configureAi(apiKey: string, test = false): Promise<void> {
   const key = apiKey.trim()
   if (key.length < 10) throw new Error('API Key 太短，请检查后重试。')
   if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
+  const wasConfigured = Boolean(aiKey)
   await saveStoredKey(key)
   aiKey = key
   aiTest = { status: 'idle' }
   aiTestToken += 1
   greetAi()
+  if (!wasConfigured) await updateSettings({ musicAiEnabled: true })
   void refreshAiQuota()
   broadcast()
   if (test) void testAiConnection()
@@ -961,6 +978,7 @@ async function clearAi(): Promise<void> {
   aiToken += 1
   aiTest = { status: 'idle' }
   aiTestToken += 1
+  if (settings.musicAiEnabled) await updateSettings({ musicAiEnabled: false })
   void refreshAiQuota()
   broadcast()
 }
@@ -2115,6 +2133,7 @@ function settingsState(): SettingsState {
     launchAtLogin: settings.launchAtLogin,
     statusBubbles: settings.statusBubbles,
     musicBubbles: settings.musicBubbles,
+    musicAiEnabled: settings.musicAiEnabled,
     musicBarStyle: settings.musicBarStyle,
     shelfAutoScreenshots: settings.shelfAutoScreenshots,
     shelfClipboardImages: settings.shelfClipboardImages,
@@ -4124,6 +4143,8 @@ function closeSettings(): void {
   broadcast()
 }
 async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
+  if (patch.musicAiEnabled === true && !aiKey)
+    throw new Error('请先在 API Key 设置中配置 DeepSeek API Key。')
   const previous = { ...settings }
   const scaleChanged = patch.scale !== undefined && patch.scale !== settings.scale
   if (scaleChanged) setPetScale(patch.scale!)
@@ -4144,6 +4165,20 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
   }
   if (!settings.statusBubbles) hideToast()
   if (!settings.musicBubbles) hideBubble()
+  if (patch.musicAiEnabled !== undefined) {
+    if (bubbleAiTimer) {
+      clearTimeout(bubbleAiTimer)
+      bubbleAiTimer = undefined
+    }
+    if (!settings.musicAiEnabled) bubbleAiContent = undefined
+    else if (settings.musicBubbles) scheduleMusicAi()
+  }
+  if (
+    patch.musicBubbles === true &&
+    settings.musicAiEnabled &&
+    previous.musicBubbles === false
+  )
+    scheduleMusicAi()
   if (patch.musicBarStyle !== undefined) syncOverlays()
   if (
     patch.aiQuotaEnabled !== undefined ||
@@ -6492,13 +6527,85 @@ function currentBubbleKey(): string | undefined {
   if (!music.title) return undefined
   return `${music.title}|${music.artist ?? ''}`
 }
-function bubbleThresholds(): number[] {
-  if (music.duration && music.duration > 0)
-    return [0.2, 0.55, 0.85].map((fraction) => music.duration! * fraction)
-  return [40, 120, 210]
-}
 function bubbleBlocked(): boolean {
   return dropMode || !barVisible || Boolean(drag?.moving)
+}
+function scheduleMusicAi(): void {
+  if (bubbleAiTimer) {
+    clearTimeout(bubbleAiTimer)
+    bubbleAiTimer = undefined
+  }
+  if (!settings.musicAiEnabled || !aiKey || !settings.musicBubbles) return
+  bubbleAiTimer = setTimeout(() => {
+    bubbleAiTimer = undefined
+    void ensureMusicAi()
+  }, 1600)
+}
+async function ensureMusicAi(): Promise<void> {
+  if (!settings.musicAiEnabled || !aiKey || !settings.musicBubbles) return
+  const key = currentTrackKey()
+  if (!key || !music.title) return
+  if (bubbleAiContent?.key === key) return
+  if (bubbleAiGeneratingKey) return
+  bubbleAiGeneratingKey = key
+  const trackKey = key
+  const track = {
+    title: music.title,
+    artist: music.artist,
+    album: music.album,
+    genre: music.genre,
+    duration: music.duration,
+    lyrics: bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined,
+    instrumental: bubbleLyrics?.instrumental,
+  }
+  try {
+    const cached = await readMusicAiCache(dataRoot, trackKey)
+    if (cached) {
+      if (currentTrackKey() === trackKey)
+        bubbleAiContent = { key: trackKey, data: cached }
+      return
+    }
+    const data = await generateMusicAiContent({
+      apiKey: aiKey,
+      dataRoot,
+      trackKey,
+      track,
+    })
+    if (currentTrackKey() === trackKey)
+      bubbleAiContent = { key: trackKey, data }
+  } catch (error) {
+    console.warn(
+      '[music-ai] generation failed:',
+      error instanceof Error ? error.message : error,
+    )
+  } finally {
+    if (bubbleAiGeneratingKey === trackKey) bubbleAiGeneratingKey = undefined
+    if (settings.musicAiEnabled && aiKey && currentTrackKey() !== trackKey)
+      void ensureMusicAi()
+  }
+}
+function pickAiBubbleLine(): string | undefined {
+  const key = currentTrackKey()
+  const content = bubbleAiContent
+  if (!key || !content || content.key !== key) return undefined
+  const stage = musicBubbleStage(bubbleElapsed, music.duration)
+  const line = pickMusicAiLine(
+    content.data.stages,
+    stage,
+    bubbleAiUsed,
+    bubbleAiLastLine,
+  )
+  if (!line) return undefined
+  bubbleAiLastLine = line
+  return line
+}
+function displayBubble(text: string, mood: MusicMood): void {
+  bubbleText = text
+  bubbleMood = mood
+  if (bubbleHideTimer) clearTimeout(bubbleHideTimer)
+  bubbleHideTimer = setTimeout(hideBubble, 5200)
+  syncOverlays()
+  broadcast()
 }
 async function loadBubbleLyrics(key: string): Promise<void> {
   bubbleLyricsKey = key
@@ -6506,23 +6613,30 @@ async function loadBubbleLyrics(key: string): Promise<void> {
   if (bubbleLyricsKey !== key) return
   bubbleLyrics = resolved
   setLyricsAvailable(lyricsHasContent(resolved))
+  scheduleMusicAi()
 }
 function resetBubbleTrack(): void {
   bubbleTrackKey = currentBubbleKey()
   setLyricsAvailable(undefined)
-  bubbleStep = 0
   bubbleUsed = new Set<string>()
   bubbleUsedCategories = new Set<BubbleCategory>()
+  bubbleAiUsed = new Set<string>()
+  bubbleAiLastLine = undefined
   bubbleLyrics = undefined
   bubbleLyricsKey = undefined
+  if (bubbleAiTimer) {
+    clearTimeout(bubbleAiTimer)
+    bubbleAiTimer = undefined
+  }
+  const key = currentTrackKey()
+  if (bubbleAiContent && bubbleAiContent.key !== key) bubbleAiContent = undefined
   bubbleElapsed = Math.max(0, music.position ?? 0)
+  bubbleNextAt = nextMusicBubbleAt(bubbleElapsed)
   if (!bubbleTrackKey) {
     bubbleElapsed = 0
+    bubbleNextAt = musicBubbleIntervalSeconds
     return
   }
-  const thresholds = bubbleThresholds()
-  bubbleStep = thresholds.filter((threshold) => bubbleElapsed >= threshold).length
-  const key = currentTrackKey()
   if (key) void loadBubbleLyrics(key)
 }
 function hideBubble(): void {
@@ -6535,8 +6649,18 @@ function hideBubble(): void {
   syncOverlays()
   broadcast()
 }
-function showBubble(): void {
-  if (!settings.musicBubbles || !music.title || bubbleText) return
+function showBubble(): boolean {
+  if (!settings.musicBubbles || !music.title || bubbleText) return false
+  if (settings.musicAiEnabled) {
+    const line = pickAiBubbleLine()
+    if (line) {
+      displayBubble(
+        line,
+        aiMoodToMusicMood(bubbleAiContent?.data.mood ?? ''),
+      )
+      return true
+    }
+  }
   const lyricText = bubbleLyrics?.plain ?? bubbleLyrics?.synced ?? undefined
   const track: BubbleTrack = {
     title: localizeName(music.title, lyricText, lyricsMeta()) ?? music.title,
@@ -6559,16 +6683,11 @@ function showBubble(): void {
     bubbleUsed,
     bubbleRecent,
   )
-  if (!draft) return
-  bubbleStep += 1
+  if (!draft) return false
   bubbleUsedCategories.add(draft.category)
-  bubbleText = draft.text
-  bubbleMood = mood
   bubbleRecent = [...bubbleRecent, draft.text].slice(-12)
-  if (bubbleHideTimer) clearTimeout(bubbleHideTimer)
-  bubbleHideTimer = setTimeout(hideBubble, 5200)
-  syncOverlays()
-  broadcast()
+  displayBubble(draft.text, mood)
+  return true
 }
 function bubbleTick(): void {
   const now = Date.now()
@@ -6582,8 +6701,9 @@ function bubbleTick(): void {
     return
   }
   if (key !== bubbleTrackKey) resetBubbleTrack()
-  if (!music.playing || bubbleText) return
+  if (!music.playing) return
   if (
+    music.positionReliable &&
     typeof music.position === 'number' &&
     bubbleElapsed > 10 &&
     music.position + 10 < bubbleElapsed
@@ -6595,9 +6715,18 @@ function bubbleTick(): void {
   if (typeof music.position === 'number' && music.position > bubbleElapsed)
     bubbleElapsed = music.position
   else bubbleElapsed += delta
-  if (bubbleBlocked()) return
-  const threshold = bubbleThresholds()[bubbleStep]
-  if (threshold !== undefined && bubbleElapsed >= threshold) showBubble()
+  if (bubbleText) return
+  if (bubbleBlocked()) {
+    if (bubbleElapsed >= bubbleNextAt)
+      bubbleNextAt = nextMusicBubbleAt(bubbleElapsed)
+    return
+  }
+  const duration = music.duration
+  if (duration && duration > 0 && bubbleElapsed >= duration - 4) return
+  if (bubbleElapsed >= bubbleNextAt) {
+    bubbleNextAt = nextMusicBubbleAt(bubbleElapsed)
+    showBubble()
+  }
 }
 const lyricsCacheVersion = 2
 function normalizeLyricsState(state: LyricsState): LyricsState {

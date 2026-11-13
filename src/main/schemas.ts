@@ -309,6 +309,7 @@ export const commandSchema = z.discriminatedUnion('type', [
           launchAtLogin: z.boolean().optional(),
           statusBubbles: z.boolean().optional(),
           musicBubbles: z.boolean().optional(),
+          musicAiEnabled: z.boolean().optional(),
           musicBarStyle: z.enum(musicBarStyles).optional(),
           shelfAutoScreenshots: z.boolean().optional(),
           shelfClipboardImages: z.boolean().optional(),

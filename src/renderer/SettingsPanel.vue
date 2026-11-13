@@ -231,11 +231,13 @@ function toggle(
     | 'launchAtLogin'
     | 'statusBubbles'
     | 'musicBubbles'
+    | 'musicAiEnabled'
     | 'shelfAutoScreenshots'
     | 'shelfClipboardImages'
     | 'shelfScreenshotBubble'
     | 'aiQuotaEnabled',
 ): void {
+  if (key === 'musicAiEnabled' && !configured.value) return
   update({ [key]: !settings.value[key] })
 }
 const shelfFolderLabel = computed(() => {
@@ -453,21 +455,6 @@ function onEscape(): void {
                 <span class="settings-switch-thumb" />
               </button>
             </div>
-            <div class="settings-row">
-              <span id="setting-music-bubbles" class="settings-label"
-                >音乐互动气泡</span
-              >
-              <button
-                type="button"
-                class="settings-switch"
-                role="switch"
-                aria-labelledby="setting-music-bubbles"
-                :aria-checked="settings.musicBubbles"
-                @click="toggle('musicBubbles')"
-              >
-                <span class="settings-switch-thumb" />
-              </button>
-            </div>
           </template>
 
           <template v-else-if="section === 'data'">
@@ -624,7 +611,7 @@ function onEscape(): void {
 
           <template v-else-if="section === 'conversion'">
             <div class="engine-section-head">
-              <h3 class="engine-section-title">内置引擎</h3>
+              <h3 class="settings-group-title">内置引擎</h3>
               <button
                 type="button"
                 class="settings-button engine-check"
@@ -666,7 +653,7 @@ function onEscape(): void {
                 </p>
               </article>
             </div>
-            <h3 class="engine-section-title spaced">可选引擎</h3>
+            <h3 class="settings-group-title spaced">可选引擎</h3>
             <div class="engine-cards">
               <article
                 v-for="engine in optionalEngines"
@@ -813,8 +800,8 @@ function onEscape(): void {
 
               </article>
             </div>
-            <div class="settings-row settings-row-last">
-              <span class="settings-label">第三方许可</span>
+            <div class="settings-group-head">
+              <h3 class="settings-group-title">第三方许可</h3>
               <button
                 type="button"
                 class="settings-button primary"
@@ -849,6 +836,43 @@ function onEscape(): void {
                 <span class="bar-style-name">{{
                   musicBarStyleLabels[style]
                 }}</span>
+              </button>
+            </div>
+            <h3 class="settings-group-title spaced">互动</h3>
+            <div class="settings-row">
+              <span id="setting-music-bubbles" class="settings-label"
+                >音乐互动气泡</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-music-bubbles"
+                :aria-checked="settings.musicBubbles"
+                @click="toggle('musicBubbles')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row settings-row-last">
+              <span id="setting-music-ai" class="settings-label"
+                >AI 智能互动</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-music-ai"
+                :aria-checked="configured && settings.musicAiEnabled"
+                :aria-disabled="!configured"
+                :title="
+                  configured
+                    ? '根据歌曲信息与歌词生成互动内容，生成时会把歌曲信息与歌词发送至 DeepSeek'
+                    : '请先在 API Key 设置中添加 DeepSeek API Key'
+                "
+                @click="toggle('musicAiEnabled')"
+              >
+                <span class="settings-switch-thumb" />
               </button>
             </div>
           </template>
@@ -1114,16 +1138,18 @@ function onEscape(): void {
   min-height: 26px;
   padding: 0 10px;
 }
-.engine-section-head .engine-section-title {
+.engine-section-head .settings-group-title {
   margin: 0;
 }
-.engine-section-title {
-  margin: 0 0 10px;
-  font-size: var(--font-size-body);
-  font-weight: 600;
-}
-.engine-section-title.spaced {
+.settings-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 24px;
+}
+.settings-group-head .settings-group-title {
+  margin: 0;
 }
 .engine-cards {
   display: flex;
@@ -1404,6 +1430,10 @@ function onEscape(): void {
 .settings-switch[aria-checked='true'] .settings-switch-thumb {
   transform: translateX(17px);
 }
+.settings-switch[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
 .settings-field {
   display: flex;
   align-items: center;
@@ -1434,10 +1464,13 @@ function onEscape(): void {
   outline-offset: 2px;
 }
 .settings-group-title {
-  margin: 2px 0 10px;
+  margin: 0 0 10px;
   color: var(--color-ink);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-body);
   font-weight: 600;
+}
+.settings-group-title.spaced {
+  margin-top: 24px;
 }
 .bar-styles {
   display: flex;
