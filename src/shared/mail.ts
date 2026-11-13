@@ -28,6 +28,7 @@ export type MailState = {
   accounts: MailAccount[]
   config: MailConfig
   busy: boolean
+  cacheBytes: number
   error?: string
 }
 

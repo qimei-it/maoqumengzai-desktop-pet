@@ -485,6 +485,7 @@ export type Command =
   | { type: 'mail-search'; query: string }
   | { type: 'mail-set-unread'; uid: number; unread: boolean }
   | { type: 'mail-update-config'; patch: Partial<MailConfig> }
+  | { type: 'mail-clear-cache' }
   | { type: 'mail-choose-attachment-dir' }
   | { type: 'mail-open-attachment-dir' }
   | { type: 'mail-open'; accountId?: string }

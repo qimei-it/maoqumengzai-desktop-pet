@@ -457,6 +457,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       accountId: z.string().uuid().optional(),
     })
     .strict(),
+  z.object({ type: z.literal('mail-clear-cache') }).strict(),
   z
     .object({
       type: z.literal('mail-update-config'),

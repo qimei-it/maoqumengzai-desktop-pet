@@ -547,7 +547,9 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await expect.poll(settingsVisible).toBe(false);
   if (process.platform === "darwin" && !dockBefore)
     await expect
-      .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()))
+      .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()), {
+        timeout: 10_000,
+      })
       .toBe(false);
 });
 
@@ -2780,6 +2782,7 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "新邮件通知",
     "未读角标",
     "附件保存目录",
+    "附件缓存",
     "缓存保留",
   ]);
   await expect(

@@ -156,6 +156,9 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-code-note')).toContainText('有效期至')
   await expect(mail.locator('.mail-unread')).toHaveCount(0)
 
+  await expect(mail.locator('.mail-attachment-summary')).toHaveText(
+    '1 个附件 · 15 B',
+  )
   await mail.locator('.mail-attachments').getByRole('button', {
     name: '保存',
     exact: true,
@@ -193,6 +196,29 @@ test('添加或编辑账户时隐藏账户卡片', async () => {
     window.mqmz!.command({ type: 'settings-section', section: 'mail' }),
   )
   await expect(settings.locator('.mail-account')).toHaveCount(2)
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mail.cacheBytes : 0
+    })
+    .toBeGreaterThan(0)
+  const clearCache = settings
+    .locator('.mail-row', { hasText: '附件缓存' })
+    .getByRole('button', { name: '清理', exact: true })
+  await expect(clearCache).toBeEnabled()
+  await application.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async () => ({
+      response: 1,
+      checkboxChecked: false,
+    })
+  })
+  await clearCache.click()
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mail.cacheBytes : -1
+    })
+    .toBe(0)
   await settings
     .locator('.mail-row', { hasText: '邮箱账户' })
     .getByRole('button', { name: '添加', exact: true })

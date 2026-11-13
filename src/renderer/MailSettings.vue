@@ -41,6 +41,15 @@ const fallbackConfig: MailConfig = {
 const config = computed<MailConfig>(() => props.mail?.config ?? fallbackConfig)
 const accounts = computed(() => props.mail?.accounts ?? [])
 const busy = computed(() => Boolean(props.mail?.busy))
+const cacheBytes = computed(() => props.mail?.cacheBytes ?? 0)
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3)
+    return `${(bytes / 1024 ** 3).toFixed(1)} GB`
+  if (bytes >= 1024 ** 2)
+    return `${(bytes / 1024 ** 2).toFixed(1)} MB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${bytes} B`
+}
 
 const providerOptions: Array<{
   id: MailProvider
@@ -156,6 +165,9 @@ function chooseAttachmentDir(): void {
 }
 function openAttachmentDir(): void {
   emit('command', { type: 'mail-open-attachment-dir' })
+}
+function clearCache(): void {
+  emit('command', { type: 'mail-clear-cache' })
 }
 function statusLabel(account: MailAccount): string {
   if (account.status === 'error') return '需授权'
@@ -430,6 +442,18 @@ watch(
       </button>
       <button type="button" class="settings-button primary" @click="openAttachmentDir">
         打开
+      </button>
+    </div>
+    <div class="mail-row">
+      <span class="mail-label">附件缓存</span>
+      <span class="mail-path">{{ formatBytes(cacheBytes) }}</span>
+      <button
+        type="button"
+        class="settings-button danger"
+        :disabled="busy || cacheBytes === 0"
+        @click="clearCache"
+      >
+        清理
       </button>
     </div>
     <div class="mail-row mail-row-last">

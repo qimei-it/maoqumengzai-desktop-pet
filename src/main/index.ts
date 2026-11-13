@@ -290,6 +290,7 @@ let mailPanelLoading = false
 let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
 let mailPanelHasMore = false
 let mailPanelQuery = ''
+let mailCacheBytes = 0
 let mailPanelError: string | undefined
 let mailPanelErrorKind: 'sync' | 'detail' | undefined
 let mailPanelNotice: string | undefined
@@ -2378,6 +2379,7 @@ async function ensureMailDetail(
       : {}),
     attachments,
   })
+  void refreshMailCacheSize()
   return mailDb.message(accountId, 'INBOX', uid)
 }
 async function selectMail(uid: number): Promise<void> {
@@ -2549,6 +2551,7 @@ function mailState(): MailState {
     accounts: mailDb?.listAccounts() ?? [],
     config: mailConfig,
     busy: mailBusy,
+    cacheBytes: mailCacheBytes,
     ...(mailError ? { error: mailError } : {}),
   }
 }
@@ -2559,6 +2562,50 @@ function scheduleMailSync(): void {
   mailSyncTimer = setInterval(() => {
     void syncAllMail(true)
   }, mailConfig.syncMinutes * 60_000)
+}
+async function directoryBytes(path: string): Promise<number> {
+  let total = 0
+  try {
+    const entries = await readdir(path, { withFileTypes: true })
+    for (const entry of entries) {
+      const target = join(path, entry.name)
+      if (entry.isDirectory()) total += await directoryBytes(target)
+      else if (entry.isFile()) total += (await stat(target)).size
+    }
+  } catch {
+    /* missing cache directory */
+  }
+  return total
+}
+async function refreshMailCacheSize(): Promise<void> {
+  const size = await directoryBytes(join(dataRoot, 'mail-cache'))
+  if (size === mailCacheBytes) return
+  mailCacheBytes = size
+  broadcast()
+}
+async function clearMailCache(): Promise<void> {
+  if (!mailDb) return
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '清理附件缓存',
+    message: '确定清理本地附件缓存？',
+    detail: '已保存到附件目录的文件不受影响；再次打开邮件时会重新下载。',
+    buttons: ['取消', '清理'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  mailDb.clearDetails()
+  await rm(join(dataRoot, 'mail-cache'), {
+    recursive: true,
+    force: true,
+  }).catch(() => {})
+  mailCacheBytes = 0
+  mailPanelSelected = undefined
+  if (mailPanelAccountId) loadMailMessages(mailPanelAccountId)
+  showToast('附件缓存已清理')
+  broadcast()
 }
 async function pruneMailCache(): Promise<void> {
   if (!mailDb || mailConfig.retentionDays <= 0 || mailPruning) return
@@ -2729,6 +2776,7 @@ async function removeMailAccount(accountId: string): Promise<void> {
     recursive: true,
     force: true,
   }).catch(() => {})
+  void refreshMailCacheSize()
   if (mailPanelAccountId === accountId) {
     const next = mailDb.listAccounts()[0]
     mailPanelSelected = undefined
@@ -5759,6 +5807,7 @@ function setupIpc(): void {
       'mail-search',
       'mail-set-unread',
       'mail-update-config',
+      'mail-clear-cache',
       'mail-choose-attachment-dir',
       'mail-open-attachment-dir',
       'mail-open',
@@ -6145,6 +6194,9 @@ function setupIpc(): void {
         break
       case 'mail-update-config':
         await updateMailConfig(command.patch)
+        break
+      case 'mail-clear-cache':
+        await clearMailCache()
         break
       case 'mail-choose-attachment-dir':
         await chooseMailAttachmentDir()
@@ -7378,6 +7430,7 @@ else {
         app.getPath('downloads'),
       )
       await pruneMailCache()
+      void refreshMailCacheSize()
       void updateMailBadge()
       scheduleMailSync()
       setTimeout(() => {

@@ -17,6 +17,12 @@ const emit = defineEmits<{ command: [command: Command] }>()
 const panel = computed(() => props.state?.mailPanel)
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const selected = computed(() => panel.value?.selected)
+const attachmentTotal = computed(() =>
+  (selected.value?.attachments ?? []).reduce(
+    (total, attachment) => total + attachment.size,
+    0,
+  ),
+)
 const messages = computed(() => panel.value?.messages ?? [])
 const loadingMore = computed(
   () => panel.value?.loadingKind === 'more',
@@ -120,7 +126,8 @@ async function copyCode(): Promise<void> {
 }
 function size(bytes: number): string {
   if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(1)} MB`
-  return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${bytes} B`
 }
 watch(
   () => selected.value?.codeExpiresAt,
@@ -296,6 +303,13 @@ watch(
             <div v-if="selected.bodyHtml" class="mail-content" v-html="selected.bodyHtml" />
             <pre v-else-if="selected.bodyText" class="mail-text">{{ selected.bodyText }}</pre>
             <p v-else class="mail-empty">这封邮件没有正文。</p>
+            <p
+              v-if="selected.attachments.length"
+              class="mail-attachment-summary"
+            >
+              {{ selected.attachments.length }} 个附件 ·
+              {{ size(attachmentTotal) }}
+            </p>
             <ul v-if="selected.attachments.length" class="mail-attachments">
               <li v-for="attachment in selected.attachments" :key="attachment.part">
                 <Paperclip :size="14" :stroke-width="2" aria-hidden="true" />
@@ -639,6 +653,11 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+}
+.mail-attachment-summary {
+  margin: 16px 0 4px;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
 }
 .mail-code-note {
   margin: -8px 0 14px;

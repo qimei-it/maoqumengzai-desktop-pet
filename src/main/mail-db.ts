@@ -342,6 +342,15 @@ export class MailDatabase {
     }))
   }
 
+  clearDetails(): void {
+    this.db.exec(`
+      UPDATE mail_messages
+      SET body_text = NULL, body_html = NULL, snippet = NULL;
+      DELETE FROM mail_attachments;
+      DELETE FROM mail_codes;
+    `)
+  }
+
   countMessages(accountId: string, folder = 'INBOX'): number {
     const row = this.db
       .prepare(

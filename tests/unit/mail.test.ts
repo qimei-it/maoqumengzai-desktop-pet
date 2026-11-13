@@ -234,6 +234,12 @@ describe('mail database', () => {
     })
     db.setUnread(account.id, 'INBOX', 2, false)
     expect(db.message(account.id, 'INBOX', 2)?.unread).toBe(false)
+    db.clearDetails()
+    expect(db.message(account.id, 'INBOX', 2)).toMatchObject({
+      attachments: [],
+    })
+    expect(db.message(account.id, 'INBOX', 2)?.bodyText).toBeUndefined()
+    expect(db.message(account.id, 'INBOX', 2)?.code).toBeUndefined()
     db.close()
   })
 })
