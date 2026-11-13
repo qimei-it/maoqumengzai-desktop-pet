@@ -47,6 +47,39 @@ describe('LRCLIB lyric selection', () => {
     expect(chosen?.plainLyrics).toBe('正确歌词')
   })
 
+  test('rejects same-title lyrics from a different artist and duration', () => {
+    expect(
+      pickLyricsCandidate(
+        { title: '进退两难', artist: '弋川', duration: 210 },
+        [
+          {
+            trackName: '进退两难',
+            artistName: '蔡秋凤',
+            duration: 187,
+            syncedLyrics: '[00:01.00]另一首歌的歌词',
+            plainLyrics: '另一首歌的歌词',
+          },
+        ],
+      ),
+    ).toBeUndefined()
+  })
+
+  test('accepts romanized artist when the duration matches', () => {
+    const chosen = pickLyricsCandidate(
+      { title: '普通到不普通的人生', artist: '华晨宇', duration: 261 },
+      [
+        {
+          trackName: '普通到不普通的人生',
+          artistName: 'Hua, Chenyu',
+          duration: 261,
+          syncedLyrics: '[00:01.42]同步歌词',
+          plainLyrics: '纯文本歌词',
+        },
+      ],
+    )
+    expect(chosen?.syncedLyrics).toContain('同步歌词')
+  })
+
   test('does not return empty submissions', () => {
     expect(
       pickLyricsCandidate(

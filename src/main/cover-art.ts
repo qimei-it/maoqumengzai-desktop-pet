@@ -13,7 +13,7 @@ export type CoverTrack = {
 
 export type CoverResult = {
   dataUrl: string
-  source: 'apple' | 'itunes'
+  source: 'apple' | 'itunes' | 'system'
 }
 
 export type ItunesResult = {
@@ -180,6 +180,7 @@ async function itunesArtwork(track: CoverTrack): Promise<Buffer | undefined> {
 export async function loadCover(
   dataRoot: string,
   track: CoverTrack,
+  provided?: Buffer,
 ): Promise<CoverResult | null> {
   const key = coverKey(track)
   if (!key) return null
@@ -187,6 +188,28 @@ export async function loadCover(
   await mkdir(directory, { recursive: true })
   const digest = createHash('sha1').update(key).digest('hex')
   const cachePath = join(directory, `${digest}.webp`)
+  const encode = async (
+    original: Buffer,
+    source: CoverResult['source'],
+  ): Promise<CoverResult | null> => {
+    try {
+      const webp = await sharp(original, { limitInputPixels: 40_000_000 })
+        .resize(coverSize, coverSize, { fit: 'cover' })
+        .webp({ quality: 82 })
+        .toBuffer()
+      await writeFile(cachePath, webp, { mode: 0o600 })
+      return {
+        dataUrl: `data:image/webp;base64,${webp.toString('base64')}`,
+        source,
+      }
+    } catch {
+      return null
+    }
+  }
+  if (provided) {
+    const result = await encode(provided, 'system')
+    if (result) return result
+  }
   try {
     const cached = await readFile(cachePath)
     return {
@@ -197,22 +220,12 @@ export async function loadCover(
     /* Cache miss. */
   }
 
-  let source: CoverResult['source'] = 'itunes'
   let original = await readAppleArtwork(directory, track)
-  if (original) source = 'apple'
-  else original = await itunesArtwork(track)
-  if (!original) return null
-  try {
-    const webp = await sharp(original, { limitInputPixels: 40_000_000 })
-      .resize(coverSize, coverSize, { fit: 'cover' })
-      .webp({ quality: 82 })
-      .toBuffer()
-    await writeFile(cachePath, webp, { mode: 0o600 })
-    return {
-      dataUrl: `data:image/webp;base64,${webp.toString('base64')}`,
-      source,
-    }
-  } catch {
-    return null
+  let source: CoverResult['source'] = 'apple'
+  if (!original) {
+    original = await itunesArtwork(track)
+    source = 'itunes'
   }
+  if (!original) return null
+  return encode(original, source)
 }

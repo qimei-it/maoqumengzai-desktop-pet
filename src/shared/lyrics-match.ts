@@ -48,8 +48,14 @@ export function pickLyricsCandidate(
       typeof query.duration === 'number' && candidateDuration !== undefined
         ? Math.abs(query.duration - candidateDuration)
         : undefined
+    const artistMatch = artistScore(artist, normalize(candidate.artistName))
+    // Romanized artist names differ by language. Only accept that case when
+    // the duration still identifies the same recording.
+    if (artist && artistMatch === 0) {
+      if (durationDelta === undefined || durationDelta > 5) continue
+    }
     let score = hasSynced ? 1000 : 0
-    score += artistScore(artist, normalize(candidate.artistName))
+    score += artistMatch
     if (durationDelta !== undefined) {
       if (durationDelta <= 2) score += 30
       else if (durationDelta <= 5) score += 20

@@ -402,6 +402,7 @@ let musicTimer: ReturnType<typeof setInterval> | undefined
 let musicPollBusy = false
 let musicPollMs = 2500
 let music: MusicState = { playing: false }
+let mediaRemoteArtwork: { key: string; data: Buffer } | undefined
 let barVisible = true
 let volumeBeforeMute = 50
 let lyricsOpen = true
@@ -6043,7 +6044,13 @@ function applyMusic(next: MusicState): void {
     coverRequest += 1
     const request = coverRequest
     if (nextCoverKey)
-      void loadCover(dataRoot, music).then((cover) => {
+      void loadCover(
+        dataRoot,
+        music,
+        mediaRemoteArtwork?.key === nextCoverKey
+          ? mediaRemoteArtwork.data
+          : undefined,
+      ).then((cover) => {
         if (request !== coverRequest || coverKey(music) !== nextCoverKey) return
         if (!cover) return
         music = { ...music, cover: cover.dataUrl }
@@ -6230,6 +6237,8 @@ type MediaRemotePayload = {
   elapsed?: number
   elapsedTime?: number
   timestamp?: string
+  artworkData?: string
+  artworkMimeType?: string
 }
 function musicStateFromPayload(
   parsed: MediaRemotePayload,
@@ -6300,8 +6309,28 @@ function pollMediaRemoteMini(
       }
       try {
         const parsed = JSON.parse(stdout.trim() || '{}') as MediaRemotePayload
-        done(musicStateFromPayload(parsed, true))
+        const state = musicStateFromPayload(parsed, true)
+        if (!state) {
+          mediaRemoteArtwork = undefined
+          done(null)
+          return
+        }
+        const key = coverKey({
+          title: state.title,
+          artist: state.artist,
+          album: state.album,
+        })
+        if (
+          key &&
+          parsed.artworkData &&
+          mediaRemoteArtwork?.key !== key
+        ) {
+          const data = Buffer.from(parsed.artworkData, 'base64')
+          if (data.length) mediaRemoteArtwork = { key, data }
+        }
+        done(state)
       } catch {
+        mediaRemoteArtwork = undefined
         done(null)
       }
     },
