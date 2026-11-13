@@ -631,6 +631,7 @@ watch(
   flex: none;
   width: 28px;
   height: 28px;
+  min-height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -854,7 +855,8 @@ watch(
 .mail-reader-title h2 {
   flex: 1;
   min-width: 0;
-  margin: 0 0 6px;
+  margin: 0;
+  line-height: 26px;
   overflow-wrap: anywhere;
 }
 .mail-reader-actions {
@@ -862,13 +864,13 @@ watch(
   align-items: center;
   flex: none;
   gap: 2px;
-  transform: translateY(3px);
 }
 .mail-reader-icon {
   display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
+  min-height: 26px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -894,8 +896,12 @@ watch(
   font-size: var(--font-size-section);
   line-height: 1.35;
 }
-.mail-reader-head p {
+.mail-reader-title h2 {
   margin: 0;
+  line-height: 26px;
+}
+.mail-reader-head p {
+  margin: 6px 0 0;
   color: var(--color-muted);
   font-size: var(--font-size-label);
 }
