@@ -61,7 +61,7 @@ export function musicAiCachePath(dataRoot: string, trackKey: string): string {
   return join(musicAiDirectory(dataRoot), `${musicAiCacheKey(trackKey)}.json`)
 }
 
-export const musicAiDailyLimit = 30
+export type MusicAiUsage = { date: string; count: number }
 
 function localDateKey(): string {
   const now = new Date()
@@ -72,8 +72,6 @@ function localDateKey(): string {
 function musicAiUsagePath(dataRoot: string): string {
   return join(musicAiDirectory(dataRoot), 'usage.json')
 }
-
-export type MusicAiUsage = { date: string; count: number }
 
 export async function readMusicAiUsage(
   dataRoot: string,

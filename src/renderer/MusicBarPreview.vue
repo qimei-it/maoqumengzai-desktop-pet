@@ -15,7 +15,7 @@ const props = defineProps<{ variant: MusicBarStyle }>()
 
 const bars = {
   compact: { width: 432, height: 50, scale: 0.7 },
-  double: { width: 210, height: 108, scale: 0.66 },
+  double: { width: 280, height: 108, scale: 0.66 },
   minimal: { width: 288, height: 50, scale: 0.7 },
 } as const
 
@@ -95,7 +95,7 @@ const controls = [
   height: 35px;
 }
 .preview-double-stage {
-  width: 139px;
+  width: 185px;
   height: 71px;
 }
 .preview-minimal-stage {

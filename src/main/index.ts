@@ -100,7 +100,6 @@ import {
   generateMusicAiContent,
   getMusicAiCacheStats,
   incrementMusicAiUsage,
-  musicAiDailyLimit,
   pruneMusicAiCache,
   readMusicAiCache,
   readMusicAiUsage,
@@ -503,7 +502,7 @@ const musicAiCacheState = {
   count: 0,
   bytes: 0,
   today: 0,
-  limit: musicAiDailyLimit,
+  limit: settings.musicAiDailyLimit,
 }
 let musicAiErrorNotified = false
 let musicAiLimitNotified = false
@@ -2152,6 +2151,7 @@ function settingsState(): SettingsState {
     statusBubbles: settings.statusBubbles,
     musicBubbles: settings.musicBubbles,
     musicAiEnabled: settings.musicAiEnabled,
+    musicAiDailyLimit: settings.musicAiDailyLimit,
     musicBarStyle: settings.musicBarStyle,
     shelfAutoScreenshots: settings.shelfAutoScreenshots,
     shelfClipboardImages: settings.shelfClipboardImages,
@@ -4197,6 +4197,10 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
     previous.musicBubbles === false
   )
     scheduleMusicAi()
+  if (patch.musicAiDailyLimit !== undefined) {
+    musicAiCacheState.limit = settings.musicAiDailyLimit
+    if (settings.musicAiEnabled && settings.musicBubbles) scheduleMusicAi()
+  }
   if (patch.musicBarStyle !== undefined) syncOverlays()
   if (
     patch.aiQuotaEnabled !== undefined ||
@@ -5581,7 +5585,7 @@ function pillSize(): { width: number; height: number } {
   const style = settings.musicBarStyle
   if (style === 'compact') return { width: 432, height: 50 }
   if (style === 'minimal') return { width: 288, height: 50 }
-  return { width: 210, height: 108 }
+  return { width: 280, height: 108 }
 }
 function pillLayout(liftPet: boolean): Rect {
   const b = pet.getBounds()
@@ -6554,7 +6558,7 @@ async function refreshMusicAiCacheStats(): Promise<void> {
   musicAiCacheState.count = stats.count
   musicAiCacheState.bytes = stats.bytes
   musicAiCacheState.today = usage.count
-  musicAiCacheState.limit = musicAiDailyLimit
+  musicAiCacheState.limit = settings.musicAiDailyLimit
   broadcast()
 }
 function musicAiFailureNotice(message: string): string {
@@ -6625,10 +6629,12 @@ async function ensureMusicAi(): Promise<void> {
       musicAiCacheState.today = usage.count
       broadcast()
     }
-    if (usage.count >= musicAiDailyLimit) {
+    if (usage.count >= settings.musicAiDailyLimit) {
       if (!musicAiLimitNotified) {
         musicAiLimitNotified = true
-        showToast(`今日 AI 互动已达 ${musicAiDailyLimit} 首，先使用本地文案`)
+        showToast(
+          `今日 AI 互动已达 ${settings.musicAiDailyLimit} 首，先使用本地文案`,
+        )
       }
       return
     }

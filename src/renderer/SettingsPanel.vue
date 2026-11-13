@@ -16,8 +16,10 @@ import {
   musicBarStyleLabels,
   musicBarStyles,
   petScales,
+  musicAiDailyLimits,
   themeIds,
   themeLabels,
+  type MusicAiDailyLimit,
   type PetScale,
   type SettingsState,
   type ThemeId,
@@ -40,6 +42,7 @@ import MusicBarPreview from './MusicBarPreview.vue'
 import MailSettings from './MailSettings.vue'
 import PanelHeader from './PanelHeader.vue'
 import SegmentedControl from './SegmentedControl.vue'
+import SelectField from './SelectField.vue'
 import WheelConfigurator from './WheelConfigurator.vue'
 import WheelPreview from './WheelPreview.vue'
 
@@ -78,11 +81,7 @@ const musicAiCacheLabel = computed(() => {
     mb >= 1
       ? `${mb.toFixed(1)} MB`
       : `${Math.max(1, Math.round(cache.bytes / 1024))} KB`
-  return `${cache.count} 首 · ${size}`
-})
-const musicAiTodayLabel = computed(() => {
-  const cache = musicAiCache.value
-  return cache ? `${cache.today} / ${cache.limit} 首` : '0 / 30 首'
+  return `${cache.count} 首 / ${size}`
 })
 const clipboardConfig = computed<ClipboardConfig>(
   () => props.state?.clipboard ?? clipboardDefaults,
@@ -225,6 +224,11 @@ function selectSection(section: SettingsSection): void {
 }
 function update(patch: Partial<SettingsState>): void {
   emit('command', { type: 'settings-update', patch })
+}
+function updateDailyLimit(value: string): void {
+  const limit = Number(value)
+  if ((musicAiDailyLimits as readonly number[]).includes(limit))
+    update({ musicAiDailyLimit: limit as MusicAiDailyLimit })
 }
 function updateHoverWheel(actions: string[]): void {
   update({ hoverWheelActions: actions as HoverAction[] })
@@ -896,7 +900,7 @@ function onEscape(): void {
                   <span class="settings-value">{{ musicAiCacheLabel }}</span>
                   <button
                     type="button"
-                    class="settings-button"
+                    class="settings-button danger"
                     :disabled="!musicAiCache?.count"
                     @click="emit('command', { type: 'music-ai-clear' })"
                   >
@@ -906,7 +910,24 @@ function onEscape(): void {
               </div>
               <div class="settings-row settings-row-last">
                 <span class="settings-label">今日 AI 生成</span>
-                <span class="settings-value">{{ musicAiTodayLabel }}</span>
+                <span class="settings-inline">
+                  <span class="settings-value"
+                    >{{ musicAiCache?.today ?? 0 }} 首 /</span
+                  >
+                  <SelectField
+                    :model-value="settings.musicAiDailyLimit"
+                    aria-label="每日 AI 生成上限"
+                    @update:model-value="updateDailyLimit"
+                  >
+                    <option
+                      v-for="limit in musicAiDailyLimits"
+                      :key="limit"
+                      :value="limit"
+                    >
+                      {{ limit }} 首
+                    </option>
+                  </SelectField>
+                </span>
               </div>
             </div>
           </template>

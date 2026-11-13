@@ -22,6 +22,9 @@ export const musicBarStyleLabels: Record<MusicBarStyle, string> = {
 export const petScales = [0.75, 1, 1.5, 2] as const
 export type PetScale = (typeof petScales)[number]
 
+export const musicAiDailyLimits = [30, 45, 60, 90, 100] as const
+export type MusicAiDailyLimit = (typeof musicAiDailyLimits)[number]
+
 export const themeLabels: Record<ThemeId, string> = {
   default: '默认',
   halloween: '万圣节',
@@ -37,6 +40,7 @@ export type Settings = {
   statusBubbles: boolean
   musicBubbles: boolean
   musicAiEnabled: boolean
+  musicAiDailyLimit: MusicAiDailyLimit
   musicBarStyle: MusicBarStyle
   shelfAutoScreenshots: boolean
   shelfClipboardImages: boolean
@@ -61,6 +65,7 @@ export const defaultSettings: Settings = {
   statusBubbles: true,
   musicBubbles: true,
   musicAiEnabled: false,
+  musicAiDailyLimit: 30,
   musicBarStyle: 'double',
   shelfAutoScreenshots: true,
   shelfClipboardImages: false,

@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { z } from 'zod'
 import {
   defaultSettings,
+  musicAiDailyLimits,
   musicBarStyles,
   petScales,
   themeIds,
@@ -64,6 +65,9 @@ const settingsSchema = z
     statusBubbles: z.boolean(),
     musicBubbles: z.boolean(),
     musicAiEnabled: z.boolean().default(false),
+    musicAiDailyLimit: z
+      .union(musicAiDailyLimits.map((value) => z.literal(value)))
+      .default(30),
     musicBarStyle: z.enum(musicBarStyles).default('double'),
     shelfAutoScreenshots: z.boolean().default(true),
     shelfClipboardImages: z.boolean().default(false),

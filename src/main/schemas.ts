@@ -5,7 +5,12 @@ import {
   todoRepeats,
 } from '../shared/protocol'
 import { deepseekModelIds } from '../shared/deepseek'
-import { musicBarStyles, petScales, themeIds } from '../shared/settings'
+import {
+  musicAiDailyLimits,
+  musicBarStyles,
+  petScales,
+  themeIds,
+} from '../shared/settings'
 import {
   hoverActions,
   maxWheelActions,
@@ -311,6 +316,9 @@ export const commandSchema = z.discriminatedUnion('type', [
           statusBubbles: z.boolean().optional(),
           musicBubbles: z.boolean().optional(),
           musicAiEnabled: z.boolean().optional(),
+          musicAiDailyLimit: z
+            .union(musicAiDailyLimits.map((value) => z.literal(value)))
+            .optional(),
           musicBarStyle: z.enum(musicBarStyles).optional(),
           shelfAutoScreenshots: z.boolean().optional(),
           shelfClipboardImages: z.boolean().optional(),

@@ -1007,6 +1007,16 @@ function syncLyricBase(): void {
   lyricBaseAt = performance.now();
 }
 watch(() => state.value?.music.position, syncLyricBase);
+watch(
+  () => `${state.value?.music.title ?? ""}|${state.value?.music.artist ?? ""}`,
+  () => {
+    const position = state.value?.music.position ?? 0;
+    lyricLastPosition = position;
+    lyricBase = position;
+    lyricBaseAt = performance.now();
+    lyricNow.value = performance.now();
+  },
+);
 const syncedLyricLines = computed(() => {
   const synced = state.value?.lyrics?.synced;
   if (!synced) return [];
@@ -1023,8 +1033,11 @@ const syncedLyricLines = computed(() => {
   }
   return lines;
 });
+const lyricLocalClock = computed(
+  () => state.value?.music.appName === "网易云音乐",
+);
 const lyricLines = computed(() =>
-  state.value?.music.positionReliable === false
+  state.value?.music.positionReliable === false && !lyricLocalClock.value
     ? []
     : syncedLyricLines.value,
 );
@@ -1112,6 +1125,10 @@ const playerName = computed(() => {
   const name = state.value?.music.appName;
   if (!name) return "当前播放器";
   return /^[A-Za-z]/.test(name) ? ` ${name}` : name;
+});
+const pillLyricNext = computed(() => {
+  if (currentLyric.value) return currentLyric.value.next;
+  return plainLines.value[plainCurrent.value + 1] ?? "";
 });
 const pillLyric = computed(() => {
   if (state.value?.lyrics?.instrumental) return "纯音乐";
@@ -1448,12 +1465,16 @@ onUnmounted(() => {
         </span>
         <span
           v-if="isTwoLineBar"
-          :key="pillSubline"
+          :key="`${pillLyric}|${pillLyricNext}`"
           class="pill-lyric pill-lyric-lines"
           :class="{ placeholder: !pillLyric }"
-          :title="pillSubline"
-          >{{ pillSubline }}</span
+          :title="[pillLyric, pillLyricNext].filter(Boolean).join(' / ')"
         >
+          <span class="pill-lyric-line">{{ pillLyric }}</span>
+          <span v-if="pillLyricNext" class="pill-lyric-line">{{
+            pillLyricNext
+          }}</span>
+        </span>
         <span
           v-else
           ref="pillLyricEl"
