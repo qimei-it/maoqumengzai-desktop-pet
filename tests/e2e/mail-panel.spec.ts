@@ -167,6 +167,24 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-message')).toHaveCount(0)
   await mail.locator('.mail-folder', { hasText: '收件箱' }).click()
   await expect(mail.locator('.mail-message')).toHaveCount(2)
+  const movedBounds = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('邮件'),
+    )!
+    const bounds = window.getBounds()
+    window.setPosition(bounds.x + 40, bounds.y + 30)
+    return { ...window.getBounds() }
+  })
+  await mail.locator('.mail-account').first().click()
+  await expect(mail.locator('.mail-message')).toHaveCount(2)
+  const keptBounds = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('邮件'),
+    )!
+    return { ...window.getBounds() }
+  })
+  expect(keptBounds.x).toBe(movedBounds.x)
+  expect(keptBounds.y).toBe(movedBounds.y)
   await expect(
     mail.getByRole('button', { name: '新建邮件' }),
   ).toBeEnabled()

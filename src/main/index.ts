@@ -466,6 +466,16 @@ function permission(): string {
 function windowVisible(window: BrowserWindow | undefined): boolean {
   return Boolean(window && !window.isDestroyed() && window.isVisible())
 }
+const positionedPanels = new WeakSet<BrowserWindow>()
+/** Centers a panel only on its first open; later user moves are preserved. */
+function positionPanelOnce(
+  window: BrowserWindow | undefined,
+  position: () => void,
+): void {
+  if (!window || window.isDestroyed() || positionedPanels.has(window)) return
+  position()
+  positionedPanels.add(window)
+}
 function snapshot(): Snapshot {
   if (!pet || pet.isDestroyed()) throw new Error('窗口已关闭。')
   return {
@@ -838,7 +848,7 @@ function openAsk(fileIds: string[]): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
-    positionAsk()
+    positionPanelOnce(askWindow, positionAsk)
     if (process.platform === 'darwin' || askWindow.isMinimized())
       askWindow.restore()
     askWindow.show()
@@ -1048,7 +1058,7 @@ async function openConvert(
     convertWindow.setTitle(
       mode === 'audio' ? '毛趣萌仔 · 提取音频' : '毛趣萌仔 · 文件转换',
     )
-    positionConvert()
+    positionPanelOnce(convertWindow, positionConvert)
     if (process.platform === 'darwin' || convertWindow.isMinimized())
       convertWindow.restore()
     convertWindow.show()
@@ -1089,7 +1099,7 @@ function removeConvertFile(fileId: string): void {
       ? '没有可用的音视频转换目标。'
       : '图片和 PDF 请分开转换。'
     : undefined
-  positionConvert()
+  positionPanelOnce(convertWindow, positionConvert)
   broadcast()
 }
 function moveConvertFile(
@@ -1611,7 +1621,7 @@ async function startConvert(
       convertProgress = { done: 0, total }
       convertNotice = '已取消转换'
     }
-    positionConvert()
+    positionPanelOnce(convertWindow, positionConvert)
     broadcast()
     return
   }
@@ -1622,7 +1632,7 @@ async function startConvert(
     outputs: [...convertOutputs],
   }
   convertNotice = undefined
-  positionConvert()
+  positionPanelOnce(convertWindow, positionConvert)
   broadcast()
 }
 
@@ -1663,7 +1673,7 @@ function openRename(fileIds: string[]): void {
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow && !renameWindow.isDestroyed()) {
-    positionRename()
+    positionPanelOnce(renameWindow, positionRename)
     if (process.platform === 'darwin' || renameWindow.isMinimized())
       renameWindow.restore()
     renameWindow.show()
@@ -2322,7 +2332,7 @@ function openMailCompose(
   mailComposeError = undefined
   mailComposeSending = false
   if (mailComposeWindow && !mailComposeWindow.isDestroyed()) {
-    positionMailCompose()
+    positionPanelOnce(mailComposeWindow, positionMailCompose)
     if (process.platform === 'darwin' || mailComposeWindow.isMinimized())
       mailComposeWindow.restore()
     mailComposeWindow.show()
@@ -2379,7 +2389,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
   if (mailWindow && !mailWindow.isDestroyed()) {
-    positionMail()
+    positionPanelOnce(mailWindow, positionMail)
     if (process.platform === 'darwin' || mailWindow.isMinimized())
       mailWindow.restore()
     mailWindow.show()
@@ -3322,7 +3332,7 @@ function openTodo(): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow && !todoWindow.isDestroyed()) {
-    if (!wasVisible) positionTodo()
+    positionPanelOnce(todoWindow, positionTodo)
     if (process.platform === 'darwin' || todoWindow.isMinimized())
       todoWindow.restore()
     todoWindow.show()
@@ -3360,7 +3370,7 @@ function openSettings(): void {
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
-    positionSettings()
+    positionPanelOnce(settingsWindow, positionSettings)
     if (process.platform === 'darwin' || settingsWindow.isMinimized())
       settingsWindow.restore()
     settingsWindow.show()
@@ -4316,7 +4326,7 @@ function openProfile(): void {
   if (windowVisible(breakWindow)) closeBreak()
   if (windowVisible(clipboardWindow)) closeClipboard()
   if (profileWindow && !profileWindow.isDestroyed()) {
-    if (!wasVisible) positionProfile()
+    positionPanelOnce(profileWindow, positionProfile)
     if (process.platform === 'darwin' || profileWindow.isMinimized())
       profileWindow.restore()
     profileWindow.show()
@@ -4358,7 +4368,7 @@ function openClipboard(): void {
   if (windowVisible(breakWindow)) closeBreak()
   if (windowVisible(profileWindow)) closeProfile()
   if (clipboardWindow && !clipboardWindow.isDestroyed()) {
-    if (!wasVisible) positionClipboard()
+    positionPanelOnce(clipboardWindow, positionClipboard)
     if (process.platform === 'darwin' || clipboardWindow.isMinimized())
       clipboardWindow.restore()
     clipboardWindow.show()
@@ -4400,7 +4410,7 @@ function openBreak(): void {
   if (windowVisible(profileWindow)) closeProfile()
   if (windowVisible(clipboardWindow)) closeClipboard()
   if (breakWindow && !breakWindow.isDestroyed()) {
-    if (!wasVisible) positionBreak()
+    positionPanelOnce(breakWindow, positionBreak)
     if (process.platform === 'darwin' || breakWindow.isMinimized())
       breakWindow.restore()
     breakWindow.show()
@@ -4427,7 +4437,7 @@ function openWater(): void {
   if (windowVisible(clipboardWindow)) closeClipboard()
   if (windowVisible(pomodoroWindow)) closePomodoro()
   if (waterWindow && !waterWindow.isDestroyed()) {
-    if (!wasVisible) positionWater()
+    positionPanelOnce(waterWindow, positionWater)
     if (process.platform === 'darwin' || waterWindow.isMinimized())
       waterWindow.restore()
     waterWindow.show()
@@ -4488,7 +4498,7 @@ function openPomodoro(): void {
   if (profileWindow?.isVisible()) profileWindow.hide()
   if (clipboardWindow?.isVisible()) clipboardWindow.hide()
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
-    if (!wasVisible) positionPomodoro()
+    positionPanelOnce(pomodoroWindow, positionPomodoro)
     if (process.platform === 'darwin' || pomodoroWindow.isMinimized())
       pomodoroWindow.restore()
     pomodoroWindow.show()
