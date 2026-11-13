@@ -15,6 +15,8 @@ import type {
 } from '../shared/mail'
 import {
   mailAccountLabel,
+  mailDisplayNameError,
+  mailDisplayNameLimit,
   mailProviderLabels,
   mailRetentionOptions,
   mailSyncOptions,
@@ -108,13 +110,19 @@ function submit(): void {
     pushToast('请填写邮箱地址和授权码。', 'error')
     return
   }
+  const nameError = mailDisplayNameError(formName.value)
+  if (nameError) {
+    pushToast(nameError, 'error')
+    return
+  }
   const secret = formSecret.value.replace(/\s+/g, '')
+  const displayName = formName.value.trim()
   if (reauthorizeId.value) {
     emit('command', {
       type: 'mail-reauthorize',
       accountId: reauthorizeId.value,
       secret,
-      displayName: formName.value.trim(),
+      displayName,
     })
     return
   }
@@ -123,7 +131,7 @@ function submit(): void {
     provider: formProvider.value,
     email: formEmail.value.trim(),
     secret,
-    ...(formName.value.trim() ? { displayName: formName.value.trim() } : {}),
+    ...(displayName ? { displayName } : {}),
   })
 }
 function openMailHelp(): void {
@@ -171,6 +179,11 @@ function onRetentionChange(event: Event): void {
   })
 }
 
+watch(formName, (value) => {
+  const chars = Array.from(value)
+  if (chars.length > mailDisplayNameLimit)
+    formName.value = chars.slice(0, mailDisplayNameLimit).join('')
+})
 watch(
   () => props.mail?.error,
   (value) => {
@@ -314,7 +327,7 @@ watch(
           <input
             v-model="formName"
             type="text"
-            maxlength="40"
+            maxlength="80"
             :disabled="busy"
             placeholder="可选"
           />

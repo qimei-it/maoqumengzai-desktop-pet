@@ -10,6 +10,8 @@ import {
 } from '../../src/main/mail-config'
 import {
   mailAccountLabel,
+  mailDisplayNameError,
+  mailDisplayNameLimit,
   mailHelpUrls,
   mailUnreadTotal,
 } from '../../src/shared/mail'
@@ -210,6 +212,24 @@ describe('mail unread total', () => {
     expect(mailHelpUrls.qq).toContain('wx.mail.qq.com')
     expect(mailHelpUrls['163']).toContain('help.mail.163.com')
     expect(mailHelpUrls.gmail).toContain('knowledge.workspace.google.com')
+  })
+
+  test('validates display name length and control characters', () => {
+    expect(mailDisplayNameError('')).toBeUndefined()
+    expect(mailDisplayNameError('   ')).toBeUndefined()
+    expect(mailDisplayNameError('  麻薯  ')).toBeUndefined()
+    expect(
+      mailDisplayNameError('麻'.repeat(mailDisplayNameLimit)),
+    ).toBeUndefined()
+    expect(
+      mailDisplayNameError('😀'.repeat(mailDisplayNameLimit)),
+    ).toBeUndefined()
+    expect(
+      mailDisplayNameError('麻'.repeat(mailDisplayNameLimit + 1)),
+    ).toContain('40')
+    expect(mailDisplayNameError('麻薯\u0000')).toContain('控制字符')
+    expect(mailDisplayNameError('麻薯\u200b')).toContain('控制字符')
+    expect(mailDisplayNameError('👨‍👩‍👧‍👦')).toBeUndefined()
   })
 
   test('labels accounts with display name and address', () => {

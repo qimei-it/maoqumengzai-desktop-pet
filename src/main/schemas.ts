@@ -12,6 +12,7 @@ import {
   minWheelActions,
   sliceActions,
 } from '../shared/donut'
+import { mailDisplayNameError } from '../shared/mail'
 
 const wheelActions = <T extends string>(catalog: readonly T[]) =>
   z
@@ -22,6 +23,12 @@ const wheelActions = <T extends string>(catalog: readonly T[]) =>
       (actions) => new Set(actions).size === actions.length,
       '轮盘选项不能重复',
     )
+
+const mailDisplayName = z
+  .string()
+  .trim()
+  .max(80)
+  .refine((value) => !mailDisplayNameError(value))
 
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const rect = z
@@ -406,7 +413,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       provider: z.enum(['qq', '163', 'gmail']),
       email: z.string().email().max(254),
       secret: z.string().min(1).max(512),
-      displayName: z.string().trim().max(40).optional(),
+      displayName: mailDisplayName.optional(),
     })
     .strict(),
   z
@@ -414,7 +421,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('mail-reauthorize'),
       accountId: z.string().uuid(),
       secret: z.string().min(1).max(512),
-      displayName: z.string().trim().max(40).optional(),
+      displayName: mailDisplayName.optional(),
     })
     .strict(),
   z

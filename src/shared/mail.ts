@@ -31,6 +31,19 @@ export type MailState = {
   error?: string
 }
 
+export const mailDisplayNameLimit = 40
+
+/** Returns a user-facing error for an invalid display name, if any. */
+export function mailDisplayNameError(value: string): string | undefined {
+  const name = value.trim()
+  if (!name) return undefined
+  if (/[\u0000-\u001f\u007f-\u009f\u200b\ufeff]/.test(name))
+    return '显示名称不能包含控制字符。'
+  if (Array.from(name).length > mailDisplayNameLimit)
+    return `显示名称不能超过 ${mailDisplayNameLimit} 个字符。`
+  return undefined
+}
+
 export const mailProviderLabels: Record<MailProvider, string> = {
   qq: 'QQ 邮箱',
   '163': '网易邮箱',

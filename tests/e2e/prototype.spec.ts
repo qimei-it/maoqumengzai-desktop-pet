@@ -2825,6 +2825,12 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "授权码 / 应用专用密码",
     "显示名称",
   ]);
+  const displayNameInput = settings
+    .locator(".mail-field", { hasText: "显示名称" })
+    .locator("input");
+  await displayNameInput.fill("麻".repeat(45));
+  await expect(displayNameInput).toHaveValue("麻".repeat(40));
+  await displayNameInput.fill("");
   await expect(
     settings.getByRole("button", { name: "取消", exact: true }),
   ).toHaveCSS("height", "28px");
