@@ -304,6 +304,7 @@ let mailBadgeTotal = -1
 let mailPruning = false
 let mailPanelAccountId: string | undefined
 let mailPanelFolder = 'INBOX'
+let mailPanelRequest = 0
 let mailPanelLoading = false
 let mailPanelLoadingKind: 'sync' | 'detail' | 'more' | undefined
 let mailPanelHasMore = false
@@ -2348,11 +2349,32 @@ function closeMailCompose(): void {
   mailComposeError = undefined
   broadcast()
 }
-function loadMailMessages(accountId: string): void {
+function loadMailMessages(
+  accountId: string,
+  folder = mailPanelFolder,
+): void {
   if (!mailDb) return
   mailPanelMessages = mailPanelQuery
-    ? mailDb.searchMessages(accountId, mailPanelFolder, mailPanelQuery, 500)
-    : mailDb.listMessages(accountId, mailPanelFolder, 500)
+    ? mailDb.searchMessages(accountId, folder, mailPanelQuery, 500)
+    : mailDb.listMessages(accountId, folder, 500)
+}
+function switchMailFolder(accountId: string, folder: string): void {
+  if (!mailDb) return
+  const account = mailDb.account(accountId)
+  if (!account) return
+  mailPanelRequest += 1
+  mailPanelAccountId = accountId
+  mailPanelFolder = folder
+  mailPanelSelected = undefined
+  mailPanelError = undefined
+  mailPanelErrorKind = undefined
+  mailPanelHasMore = false
+  mailPanelQuery = ''
+  mailPanelNotice = undefined
+  mailPanelMessages = []
+  loadMailMessages(accountId, folder)
+  broadcast()
+  if (windowVisible(mailWindow)) void refreshMailPanel()
 }
 function positionMail(): void {
   if (!mailWindow || mailWindow.isDestroyed()) return
@@ -2375,6 +2397,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
   }
   const account =
     accounts.find((item) => item.id === accountId) ?? accounts[0]
+  mailPanelRequest += 1
   mailPanelAccountId = account.id
   mailPanelFolder = folder || 'INBOX'
   mailPanelSelected = undefined
@@ -2383,7 +2406,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
   mailPanelHasMore = false
   mailPanelQuery = ''
   mailPanelNotice = undefined
-  loadMailMessages(account.id)
+  loadMailMessages(account.id, mailPanelFolder)
   if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
@@ -2438,6 +2461,7 @@ async function refreshMailPanel(): Promise<void> {
   if (!mailPanelAccountId || !mailDb) return
   const accountId = mailPanelAccountId
   const folder = mailPanelFolder
+  const requestId = ++mailPanelRequest
   mailPanelLoading = true
   mailPanelLoadingKind = 'sync'
   mailPanelError = undefined
@@ -2446,20 +2470,34 @@ async function refreshMailPanel(): Promise<void> {
   try {
     await syncMailAccount(accountId, true, folder)
     await refreshMailFolders(accountId)
-    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
-    loadMailMessages(accountId)
+    if (
+      requestId !== mailPanelRequest ||
+      mailPanelAccountId !== accountId ||
+      mailPanelFolder !== folder
+    )
+      return
+    loadMailMessages(accountId, folder)
     const account = mailDb.account(accountId)
     if (account?.status === 'error') {
       mailPanelError = account.error
       mailPanelErrorKind = 'sync'
     }
   } catch (error) {
-    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
+    if (
+      requestId !== mailPanelRequest ||
+      mailPanelAccountId !== accountId ||
+      mailPanelFolder !== folder
+    )
+      return
     mailPanelError =
       error instanceof Error ? error.message : '邮件同步失败。'
     mailPanelErrorKind = 'sync'
   } finally {
-    if (mailPanelAccountId === accountId && mailPanelFolder === folder) {
+    if (
+      requestId === mailPanelRequest &&
+      mailPanelAccountId === accountId &&
+      mailPanelFolder === folder
+    ) {
       mailPanelLoading = false
       mailPanelLoadingKind = undefined
     }
@@ -2589,6 +2627,7 @@ async function loadMoreMail(): Promise<void> {
     broadcast()
     return
   }
+  const requestId = mailPanelRequest
   mailPanelLoading = true
   mailPanelLoadingKind = 'more'
   mailPanelError = undefined
@@ -2602,10 +2641,15 @@ async function loadMoreMail(): Promise<void> {
       beforeUid,
       folder,
     )
-    if (mailPanelAccountId !== accountId || mailPanelFolder !== folder) return
+    if (
+      requestId !== mailPanelRequest ||
+      mailPanelAccountId !== accountId ||
+      mailPanelFolder !== folder
+    )
+      return
     mailDb.upsertMessages(accountId, folder, result.messages)
     mailPanelHasMore = result.hasMore
-    loadMailMessages(accountId)
+    loadMailMessages(accountId, folder)
   } catch (error) {
     if (mailPanelAccountId !== accountId) return
     mailPanelError =
@@ -2624,7 +2668,7 @@ function searchMail(query: string): void {
   const next = query.trim().slice(0, 100)
   if (next === mailPanelQuery) return
   mailPanelQuery = next
-  loadMailMessages(mailPanelAccountId)
+  loadMailMessages(mailPanelAccountId, mailPanelFolder)
   broadcast()
 }
 async function setMailUnread(uid: number, unread: boolean): Promise<void> {
@@ -2652,7 +2696,7 @@ async function setMailUnread(uid: number, unread: boolean): Promise<void> {
     })
     if (mailPanelSelected?.uid === uid)
       mailPanelSelected = { ...mailPanelSelected, unread }
-    loadMailMessages(accountId)
+    loadMailMessages(accountId, folder)
     void updateMailBadge()
   } catch (error) {
     mailPanelError =
@@ -2712,7 +2756,7 @@ async function moveCurrentMail(
       })
     }
     if (mailPanelSelected?.uid === uid) mailPanelSelected = undefined
-    loadMailMessages(accountId)
+    loadMailMessages(accountId, folder)
     void refreshMailCacheSize()
     void updateMailBadge()
     broadcast()
@@ -2877,7 +2921,8 @@ async function clearMailCache(): Promise<void> {
   }).catch(() => {})
   mailCacheBytes = 0
   mailPanelSelected = undefined
-  if (mailPanelAccountId) loadMailMessages(mailPanelAccountId)
+  if (mailPanelAccountId)
+    loadMailMessages(mailPanelAccountId, mailPanelFolder)
   showToast('附件缓存已清理')
   broadcast()
 }
@@ -2953,7 +2998,8 @@ async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
   await saveMailConfig(mailConfigPath, mailConfig)
   scheduleMailSync()
   if (prune) await pruneMailCache()
-  if (mailPanelAccountId) loadMailMessages(mailPanelAccountId)
+  if (mailPanelAccountId)
+    loadMailMessages(mailPanelAccountId, mailPanelFolder)
   void updateMailBadge()
   broadcast()
 }
@@ -3066,7 +3112,7 @@ async function removeMailAccount(accountId: string): Promise<void> {
     mailPanelLoadingKind = undefined
     if (next) {
       mailPanelAccountId = next.id
-      loadMailMessages(next.id)
+      loadMailMessages(next.id, 'INBOX')
       if (windowVisible(mailWindow)) void refreshMailPanel()
     } else {
       mailPanelAccountId = undefined
@@ -3098,6 +3144,7 @@ async function syncMailAccount(
     if (!silent) throw new Error('授权已失效，请重新授权。')
     return
   }
+  const requestId = mailPanelRequest
   mailBusy = true
   broadcast()
   try {
@@ -3116,10 +3163,14 @@ async function syncMailAccount(
       error: null,
     })
     await pruneMailCache()
-    if (mailPanelAccountId === accountId && mailPanelFolder === folder) {
+    if (
+      requestId === mailPanelRequest &&
+      mailPanelAccountId === accountId &&
+      mailPanelFolder === folder
+    ) {
       mailPanelHasMore =
         probe.total > mailDb.countMessages(accountId, folder)
-      loadMailMessages(accountId)
+      loadMailMessages(accountId, folder)
     }
     void updateMailBadge()
     if (folder === 'INBOX' && probe.unread > account.unread)
@@ -6537,7 +6588,7 @@ function setupIpc(): void {
         await openMail(command.accountId, command.folder)
         break
       case 'mail-folder':
-        await openMail(command.accountId, command.folder)
+        switchMailFolder(command.accountId, command.folder)
         break
       case 'mail-close':
         closeMail()

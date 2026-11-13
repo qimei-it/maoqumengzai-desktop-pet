@@ -61,6 +61,14 @@ const attachmentTotal = computed(() =>
   ),
 )
 const messages = computed(() => panel.value?.messages ?? [])
+const currentFolderName = computed(() => {
+  const id = accountId.value
+  if (!id) return '收件箱'
+  return (
+    foldersFor(id).find((folder) => folder.path === panel.value?.folder)
+      ?.name ?? '收件箱'
+  )
+})
 const loadingMore = computed(
   () => panel.value?.loadingKind === 'more',
 )
@@ -360,6 +368,10 @@ watch(
           </div>
         </aside>
         <section class="mail-list" aria-label="邮件列表">
+          <div class="mail-list-head">
+            <span>{{ currentFolderName }}</span>
+            <span>{{ messages.length }} 封</span>
+          </div>
           <label class="mail-search">
             <Search :size="14" :stroke-width="2" aria-hidden="true" />
             <input
@@ -709,6 +721,20 @@ watch(
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--color-line) transparent;
+}
+.mail-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 0 4px 8px;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.mail-list-head > span:first-child {
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+  font-weight: 600;
 }
 .mail-search {
   display: flex;

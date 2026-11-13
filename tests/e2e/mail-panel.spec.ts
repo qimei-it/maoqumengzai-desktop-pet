@@ -46,6 +46,13 @@ test.beforeAll(async () => {
       unread: 0,
       total: 0,
     },
+    {
+      path: 'Deleted Messages',
+      name: '已删除',
+      kind: 'trash',
+      unread: 0,
+      total: 1,
+    },
   ])
   await new Promise((resolve) => setTimeout(resolve, 5))
   backupAccountId = db.addAccount({
@@ -72,6 +79,18 @@ test.beforeAll(async () => {
       fromAddress: 'security@example.com',
       date: now - 60 * 60_000,
       snippet: '验证码 222222',
+      unread: false,
+      hasAttachments: false,
+    },
+  ])
+  db.upsertMessages(accountId, 'Deleted Messages', [
+    {
+      uid: 9,
+      subject: '已删除邮件',
+      fromName: 'Trash',
+      fromAddress: 'trash@example.com',
+      date: now - 2 * 60 * 60_000,
+      snippet: '这封邮件在已删除文件夹',
       unread: false,
       hasAttachments: false,
     },
@@ -157,15 +176,24 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
     mail.getByRole('button', { name: '刷新邮件' }),
   ).toBeVisible()
   await expect(mail.locator('.mail-refresh')).toHaveCount(0)
-  await expect(mail.locator('.mail-folder')).toHaveCount(2)
+  await expect(mail.locator('.mail-folder')).toHaveCount(3)
   await expect(mail.locator('.mail-folder')).toHaveText([
     '收件箱1',
     '已发送',
+    '已删除',
   ])
   await mail.locator('.mail-folder', { hasText: '已发送' }).click()
   await expect(mail.locator('.mail-folder.active')).toContainText('已发送')
   await expect(mail.locator('.mail-message')).toHaveCount(0)
   await mail.locator('.mail-folder', { hasText: '收件箱' }).click()
+  await expect(mail.locator('.mail-message')).toHaveCount(2)
+  await mail.locator('.mail-folder', { hasText: '已删除' }).click()
+  await expect(mail.locator('.mail-list-head')).toContainText('已删除')
+  await expect(mail.locator('.mail-message')).toHaveCount(1)
+  await expect(mail.locator('.mail-message')).toContainText('已删除邮件')
+  await expect(mail.locator('.mail-message')).not.toContainText('最新验证码')
+  await mail.locator('.mail-folder', { hasText: '收件箱' }).click()
+  await expect(mail.locator('.mail-list-head')).toContainText('收件箱')
   await expect(mail.locator('.mail-message')).toHaveCount(2)
   const movedBounds = await application.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find((item) =>
