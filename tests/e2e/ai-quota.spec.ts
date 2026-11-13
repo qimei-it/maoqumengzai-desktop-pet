@@ -174,6 +174,7 @@ test("shows both providers, then shrinks and hides as configuration changes", as
   });
   expect(both.visible).toBe(true);
   expect(both.width).toBe(240);
+  expect(both.height).toBe(60);
   expect(requests).toContain("/openai");
   expect(requests).toContain("/deepseek");
 
@@ -194,7 +195,14 @@ test("shows both providers, then shrinks and hides as configuration changes", as
       });
       return bounds.width;
     })
-    .toBe(150);
+    .toBe(180);
+  const singleHeight = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes("AI 额度"),
+    )!
+    return window.getBounds().height
+  })
+  expect(singleHeight).toBe(70);
   await expect(quota.locator(".quota-surface")).not.toContainText("DeepSeek");
 
   await pet.evaluate(() =>

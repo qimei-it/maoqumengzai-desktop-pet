@@ -5442,7 +5442,7 @@ function updatePillWindow(): void {
 function quotaBarSize(): { width: number; height: number } {
   return {
     width: Math.max(1, quotaBarWidth(aiQuota)),
-    height: quotaBarHeight,
+    height: Math.max(1, quotaBarHeight(aiQuota)),
   }
 }
 function quotaBarLayout(liftPet: boolean): Rect {
@@ -5481,7 +5481,7 @@ async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
   quotaBarCreating = (async () => {
     const window = new BrowserWindow({
       width: Math.max(1, quotaBarWidth(aiQuota)),
-      height: quotaBarHeight,
+      height: Math.max(1, quotaBarHeight(aiQuota)),
       title: '毛趣萌仔 · AI 额度',
       show: false,
       frame: false,

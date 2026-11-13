@@ -5,6 +5,7 @@ import {
   formatQuotaPercent,
   parseDeepSeekBalance,
   parseOpenAiUsage,
+  quotaBarHeight,
   quotaBarWidth,
   ringMetrics,
 } from '../../src/shared/ai-quota'
@@ -115,8 +116,10 @@ describe('quota presentation helpers', () => {
     const state = emptyAiQuotaState()
     expect(quotaBarWidth(state)).toBe(0)
     state.openai.configured = true
-    expect(quotaBarWidth(state)).toBe(150)
+    expect(quotaBarWidth(state)).toBe(180)
+    expect(quotaBarHeight(state)).toBe(70)
     state.deepseek.configured = true
     expect(quotaBarWidth(state)).toBe(240)
+    expect(quotaBarHeight(state)).toBe(60)
   })
 })
