@@ -508,33 +508,6 @@ export async function deleteMailMessages(
   }
 }
 
-export async function setMailSeenBatch(
-  provider: MailProvider,
-  email: string,
-  secret: string,
-  uids: number[],
-  seen: boolean,
-  folder = 'INBOX',
-): Promise<void> {
-  if (!uids.length) return
-  const client = providerClient(provider, email, secret)
-  try {
-    await client.connect()
-    await identifyClient(client, provider)
-    await client.mailboxOpen(folder, { readOnly: false })
-    const sequence = uids.map(String).join(',')
-    if (seen) {
-      await client.messageFlagsAdd(sequence, ['\\Seen'], { uid: true })
-    } else {
-      await client.messageFlagsRemove(sequence, ['\\Seen'], { uid: true })
-    }
-  } catch (error) {
-    throw new Error(mailErrorMessage(error))
-  } finally {
-    await client.logout().catch(() => {})
-  }
-}
-
 export async function moveMailMessage(
   provider: MailProvider,
   email: string,

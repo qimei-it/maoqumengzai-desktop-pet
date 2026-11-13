@@ -63,7 +63,6 @@ import {
   moveMailMessage,
   probeMailAccount,
   setMailSeen,
-  setMailSeenBatch,
   syncMailInbox,
 } from '../../src/main/mail-sync'
 
@@ -202,23 +201,6 @@ describe('mail detail fetch', () => {
       ['\\Seen'],
       { uid: true },
     )
-  })
-
-  test('updates seen state for a UID batch in one connection', async () => {
-    await setMailSeenBatch(
-      'gmail',
-      'demo@gmail.com',
-      'auth-code',
-      [5, 6],
-      true,
-      'Archive',
-    )
-    expect(mocks.mailboxOpen).toHaveBeenCalledWith('Archive', {
-      readOnly: false,
-    })
-    expect(mocks.flagsAdd).toHaveBeenCalledWith('5,6', ['\\Seen'], {
-      uid: true,
-    })
   })
 
   test('permanently deletes a UID batch in one connection', async () => {

@@ -530,26 +530,6 @@ export const commandSchema = z.discriminatedUnion('type', [
       spam: z.boolean(),
     })
     .strict(),
-  z
-    .object({
-      type: z.literal('mail-batch-read'),
-      uids: z.array(z.number().int().positive()).min(1).max(200),
-      unread: z.boolean(),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('mail-batch-delete'),
-      uids: z.array(z.number().int().positive()).min(1).max(200),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('mail-batch-move'),
-      uids: z.array(z.number().int().positive()).min(1).max(200),
-      folder: z.string().min(1).max(500),
-    })
-    .strict(),
   z.object({ type: z.literal('mail-alert-copy') }).strict(),
   z.object({ type: z.literal('mail-alert-open') }).strict(),
   z.object({ type: z.literal('mail-alert-dismiss') }).strict(),

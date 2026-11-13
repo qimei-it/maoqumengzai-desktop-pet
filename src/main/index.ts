@@ -164,7 +164,6 @@ import {
   moveMailMessagesToFolder,
   probeMailAccount,
   setMailSeen,
-  setMailSeenBatch,
   syncMailInbox,
 } from './mail-sync'
 import {
@@ -2936,51 +2935,6 @@ async function moveMailMessagesOperation(
     mailPanelErrorKind = 'detail'
     broadcast()
   }
-}
-async function setMailUnreadBatch(
-  uids: number[],
-  unread: boolean,
-): Promise<void> {
-  if (!mailPanelAccountId || !mailDb || !uids.length) return
-  const accountId = mailPanelAccountId
-  const account = mailDb.account(accountId)
-  const folder = mailPanelFolder
-  const messages = uids
-    .map((uid) => mailDb!.message(accountId, folder, uid))
-    .filter((item): item is MailMessageDetail => Boolean(item))
-  if (!account || !messages.length) return
-  const changed = messages.filter((message) => message.unread !== unread)
-  if (!changed.length) return
-  const secret = await loadMailSecret(mailSecretsPath, accountId)
-  if (!secret) throw new Error('授权已失效，请重新授权。')
-  try {
-    await setMailSeenBatch(
-      account.provider,
-      account.email,
-      secret,
-      changed.map((message) => message.uid),
-      !unread,
-      folder,
-    )
-    for (const message of changed)
-      mailDb.setUnread(accountId, folder, message.uid, unread)
-    if (folder === 'INBOX')
-      mailDb.updateAccount(accountId, {
-        unread: Math.max(
-          0,
-          account.unread + (unread ? changed.length : -changed.length),
-        ),
-      })
-    if (mailPanelSelected && uids.includes(mailPanelSelected.uid))
-      mailPanelSelected = { ...mailPanelSelected, unread }
-    loadMailMessages(accountId, folder)
-    void updateMailBadge()
-  } catch (error) {
-    mailPanelError =
-      error instanceof Error ? error.message : '无法更新邮件状态。'
-    mailPanelErrorKind = 'detail'
-  }
-  broadcast()
 }
 async function sendMail(command: {
   accountId: string
@@ -6574,9 +6528,6 @@ function setupIpc(): void {
       'mail-delete',
       'mail-move',
       'mail-spam',
-      'mail-batch-read',
-      'mail-batch-delete',
-      'mail-batch-move',
       'mail-alert-copy',
       'mail-alert-open',
       'mail-alert-dismiss',
@@ -7003,19 +6954,6 @@ function setupIpc(): void {
         await moveMailMessagesOperation(
           [command.uid],
           command.spam ? 'spam' : 'ham',
-        )
-        break
-      case 'mail-batch-read':
-        await setMailUnreadBatch(command.uids, command.unread)
-        break
-      case 'mail-batch-delete':
-        await moveMailMessagesOperation(command.uids, 'delete')
-        break
-      case 'mail-batch-move':
-        await moveMailMessagesOperation(
-          command.uids,
-          'move',
-          command.folder,
         )
         break
       case 'mail-alert-copy':

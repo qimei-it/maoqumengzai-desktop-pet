@@ -29,10 +29,6 @@ import {
   type FileKind,
 } from "../shared/file-kinds";
 import {
-  formatMailBadge,
-  mailUnreadTotal,
-} from "../shared/mail";
-import {
   actionAt,
   donutMetrics,
   donutWindowSize,
@@ -181,14 +177,6 @@ const fileWheelActions = computed<readonly DropAction[]>(() =>
 const hoverWheelActions = computed<readonly HoverAction[]>(() =>
   normalizeWheelActions(state.value?.settings.hoverWheelActions, hoverActions),
 );
-const donutBadges = computed<Record<string, string>>(() => {
-  const mail = state.value?.mail;
-  if (!mail?.config.unreadBadge) return {};
-  const label = formatMailBadge(mailUnreadTotal(mail.accounts));
-  const badges: Record<string, string> = {};
-  if (label) badges.mail = label;
-  return badges;
-});
 const donutActions = computed<readonly string[]>(() =>
   donutMode.value === "hover" ? hoverWheelActions.value : fileWheelActions.value,
 );
@@ -1357,7 +1345,6 @@ onUnmounted(() => {
           :error="error"
           :actions="donutActions"
           :labels="donutLabels"
-          :badges="donutBadges"
           :label-size="11"
           :single-line="donutMode === 'hover'"
           :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"

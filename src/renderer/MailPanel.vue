@@ -16,10 +16,10 @@ import {
   RefreshCw,
   Search,
   Send,
+  Settings,
   ShieldAlert,
   ShieldCheck,
   Trash2,
-  X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
@@ -99,8 +99,6 @@ const moveTargets = computed(() => {
       folder.path !== mailLocalDraftsFolder,
   )
 })
-const selectedUids = ref<number[]>([])
-const selectedCount = computed(() => selectedUids.value.length)
 const currentFolderName = computed(() => {
   if (inLocalDrafts.value) return '草稿'
   const id = accountId.value
@@ -150,7 +148,6 @@ function selectAccount(id: string): void {
   emit('command', { type: 'mail-open', accountId: id })
 }
 function selectFolder(accountId: string, folder: string): void {
-  selectedUids.value = []
   emit('command', {
     type: 'mail-folder',
     accountId,
@@ -166,42 +163,6 @@ function selectMessage(
 ): void {
   if (event) (event.currentTarget as HTMLElement | null)?.focus()
   emit('command', { type: 'mail-select', uid: message.uid })
-}
-function toggleSelected(uid: number): void {
-  selectedUids.value = selectedUids.value.includes(uid)
-    ? selectedUids.value.filter((item) => item !== uid)
-    : [...selectedUids.value, uid]
-}
-function clearSelected(): void {
-  selectedUids.value = []
-}
-function batchRead(unread: boolean): void {
-  if (!selectedUids.value.length) return
-  emit('command', {
-    type: 'mail-batch-read',
-    uids: [...selectedUids.value],
-    unread,
-  })
-  clearSelected()
-}
-function batchDelete(): void {
-  if (!selectedUids.value.length) return
-  emit('command', {
-    type: 'mail-batch-delete',
-    uids: [...selectedUids.value],
-  })
-  clearSelected()
-}
-function batchMove(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value
-  ;(event.target as HTMLSelectElement).value = ''
-  if (!value || !selectedUids.value.length) return
-  emit('command', {
-    type: 'mail-batch-move',
-    uids: [...selectedUids.value],
-    folder: value,
-  })
-  clearSelected()
 }
 function deleteMessage(message: MailMessageSummary): void {
   emit('command', { type: 'mail-delete', uid: message.uid })
@@ -379,6 +340,9 @@ function size(bytes: number): string {
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
   return `${bytes} B`
 }
+function badgeShape(count: number): string {
+  return formatMailBadge(count).length === 1 ? 'is-single' : 'is-pill'
+}
 watch(
   () => selected.value?.codeExpiresAt,
   (value) => {
@@ -394,18 +358,6 @@ watch(
 )
 onUnmounted(() => {
   if (codeTimer) clearInterval(codeTimer)
-})
-watch(
-  () => `${panel.value?.accountId ?? ''}|${panel.value?.folder ?? ''}`,
-  () => {
-    selectedUids.value = []
-  },
-)
-watch(messages, (list) => {
-  if (!selectedUids.value.length) return
-  const available = new Set(list.map((message) => message.uid))
-  const next = selectedUids.value.filter((uid) => available.has(uid))
-  if (next.length !== selectedUids.value.length) selectedUids.value = next
 })
 watch(
   () => panel.value?.error,
@@ -470,6 +422,15 @@ watch(
               >
                 <MailPlus :size="15" :stroke-width="2" aria-hidden="true" />
               </button>
+              <button
+                type="button"
+                class="mail-settings"
+                aria-label="邮件设置"
+                title="邮件设置"
+                @click="openMailSettings"
+              >
+                <Settings :size="15" :stroke-width="2" aria-hidden="true" />
+              </button>
             </div>
           </div>
           <div
@@ -490,6 +451,7 @@ watch(
               <span
                 v-if="item.unread && (state?.mail.config.unreadBadge ?? true)"
                 class="mail-unread"
+                :class="badgeShape(item.unread)"
                 :title="`${item.unread} 封未读`"
                 >{{ formatMailBadge(item.unread) }}</span
               >
@@ -552,44 +514,6 @@ watch(
               @input="onSearch"
             />
           </label>
-          <div v-if="selectedCount" class="mail-batch">
-            <span class="mail-batch-count">已选 {{ selectedCount }} 封</span>
-            <button
-              type="button"
-              class="mail-batch-action"
-              @click="batchRead(true)"
-            >
-              标记已读
-            </button>
-            <button
-              type="button"
-              class="mail-batch-action danger"
-              @click="batchDelete"
-            >
-              删除
-            </button>
-            <label class="mail-batch-move">
-              <span>移动</span>
-              <select aria-label="批量移动到" @change="batchMove">
-                <option value="">选择文件夹</option>
-                <option
-                  v-for="folder in moveTargets"
-                  :key="folder.path"
-                  :value="folder.path"
-                >
-                  {{ folder.name }}
-                </option>
-              </select>
-            </label>
-            <button
-              type="button"
-              class="mail-batch-clear"
-              aria-label="取消选择"
-              @click="clearSelected"
-            >
-              <X :size="13" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
           <div v-if="panel?.error" class="mail-error" role="alert">
             <span>{{ panel.error }}</span>
             <div class="mail-error-actions">
@@ -613,15 +537,7 @@ watch(
             v-for="message in messages"
             :key="message.uid"
             class="mail-message-row"
-            :class="{ checked: selectedUids.includes(message.uid) }"
           >
-            <input
-              class="mail-check"
-              type="checkbox"
-              :checked="selectedUids.includes(message.uid)"
-              :aria-label="`选择 ${message.subject}`"
-              @click.stop="toggleSelected(message.uid)"
-            />
             <button
               type="button"
               class="mail-message"
@@ -639,6 +555,15 @@ watch(
                 <Paperclip v-if="message.hasAttachments" :size="12" :stroke-width="2" aria-hidden="true" />
               </span>
               <span v-if="message.snippet" class="mail-snippet">{{ message.snippet }}</span>
+            </button>
+            <button
+              type="button"
+              class="mail-row-delete"
+              title="删除"
+              aria-label="删除邮件"
+              @click.stop="deleteMessage(message)"
+            >
+              <Trash2 :size="13" :stroke-width="2" aria-hidden="true" />
             </button>
           </div>
           <div
@@ -926,6 +851,7 @@ watch(
 }
 .mail-account-add,
 .mail-compose,
+.mail-settings,
 .mail-refresh-icon {
   display: grid;
   place-items: center;
@@ -942,6 +868,7 @@ watch(
 }
 .mail-account-add:hover,
 .mail-compose:hover:not(:disabled),
+.mail-settings:hover,
 .mail-refresh-icon:hover:not(:disabled) {
   background: var(--color-brand-soft);
 }
@@ -977,14 +904,27 @@ watch(
   color: var(--color-brand-ink);
 }
 .mail-unread {
+  display: grid;
+  flex: none;
+  place-items: center;
+  height: 18px;
   margin-left: auto;
-  min-width: 16px;
-  padding: 1px 5px;
-  border-radius: 999px;
+  margin-right: -5px;
   background: var(--color-brand-ink);
   color: var(--color-canvas);
   font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   text-align: center;
+}
+.mail-unread.is-single {
+  width: 18px;
+  border-radius: 50%;
+}
+.mail-unread.is-pill {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
 }
 .mail-list {
   width: 300px;
@@ -1048,7 +988,7 @@ watch(
   min-width: 0;
   flex-direction: column;
   gap: 3px;
-  padding: 9px 10px;
+  padding: 9px 30px 9px 10px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
@@ -1057,64 +997,28 @@ watch(
   text-align: left;
 }
 .mail-message-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 3px;
 }
-.mail-check {
-  flex: none;
-  width: 13px;
-  height: 13px;
-  margin: 12px 0 0 2px;
-  accent-color: var(--color-brand-ink);
-  cursor: pointer;
-}
-.mail-batch {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex: none;
-  padding: 6px 8px;
-  border-radius: var(--radius-control);
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-  font-size: var(--font-size-caption);
-}
-.mail-batch-count {
-  flex: 1;
-  min-width: 64px;
-  font-weight: 600;
-}
-.mail-batch-action,
-.mail-batch-clear {
-  min-height: 22px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-brand-ink);
-  font: inherit;
-  font-size: var(--font-size-caption);
-  cursor: pointer;
-}
-.mail-batch-action.danger {
-  color: var(--color-danger);
-}
-.mail-batch-move {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.mail-batch-move select {
-  max-width: 84px;
+.mail-row-delete {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
   height: 22px;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-brand-ink);
-  font: inherit;
-  font-size: var(--font-size-caption);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.mail-row-delete:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 .mail-draft-row {
   display: flex;

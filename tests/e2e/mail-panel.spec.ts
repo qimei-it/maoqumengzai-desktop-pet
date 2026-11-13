@@ -173,6 +173,19 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
     mail.getByRole('button', { name: '添加邮箱账户' }),
   ).toBeVisible()
   await expect(
+    mail.getByRole('button', { name: '邮件设置' }),
+  ).toBeVisible()
+  await expect(mail.locator('.mail-row-delete')).toHaveCount(2)
+  await mail.getByRole('button', { name: '邮件设置' }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.settingsSection : ''
+    })
+    .toBe('mail')
+  await expect(settings.locator('.mail-settings')).toBeVisible()
+  await pet.evaluate(() => window.mqmz!.command({ type: 'settings-close' }))
+  await expect(
     mail.getByRole('button', { name: '刷新邮件' }),
   ).toBeVisible()
   await expect(mail.locator('.mail-refresh')).toHaveCount(0)
@@ -463,17 +476,16 @@ test('邮件列表支持 Delete 和 Backspace 删除并进入确认', async () =
       ),
     )
     .toBe(2)
-})
-
-test('邮件列表支持批量选择', async () => {
-  await mail.locator('.mail-folder', { hasText: '收件箱' }).first().click()
-  const checks = mail.locator('.mail-check')
-  await expect(checks).toHaveCount(2)
-  await checks.nth(0).click()
-  await checks.nth(1).click()
-  await expect(mail.locator('.mail-batch')).toContainText('已选 2 封')
-  await mail.getByRole('button', { name: '取消选择' }).click()
-  await expect(mail.locator('.mail-batch')).toHaveCount(0)
+  await mail.locator('.mail-row-delete').first().click()
+  await expect
+    .poll(() =>
+      application.evaluate(
+        () =>
+          (globalThis as typeof globalThis & { __mailDeleteCalls: number })
+            .__mailDeleteCalls,
+      ),
+    )
+    .toBe(3)
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {
@@ -554,4 +566,19 @@ test('删除当前账户后切换到下一个账户，删除全部后关闭邮�
       return snapshot.ok ? snapshot.value.mailPanel.open : true
     })
     .toBe(false)
+  await pet.evaluate(() => window.mqmz!.command({ type: 'mail-open' }))
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.settingsSection : ''
+    })
+    .toBe('mail')
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.settingsOpen : false
+    })
+    .toBe(true)
+  await expect(settings.locator('.mail-form')).toBeVisible()
+  await pet.evaluate(() => window.mqmz!.command({ type: 'settings-close' }))
 })

@@ -24,7 +24,6 @@ const props = defineProps<{
   closing?: boolean
   actions?: readonly string[]
   labels?: Record<string, readonly string[]>
-  badges?: Record<string, string>
   labelSize?: number
   ariaLabel?: string
   singleLine?: boolean
@@ -163,15 +162,6 @@ const wedges = computed(() => {
     return {
       action,
       label: columns.join(''),
-      badge: props.badges?.[action] ?? '',
-      badgeWidth: Math.max(
-        fontSize * 1.35,
-        (props.badges?.[action]?.length ?? 0) * fontSize * 0.62 +
-          fontSize * 0.72,
-      ),
-      badgeHeight: fontSize * 1.35,
-      badgeX: center.x + fontSize * 1.02,
-      badgeY: center.y - fontSize * 1.02,
       d: outlinePath(wedge(m.inner, m.outer, mid, step, gap, corner)),
       glyphs,
     }
@@ -388,27 +378,6 @@ onUnmounted(() => {
         >
           {{ glyph.char }}
         </text>
-        <g
-          v-if="slice.badge"
-          class="donut-badge"
-          :transform="`translate(${slice.badgeX} ${slice.badgeY})`"
-        >
-          <rect
-            :x="-slice.badgeWidth / 2"
-            :y="-slice.badgeHeight / 2"
-            :width="slice.badgeWidth"
-            :height="slice.badgeHeight"
-            :rx="slice.badgeHeight / 2"
-          />
-          <text
-            class="donut-badge-text"
-            text-anchor="middle"
-            dominant-baseline="central"
-            :style="{ fontSize: `${(labelSize ?? 11) * scale * 0.62}px` }"
-          >
-            {{ slice.badge }}
-          </text>
-        </g>
       </g>
     </svg>
 
@@ -458,16 +427,6 @@ onUnmounted(() => {
 }
 .donut-label.hot {
   fill: var(--color-on-brand);
-}
-.donut-badge rect {
-  fill: var(--color-brand-ink);
-  stroke: var(--color-surface);
-  stroke-width: 1.5;
-}
-.donut-badge-text {
-  fill: var(--color-on-brand);
-  font-weight: var(--font-weight-bold);
-  pointer-events: none;
 }
 .donut-hint {
   position: absolute;

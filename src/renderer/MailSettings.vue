@@ -67,6 +67,13 @@ const providerIndex = computed(() =>
     providerOptions.findIndex((item) => item.id === formProvider.value),
   ),
 )
+watch(
+  () => [Boolean(props.mail), props.mail?.accounts.length ?? 0] as const,
+  ([loaded, count]) => {
+    if (loaded && count === 0 && !formOpen.value) openAdd()
+  },
+  { immediate: true },
+)
 const emailPlaceholders: Record<MailProvider, string> = {
   qq: 'name@qq.com',
   '163': 'name@126.com 或 name@163.com',

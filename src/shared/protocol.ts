@@ -521,9 +521,6 @@ export type Command =
   | { type: 'mail-delete'; uid: number }
   | { type: 'mail-move'; uid: number; folder: string }
   | { type: 'mail-spam'; uid: number; spam: boolean }
-  | { type: 'mail-batch-read'; uids: number[]; unread: boolean }
-  | { type: 'mail-batch-delete'; uids: number[] }
-  | { type: 'mail-batch-move'; uids: number[]; folder: string }
   | { type: 'mail-alert-copy' }
   | { type: 'mail-alert-open' }
   | { type: 'mail-alert-dismiss' }
