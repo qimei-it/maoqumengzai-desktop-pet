@@ -283,7 +283,19 @@ watch(
       <div class="mail-body">
         <aside class="mail-accounts" aria-label="邮箱账户">
           <div class="mail-accounts-head">
-            <span>邮箱账户</span>
+            <div class="mail-accounts-title">
+              <span>邮箱账户</span>
+              <button
+                type="button"
+                class="mail-refresh-icon"
+                aria-label="刷新邮件"
+                title="刷新"
+                :disabled="panel?.loading"
+                @click="refresh"
+              >
+                <RefreshCw :size="15" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
             <div class="mail-accounts-head-actions">
               <button
                 type="button"
@@ -352,10 +364,6 @@ watch(
               }}</span>
             </button>
           </div>
-          <button type="button" class="mail-refresh" @click="refresh">
-            <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
-            刷新
-          </button>
         </aside>
         <section class="mail-list" aria-label="邮件列表">
           <label class="mail-search">
@@ -619,8 +627,15 @@ watch(
   justify-content: space-between;
   min-height: 28px;
   padding: 0 4px;
-  color: var(--color-muted);
-  font-size: var(--font-size-caption);
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+.mail-accounts-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
 }
 .mail-accounts-head-actions {
   display: flex;
@@ -628,7 +643,8 @@ watch(
   gap: 2px;
 }
 .mail-account-add,
-.mail-compose {
+.mail-compose,
+.mail-refresh-icon {
   display: grid;
   place-items: center;
   flex: none;
@@ -643,16 +659,17 @@ watch(
   cursor: pointer;
 }
 .mail-account-add:hover,
-.mail-compose:hover:not(:disabled) {
+.mail-compose:hover:not(:disabled),
+.mail-refresh-icon:hover:not(:disabled) {
   background: var(--color-brand-soft);
 }
-.mail-compose:disabled {
+.mail-compose:disabled,
+.mail-refresh-icon:disabled {
   color: var(--color-muted);
   cursor: default;
   opacity: 0.45;
 }
-.mail-account,
-.mail-refresh {
+.mail-account {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -692,14 +709,6 @@ watch(
   color: var(--color-canvas);
   font-size: var(--font-size-caption);
   text-align: center;
-}
-.mail-refresh {
-  margin-top: 8px;
-  cursor: pointer;
-}
-.mail-refresh:hover {
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
 }
 .mail-list {
   width: 300px;

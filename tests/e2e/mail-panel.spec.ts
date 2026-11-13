@@ -153,6 +153,10 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(
     mail.getByRole('button', { name: '添加邮箱账户' }),
   ).toBeVisible()
+  await expect(
+    mail.getByRole('button', { name: '刷新邮件' }),
+  ).toBeVisible()
+  await expect(mail.locator('.mail-refresh')).toHaveCount(0)
   await expect(mail.locator('.mail-folder')).toHaveCount(2)
   await expect(mail.locator('.mail-folder')).toHaveText([
     '收件箱1',
