@@ -6008,6 +6008,8 @@ const musicScript = `if application "Music" is running then
 end if
 return "idle"`
 function musicHelperPath(): string {
+  const override = process.env.MQMZ_NOWPLAYING_HELPER?.trim()
+  if (override) return override
   return app.isPackaged
     ? join(process.resourcesPath, 'helpers/mqmz-nowplaying')
     : join(app.getAppPath(), 'resources/helpers/mqmz-nowplaying')
@@ -6024,6 +6026,7 @@ function applyMusic(next: MusicState): void {
     music.volume === next.volume &&
     music.duration === next.duration &&
     music.position === next.position &&
+    music.positionReliable === next.positionReliable &&
     music.album === next.album &&
     music.genre === next.genre
   )
@@ -6161,6 +6164,7 @@ function pollMusic(): void {
             duration: apple.duration,
             position: apple.position,
             positionAt: sampledAt,
+            positionReliable: true,
             album: apple.album,
             genre: apple.genre,
           })
@@ -6176,6 +6180,7 @@ function pollMusic(): void {
               muted,
               volume,
               positionAt: sampledAt,
+              positionReliable: false,
             })
             finish()
             return
@@ -6194,6 +6199,7 @@ function pollMusic(): void {
               duration: apple.duration,
               position: apple.position,
               positionAt: sampledAt,
+              positionReliable: true,
               album: apple.album,
               genre: apple.genre,
             })
@@ -6206,6 +6212,7 @@ function pollMusic(): void {
             volume,
             position: 0,
             positionAt: sampledAt,
+            positionReliable: false,
           })
           finish()
         })
@@ -6271,24 +6278,10 @@ function bubbleBlocked(): boolean {
 }
 async function loadBubbleLyrics(key: string): Promise<void> {
   bubbleLyricsKey = key
-  const meta = lyricsMeta()
-  const cached = await readCachedLyrics(key)
-  if (cached) {
-    if (bubbleLyricsKey === key) {
-      bubbleLyrics = localizeLyrics(cached, meta)
-      setLyricsAvailable(lyricsHasContent(bubbleLyrics))
-    }
-    return
-  }
-  try {
-    const fetched = await fetchLyrics(key)
-    if (bubbleLyricsKey === key) {
-      bubbleLyrics = localizeLyrics(fetched, meta)
-      setLyricsAvailable(lyricsHasContent(bubbleLyrics))
-    }
-  } catch {
-    /* bubbles fall back to title/artist copy */
-  }
+  const resolved = await resolveLyrics(key, lyricsMeta())
+  if (bubbleLyricsKey !== key) return
+  bubbleLyrics = resolved
+  setLyricsAvailable(lyricsHasContent(resolved))
 }
 function resetBubbleTrack(): void {
   bubbleTrackKey = currentBubbleKey()
@@ -6382,6 +6375,13 @@ function bubbleTick(): void {
   const threshold = bubbleThresholds()[bubbleStep]
   if (threshold !== undefined && bubbleElapsed >= threshold) showBubble()
 }
+function normalizeLyricsState(state: LyricsState): LyricsState {
+  return {
+    ...state,
+    synced: state.synced?.replace(/\r\n?/g, '\n') ?? null,
+    plain: state.plain?.replace(/\r\n?/g, '\n') ?? null,
+  }
+}
 async function readCachedLyrics(key: string): Promise<LyricsState | undefined> {
   try {
     const file = join(
@@ -6389,7 +6389,7 @@ async function readCachedLyrics(key: string): Promise<LyricsState | undefined> {
       `${createHash('sha1').update(key).digest('hex')}.json`,
     )
     const parsed = JSON.parse(await readFile(file, 'utf8')) as LyricsState
-    return parsed.key === key ? parsed : undefined
+    return parsed.key === key ? normalizeLyricsState(parsed) : undefined
   } catch {
     return undefined
   }
@@ -6400,7 +6400,9 @@ async function writeCachedLyrics(state: LyricsState): Promise<void> {
     lyricsDirectory(),
     `${createHash('sha1').update(state.key).digest('hex')}.json`,
   )
-  await writeFile(file, JSON.stringify(state), { mode: 0o600 })
+  await writeFile(file, JSON.stringify(normalizeLyricsState(state)), {
+    mode: 0o600,
+  })
 }
 async function fetchLyrics(key: string): Promise<LyricsState> {
   const [title, artist, duration] = key.split('|')
@@ -6433,14 +6435,85 @@ async function fetchLyrics(key: string): Promise<LyricsState> {
     plainLyrics?: string | null
     instrumental?: boolean
   }
-  const result: LyricsState = {
+  const result = normalizeLyricsState({
     key,
     synced: data.syncedLyrics ?? null,
     plain: data.plainLyrics ?? null,
     instrumental: Boolean(data.instrumental),
-  }
+  })
   await writeCachedLyrics(result)
   return result
+}
+const appleLyricsScript = `on run argv
+  set expectedTitle to item 1 of argv
+  set expectedArtist to item 2 of argv
+  tell application "Music"
+    if it is running then
+      try
+        if player state is playing or player state is paused then
+          set t to current track
+          if (name of t as text) is not expectedTitle then return ""
+          if (artist of t as text) is not expectedArtist then return ""
+          set value to lyrics of t
+          if value is missing value then return ""
+          return value as text
+        end if
+      on error
+        return ""
+      end try
+    end if
+  end tell
+  return ""
+end run`
+async function readAppleLyrics(
+  title: string,
+  artist: string,
+): Promise<string | undefined> {
+  if (process.platform !== 'darwin') return undefined
+  return new Promise((resolve) => {
+    execFile(
+      '/usr/bin/osascript',
+      ['-e', appleLyricsScript, title, artist],
+      { timeout: 3000, maxBuffer: 2 * 1024 * 1024 },
+      (error, stdout) => {
+        if (error) {
+          resolve(undefined)
+          return
+        }
+        const lyrics = stdout.trim().replace(/\r\n?/g, '\n')
+        resolve(lyrics || undefined)
+      },
+    )
+  })
+}
+async function resolveLyrics(
+  key: string,
+  meta: LyricsMeta,
+): Promise<LyricsState | undefined> {
+  const cached = await readCachedLyrics(key)
+  if (cached && !cached.missing) return localizeLyrics(cached, meta)
+  let fetched: LyricsState | undefined
+  try {
+    fetched = await fetchLyrics(key)
+  } catch {
+    fetched = undefined
+  }
+  if (fetched && !fetched.missing) return localizeLyrics(fetched, meta)
+  if (music.source === 'apple') {
+    const [title, artist] = key.split('|')
+    const plain = await readAppleLyrics(title ?? '', artist ?? '')
+    if (plain) {
+      const state: LyricsState = {
+        key,
+        synced: null,
+        plain,
+        instrumental: false,
+      }
+      await writeCachedLyrics(state)
+      return localizeLyrics(state, meta)
+    }
+  }
+  return fetched ?? cached
 }
 function lyricsMeta(): LyricsMeta {
   return { title: music.title, artist: music.artist, genre: music.genre }
@@ -6460,21 +6533,10 @@ function setLyricsAvailable(value: boolean | undefined): void {
 }
 async function loadLyricsFor(key: string): Promise<void> {
   lyricsKey = key
-  const meta = lyricsMeta()
-  const cached = await readCachedLyrics(key)
+  const resolved = await resolveLyrics(key, lyricsMeta())
   if (lyricsKey !== key) return
-  if (cached) {
-    lyrics = localizeLyrics(cached, meta)
-  } else {
-    try {
-      const fetched = await fetchLyrics(key)
-      if (lyricsKey === key) lyrics = localizeLyrics(fetched, meta)
-    } catch {
-      if (lyricsKey === key) lyrics = undefined
-    }
-  }
-  if (lyricsKey === key)
-    setLyricsAvailable(lyricsHasContent(lyrics))
+  lyrics = resolved
+  setLyricsAvailable(lyricsHasContent(lyrics))
   syncOverlays()
   broadcast()
 }

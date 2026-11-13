@@ -86,9 +86,15 @@ Apple Music 继续用 AppleScript，只有它能提供可靠的实时进度。
 - 音量采用系统音量与静音（`set volume output volume N` / `set volume output muted`），与播放器无关，对所有播放器生效；控制条上悬停静音按钮弹出竖向滑块
 - 循环按钮按 关闭 → 列表循环 → 单曲循环 循环，单曲时使用 infinity 图标
 
+## 2026-11-13 macOS 收尾实测
+
+- Apple Music：使用本地临时音轨完成真实播放、暂停、恢复与进度读取；播放位置随时间推进，曲目名称正确，面板切换为 Apple Music 来源。
+- Apple Music 歌词：LRCLIB 无结果时读取当前曲目的 `lyrics` 属性作为纯文本回退；AppleScript 返回的 `\r` 换行已统一转换为 `\n`。
+- QQ 音乐、酷狗、网易云：保持既有 MediaRemote 控制与歌曲信息能力；播放位置标记为不可靠，歌词卡与控制条改为静态纯文本展示，不再按不可靠位置滚动。
+- 定向验证：Apple Music 播放控制、进度推进、歌词回退；模拟系统播放器返回 `positionReliable=false`，歌词显示静态纯文本且不误用同步滚动。
+
 ## 待验证
 
-- Apple Music 的真实播放/暂停/切歌与进度读取（需要可播放内容与会话）。
-- 网易云、QQ、酷狗在 macOS 的媒体键响应与辅助功能授权。
+- 网易云、QQ、酷狗在 macOS 的媒体键响应与辅助功能授权（真实播放会话需再次复验）。
 - Windows 四款播放器的 SMTC 支持矩阵。
-- 歌词来源（LRCLIB / AMLL）与本地 LRC 的匹配效果；Apple Music 可优先用其自带歌词。
+- 歌词来源（LRCLIB / AMLL）与本地 LRC 的匹配效果。

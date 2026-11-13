@@ -1007,7 +1007,7 @@ function syncLyricBase(): void {
   lyricBaseAt = performance.now();
 }
 watch(() => state.value?.music.position, syncLyricBase);
-const lyricLines = computed(() => {
+const syncedLyricLines = computed(() => {
   const synced = state.value?.lyrics?.synced;
   if (!synced) return [];
   const lines: { time: number; text: string }[] = [];
@@ -1023,6 +1023,11 @@ const lyricLines = computed(() => {
   }
   return lines;
 });
+const lyricLines = computed(() =>
+  state.value?.music.positionReliable === false
+    ? []
+    : syncedLyricLines.value,
+);
 const lyricElapsed = computed(() => {
   if (typeof state.value?.music.position !== "number") return null;
   return (
@@ -1077,12 +1082,17 @@ function rowStyle(
     '--fade-bottom': Math.min(Math.max(distance / lyricFadeRange, 0), 1),
   };
 }
-const plainLines = computed(() =>
-  (state.value?.lyrics?.plain ?? "")
+const plainLines = computed(() => {
+  const plain = state.value?.lyrics?.plain ?? "";
+  const fallback =
+    state.value?.music.positionReliable === false
+      ? syncedLyricLines.value.map((line) => line.text).join("\n")
+      : "";
+  return (plain || fallback)
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean),
-);
+    .filter(Boolean);
+});
 const plainPreview = computed(() => plainLines.value.slice(0, 3));
 const plainCurrent = computed(() =>
   Math.floor((plainPreview.value.length - 1) / 2),

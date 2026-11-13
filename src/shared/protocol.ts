@@ -92,6 +92,7 @@ export type MusicState = {
   duration?: number
   position?: number
   positionAt?: number
+  positionReliable?: boolean
   album?: string
   genre?: string
   cover?: string
