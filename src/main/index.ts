@@ -489,7 +489,6 @@ let archiveFolder: string | undefined
 let archiveToken = 0
 let archiveFolderPaths = new Map<string, string>()
 let renameFiles: RenameFile[] = []
-let renameSession = 0
 let renameFolders = new Map<
   string,
   { path: string; device: number; inode: number }
@@ -2271,11 +2270,7 @@ async function revealConvert(): Promise<void> {
   if (error) throw new Error('无法打开输出目录。')
 }
 function renameState(): RenameState {
-  return {
-    busy: renameBusy,
-    session: renameSession,
-    files: [...renameFiles],
-  }
+  return { busy: renameBusy, files: [...renameFiles] }
 }
 function positionRename(): void {
   if (!renameWindow || renameWindow.isDestroyed()) return
@@ -2314,7 +2309,7 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
       },
     ]),
   )
-  renameFiles = [
+  const selected = [
     ...selectedFiles.map(({ id, name }) => ({
       id,
       name,
@@ -2325,8 +2320,15 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
       name: folder.name,
       kind: 'folder' as const,
     })),
-  ].slice(0, 32)
-  renameSession += 1
+  ]
+  const byId = new Map(selected.map((item) => [item.id, item]))
+  const ordered = (received?.order ?? []).flatMap((entry) => {
+    const item = byId.get(entry.id)
+    if (!item) return []
+    byId.delete(entry.id)
+    return [item]
+  })
+  renameFiles = [...ordered, ...byId.values()].slice(0, 32)
   renameBusy = false
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
@@ -7730,6 +7732,23 @@ async function receivePaths(paths: string[]): Promise<void> {
   }
   dropMode = false
   receiveToken += 1
+  const fileIdByPath = new Map(
+    [...files.values()].map((file) => [file.path, file.id]),
+  )
+  const folderIdByPath = new Map(
+    [...receivedFolders].map(([id, folder]) => [folder.path, id]),
+  )
+  const order: { id: string; kind: 'file' | 'folder' }[] = []
+  const orderedIds = new Set<string>()
+  for (const entry of entries) {
+    const id =
+      entry.kind === 'folder'
+        ? folderIdByPath.get(entry.path)
+        : fileIdByPath.get(entry.path)
+    if (!id || orderedIds.has(id)) continue
+    orderedIds.add(id)
+    order.push({ id, kind: entry.kind })
+  }
   received = {
     token: receiveToken,
     fileIds: inspected
@@ -7743,6 +7762,7 @@ async function receivePaths(paths: string[]): Promise<void> {
       name: folder.name,
     })),
     skippedFolders,
+    order,
   }
   addEvent(
     `已接收 ${inspected.length} 个本地文件${folders.length ? `、${folders.length} 个文件夹` : ''}；只登记索引，不读取正文或上传。`,

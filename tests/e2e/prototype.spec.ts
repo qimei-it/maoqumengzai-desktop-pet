@@ -3338,6 +3338,7 @@ test("dropping one file on 批量重命名 opens the panel", async () => {
     })
     .toBe(true);
   await expect(rename.getByText("给 1 个项目重新命名")).toBeVisible();
+  await rename.getByRole("button", { name: "替换文本", exact: true }).click();
   await rename.getByLabel("查找").fill("旧名");
   await rename.getByLabel("替换成").fill("新名");
   await rename.getByRole("button", { name: "重命名", exact: true }).click();

@@ -58,11 +58,15 @@ function dateStamp(date: Date): string {
   return `${year}-${month}-${day} ${period}${hour}.${minute}.${second}`
 }
 
+function replacedName(name: string, find: string, replacement: string): string {
+  if (!find) return name
+  // Finder's Replace Text is case-insensitive and may change the extension.
+  const escaped = find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return name.replace(new RegExp(escaped, 'gi'), () => replacement)
+}
+
 function renamedStem(stem: string, config: RenameConfig, index: number, now: Date): string {
-  if (config.mode === 'replace') {
-    if (!config.find) return stem
-    return stem.split(config.find).join(config.replace)
-  }
+  if (config.mode === 'replace') return stem
   if (config.mode === 'add') {
     if (!config.text) return stem
     return config.position === 'before'
@@ -96,17 +100,22 @@ export function previewRename(
       typeof item === 'string'
         ? { name: item, kind: 'file' as const }
         : item
-    const { stem, extension } = splitName(name, kind)
-    let candidate = sanitizeStem(
-      renamedStem(stem, config, index, now),
-    )
+    const source =
+      config.mode === 'replace'
+        ? replacedName(name, config.find, config.replace)
+        : renamedStem(splitName(name, kind).stem, config, index, now)
+    const parts =
+      config.mode === 'replace'
+        ? splitName(source, kind)
+        : { stem: source, extension: splitName(name, kind).extension }
+    let candidate = sanitizeStem(parts.stem)
     let attempt = 1
     const base = candidate
-    while (used.has(`${candidate}${extension}`.toLocaleLowerCase())) {
+    while (used.has(`${candidate}${parts.extension}`.toLocaleLowerCase())) {
       attempt += 1
       candidate = `${base} (${attempt})`
     }
-    used.add(`${candidate}${extension}`.toLocaleLowerCase())
-    return `${candidate}${extension}`
+    used.add(`${candidate}${parts.extension}`.toLocaleLowerCase())
+    return `${candidate}${parts.extension}`
   })
 }

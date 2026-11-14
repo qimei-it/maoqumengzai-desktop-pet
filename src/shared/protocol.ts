@@ -73,6 +73,8 @@ export type ReceivedBatch = {
   fileIds: string[]
   folders: ReceivedFolder[]
   skippedFolders: string[]
+  /** Drop order across files and folders, used by index/counter renames. */
+  order: { id: string; kind: 'file' | 'folder' }[]
 }
 export type BellyEntry = {
   id: string
@@ -354,7 +356,6 @@ export type RenameFile = {
 }
 export type RenameState = {
   busy: boolean
-  session: number
   files: RenameFile[]
 }
 export type ConvertState = {

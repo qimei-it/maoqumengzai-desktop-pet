@@ -23,6 +23,21 @@ describe('batch rename preview', () => {
     ).toEqual(['合同.docx', '报价.pdf'])
   })
 
+  test('replace text is case-insensitive and may change the extension', () => {
+    expect(
+      previewRename(
+        ['Draft 1.txt'],
+        config({ mode: 'replace', find: 'draft', replace: 'final' }),
+      ),
+    ).toEqual(['final 1.txt'])
+    expect(
+      previewRename(
+        ['Draft 1.txt'],
+        config({ mode: 'replace', find: 'txt', replace: 'md' }),
+      ),
+    ).toEqual(['Draft 1.md'])
+  })
+
   test('add text before or after the stem', () => {
     const names = ['a.png', 'b.png']
     expect(

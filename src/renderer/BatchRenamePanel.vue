@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { PenLine } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
@@ -27,18 +27,6 @@ const start = ref(1)
 
 const files = computed(() => props.state?.rename.files ?? [])
 const busy = computed(() => Boolean(props.state?.rename.busy))
-const session = computed(() => props.state?.rename.session ?? 0)
-watch(session, () => {
-  mode.value = 'replace'
-  find.value = ''
-  replace.value = ''
-  addText.value = ''
-  addPosition.value = 'after'
-  format.value = 'index'
-  formatText.value = '文件'
-  formatPosition.value = 'after'
-  start.value = 1
-})
 const config = computed<RenameConfig>(() => ({
   mode: mode.value,
   find: find.value,
