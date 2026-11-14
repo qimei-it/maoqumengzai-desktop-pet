@@ -1,143 +1,20 @@
-/** First-version tool registry. Every tool calls the same services the UI uses. */
+/**
+ * Tool registry. Tools depend only on the service contracts, never on
+ * Electron windows or other main-process internals.
+ */
 
-import { spawn } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
-import type { AgentMode, AgentPetProfile } from '../../shared/agent'
-import type { ClipboardState } from '../../shared/clipboard'
-import type {
-  ArchiveFormat,
-  ConvertAction,
-  FocusTodo,
-  LyricsState,
-  MusicState,
-  TodoGroup,
-  TodoList,
-  TodoRepeat,
-} from '../../shared/protocol'
+import type { AgentMode } from '../../shared/agent'
 import { archiveFormats, todoRepeats } from '../../shared/protocol'
+import type { ArchiveFormat, ConvertAction, TodoRepeat } from '../../shared/protocol'
 import type { RenameConfig } from '../../shared/rename'
-import type {
-  MailAccount,
-  MailMessageSummary,
-} from '../../shared/mail'
-import {
-  mailBodyLimit,
-  mailRecipientError,
-  mailSubjectLimit,
-} from '../../shared/mail'
-import type { SettingsState } from '../../shared/settings'
-import {
-  musicBarStyles,
-  petScales,
-  themeIds,
-} from '../../shared/settings'
-import { sendMailMessage } from '../mail-smtp'
 import type { ProviderToolDefinition } from './provider'
-
-export type AgentPanelTarget =
-  | 'todo'
-  | 'mail'
-  | 'shelf'
-  | 'settings'
-  | 'clipboard'
-  | 'profile'
-  | 'focus'
-  | 'pomodoro'
-  | 'water'
-  | 'break'
-
-export type AgentDeps = {
-  getSettings(): SettingsState
-  getPetProfile(): AgentPetProfile
-  updateSettings(patch: Partial<SettingsState>): Promise<void>
-  shelfFiles(): Array<{
-    id: string
-    name: string
-    size: number
-    status: string
-  }>
-  resolveShelfFile(id: string): Promise<string>
-  todos(): FocusTodo[]
-  todoLists(): TodoList[]
-  todoGroups(): TodoGroup[]
-  addTodo(
-    text: string,
-    listId?: string | null,
-    flags?: {
-      dueAt?: number | null
-      urgent?: boolean
-      flagged?: boolean
-      tags?: string[]
-      repeat?: FocusTodo['repeat']
-    },
-  ): void
-  toggleTodo(id: string): boolean
-  music(): MusicState
-  lyrics(): LyricsState | undefined
-  controlMusic(action: 'previous' | 'toggle' | 'next' | 'mute'): void
-  clipboard(): ClipboardState
-  revealFile(id: string): Promise<void>
-  saveCopy(id: string): Promise<string | null>
-  removeFromShelf(id: string): Promise<void>
-  convertFiles(
-    fileIds: string[],
-    action: ConvertAction,
-    password?: string,
-  ): Promise<string>
-  archiveFiles(fileIds: string[], format: ArchiveFormat): Promise<string>
-  extractFiles(fileIds: string[]): Promise<number>
-  renameFiles(fileIds: string[], config: RenameConfig): Promise<number>
-  mailRead(
-    accountId: string,
-    uid: number,
-    folder: string,
-  ): Promise<{
-    subject: string
-    from: string
-    date?: number
-    body: string
-    attachments: string[]
-  }>
-  mailMove(
-    accountId: string,
-    folder: string,
-    uid: number,
-    mode: 'archive' | 'delete' | 'move',
-    targetFolder?: string,
-  ): Promise<string>
-  updateTodo(
-    id: string,
-    patch: {
-      text?: string
-      dueAt?: number | null
-      urgent?: boolean
-      flagged?: boolean
-      notes?: string
-      tags?: string[]
-      repeat?: TodoRepeat
-    },
-  ): void
-  removeTodo(id: string): void
-  clearDoneTodos(): number
-  addTodoList(name: string): void
-  focusControl(action: 'start' | 'pause' | 'reset' | 'skip'): {
-    phase: string
-    running: boolean
-  }
-  waterDrink(): { count: number; goal: number }
-  waterSnooze(minutes: number): void
-  breakSnooze(kind: 'sitting' | 'eyes', minutes: number): void
-  clipboardCopy(id: string): Promise<void>
-  clipboardPin(id: string, pinned: boolean): void
-  mailAccounts(): MailAccount[]
-  mailMessages(
-    accountId: string,
-    folder: string,
-    limit: number,
-  ): MailMessageSummary[]
-  mailSecret(accountId: string): Promise<string | null>
-  openPanel(panel: AgentPanelTarget): void
-}
+import type {
+  PanelTarget,
+  ServiceResult,
+  Services,
+  SettingsPatch,
+} from '../services/contracts'
+import { runShell } from '../services/shell'
 
 export type ToolResult = { ok: boolean; text: string }
 
@@ -181,6 +58,11 @@ function numberArg(
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
+function booleanArg(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`参数 ${field} 必须是布尔值。`)
+  return value
+}
+
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
@@ -190,6 +72,19 @@ function formatSize(bytes: number): string {
 function formatTime(value: number | undefined): string {
   if (!value) return '未设置'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+function json(value: unknown): string {
+  return JSON.stringify(value, null, 2)
+}
+
+/** Unwraps a structured service result; errors become tool errors. */
+async function call<T>(
+  result: Promise<ServiceResult<T>> | ServiceResult<T>,
+): Promise<T> {
+  const value = await result
+  if (!value.ok) throw new Error(value.error)
+  return value.value
 }
 
 const convertActions = [
@@ -254,102 +149,61 @@ function mailUidArg(value: unknown): number {
   return uid
 }
 
-function booleanArg(value: unknown, field: string): boolean {
-  if (typeof value !== 'boolean') throw new Error(`参数 ${field} 必须是布尔值。`)
-  return value
+function todoRepeatArg(value: unknown): TodoRepeat | undefined {
+  if (value === undefined) return undefined
+  if (
+    typeof value !== 'string' ||
+    !(todoRepeats as readonly string[]).includes(value)
+  )
+    throw new Error('不支持的重复规则。')
+  return value as TodoRepeat
 }
 
-function json(value: unknown): string {
-  return JSON.stringify(value, null, 2)
+function formatConvert(summary: {
+  converted: number
+  failed: number
+  outputs: { name: string }[]
+}): string {
+  const names = summary.outputs
+    .map((output) => output.name)
+    .slice(0, 6)
+    .join('、')
+  return `已转换 ${summary.converted} 个文件${
+    summary.failed ? `，失败 ${summary.failed} 个` : ''
+  }${names ? `：${names}` : ''}`
 }
 
-const maxShellOutput = 64 * 1024
-
-async function runShell(
-  command: string,
-  cwd: string,
-  timeoutMs: number,
-  signal: AbortSignal,
-): Promise<ToolResult> {
-  return new Promise((resolve) => {
-    const windows = process.platform === 'win32'
-    const child = spawn(
-      windows ? 'cmd.exe' : '/bin/zsh',
-      windows ? ['/d', '/s', '/c', command] : ['-lc', command],
-      {
-        cwd,
-        env: { ...process.env },
-        detached: !windows,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    let stdout = ''
-    let stderr = ''
-    let truncated = false
-    let settled = false
-    const append = (target: 'out' | 'err', chunk: Buffer): void => {
-      const value = chunk.toString('utf8')
-      if (target === 'out') {
-        if (stdout.length < maxShellOutput) stdout += value
-        else truncated = true
-      } else if (stderr.length < maxShellOutput) stderr += value
-      else truncated = true
-    }
-    child.stdout.on('data', (chunk: Buffer) => append('out', chunk))
-    child.stderr.on('data', (chunk: Buffer) => append('err', chunk))
-
-    const timer = setTimeout(() => {
-      finish(null, '命令超时，已终止。')
-    }, timeoutMs)
-
-    const kill = (): void => {
-      if (child.pid && !windows) {
-        try {
-          process.kill(-child.pid, 'SIGTERM')
-        } catch {
-          child.kill('SIGTERM')
-        }
-      } else {
-        child.kill('SIGTERM')
-      }
-    }
-    const onAbort = (): void => {
-      kill()
-      finish(null, '已取消。')
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-
-    let extra = ''
-    function finish(code: number | null, note?: string): void {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      signal.removeEventListener('abort', onAbort)
-      extra = note ?? ''
-      const parts = [
-        `退出码：${code === null ? '无' : code}`,
-        ...(extra ? [extra] : []),
-        `工作目录：${cwd}`,
-        ...(stdout.trim() ? ['', '标准输出：', stdout.trim()] : []),
-        ...(stderr.trim() ? ['', '标准错误：', stderr.trim()] : []),
-        ...(truncated ? ['', '（输出过长，已截断）'] : []),
-      ]
-      resolve({
-        ok: code === 0,
-        text: parts.join('\n'),
-      })
-    }
-
-    child.on('error', (error) => {
-      finish(null, `无法执行：${error.message}`)
-    })
-    child.on('close', (code) => {
-      finish(code)
-    })
-  })
+function formatShell(
+  output: {
+    exitCode: number | null
+    stdout: string
+    stderr: string
+    truncated: boolean
+    timedOut: boolean
+    aborted: boolean
+    workspace: string
+  },
+): ToolResult {
+  if (output.aborted)
+    return { ok: false, text: '已取消。' }
+  const notes = [
+    output.timedOut ? '命令超时，已终止。' : '',
+    output.truncated ? '（输出过长，已截断）' : '',
+  ].filter(Boolean)
+  const parts = [
+    `退出码：${output.exitCode === null ? '无' : output.exitCode}`,
+    ...notes,
+    `工作目录：${output.workspace}`,
+    ...(output.stdout ? ['', '标准输出：', output.stdout] : []),
+    ...(output.stderr ? ['', '标准错误：', output.stderr] : []),
+  ]
+  return {
+    ok: !output.timedOut && output.exitCode === 0,
+    text: parts.join('\n'),
+  }
 }
 
-export function createTools(deps: AgentDeps): Record<string, AgentTool> {
+export function createTools(services: Services): Record<string, AgentTool> {
   const tools: AgentTool[] = [
     {
       name: 'shelf_list',
@@ -363,9 +217,8 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'allow',
       title: () => '查看置物架',
       async run() {
-        const files = deps.shelfFiles()
-        if (!files.length)
-          return { ok: true, text: '置物架是空的。' }
+        const files = await call(services.shelf.list())
+        if (!files.length) return { ok: true, text: '置物架是空的。' }
         return {
           ok: true,
           text: json(
@@ -403,17 +256,247 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       async run(args) {
         const id = text(args.fileId, 'fileId', 100)
         const limit = numberArg(args.maxChars, 200, 20_000) ?? 8000
-        const file = deps.shelfFiles().find((item) => item.id === id)
-        if (!file) throw new Error('置物架里没有这个文件。')
-        const path = await deps.resolveShelfFile(id)
-        const buffer = await readFile(path)
-        if (buffer.includes(0))
-          return { ok: false, text: '这不是文本文件，无法直接读取。' }
-        const value = buffer.toString('utf8').slice(0, limit)
+        const value = await call(services.shelf.read(id, limit))
         return {
           ok: true,
-          text: `${file.name}\n\n${value}${buffer.length > limit ? '\n\n（内容过长，已截断）' : ''}`,
+          text: `${value.name}\n\n${value.text}${
+            value.truncated ? '\n\n（内容过长，已截断）' : ''
+          }`,
         }
+      },
+    },
+    {
+      name: 'file_reveal',
+      description: '在访达或资源管理器中定位置物架里的文件，不修改源文件。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `定位 ${String(args.fileId ?? '文件')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        await call(services.shelf.reveal(id))
+        return { ok: true, text: '已在访达中定位该文件。' }
+      },
+    },
+    {
+      name: 'file_save_copy',
+      description: '通过保存对话框把置物架文件另存一份副本。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `另存副本 ${String(args.fileId ?? '')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        const saved = await call(services.shelf.saveCopy(id))
+        if (!saved) return { ok: false, text: '已取消另存。' }
+        return { ok: true, text: `已另存到 ${saved.path}` }
+      },
+    },
+    {
+      name: 'shelf_remove',
+      description: '把文件移出置物架；源文件不会被删除。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `移出置物架 ${String(args.fileId ?? '')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        const removed = await call(services.shelf.remove(id))
+        return {
+          ok: true,
+          text: `已把 ${removed.name} 移出置物架；源文件保留。`,
+        }
+      },
+    },
+    {
+      name: 'convert_start',
+      description:
+        '把置物架里的文件转换成指定格式。音视频需要 FFmpeg，Office 需要 LibreOffice；PDF 加密/解密需要 password。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '置物架文件 ID 列表',
+          },
+          action: {
+            type: 'string',
+            enum: [...convertActions],
+            description: '目标格式动作',
+          },
+          password: { type: 'string', description: 'PDF 加密/解密密码' },
+        },
+        required: ['fileIds', 'action'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `转换 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.action ?? '')}`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        const action = convertActionArg(args.action)
+        const password = optionalText(args.password, 200)
+        const summary = await call(services.convert.run(ids, action, password))
+        return { ok: true, text: formatConvert(summary) }
+      },
+    },
+    {
+      name: 'archive_start',
+      description: '把置物架里的文件打包成压缩包。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '置物架文件 ID 列表',
+          },
+          format: {
+            type: 'string',
+            enum: [...archiveFormats],
+            description: '压缩格式',
+          },
+        },
+        required: ['fileIds', 'format'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `打包 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.format ?? '')}`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        if (
+          typeof args.format !== 'string' ||
+          !(archiveFormats as readonly string[]).includes(args.format)
+        )
+          throw new Error('不支持的压缩格式。')
+        const summary = await call(
+          services.archive.create(ids, args.format as ArchiveFormat),
+        )
+        return {
+          ok: true,
+          text: `已生成 ${summary.name}（${formatSize(summary.size)}）`,
+        }
+      },
+    },
+    {
+      name: 'extract_archive',
+      description: '解压置物架里的压缩包到原目录附近，并把结果放回置物架。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '压缩包文件 ID 列表',
+          },
+        },
+        required: ['fileIds'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `解压 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个压缩包`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        const { count } = await call(services.archive.extract(ids))
+        return { ok: true, text: `已解压 ${count} 个文件。` }
+      },
+    },
+    {
+      name: 'rename_files',
+      description:
+        '批量重命名置物架里的文件。replace 替换文本，add 添加文本，format 使用序号/日期重命名。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '至少两个置物架文件 ID',
+          },
+          mode: {
+            type: 'string',
+            enum: ['replace', 'add', 'format'],
+            description: '重命名方式',
+          },
+          find: { type: 'string', description: 'replace 模式要查找的文本' },
+          replace: { type: 'string', description: 'replace 模式的替换文本' },
+          text: { type: 'string', description: 'add 模式要添加的文本' },
+          position: {
+            type: 'string',
+            enum: ['before', 'after'],
+            description: 'add 模式的位置，默认 after',
+          },
+          format: {
+            type: 'string',
+            enum: ['index', 'counter', 'date'],
+            description: 'format 模式的格式',
+          },
+          start: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 9999,
+            description: '序号起始值，默认 1',
+          },
+        },
+        required: ['fileIds', 'mode'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `重命名 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        if (ids.length < 2) throw new Error('至少需要两个文件。')
+        const mode =
+          args.mode === 'add' || args.mode === 'format'
+            ? args.mode
+            : 'replace'
+        const config: RenameConfig = {
+          mode,
+          find: optionalText(args.find, 200) ?? '',
+          replace: optionalText(args.replace, 200) ?? '',
+          text: optionalText(args.text, 200) ?? '',
+          position: args.position === 'before' ? 'before' : 'after',
+          format:
+            args.format === 'counter' || args.format === 'date'
+              ? args.format
+              : 'index',
+          start: numberArg(args.start, 1, 9999) ?? 1,
+        }
+        if (mode === 'replace' && !config.find)
+          throw new Error('replace 模式需要 find。')
+        if (mode === 'add' && !config.text)
+          throw new Error('add 模式需要 text。')
+        const { count } = await call(services.rename.run(ids, config))
+        return { ok: true, text: `已重命名 ${count} 个文件。` }
       },
     },
     {
@@ -434,24 +517,23 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       title: () => '查看待办',
       async run(args) {
         const includeDone = args.includeDone === true
-        const lists = deps.todoLists()
-        const listNames = new Map(lists.map((list) => [list.id, list.name]))
-        const todos = deps
-          .todos()
-          .filter((todo) => includeDone || !todo.done)
-          .slice(-120)
+        const snapshot = await call(services.todo.list(includeDone))
+        const listNames = new Map(
+          snapshot.lists.map((list) => [list.id, list.name]),
+        )
         return {
           ok: true,
           text: json({
-            groups: deps.todoGroups().map((group) => group.name),
-            lists: lists.map((list) => ({
+            groups: snapshot.groups.map((group) => group.name),
+            lists: snapshot.lists.map((list) => ({
               id: list.id,
               name: list.name,
               group: list.groupId
-                ? deps.todoGroups().find((g) => g.id === list.groupId)?.name
+                ? snapshot.groups.find((group) => group.id === list.groupId)
+                    ?.name
                 : null,
             })),
-            todos: todos.map((todo) => ({
+            todos: snapshot.todos.slice(-120).map((todo) => ({
               id: todo.id,
               text: todo.text,
               done: todo.done,
@@ -507,15 +589,19 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
               .filter((tag): tag is string => typeof tag === 'string')
               .slice(0, 8)
           : undefined
-        deps.addTodo(value, listId ?? null, {
-          dueAt,
-          urgent: args.urgent === true,
-          flagged: args.flagged === true,
-          ...(tags ? { tags } : {}),
-        })
+        const created = await call(
+          services.todo.create({
+            text: value,
+            listId: listId ?? null,
+            dueAt,
+            urgent: args.urgent === true,
+            flagged: args.flagged === true,
+            ...(tags ? { tags } : {}),
+          }),
+        )
         return {
           ok: true,
-          text: `已新建待办：${value}${dueAt ? `，截止 ${formatTime(dueAt)}` : ''}`,
+          text: `已新建待办：${created.text}${dueAt ? `，截止 ${formatTime(dueAt)}` : ''}`,
         }
       },
     },
@@ -535,12 +621,145 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       title: (args) => `完成待办 ${String(args.id ?? '')}`,
       async run(args) {
         const id = text(args.id, 'id', 100)
-        const todo = deps.todos().find((item) => item.id === id)
-        if (!todo) throw new Error('找不到这条待办。')
-        if (todo.done) return { ok: true, text: '这条待办已经完成。' }
-        const changed = deps.toggleTodo(id)
-        if (!changed) throw new Error('没有找到可完成的待办。')
-        return { ok: true, text: `已完成：${todo.text}` }
+        const done = await call(services.todo.complete(id))
+        return {
+          ok: true,
+          text: done.changed ? `已完成：${done.text}` : '这条待办已经完成。',
+        }
+      },
+    },
+    {
+      name: 'todo_update',
+      description:
+        '修改一条待办。dueAt 使用 ISO 8601 时间；传空字符串表示清除截止时间。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '待办 ID' },
+          text: { type: 'string', description: '新的待办内容' },
+          dueAt: {
+            type: 'string',
+            description: 'ISO 8601 截止时间；空字符串表示清除',
+          },
+          urgent: { type: 'boolean' },
+          flagged: { type: 'boolean' },
+          notes: { type: 'string', description: '备注' },
+          tags: { type: 'array', items: { type: 'string' } },
+          repeat: {
+            type: 'string',
+            enum: [...todoRepeats],
+            description: '重复规则',
+          },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `修改待办 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const patch: {
+          text?: string
+          dueAt?: number | null
+          urgent?: boolean
+          flagged?: boolean
+          notes?: string
+          tags?: string[]
+          repeat?: TodoRepeat
+        } = {}
+        if (args.text !== undefined)
+          patch.text = text(args.text, 'text', 200)
+        if (args.dueAt !== undefined) {
+          if (args.dueAt === '') {
+            patch.dueAt = null
+          } else {
+            if (typeof args.dueAt !== 'string')
+              throw new Error('截止时间格式不正确。')
+            const parsed = Date.parse(args.dueAt)
+            if (Number.isNaN(parsed))
+              throw new Error('截止时间格式不正确。')
+            patch.dueAt = parsed
+          }
+        }
+        if (args.urgent !== undefined)
+          patch.urgent = booleanArg(args.urgent, 'urgent')
+        if (args.flagged !== undefined)
+          patch.flagged = booleanArg(args.flagged, 'flagged')
+        if (args.notes !== undefined)
+          patch.notes = optionalText(args.notes, 2000) ?? ''
+        if (args.tags !== undefined) {
+          if (!Array.isArray(args.tags))
+            throw new Error('参数 tags 必须是数组。')
+          patch.tags = args.tags
+            .filter((tag): tag is string => typeof tag === 'string')
+            .slice(0, 8)
+        }
+        const repeat = todoRepeatArg(args.repeat)
+        if (repeat) patch.repeat = repeat
+        if (!Object.keys(patch).length)
+          return { ok: false, text: '没有需要修改的字段。' }
+        const updated = await call(services.todo.update(id, patch))
+        return { ok: true, text: `已更新待办：${updated.text}` }
+      },
+    },
+    {
+      name: 'todo_remove',
+      description: '删除一条待办。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '待办 ID' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `删除待办 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const removed = await call(services.todo.remove(id))
+        return { ok: true, text: `已删除待办：${removed.text}` }
+      },
+    },
+    {
+      name: 'todo_clear_done',
+      description: '清理所有已完成的待办。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: () => '清理已完成待办',
+      async run() {
+        const { count } = await call(services.todo.clearDone())
+        return {
+          ok: true,
+          text: count ? `已清理 ${count} 条已完成待办。` : '没有已完成待办。',
+        }
+      },
+    },
+    {
+      name: 'todo_list_create',
+      description: '新建一个待办清单。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '清单名称，1-40 字' },
+        },
+        required: ['name'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `新建清单：${String(args.name ?? '')}`,
+      async run(args) {
+        const name = text(args.name, 'name', 40)
+        const created = await call(services.todo.createList(name))
+        return { ok: true, text: `已新建清单：${created.name}` }
       },
     },
     {
@@ -555,23 +774,8 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'allow',
       title: () => '查看音乐状态',
       async run() {
-        const music = deps.music()
-        const lyrics = deps.lyrics()
-        return {
-          ok: true,
-          text: json({
-            playing: music.playing,
-            title: music.title ?? null,
-            artist: music.artist ?? null,
-            album: music.album ?? null,
-            app: music.appName ?? null,
-            volume: music.volume ?? null,
-            muted: music.muted ?? false,
-            shuffle: music.shuffle ?? null,
-            repeat: music.repeat ?? null,
-            lyrics: lyrics?.synced ?? lyrics?.plain ?? null,
-          }),
-        }
+        const status = await call(services.music.status())
+        return { ok: true, text: json(status) }
       },
     },
     {
@@ -601,7 +805,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
           action !== 'mute'
         )
           throw new Error('不支持的音乐操作。')
-        deps.controlMusic(action)
+        await call(services.music.control(action))
         return { ok: true, text: `已执行音乐操作：${action}` }
       },
     },
@@ -617,21 +821,8 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'allow',
       title: () => '读取设置',
       async run() {
-        const settings = deps.getSettings()
-        return {
-          ok: true,
-          text: json({
-            petName: settings.petName,
-            theme: settings.theme,
-            scale: settings.scale,
-            musicBarStyle: settings.musicBarStyle,
-            statusBubbles: settings.statusBubbles,
-            musicBubbles: settings.musicBubbles,
-            shelfAutoScreenshots: settings.shelfAutoScreenshots,
-            shelfClipboardImages: settings.shelfClipboardImages,
-            launchAtLogin: settings.launchAtLogin,
-          }),
-        }
+        const settings = await call(services.settings.read())
+        return { ok: true, text: json(settings) }
       },
     },
     {
@@ -644,17 +835,17 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
           petName: { type: 'string', description: '宠物名字，1-20 字' },
           theme: {
             type: 'string',
-            enum: [...themeIds],
+            enum: ['default', 'halloween', 'christmas'],
             description: '主题',
           },
           scale: {
             type: 'number',
-            enum: [...petScales],
+            enum: [0.75, 1, 1.5, 2],
             description: '宠物缩放',
           },
           musicBarStyle: {
             type: 'string',
-            enum: [...musicBarStyles],
+            enum: ['compact', 'double', 'minimal'],
             description: '音乐条样式',
           },
           statusBubbles: { type: 'boolean' },
@@ -667,50 +858,27 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'ask',
       title: (args) => `修改设置：${Object.keys(args).join('、') || '无'}`,
       async run(args) {
-        const patch: Partial<SettingsState> = {}
-        if (args.petName !== undefined) {
-          const name = text(args.petName, 'petName', 20)
-          patch.petName = name
-        }
-        if (args.theme !== undefined) {
-          if (
-            typeof args.theme !== 'string' ||
-            !(themeIds as readonly string[]).includes(args.theme)
-          )
-            throw new Error('不支持的主题。')
-          patch.theme = args.theme as SettingsState['theme']
-        }
-        if (args.scale !== undefined) {
-          if (
-            typeof args.scale !== 'number' ||
-            !(petScales as readonly number[]).includes(args.scale)
-          )
-            throw new Error('不支持的缩放比例。')
-          patch.scale = args.scale as SettingsState['scale']
-        }
-        if (args.musicBarStyle !== undefined) {
-          if (
-            typeof args.musicBarStyle !== 'string' ||
-            !(musicBarStyles as readonly string[]).includes(args.musicBarStyle)
-          )
-            throw new Error('不支持的音乐条样式。')
-          patch.musicBarStyle =
-            args.musicBarStyle as SettingsState['musicBarStyle']
-        }
+        const patch: SettingsPatch = {}
+        if (args.petName !== undefined)
+          patch.petName = String(args.petName)
+        if (args.theme !== undefined)
+          patch.theme = String(args.theme) as SettingsPatch['theme']
+        if (args.scale !== undefined)
+          patch.scale = Number(args.scale) as SettingsPatch['scale']
+        if (args.musicBarStyle !== undefined)
+          patch.musicBarStyle = String(
+            args.musicBarStyle,
+          ) as SettingsPatch['musicBarStyle']
         for (const key of [
           'statusBubbles',
           'musicBubbles',
           'launchAtLogin',
         ] as const) {
-          if (args[key] !== undefined) {
-            if (typeof args[key] !== 'boolean')
-              throw new Error(`参数 ${key} 必须是布尔值。`)
-            patch[key] = args[key]
-          }
+          if (args[key] !== undefined) patch[key] = args[key] === true
         }
         if (!Object.keys(patch).length)
           return { ok: false, text: '没有需要修改的设置。' }
-        await deps.updateSettings(patch)
+        await call(services.settings.update(patch))
         return {
           ok: true,
           text: `已修改设置：${Object.keys(patch).join('、')}`,
@@ -737,7 +905,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       title: () => '查看剪贴板',
       async run(args) {
         const limit = numberArg(args.limit, 1, 30) ?? 10
-        const entries = deps.clipboard().entries.slice(0, limit)
+        const entries = await call(services.clipboard.list(limit))
         if (!entries.length)
           return { ok: true, text: '剪贴板历史是空的。' }
         return {
@@ -758,16 +926,59 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       },
     },
     {
+      name: 'clipboard_copy',
+      description: '把一条剪贴板历史记录重新复制到剪贴板。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '剪贴板记录 ID' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `复制剪贴板记录 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        await call(services.clipboard.copy(id))
+        return { ok: true, text: '已复制到剪贴板。' }
+      },
+    },
+    {
+      name: 'clipboard_pin',
+      description: '固定或取消固定一条剪贴板记录。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '剪贴板记录 ID' },
+          pinned: { type: 'boolean', description: '是否固定' },
+        },
+        required: ['id', 'pinned'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `${args.pinned ? '固定' : '取消固定'}剪贴板记录 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const pinned = booleanArg(args.pinned, 'pinned')
+        await call(services.clipboard.pin(id, pinned))
+        return {
+          ok: true,
+          text: pinned ? '已固定该记录。' : '已取消固定。',
+        }
+      },
+    },
+    {
       name: 'mail_list',
       description: '查看已绑定的邮箱账户和最近邮件摘要，不读取正文。',
       parameters: {
         type: 'object',
         properties: {
           accountId: { type: 'string', description: '可选的邮箱账户 ID' },
-          folder: {
-            type: 'string',
-            description: '文件夹，默认 INBOX',
-          },
+          folder: { type: 'string', description: '文件夹，默认 INBOX' },
           limit: {
             type: 'integer',
             minimum: 1,
@@ -781,31 +992,27 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'allow',
       title: () => '查看邮件摘要',
       async run(args) {
-        const accounts = deps.mailAccounts()
-        if (!accounts.length)
-          return { ok: true, text: '还没有绑定邮箱账户。' }
         const accountId =
           typeof args.accountId === 'string' && args.accountId
             ? args.accountId
-            : accounts[0].id
-        const account = accounts.find((item) => item.id === accountId)
-        if (!account) throw new Error('找不到这个邮箱账户。')
-        const folder =
-          typeof args.folder === 'string' && args.folder.trim()
-            ? args.folder.trim().toUpperCase()
-            : 'INBOX'
+            : undefined
+        const folder = mailFolderArg(args.folder)
         const limit = numberArg(args.limit, 1, 30) ?? 10
-        const messages = deps.mailMessages(account.id, folder, limit)
+        const snapshot = await call(
+          services.mail.list(accountId, folder, limit),
+        )
+        if (!snapshot.accounts.length)
+          return { ok: true, text: '还没有绑定邮箱账户。' }
         return {
           ok: true,
           text: json({
-            accounts: accounts.map((item) => ({
-              id: item.id,
-              provider: item.provider,
-              email: item.email,
+            accounts: snapshot.accounts.map((account) => ({
+              id: account.id,
+              provider: account.provider,
+              email: account.email,
             })),
-            folder,
-            messages: messages.map((message) => ({
+            folder: snapshot.folder,
+            messages: snapshot.messages.map((message) => ({
               uid: message.uid,
               subject: message.subject,
               from: message.fromName || message.fromAddress || '',
@@ -816,6 +1023,43 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
               hasAttachments: message.hasAttachments,
               snippet: (message.snippet ?? '').slice(0, 160),
             })),
+          }),
+        }
+      },
+    },
+    {
+      name: 'mail_read',
+      description: '读取一封邮件的正文和附件名称，不会把邮件标记为已读。',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: '邮箱账户 ID' },
+          uid: { type: 'integer', description: '邮件 uid，来自 mail_list' },
+          folder: { type: 'string', description: '文件夹，默认 INBOX' },
+        },
+        required: ['accountId', 'uid'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `读取邮件 ${String(args.uid ?? '')}`,
+      async run(args) {
+        const accountId = text(args.accountId, 'accountId', 100)
+        const uid = mailUidArg(args.uid)
+        const folder = mailFolderArg(args.folder)
+        const detail = await call(
+          services.mail.read(accountId, uid, folder),
+        )
+        return {
+          ok: true,
+          text: json({
+            subject: detail.subject,
+            from: detail.from,
+            date: detail.date
+              ? new Date(detail.date).toISOString()
+              : null,
+            attachments: detail.attachments,
+            body: detail.body.slice(0, 6000),
           }),
         }
       },
@@ -848,334 +1092,32 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         `发送邮件：${String(args.subject ?? '')} → ${String(args.to ?? '')}`,
       async run(args) {
         const accountId = text(args.accountId, 'accountId', 100)
-        const account = deps.mailAccounts().find(
-          (item) => item.id === accountId,
-        )
-        if (!account) throw new Error('找不到这个邮箱账户。')
         const to = text(args.to, 'to', 2000)
-        const recipientError = mailRecipientError(to)
-        if (recipientError) throw new Error(recipientError)
-        const subject = text(args.subject, 'subject', mailSubjectLimit)
-        const body = text(args.body, 'body', mailBodyLimit)
+        const subject = text(args.subject, 'subject', 500)
+        const body = text(args.body, 'body', 1_000_000)
         const cc = optionalText(args.cc, 2000)
         const bcc = optionalText(args.bcc, 2000)
-        if (cc && mailRecipientError(cc)) throw new Error(mailRecipientError(cc))
-        if (bcc && mailRecipientError(bcc))
-          throw new Error(mailRecipientError(bcc))
         const ids = Array.isArray(args.attachmentFileIds)
           ? args.attachmentFileIds
               .filter((id): id is string => typeof id === 'string')
               .slice(0, 10)
           : []
-        const files = deps.shelfFiles()
-        const attachments = []
-        for (const id of ids) {
-          const file = files.find((item) => item.id === id)
-          if (!file) throw new Error(`置物架里没有文件 ${id}。`)
-          attachments.push({
-            path: await deps.resolveShelfFile(id),
-            name: file.name,
-            size: file.size,
-          })
-        }
-        if (
-          attachments.reduce((total, item) => total + item.size, 0) >
-          25 * 1024 * 1024
-        )
-          throw new Error('附件总大小不能超过 25 MB。')
-        const secret = await deps.mailSecret(account.id)
-        if (!secret) throw new Error('邮箱授权已失效，请重新授权。')
-        const result = await sendMailMessage({
-          account,
-          secret,
-          to,
-          ...(cc ? { cc } : {}),
-          ...(bcc ? { bcc } : {}),
-          subject,
-          body,
-          attachments,
-        })
-        return {
-          ok: true,
-          text: `邮件已发送给 ${to}${attachments.length ? `，附件 ${attachments.length} 个` : ''}。${
-            result.savedToSent ? '' : '未能保存到已发送。'
-          }`,
-        }
-      },
-    },
-    {
-      name: 'file_reveal',
-      description: '在访达或资源管理器中定位置物架里的文件，不修改源文件。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileId: { type: 'string', description: '置物架文件 ID' },
-        },
-        required: ['fileId'],
-        additionalProperties: false,
-      },
-      plan: 'allow',
-      build: 'allow',
-      title: (args) => `定位 ${String(args.fileId ?? '文件')}`,
-      async run(args) {
-        const id = text(args.fileId, 'fileId', 100)
-        await deps.revealFile(id)
-        return { ok: true, text: '已在访达中定位该文件。' }
-      },
-    },
-    {
-      name: 'file_save_copy',
-      description: '通过保存对话框把置物架文件另存一份副本。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileId: { type: 'string', description: '置物架文件 ID' },
-        },
-        required: ['fileId'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `另存副本 ${String(args.fileId ?? '')}`,
-      async run(args) {
-        const id = text(args.fileId, 'fileId', 100)
-        const saved = await deps.saveCopy(id)
-        if (!saved) return { ok: false, text: '已取消另存。' }
-        return { ok: true, text: `已另存到 ${saved}` }
-      },
-    },
-    {
-      name: 'shelf_remove',
-      description: '把文件移出置物架；源文件不会被删除。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileId: { type: 'string', description: '置物架文件 ID' },
-        },
-        required: ['fileId'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `移出置物架 ${String(args.fileId ?? '')}`,
-      async run(args) {
-        const id = text(args.fileId, 'fileId', 100)
-        const file = deps.shelfFiles().find((item) => item.id === id)
-        if (!file) throw new Error('置物架里没有这个文件。')
-        await deps.removeFromShelf(id)
-        return {
-          ok: true,
-          text: `已把 ${file.name} 移出置物架；源文件保留。`,
-        }
-      },
-    },
-    {
-      name: 'convert_start',
-      description:
-        '把置物架里的文件转换成指定格式。音视频需要 FFmpeg，Office 需要 LibreOffice；缺少引擎时会在设置中提示。PDF 加密/解密需要 password。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '置物架文件 ID 列表',
-          },
-          action: {
-            type: 'string',
-            enum: [...convertActions],
-            description: '目标格式动作',
-          },
-          password: { type: 'string', description: 'PDF 加密/解密密码' },
-        },
-        required: ['fileIds', 'action'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) =>
-        `转换 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.action ?? '')}`,
-      async run(args) {
-        const ids = fileIdList(args.fileIds)
-        const action = convertActionArg(args.action)
-        const password = optionalText(args.password, 200)
-        return {
-          ok: true,
-          text: await deps.convertFiles(ids, action, password),
-        }
-      },
-    },
-    {
-      name: 'archive_start',
-      description: '把置物架里的文件打包成压缩包。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '置物架文件 ID 列表',
-          },
-          format: {
-            type: 'string',
-            enum: [...archiveFormats],
-            description: '压缩格式',
-          },
-        },
-        required: ['fileIds', 'format'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) =>
-        `打包 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.format ?? '')}`,
-      async run(args) {
-        const ids = fileIdList(args.fileIds)
-        if (
-          typeof args.format !== 'string' ||
-          !(archiveFormats as readonly string[]).includes(args.format)
-        )
-          throw new Error('不支持的压缩格式。')
-        return {
-          ok: true,
-          text: await deps.archiveFiles(
-            ids,
-            args.format as ArchiveFormat,
-          ),
-        }
-      },
-    },
-    {
-      name: 'extract_archive',
-      description: '解压置物架里的压缩包到原目录附近，并把结果放回置物架。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '压缩包文件 ID 列表',
-          },
-        },
-        required: ['fileIds'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) =>
-        `解压 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个压缩包`,
-      async run(args) {
-        const ids = fileIdList(args.fileIds)
-        const count = await deps.extractFiles(ids)
-        return { ok: true, text: `已解压 ${count} 个文件。` }
-      },
-    },
-    {
-      name: 'rename_files',
-      description:
-        '批量重命名置物架里的文件。replace 替换文本，add 添加文本，format 使用序号/日期重命名。',
-      parameters: {
-        type: 'object',
-        properties: {
-          fileIds: {
-            type: 'array',
-            items: { type: 'string' },
-            description: '至少两个置物架文件 ID',
-          },
-          mode: {
-            type: 'string',
-            enum: ['replace', 'add', 'format'],
-            description: '重命名方式',
-          },
-          find: { type: 'string', description: 'replace 模式要查找的文本' },
-          replace: { type: 'string', description: 'replace 模式的替换文本' },
-          text: { type: 'string', description: 'add 模式要添加的文本' },
-          position: {
-            type: 'string',
-            enum: ['before', 'after'],
-            description: 'add 模式的位置，默认 after',
-          },
-          format: {
-            type: 'string',
-            enum: ['index', 'counter', 'date'],
-            description: 'format 模式的格式',
-          },
-          start: {
-            type: 'integer',
-            minimum: 1,
-            maximum: 9999,
-            description: '序号起始值，默认 1',
-          },
-        },
-        required: ['fileIds', 'mode'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) =>
-        `重命名 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件`,
-      async run(args) {
-        const ids = fileIdList(args.fileIds)
-        if (!ids.length) throw new Error('没有可重命名的文件。')
-        const mode =
-          args.mode === 'add' || args.mode === 'format'
-            ? args.mode
-            : 'replace'
-        const config: RenameConfig = {
-          mode,
-          find: optionalText(args.find, 200) ?? '',
-          replace: optionalText(args.replace, 200) ?? '',
-          text: optionalText(args.text, 200) ?? '',
-          position: args.position === 'before' ? 'before' : 'after',
-          format:
-            args.format === 'counter' || args.format === 'date'
-              ? args.format
-              : 'index',
-          start: numberArg(args.start, 1, 9999) ?? 1,
-        }
-        if (mode === 'replace' && !config.find)
-          throw new Error('replace 模式需要 find。')
-        if (mode === 'add' && !config.text)
-          throw new Error('add 模式需要 text。')
-        const count = await deps.renameFiles(ids, config)
-        if (!count) return { ok: false, text: '没有文件被重命名。' }
-        return { ok: true, text: `已重命名 ${count} 个文件。` }
-      },
-    },
-    {
-      name: 'mail_read',
-      description: '读取一封邮件的正文和附件名称，不会把邮件标记为已读。',
-      parameters: {
-        type: 'object',
-        properties: {
-          accountId: { type: 'string', description: '邮箱账户 ID' },
-          uid: { type: 'integer', description: '邮件 uid，来自 mail_list' },
-          folder: { type: 'string', description: '文件夹，默认 INBOX' },
-        },
-        required: ['accountId', 'uid'],
-        additionalProperties: false,
-      },
-      plan: 'allow',
-      build: 'allow',
-      title: (args) => `读取邮件 ${String(args.uid ?? '')}`,
-      async run(args) {
-        const accountId = text(args.accountId, 'accountId', 100)
-        if (!deps.mailAccounts().some((item) => item.id === accountId))
-          throw new Error('找不到这个邮箱账户。')
-        const uid = mailUidArg(args.uid)
-        const folder = mailFolderArg(args.folder)
-        const detail = await deps.mailRead(accountId, uid, folder)
-        return {
-          ok: true,
-          text: json({
-            subject: detail.subject,
-            from: detail.from,
-            date: detail.date
-              ? new Date(detail.date).toISOString()
-              : null,
-            attachments: detail.attachments,
-            body: detail.body.slice(0, 6000),
+        const result = await call(
+          services.mail.send({
+            accountId,
+            to,
+            ...(cc ? { cc } : {}),
+            ...(bcc ? { bcc } : {}),
+            subject,
+            body,
+            ...(ids.length ? { attachmentFileIds: ids } : {}),
           }),
+        )
+        return {
+          ok: true,
+          text: `邮件已发送给 ${result.to}${
+            result.attachments ? `，附件 ${result.attachments} 个` : ''
+          }。${result.savedToSent ? '' : '未能保存到已发送。'}`,
         }
       },
     },
@@ -1199,11 +1141,8 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         const accountId = text(args.accountId, 'accountId', 100)
         const uid = mailUidArg(args.uid)
         const folder = mailFolderArg(args.folder)
-        const subject = await deps.mailMove(
-          accountId,
-          folder,
-          uid,
-          'archive',
+        const { subject } = await call(
+          services.mail.archive(accountId, folder, uid),
         )
         return { ok: true, text: `已归档「${subject}」。` }
       },
@@ -1229,11 +1168,8 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         const accountId = text(args.accountId, 'accountId', 100)
         const uid = mailUidArg(args.uid)
         const folder = mailFolderArg(args.folder)
-        const subject = await deps.mailMove(
-          accountId,
-          folder,
-          uid,
-          'delete',
+        const { subject } = await call(
+          services.mail.remove(accountId, folder, uid),
         )
         return { ok: true, text: `已删除「${subject}」。` }
       },
@@ -1263,162 +1199,13 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         const uid = mailUidArg(args.uid)
         const folder = mailFolderArg(args.folder)
         const targetFolder = text(args.targetFolder, 'targetFolder', 200)
-        const subject = await deps.mailMove(
-          accountId,
-          folder,
-          uid,
-          'move',
-          targetFolder,
+        const { subject } = await call(
+          services.mail.move(accountId, folder, uid, targetFolder),
         )
         return {
           ok: true,
           text: `已把「${subject}」移动到 ${targetFolder}。`,
         }
-      },
-    },
-    {
-      name: 'todo_update',
-      description:
-        '修改一条待办。dueAt 使用 ISO 8601 时间；传 null 表示清除截止时间。',
-      parameters: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: '待办 ID' },
-          text: { type: 'string', description: '新的待办内容' },
-          dueAt: {
-            type: 'string',
-            description:
-              'ISO 8601 截止时间；传空字符串表示清除截止时间',
-          },
-          urgent: { type: 'boolean' },
-          flagged: { type: 'boolean' },
-          notes: { type: 'string', description: '备注' },
-          tags: { type: 'array', items: { type: 'string' } },
-          repeat: {
-            type: 'string',
-            enum: [...todoRepeats],
-            description: '重复规则',
-          },
-        },
-        required: ['id'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `修改待办 ${String(args.id ?? '')}`,
-      async run(args) {
-        const id = text(args.id, 'id', 100)
-        const todo = deps.todos().find((item) => item.id === id)
-        if (!todo) throw new Error('找不到这条待办。')
-        const patch: {
-          text?: string
-          dueAt?: number | null
-          urgent?: boolean
-          flagged?: boolean
-          notes?: string
-          tags?: string[]
-          repeat?: TodoRepeat
-        } = {}
-        if (args.text !== undefined)
-          patch.text = text(args.text, 'text', 200)
-        if (args.dueAt !== undefined) {
-          if (args.dueAt === null || args.dueAt === '') {
-            patch.dueAt = null
-          } else {
-            if (typeof args.dueAt !== 'string')
-              throw new Error('截止时间格式不正确。')
-            const parsed = Date.parse(args.dueAt)
-            if (Number.isNaN(parsed))
-              throw new Error('截止时间格式不正确。')
-            patch.dueAt = parsed
-          }
-        }
-        if (args.urgent !== undefined)
-          patch.urgent = booleanArg(args.urgent, 'urgent')
-        if (args.flagged !== undefined)
-          patch.flagged = booleanArg(args.flagged, 'flagged')
-        if (args.notes !== undefined)
-          patch.notes = optionalText(args.notes, 2000) ?? ''
-        if (args.tags !== undefined) {
-          if (!Array.isArray(args.tags))
-            throw new Error('参数 tags 必须是数组。')
-          patch.tags = args.tags
-            .filter((tag): tag is string => typeof tag === 'string')
-            .slice(0, 8)
-        }
-        if (args.repeat !== undefined) {
-          if (
-            typeof args.repeat !== 'string' ||
-            !(todoRepeats as readonly string[]).includes(args.repeat)
-          )
-            throw new Error('不支持的重复规则。')
-          patch.repeat = args.repeat as TodoRepeat
-        }
-        if (!Object.keys(patch).length)
-          return { ok: false, text: '没有需要修改的字段。' }
-        deps.updateTodo(id, patch)
-        return { ok: true, text: `已更新待办：${todo.text}` }
-      },
-    },
-    {
-      name: 'todo_remove',
-      description: '删除一条待办；不能删除重复待办生成的整组记录。',
-      parameters: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: '待办 ID' },
-        },
-        required: ['id'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `删除待办 ${String(args.id ?? '')}`,
-      async run(args) {
-        const id = text(args.id, 'id', 100)
-        const todo = deps.todos().find((item) => item.id === id)
-        if (!todo) throw new Error('找不到这条待办。')
-        deps.removeTodo(id)
-        return { ok: true, text: `已删除待办：${todo.text}` }
-      },
-    },
-    {
-      name: 'todo_clear_done',
-      description: '清理所有已完成的待办。',
-      parameters: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: () => '清理已完成待办',
-      async run() {
-        const count = deps.clearDoneTodos()
-        return {
-          ok: true,
-          text: count ? `已清理 ${count} 条已完成待办。` : '没有已完成待办。',
-        }
-      },
-    },
-    {
-      name: 'todo_list_create',
-      description: '新建一个待办清单。',
-      parameters: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: '清单名称，1-40 字' },
-        },
-        required: ['name'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `新建清单：${String(args.name ?? '')}`,
-      async run(args) {
-        const name = text(args.name, 'name', 40)
-        deps.addTodoList(name)
-        return { ok: true, text: `已新建清单：${name}` }
       },
     },
     {
@@ -1448,7 +1235,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
           action !== 'skip'
         )
           throw new Error('不支持的番茄时钟操作。')
-        const state = deps.focusControl(action)
+        const state = await call(services.focus.control(action))
         const phase =
           state.phase === 'focus'
             ? '专注'
@@ -1473,7 +1260,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       build: 'allow',
       title: () => '记录喝水',
       async run() {
-        const { count, goal } = deps.waterDrink()
+        const { count, goal } = await call(services.focus.drink())
         return { ok: true, text: `已记录一次喝水：${count}/${goal}。` }
       },
     },
@@ -1497,7 +1284,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       title: (args) => `喝水提醒延后 ${String(args.minutes ?? 10)} 分钟`,
       async run(args) {
         const minutes = numberArg(args.minutes, 1, 60) ?? 10
-        deps.waterSnooze(minutes)
+        await call(services.focus.snoozeWater(minutes))
         return { ok: true, text: `喝水提醒已延后 ${minutes} 分钟。` }
       },
     },
@@ -1531,60 +1318,10 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         if (kind !== 'sitting' && kind !== 'eyes')
           throw new Error('不支持的提醒类型。')
         const minutes = numberArg(args.minutes, 1, 60) ?? 10
-        deps.breakSnooze(kind, minutes)
+        await call(services.focus.snoozeBreak(kind, minutes))
         return {
           ok: true,
           text: `${kind === 'eyes' ? '护眼' : '久坐'}提醒已延后 ${minutes} 分钟。`,
-        }
-      },
-    },
-    {
-      name: 'clipboard_copy',
-      description: '把一条剪贴板历史记录重新复制到剪贴板。',
-      parameters: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: '剪贴板记录 ID' },
-        },
-        required: ['id'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) => `复制剪贴板记录 ${String(args.id ?? '')}`,
-      async run(args) {
-        const id = text(args.id, 'id', 100)
-        if (!deps.clipboard().entries.some((entry) => entry.id === id))
-          throw new Error('剪贴板里没有这条记录。')
-        await deps.clipboardCopy(id)
-        return { ok: true, text: '已复制到剪贴板。' }
-      },
-    },
-    {
-      name: 'clipboard_pin',
-      description: '固定或取消固定一条剪贴板记录。',
-      parameters: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: '剪贴板记录 ID' },
-          pinned: { type: 'boolean', description: '是否固定' },
-        },
-        required: ['id', 'pinned'],
-        additionalProperties: false,
-      },
-      plan: 'deny',
-      build: 'ask',
-      title: (args) =>
-        `${args.pinned ? '固定' : '取消固定'}剪贴板记录 ${String(args.id ?? '')}`,
-      async run(args) {
-        const id = text(args.id, 'id', 100)
-        const pinned = booleanArg(args.pinned, 'pinned')
-        if (!deps.clipboard().entries.some((entry) => entry.id === id))
-          throw new Error('剪贴板里没有这条记录。')
-        deps.clipboardPin(id, pinned)
-        return {
-          ok: true,
-          text: pinned ? '已固定该记录。' : '已取消固定。',
         }
       },
     },
@@ -1611,10 +1348,16 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
       title: (args) => `执行命令：${String(args.command ?? '')}`,
       async run(args, ctx) {
         const command = text(args.command, 'command', 2000)
-        if (!ctx.workspace)
-          throw new Error('请先选择 shell 工作区，再执行命令。')
-        const timeout = (numberArg(args.timeoutSeconds, 1, 120) ?? 30) * 1000
-        return runShell(command, ctx.workspace, timeout, ctx.signal)
+        const timeoutSeconds =
+          numberArg(args.timeoutSeconds, 1, 120) ?? 30
+        const output = await runShell({
+          command,
+          workspace: ctx.workspace,
+          timeoutSeconds,
+          signal: ctx.signal,
+        })
+        if (!output.ok) throw new Error(output.error)
+        return formatShell(output.value)
       },
     },
     {
@@ -1651,7 +1394,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         const panel = args.panel
         if (typeof panel !== 'string')
           throw new Error('缺少面板名称。')
-        deps.openPanel(panel as AgentPanelTarget)
+        await call(services.panel.open(panel as PanelTarget))
         return { ok: true, text: `已打开面板：${panel}` }
       },
     },

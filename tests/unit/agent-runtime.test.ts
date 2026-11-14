@@ -7,7 +7,8 @@ import type {
   StreamOptions,
   StreamResult,
 } from '../../src/main/agent/provider'
-import { makeDeps } from './agent-fixtures'
+import { makeServices } from './agent-fixtures'
+import { defaultSettings } from '../../src/shared/settings'
 
 function scripted(results: StreamResult[]) {
   let index = 0
@@ -43,9 +44,11 @@ async function makeRuntime(
   const storePath = join(directory, 'agent.json')
   const script = scripted(results)
   const runtime = createAgentRuntime({
-    ...makeDeps(calls),
+    services: makeServices(calls),
     storePath,
     getKey: () => 'test-key',
+    getSettings: () => ({ ...defaultSettings }),
+    getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
     broadcast: () => {},
     pickWorkspace: async () => directory,
     stream: override?.stream ?? script.stream,
@@ -247,9 +250,11 @@ describe('agent runtime', () => {
     await runtime.flush()
 
     const restored = createAgentRuntime({
-      ...makeDeps(calls),
+      services: makeServices(calls),
       storePath,
       getKey: () => 'test-key',
+      getSettings: () => ({ ...defaultSettings }),
+      getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
       pickWorkspace: async () => '/tmp',
       stream: scripted([]).stream,

@@ -42,6 +42,7 @@ import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import type { AgentMode, AgentPetProfile } from '../shared/agent'
 import { createAgentRuntime } from './agent/runtime'
+import { createServices } from './services/create'
 import { detectClockJump } from '../shared/scheduler'
 import {
   pickLyricsCandidate,
@@ -559,13 +560,7 @@ const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 const agentPath = join(dataRoot, 'mqmz.agent.json')
 
-const agent = createAgentRuntime({
-  storePath: agentPath,
-  getKey: () => aiKey,
-  getSettings: () => settings,
-  getPetProfile: () => activePetProfile(),
-  updateSettings: (patch) => updateSettings(patch),
-  broadcast: () => broadcast(),
+const services = createServices({
   shelfFiles: () =>
     [...files.values()].map(({ id, name, size, status }) => ({
       id,
@@ -574,19 +569,6 @@ const agent = createAgentRuntime({
       status,
     })),
   resolveShelfFile: (id) => registeredFile(id),
-  todos: () => focusData.todos,
-  todoLists: () => focusData.todoLists,
-  todoGroups: () => focusData.todoGroups,
-  addTodo: (text, listId, flags) => addTodo(text, listId, flags),
-  toggleTodo: (id) => {
-    if (!focusData.todos.some((todo) => todo.id === id)) return false
-    toggleTodo(id)
-    return true
-  },
-  music: () => music,
-  lyrics: () => lyrics,
-  controlMusic: (action) => controlMusic(action),
-  clipboard: () => clipboardState(),
   revealFile: async (id) => {
     shell.showItemInFolder(await registeredFile(id))
   },
@@ -612,24 +594,27 @@ const agent = createAgentRuntime({
     if (!outcome) throw new Error(convertNotice ?? '转换没有执行。')
     if (!outcome.converted)
       throw new Error(outcome.messages[0] ?? '转换失败。')
-    const names = outcome.outputs
-      .map((output) => output.name)
-      .slice(0, 6)
-      .join('、')
-    return `已转换 ${outcome.converted} 个文件${
-      outcome.failed ? `，失败 ${outcome.failed} 个` : ''
-    }${names ? `：${names}` : ''}`
+    return {
+      converted: outcome.converted,
+      failed: outcome.failed,
+      outputs: outcome.outputs.map((output) => ({
+        name: output.name,
+        size: output.size,
+      })),
+      messages: outcome.messages,
+    }
   },
   archiveFiles: async (ids, format) => {
     openArchive(ids)
     if (!archiveFiles.length) throw new Error('没有可打包的文件。')
     await startArchive(format)
     if (!archiveOutcome) throw new Error(archiveNotice ?? '打包失败。')
-    const size =
-      archiveOutcome.size >= 1024 * 1024
-        ? `${(archiveOutcome.size / 1024 / 1024).toFixed(1)} MB`
-        : `${Math.max(1, Math.round(archiveOutcome.size / 1024))} KB`
-    return `已生成 ${archiveOutcome.name}（${size}）`
+    return {
+      name: archiveOutcome.name,
+      size: archiveOutcome.size,
+      count: archiveOutcome.count,
+      format,
+    }
   },
   extractFiles: (ids) => extractSelected(ids),
   renameFiles: async (ids, config) => {
@@ -641,14 +626,74 @@ const agent = createAgentRuntime({
       closeRename()
     }
   },
-  mailRead: (accountId, uid, folder) =>
-    readMailForAgent(accountId, uid, folder),
-  mailMove: (accountId, folder, uid, mode, targetFolder) =>
-    moveMailForAgent(accountId, folder, uid, mode, targetFolder),
+  todos: () => focusData.todos,
+  todoLists: () => focusData.todoLists,
+  todoGroups: () => focusData.todoGroups,
+  addTodo: (text, listId, flags) => addTodo(text, listId, flags),
+  toggleTodo: (id) => {
+    if (!focusData.todos.some((todo) => todo.id === id)) return false
+    toggleTodo(id)
+    return true
+  },
   updateTodo: (id, patch) => updateTodo(id, patch),
   removeTodo: (id) => removeTodo(id),
   clearDoneTodos: () => clearDoneTodos(),
   addTodoList: (name) => addTodoList(name),
+  music: () => music,
+  lyrics: () => lyrics,
+  controlMusic: (action) => controlMusic(action),
+  getSettings: () => settings,
+  updateSettings: (patch) => updateSettings(patch),
+  clipboard: () => clipboardState(),
+  clipboardCopy: (id) => copyClipboardEntry(id),
+  clipboardPin: (id, pinned) => setClipboardPinned(id, pinned),
+  mailAccounts: () => mailDb?.listAccounts() ?? [],
+  mailMessages: (accountId, folder, limit) =>
+    mailDb?.listMessages(accountId, folder, limit) ?? [],
+  mailRead: (accountId, uid, folder) =>
+    readMailForAgent(accountId, uid, folder),
+  mailMove: (accountId, folder, uid, mode, targetFolder) =>
+    moveMailForAgent(accountId, folder, uid, mode, targetFolder),
+  mailSend: async (input) => {
+    if (!mailDb) throw new Error('邮件数据库尚未就绪。')
+    const account = mailDb.account(input.accountId)
+    if (!account) throw new Error('邮件账户不存在。')
+    const secret = await loadMailSecret(mailSecretsPath, account.id)
+    if (!secret) throw new Error('授权已失效，请重新授权。')
+    const attachments = []
+    const allFiles = [...files.values()]
+    for (const id of input.attachmentFileIds ?? []) {
+      const file = allFiles.find((item) => item.id === id)
+      if (!file) throw new Error(`置物架里没有文件 ${id}。`)
+      attachments.push({
+        path: await registeredFile(id),
+        name: file.name,
+        size: file.size,
+      })
+    }
+    if (
+      attachments.reduce((total, item) => total + item.size, 0) >
+      25 * 1024 * 1024
+    )
+      throw new Error('附件总大小不能超过 25 MB。')
+    const result = await sendMailMessage({
+      account,
+      secret,
+      to: input.to,
+      ...(input.cc ? { cc: input.cc } : {}),
+      ...(input.bcc ? { bcc: input.bcc } : {}),
+      subject: input.subject,
+      body: input.body,
+      attachments,
+    })
+    return {
+      accountId: account.id,
+      to: input.to,
+      subject: input.subject,
+      attachments: attachments.length,
+      savedToSent: result.savedToSent,
+    }
+  },
   focusControl: (action) => {
     if (action === 'start') startFocus()
     else if (action === 'pause') pauseFocusTimer()
@@ -665,13 +710,6 @@ const agent = createAgentRuntime({
   },
   waterSnooze: (minutes) => snoozeWater(minutes),
   breakSnooze: (kind, minutes) => snoozeBreak(kind, minutes),
-  clipboardCopy: (id) => copyClipboardEntry(id),
-  clipboardPin: (id, pinned) => setClipboardPinned(id, pinned),
-  mailAccounts: () => mailDb?.listAccounts() ?? [],
-  mailMessages: (accountId, folder, limit) =>
-    mailDb?.listMessages(accountId, folder, limit) ?? [],
-  mailSecret: async (accountId) =>
-    (await loadMailSecret(mailSecretsPath, accountId)) ?? null,
   openPanel: (panel) => {
     switch (panel) {
       case 'todo':
@@ -704,6 +742,15 @@ const agent = createAgentRuntime({
         break
     }
   },
+})
+
+const agent = createAgentRuntime({
+  services,
+  storePath: agentPath,
+  getKey: () => aiKey,
+  getSettings: () => settings,
+  getPetProfile: () => activePetProfile(),
+  broadcast: () => broadcast(),
   pickWorkspace: async () => {
     const owner = askWindow && askWindow.isVisible() ? askWindow : pet
     const result = await dialog.showOpenDialog(owner, {
@@ -3556,6 +3603,8 @@ async function readMailForAgent(
   uid: number,
   folder: string,
 ): Promise<{
+  uid: number
+  folder: string
   subject: string
   from: string
   date?: number
@@ -3567,6 +3616,8 @@ async function readMailForAgent(
   const text = detail.bodyText?.trim()
   const html = detail.bodyHtml?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   return {
+    uid,
+    folder,
     subject: detail.subject,
     from: detail.fromName || detail.fromAddress || '',
     ...(detail.date ? { date: detail.date } : {}),
@@ -5157,20 +5208,21 @@ function addTodo(
     tags?: string[]
     repeat?: TodoRepeat
   },
-): void {
+): string {
   const value = text.trim()
-  if (!value) return
+  if (!value) return ''
   const target =
     listId && focusData.todoLists.some((list) => list.id === listId)
       ? listId
       : null
   const tags = normalizeTags(flags?.tags)
+  const id = randomUUID()
   focusData = {
     ...focusData,
     todos: [
       ...focusData.todos,
       {
-        id: randomUUID(),
+        id,
         text: value,
         done: false,
         listId: target,
@@ -5187,6 +5239,7 @@ function addTodo(
   mergeTodoTags(tags)
   persistFocus()
   broadcast()
+  return id
 }
 function toggleTodo(id: string): void {
   const source = focusData.todos.find((todo) => todo.id === id)

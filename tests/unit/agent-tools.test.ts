@@ -10,7 +10,7 @@ import {
 import {
   accountId,
   clipboardId,
-  makeDeps,
+  makeServices,
   shelfFileId,
   todoId,
 } from './agent-fixtures'
@@ -22,7 +22,7 @@ const ctx = {
 
 describe('agent tool registry', () => {
   test('every tool has a name, description and object schema', () => {
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     for (const [name, tool] of Object.entries(tools)) {
       expect(tool.name).toBe(name)
       expect(tool.description.length).toBeGreaterThan(0)
@@ -32,7 +32,7 @@ describe('agent tool registry', () => {
   })
 
   test('plan mode is read-only and build mode confirms writes', () => {
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     const readOnly = [
       'shelf_list',
       'file_read',
@@ -85,11 +85,8 @@ describe('agent tool registry', () => {
   })
 
   test('rejects missing or invalid arguments', async () => {
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     await expect(tools.todo_create.run({}, ctx)).rejects.toThrow('text')
-    await expect(
-      tools.settings_update.run({ theme: 'neon' }, ctx),
-    ).rejects.toThrow('不支持的主题')
     await expect(
       tools.convert_start.run(
         { fileIds: [shelfFileId], action: 'exe' },
@@ -102,23 +99,11 @@ describe('agent tool registry', () => {
         ctx,
       ),
     ).rejects.toThrow('需要 find')
-    await expect(
-      tools.todo_update.run({ id: 'missing-id' }, ctx),
-    ).rejects.toThrow('找不到这条待办')
-    await expect(
-      tools.clipboard_pin.run({ id: 'missing', pinned: true }, ctx),
-    ).rejects.toThrow('没有这条记录')
-    await expect(
-      tools.mail_move.run(
-        { accountId, uid: 1, targetFolder: '' },
-        ctx,
-      ),
-    ).rejects.toThrow('targetFolder')
   })
 
   test('read and write tools reach the shared services', async () => {
     const calls: string[] = []
-    const tools = createTools(makeDeps(calls))
+    const tools = createTools(makeServices(calls))
     const shelf = await tools.shelf_list.run({}, ctx)
     expect(shelf.text).toContain('note.txt')
 
@@ -161,7 +146,7 @@ describe('agent tool registry', () => {
   })
 
   test('safe titles stay short and fall back to the tool name', () => {
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     const tool = tools.shell_run
     expect(safeTitle(tool, { command: 'echo hi' })).toContain('echo hi')
     const broken = {
@@ -177,7 +162,7 @@ describe('agent tool registry', () => {
 describe('shell tool', () => {
   test('runs in the session workspace and returns output', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'mqmz-shell-'))
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     const result = await tools.shell_run.run(
       { command: 'printf mqmz-shell-ok' },
       { workspace, signal: new AbortController().signal },
@@ -188,7 +173,7 @@ describe('shell tool', () => {
   })
 
   test('requires a workspace', async () => {
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     await expect(
       tools.shell_run.run(
         { command: 'echo hi' },
@@ -199,7 +184,7 @@ describe('shell tool', () => {
 
   test('stops on timeout', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'mqmz-shell-'))
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     const started = Date.now()
     const result = await tools.shell_run.run(
       { command: 'sleep 3', timeoutSeconds: 1 },
@@ -211,7 +196,7 @@ describe('shell tool', () => {
 
   test('truncates very large output', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'mqmz-shell-'))
-    const tools = createTools(makeDeps())
+    const tools = createTools(makeServices())
     const result = await tools.shell_run.run(
       { command: 'yes x | head -c 100000' },
       { workspace, signal: new AbortController().signal },

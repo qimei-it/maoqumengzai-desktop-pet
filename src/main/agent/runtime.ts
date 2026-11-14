@@ -12,6 +12,7 @@ import type {
   AgentToolPart,
 } from '../../shared/agent'
 import type { DeepSeekModel } from '../../shared/deepseek'
+import type { SettingsState } from '../../shared/settings'
 import {
   loadAgentStore,
   maxHistoryEntries,
@@ -30,13 +31,16 @@ import {
   permissionFor,
   safeTitle,
   toolDefinition,
-  type AgentDeps,
   type AgentTool,
 } from './tools'
+import type { Services } from '../services/contracts'
 
-export type AgentRuntimeDeps = AgentDeps & {
+export type AgentRuntimeDeps = {
+  services: Services
   storePath: string
   getKey(): string | undefined
+  getSettings(): SettingsState
+  getPetProfile(): AgentPetProfile
   broadcast(): void
   pickWorkspace(): Promise<string | null>
   /** Injectable for tests; production uses the real streaming client. */
@@ -155,7 +159,7 @@ function systemPrompt(
 
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const stream = deps.stream ?? streamChat
-  const tools = createTools(deps)
+  const tools = createTools(deps.services)
   const toolList = Object.values(tools)
   const buildDefinitions = toolList.map(toolDefinition)
   const planDefinitions = toolList

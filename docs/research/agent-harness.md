@@ -13,14 +13,16 @@ Agent Runtime（src/main/agent/runtime.ts）
   ├─ tools.ts      工具注册与执行
   └─ 权限、审批、取消、用量、上下文裁剪
   ↓
-共享服务层（主进程现有函数）
-  ├─ 置物架、待办、音乐、设置、剪贴板
-  ├─ 邮件账户与发送
-  ├─ shell（用户选择的工作区）
-  └─ 应用面板
+Services（src/main/services/contracts.ts，结构化返回）
+  ├─ shelf / convert / archive / rename
+  ├─ todo / mail / music / settings / clipboard / focus
+  ├─ shell（独立实现）
+  └─ panel
+  ↓
+ServiceContext（index.ts 提供的现有主进程能力）
 ```
 
-工具直接调用主进程服务，不操作渲染层 DOM，也不模拟点击。Agent 修改状态后照常 `broadcast()`，用户手动操作看到的结果与 Agent 操作一致。
+工具只依赖 `Services` 契约，不操作渲染层 DOM，也不模拟点击。服务不抛异常，统一返回 `{ ok, value } | { ok, error }`；展示文案由工具或面板拼接。Agent 修改状态后照常 `broadcast()`，用户手动操作看到的结果与 Agent 操作一致。契约细节见[服务层与工具契约](agent-service-contracts.md)。
 
 ## 会话
 
@@ -114,3 +116,4 @@ Agent Runtime（src/main/agent/runtime.ts）
 - 人格切换联调：麻薯 → 小白后，下一次回复使用新名字；同一会话仍正常调用工具。
 - Electron 定向用例：`tests/e2e/agent-panel.spec.ts` 覆盖连接页、模型切换、模式切换、新建会话、宠物档案按钮。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、shell 超时与截断。
+- 服务契约测试：`tests/unit/services-contract.test.ts` 覆盖结构化成功返回、校验错误、设置白名单、邮件收件人、剪贴板、番茄钟边界和文本/二进制读取。
