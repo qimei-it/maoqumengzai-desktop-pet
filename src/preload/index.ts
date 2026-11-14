@@ -12,6 +12,7 @@ const api: PrototypeApi = {
   setHitMask: (mask) => ipcRenderer.invoke(channels.mask, mask),
   pointer: (phase) => ipcRenderer.invoke(channels.pointer, phase),
   selectFiles: () => ipcRenderer.invoke(channels.selectFiles),
+  selectEntry: () => ipcRenderer.invoke(channels.selectEntry),
   receiveFiles: (files) => {
     try {
       if (!Array.isArray(files) || files.length === 0 || files.length > 32)

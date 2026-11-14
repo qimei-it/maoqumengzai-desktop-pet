@@ -92,7 +92,7 @@ tests/
 - 稳定应用 ID 拟定为 `com.mqmz.desktop`，凭据用途标识沿用 `com.mqmz.desktop.mail` 等；发布签名与 ID 固定后保持一致。
 - 在首个窗口/会话创建前显式设置本应用 `userData`：Windows 使用系统 LocalAppData 下的 `mqmz-desktop`，预期为 `%LOCALAPPDATA%/mqmz-desktop`；macOS 使用 `app.getPath('appData')` 下的 `mqmz-desktop`，预期为 `~/Library/Application Support/mqmz-desktop`。实际路径以系统解析为准，见 [Electron app 文档](https://www.electronjs.org/docs/latest/api/app)与 [Windows Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid)。Windows 采用本地目录，避免将设备历史默认放入漫游配置目录；应用不发起自动同步或云备份。
 - 子目录划分为 `db/`、`credentials/`、`cache/`、`assets/`、`jobs/`、`logs/` 与 Chromium 会话目录；数据库拟名 `mqmz.sqlite3`，表如 `mqmz_settings`、`mqmz_todos`、`mqmz_reminder_records`、`mqmz_clipboard_items`、`mqmz_conversion_jobs`。
-- P0 最小置物架已用 `mqmz.file-shelf.json` 持久化本地文件索引，原件保留原处；P3 接入 SQLite 时迁移并保留这些记录。文件卡片独立为旁侧轻窗口；大型开发诊断台不进入正式版。
+- P0 最小置物架已用 `mqmz.file-shelf.json` 持久化本地文件与文件夹索引，原件保留原处；索引 `version: 2` 记录 `kind`，读取时兼容只有文件的 `version: 1`。文件夹只在置物架保存引用，不统计体积、不支持拖出，可定位和移出。P3 接入 SQLite 时迁移并保留这些记录。文件卡片独立为旁侧轻窗口；大型开发诊断台不进入正式版。
 - “吃掉”把文件移入 `mqmz-desktop/belly/`，索引写入 `mqmz.belly.json`，默认保留 7 天并可在置物架取回；到期清理只删除回收区内的副本。该目录属于本地数据，不参与云端同步。
 - 文件拖入桌宠时使用 Filee 式等分圆环（MIT 移植）：十个 36° 扇区为置物架、格式转换、打包归档、解压缩、压缩大小、吃掉、另存副本、发送邮件、批量重命名、智能问答，中心是宠物、松手取消；扇区间距 3px 等宽、圆角 6px、悬停弹出 7px；外缘用径向渐变光晕（外径 +22，峰值 20%）。圆环只在拖拽期间存在，不额外占用常驻窗口；展开时先把透明窗口从 132×156 瞬间切到 312×312 DIP、再挂载轮盘（窗口不参与动画，避免裁剪），关闭时先播完轮盘收起再恢复窗口。
 - 原始文件保持在原处；置物架保存索引。截图、附件、缓存、素材与引擎采用各自明确的所有权/清理策略。

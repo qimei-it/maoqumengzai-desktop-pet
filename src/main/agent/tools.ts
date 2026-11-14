@@ -207,7 +207,7 @@ export function createTools(services: Services): Record<string, AgentTool> {
   const tools: AgentTool[] = [
     {
       name: 'shelf_list',
-      description: '列出置物架里的文件，包含文件 ID、名称、大小和状态。',
+      description: '列出置物架里的文件和文件夹，包含 ID、名称、大小和状态。',
       parameters: {
         type: 'object',
         properties: {},
@@ -225,7 +225,8 @@ export function createTools(services: Services): Record<string, AgentTool> {
             files.map((file) => ({
               id: file.id,
               name: file.name,
-              size: formatSize(file.size),
+              kind: file.kind === 'folder' ? '文件夹' : '文件',
+              size: file.kind === 'folder' ? '—' : formatSize(file.size),
               status: file.status,
             })),
           ),

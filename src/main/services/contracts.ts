@@ -28,6 +28,7 @@ export type ShelfFileInfo = {
   id: string
   name: string
   size: number
+  kind: 'file' | 'folder'
   status: string
 }
 

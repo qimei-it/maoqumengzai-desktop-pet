@@ -24,6 +24,7 @@ describe('service contracts', () => {
           id: shelfFileId,
           name: 'note.txt',
           size: 10,
+          kind: 'file',
           status: 'shelved',
         },
       ],

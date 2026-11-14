@@ -272,6 +272,11 @@ async function selectFiles(): Promise<void> {
     if (api) state.value = unwrap(await api.selectFiles());
   });
 }
+async function selectEntry(): Promise<void> {
+  await attempt(async () => {
+    if (api) state.value = unwrap(await api.selectEntry());
+  });
+}
 function flash(message: string): void {
   if (api) {
     void command({ type: "notify", text: message });
@@ -1888,6 +1893,7 @@ onUnmounted(() => {
     :error="error"
     @command="command"
     @select-files="selectFiles"
+    @select-entry="selectEntry"
     @receive-files="receiveFiles"
   />
 
@@ -2009,12 +2015,18 @@ onUnmounted(() => {
           >
             <div
               class="file-info"
-              draggable="true"
+              :draggable="file.kind === 'file'"
               @dragstart="startDrag($event, file.id)"
-              title="按住文件拖到桌面或文件夹"
+              :title="
+                file.kind === 'file'
+                  ? '按住文件拖到桌面或文件夹'
+                  : '文件夹可定位或移出置物架'
+              "
             >
               <strong :title="file.name">{{ file.name }}</strong
-              ><span>{{ size(file.size) }} · 本地文件</span>
+              ><span v-if="file.kind === 'file'"
+                >{{ size(file.size) }} · 本地文件</span
+              ><span v-else>本地文件夹</span>
             </div>
             <div class="file-actions">
               <button

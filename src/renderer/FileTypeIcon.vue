@@ -3,10 +3,14 @@ import { computed } from 'vue'
 import { fileIconFor } from './file-icons'
 
 const props = withDefaults(
-  defineProps<{ name: string; size?: number }>(),
-  { size: 18 },
+  defineProps<{
+    name: string
+    kind?: 'file' | 'folder'
+    size?: number
+  }>(),
+  { size: 18, kind: 'file' },
 )
-const source = computed(() => fileIconFor(props.name))
+const source = computed(() => fileIconFor(props.name, props.kind))
 </script>
 
 <template>

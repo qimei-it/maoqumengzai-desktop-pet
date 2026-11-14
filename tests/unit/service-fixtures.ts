@@ -16,6 +16,7 @@ export function makeContext(
         id: shelfFileId,
         name: 'note.txt',
         size: 10,
+        kind: 'file',
         status: 'shelved',
       },
     ],

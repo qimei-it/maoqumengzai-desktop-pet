@@ -9,6 +9,7 @@ const props = defineProps<{ state?: Snapshot; error: string }>()
 const emit = defineEmits<{
   command: [command: Command]
   selectFiles: []
+  selectEntry: []
   receiveFiles: [files: File[]]
 }>()
 const selectedId = ref('')
@@ -18,6 +19,7 @@ const selected = computed(
     props.state?.files.find((file) => file.id === selectedId.value) ||
     props.state?.files.at(-1),
 )
+const selectedIsFolder = computed(() => selected.value?.kind === 'folder')
 watch(
   () => props.state?.files.map((file) => file.id).join(':'),
   () => {
@@ -43,7 +45,7 @@ function receive(event: DragEvent): void {
 }
 function convertSelected(): void {
   const file = selected.value
-  if (!file) return
+  if (!file || file.kind !== 'file') return
   emit('command', { type: 'convert-open', fileIds: [file.id] })
 }
 function commandForSelected(
@@ -51,6 +53,7 @@ function commandForSelected(
 ): void {
   const file = selected.value
   if (!file) return
+  if (type === 'save-copy' && file.kind === 'folder') return
   emit('command', { type, fileId: file.id })
 }
 </script>
@@ -84,9 +87,9 @@ function commandForSelected(
         <span class="pocket-or">或</span>
         <button
           class="settings-button primary pocket-select"
-          @click="emit('selectFiles')"
+          @click="emit('selectEntry')"
         >
-          选择本地文件
+          添加本地文件或目录
         </button>
       </div>
 
@@ -96,11 +99,14 @@ function commandForSelected(
             v-for="file in state.files"
             :key="file.id"
             class="pocket-file"
-            :class="{ selected: selected?.id === file.id }"
-            draggable="true"
+            :class="{
+              selected: selected?.id === file.id,
+              folder: file.kind === 'folder',
+            }"
+            :draggable="file.kind === 'file'"
             tabindex="0"
             role="button"
-            :aria-label="`文件 ${file.name}`"
+            :aria-label="`${file.kind === 'folder' ? '文件夹' : '文件'} ${file.name}`"
             :aria-pressed="selected?.id === file.id"
             data-testid="pocket-file"
             @click="selectedId = file.id"
@@ -109,13 +115,20 @@ function commandForSelected(
             @dragstart="startDrag($event, file.id)"
           >
             <span class="pocket-file-symbol">
-              <FileTypeIcon :name="file.name" :size="22" />
+              <FileTypeIcon
+                :name="file.name"
+                :kind="file.kind"
+                :size="22"
+              />
             </span>
             <strong class="pocket-file-name" :title="file.name">{{
               file.name
             }}</strong>
-            <span class="pocket-file-size">{{ size(file.size) }}</span>
+            <span v-if="file.kind === 'file'" class="pocket-file-size">{{
+              size(file.size)
+            }}</span>
             <GripVertical
+              v-if="file.kind === 'file'"
               class="pocket-drag-icon"
               :size="16"
               :stroke-width="2"
@@ -156,10 +169,18 @@ function commandForSelected(
         >
           新增文件
         </button>
-        <button class="settings-button" @click="convertSelected">
+        <button
+          class="settings-button"
+          :disabled="selectedIsFolder"
+          @click="convertSelected"
+        >
           格式转换
         </button>
-        <button class="settings-button" @click="commandForSelected('save-copy')">
+        <button
+          class="settings-button"
+          :disabled="selectedIsFolder"
+          @click="commandForSelected('save-copy')"
+        >
           另存副本
         </button>
         <button
@@ -221,6 +242,10 @@ function commandForSelected(
 }
 .pocket-file:active {
   cursor: grabbing;
+}
+.pocket-file.folder,
+.pocket-file.folder:active {
+  cursor: default;
 }
 .pocket-file:focus-visible {
   outline: 2px solid var(--color-brand-ink);

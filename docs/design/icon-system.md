@@ -28,16 +28,30 @@
 
 ## 文件类型图标
 
-文件卡片、转换面板和智能问答的文件名前使用用户提供的彩色文件类型图标，保存在 `src/renderer/assets/file-icons/`，按扩展名映射：
+文件卡片、转换面板和智能问答的文件名前使用用户提供的彩色文件类型图标，保存在 `src/renderer/assets/file-icons/`，按扩展名映射。文件夹没有扩展名，按置物架条目的 `kind` 直接使用文件夹图标：
 
 | 类型 | 扩展名 | 图标 |
 | --- | --- | --- |
+| 文件夹 | 目录条目（`kind=folder`） | `folder.svg` |
 | 文本 | txt / text / log | `txt.svg` |
 | PDF | pdf | `pdf.svg` |
 | 图片 | jpg / jpeg / png / webp / heic / gif 等 | `image.svg` |
-| 视频 | mp4 / mov / mkv / webm / avi 等 | `video.svg` |
+| 视频 | mp4 / mov / mkv / webm / avi 等（含 `.ts`） | `video.svg` |
 | Markdown | md / markdown | `markdown.svg` |
-| 其他文档 | doc / docx / xls / xlsx / ppt / pptx 等 | `document.svg` |
+| 表格 | xls / xlsx / xlsm / xlsb / numbers | `spreadsheet.svg` |
+| CSV | csv / tsv | `csv.svg` |
+| 演示文稿 | ppt / pptx / pps / ppsx / key | `slides.svg` |
+| 文档 | doc / docx / rtf / odt / pages | `doc.svg` |
+| 设计稿 | psd / psb / ai / sketch / fig | `psd.svg` |
+| XML | xml / xsl / xslt / plist | `xml.svg` |
+| 可执行文件 | exe / msi / dmg / pkg / deb / rpm / apk 等 | `exe.svg` |
+| 源代码 | js / tsx / vue / py / java / go / rs 等 | `code.svg` |
+| 快捷方式 | lnk / alias / url / webloc / desktop | `shortcut.svg` |
+| 其他文档 | 未识别扩展名 | `document.svg` |
+
+`.ts` 仍按 MPEG-TS 视频处理，不按 TypeScript 归入源代码；这是为避免同类文件图标回退而保留的既有行为。
+
+图标来源为用户提供的 iconfont 图标集：[iconfont collections · cid=14749](https://www.iconfont.cn/collections/detail?cid=14749)（2026-11-14 录入）。原始 SVG 的 `t`、`p-id`、`class` 与固定像素宽高已移除，保留 `viewBox`、图形路径和原始填充色，另补 `<title>`；视觉设计授权以该图标集页面标注为准。
 
 这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–24px，标记为装饰性。
 

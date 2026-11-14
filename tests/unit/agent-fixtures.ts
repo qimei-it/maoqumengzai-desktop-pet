@@ -31,6 +31,7 @@ export function makeServices(calls: string[] = []): Services {
             id: shelfFileId,
             name: 'note.txt',
             size: 10,
+            kind: 'file',
             status: 'shelved',
           },
         ],

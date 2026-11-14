@@ -6,6 +6,16 @@ import image from './assets/file-icons/image.svg'
 import video from './assets/file-icons/video.svg'
 import markdown from './assets/file-icons/markdown.svg'
 import document from './assets/file-icons/document.svg'
+import folder from './assets/file-icons/folder.svg'
+import spreadsheet from './assets/file-icons/spreadsheet.svg'
+import csv from './assets/file-icons/csv.svg'
+import slides from './assets/file-icons/slides.svg'
+import doc from './assets/file-icons/doc.svg'
+import psd from './assets/file-icons/psd.svg'
+import xml from './assets/file-icons/xml.svg'
+import exe from './assets/file-icons/exe.svg'
+import code from './assets/file-icons/code.svg'
+import shortcut from './assets/file-icons/shortcut.svg'
 
 const extensionOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -27,6 +37,7 @@ const imageExtensions = new Set([
   'avif',
 ])
 const videoExtensions = new Set([
+  // `.ts` stays a video container (MPEG-TS); TypeScript files keep this icon.
   'mp4',
   'mov',
   'mkv',
@@ -64,8 +75,84 @@ const archiveExtensions = new Set([
   'lzh',
 ])
 
+const spreadsheetExtensions = new Set(['xls', 'xlsx', 'xlsm', 'xlsb', 'numbers'])
+const csvExtensions = new Set(['csv', 'tsv'])
+const slidesExtensions = new Set(['ppt', 'pptx', 'pps', 'ppsx', 'key'])
+const docExtensions = new Set(['doc', 'docx', 'rtf', 'odt', 'pages'])
+const psdExtensions = new Set(['psd', 'psb', 'ai', 'sketch', 'fig'])
+const xmlExtensions = new Set(['xml', 'xsl', 'xslt', 'plist'])
+const exeExtensions = new Set([
+  'exe',
+  'msi',
+  'com',
+  'bat',
+  'cmd',
+  'dmg',
+  'pkg',
+  'deb',
+  'rpm',
+  'apk',
+  'appimage',
+])
+const codeExtensions = new Set([
+  'js',
+  'mjs',
+  'cjs',
+  'jsx',
+  'tsx',
+  'vue',
+  'svelte',
+  'py',
+  'java',
+  'c',
+  'h',
+  'cpp',
+  'cc',
+  'hpp',
+  'cs',
+  'go',
+  'rs',
+  'rb',
+  'php',
+  'swift',
+  'kt',
+  'kts',
+  'scala',
+  'lua',
+  'pl',
+  'r',
+  'dart',
+  'sql',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'json',
+  'jsonc',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'ps1',
+  'vbs',
+  'gradle',
+  'groovy',
+  'tex',
+])
+const shortcutExtensions = new Set(['lnk', 'alias', 'url', 'webloc', 'desktop'])
+
 /** File-type artwork chosen by extension; unknown documents use the blue sheet. */
-export function fileIconFor(name: string): string {
+export function fileIconFor(
+  name: string,
+  kind: 'file' | 'folder' = 'file',
+): string {
+  if (kind === 'folder') return folder
   const extension = extensionOf(name)
   if (extension === '7z') return archive7z
   if (archiveExtensions.has(extension)) return archive
@@ -75,5 +162,14 @@ export function fileIconFor(name: string): string {
   if (extension === 'pdf') return pdf
   if (imageExtensions.has(extension)) return image
   if (videoExtensions.has(extension)) return video
+  if (spreadsheetExtensions.has(extension)) return spreadsheet
+  if (csvExtensions.has(extension)) return csv
+  if (slidesExtensions.has(extension)) return slides
+  if (docExtensions.has(extension)) return doc
+  if (psdExtensions.has(extension)) return psd
+  if (xmlExtensions.has(extension)) return xml
+  if (exeExtensions.has(extension)) return exe
+  if (shortcutExtensions.has(extension)) return shortcut
+  if (codeExtensions.has(extension)) return code
   return document
 }

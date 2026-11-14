@@ -38,6 +38,7 @@ export const channels = {
   pointer: 'mqmz:pet:pointer',
   hover: 'mqmz:pet:hover',
   selectFiles: 'mqmz:files:select',
+  selectEntry: 'mqmz:files:select-entry',
   receiveFiles: 'mqmz:files:receive',
   startDrag: 'mqmz:files:start-drag',
   capture: 'mqmz:capture:preview',
@@ -65,6 +66,7 @@ export type LocalFile = {
   name: string
   size: number
   modifiedAt: number
+  kind: 'file' | 'folder'
   status: 'received' | 'shelved'
 }
 export type ReceivedFolder = { id: string; name: string }
@@ -744,6 +746,7 @@ export interface PrototypeApi {
   setHitMask(mask: HitMask): Promise<Result<void>>
   pointer(phase: 'down' | 'up' | 'cancel'): Promise<Result<void>>
   selectFiles(): Promise<Result<Snapshot>>
+  selectEntry(): Promise<Result<Snapshot>>
   receiveFiles(files: File[]): Promise<Result<Snapshot>>
   startDrag(fileId: string): void
   capturePreview(): Promise<Result<CapturePreview[]>>
