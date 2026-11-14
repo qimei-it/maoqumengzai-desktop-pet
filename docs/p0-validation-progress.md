@@ -94,6 +94,7 @@
 - FFmpeg 下载镜像与失败提示（macOS arm64，2026-11-14）：直连 GitHub Release 失败时依次尝试 `gh-proxy.com`、`ghproxy.net`、`ghfast.top` 三个公共代理，单次连接超时 12 秒，跳过返回网页的响应，安装前仍按清单校验 SHA-256；设置页下载失败只在引擎卡片右上角显示“安装失败”药丸，不再在卡片下方显示 `net::ERR_CONNECTION_CLOSED` 等原始网络错误。三个镜像以真实 HEAD 与分段 GET 验证可访问，`gh-proxy.com` 完整下载的 macOS 制品 SHA-256 与清单一致（14,488,314 字节）；兰州大学 Jellyfin 镜像仅有 GPL 构建且 macOS 为未公证便携包，不采用。Windows x64 镜像与安装流程待验证。
 - 置物架图标补齐（macOS arm64，2026-11-14）：新增音频类型图标（mp3/wav/flac/m4a/aac/ogg/opus/wma/aiff），补充 ods/odp/ofd/epub/mobi/srt/ipa/appx/drawio 与相机 RAW、更多视频容器、ipynb 等扩展名映射；打包归档面板的文件夹行改用同一套彩色文件夹图标，替身条目沿用快捷方式图标。定向单测 `file-icons`、`ffmpeg`、`engines`、`alias`、`shelf-index`、`services-contract`、`agent-tools` 共 37 项通过。
 - 功能面板改为普通窗口层级（macOS arm64，2026-11-14）：置物架、智能体、文件转换、打包归档、批量重命名不再 `alwaysOnTop`、不再 `setVisibleOnAllWorkspaces`，打开时仍 `moveTop()` + `focus()` 到前台，切到其他应用后可被正常遮挡；系统截图（⌘⇧4）的窗口蓝框可以覆盖面板。桌宠与跟宠浮层保持置顶。验证：`npm run typecheck`、`npm run build`（含 check:design/check:icons）通过；`prototype.spec.ts` 的 macOS 面板控件用例改为断言全部功能面板 `isAlwaysOnTop() === false` 并保留桌宠为 `true`，与 `panel-independence.spec.ts` 2 项、`shelf-folder.spec.ts` 3 项通过；用真实 WindowServer 窗口列表核对新构建实例：智能体与置物架为 layer 0，桌宠为 layer 3。⌘⇧4 蓝框的肉眼确认与 Windows x64 行为仍待人工验证。
+- 置物架空状态文案（macOS arm64，2026-11-14）：按钮由“添加本地文件或目录”改为“选择本地文件与目录”，macOS 原生选择面板标题同步；`shelf-folder.spec.ts` 按新文案定位，3 项通过。
 - 本轮先整理并提交当前资料，按 GitHub → GitLab 顺序同步；两个远端已在本地配置。
 - 默认角色只保留麻薯，沿用当前美术风格；不再全局固定 2.5D 像素风或统一像素网格。首版不做帧动画。
 - 当前样例改为用户先在 ChatGPT App 制作，不启动火山方舟付费生成；生产端火山方舟、积分与资源包交付方案仍按需求基线保留，尚未验证。

@@ -9156,7 +9156,7 @@ function setupIpc(): void {
     let selection: Electron.OpenDialogReturnValue
     try {
       selection = await dialog.showOpenDialog(owner!, {
-        title: '添加本地文件或目录',
+        title: '选择本地文件与目录',
         // macOS can mix files and folders in one panel. Windows and Linux
         // cannot, so the fallback keeps the file selector and folders arrive
         // by dragging onto the pet or the pocket.

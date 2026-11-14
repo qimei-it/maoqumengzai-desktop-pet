@@ -89,7 +89,7 @@ function commandForSelected(
           class="settings-button primary pocket-select"
           @click="emit('selectEntry')"
         >
-          添加本地文件或目录
+          选择本地文件与目录
         </button>
       </div>
 

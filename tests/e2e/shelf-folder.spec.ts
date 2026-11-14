@@ -159,7 +159,7 @@ test("removing a folder keeps the directory on disk", async () => {
     .click();
   await expect(pocket.getByTestId("pocket-file")).toHaveCount(0);
   await expect(
-    pocket.getByRole("button", { name: "添加本地文件或目录", exact: true }),
+    pocket.getByRole("button", { name: "选择本地文件与目录", exact: true }),
   ).toBeVisible();
   expect((await stat(filePath)).isFile()).toBe(true);
 });
