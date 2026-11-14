@@ -3316,6 +3316,37 @@ test("dropping two files on 批量重命名 renames them with a format", async (
       return files.includes("文件1.txt") && files.includes("文件2.txt");
     })
     .toBe(true);
+  await rename.evaluate(() =>
+    window.mqmz!.command({ type: "rename-close" }),
+  );
+  const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+  for (const file of snapshot.ok ? snapshot.value.files : [])
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
+});
+
+test("dropping one file on 批量重命名 opens the panel", async () => {
+  const fixture = join(directory, "旧名.txt");
+  await writeFile(fixture, "single");
+  await dropOnPet(fixture, "rename");
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.renameOpen : false;
+    })
+    .toBe(true);
+  await expect(rename.getByText("给 1 个项目重新命名")).toBeVisible();
+  await rename.getByLabel("查找").fill("旧名");
+  await rename.getByLabel("替换成").fill("新名");
+  await rename.getByRole("button", { name: "重命名", exact: true }).click();
+  await expect
+    .poll(async () => (await readdir(directory)).includes("新名.txt"))
+    .toBe(true);
+  await rename.evaluate(() =>
+    window.mqmz!.command({ type: "rename-close" }),
+  );
   const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
   for (const file of snapshot.ok ? snapshot.value.files : [])
     await lab.evaluate(

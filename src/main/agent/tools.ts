@@ -1116,7 +1116,7 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
         `重命名 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件`,
       async run(args) {
         const ids = fileIdList(args.fileIds)
-        if (ids.length < 2) throw new Error('至少需要两个文件。')
+        if (!ids.length) throw new Error('没有可重命名的文件。')
         const mode =
           args.mode === 'add' || args.mode === 'format'
             ? args.mode

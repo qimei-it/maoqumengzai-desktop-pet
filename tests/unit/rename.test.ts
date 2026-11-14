@@ -67,6 +67,24 @@ describe('batch rename preview', () => {
     expect(sanitizeStem('合同/附件:*?')).toBe('合同_附件___')
   })
 
+  test('folder names are renamed as a whole without extension splitting', () => {
+    expect(
+      previewRename(
+        [
+          { name: '素材.v2', kind: 'folder' },
+          { name: '报告.txt', kind: 'file' },
+        ],
+        config({ mode: 'format', text: '项目', format: 'index' }),
+      ),
+    ).toEqual(['项目1', '项目2.txt'])
+    expect(
+      previewRename(
+        [{ name: '素材.v2', kind: 'folder' }],
+        config({ mode: 'add', text: '2026 ', position: 'before' }),
+      ),
+    ).toEqual(['2026 素材.v2'])
+  })
+
   test('splitName keeps dotfiles intact', () => {
     expect(splitName('a.tar.gz')).toEqual({ stem: 'a.tar', extension: '.gz' })
     expect(splitName('.env')).toEqual({ stem: '.env', extension: '' })

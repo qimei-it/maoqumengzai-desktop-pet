@@ -1,6 +1,8 @@
 /** Pure batch-rename rules shared by the panel preview and the main process. */
 
 export type RenameMode = 'replace' | 'add' | 'format'
+export type RenameKind = 'file' | 'folder'
+export type RenameItem = { name: string; kind: RenameKind }
 export type RenamePosition = 'before' | 'after'
 export type RenameFormat = 'index' | 'counter' | 'date'
 
@@ -24,7 +26,11 @@ export const defaultRenameConfig: RenameConfig = {
   start: 1,
 }
 
-export function splitName(name: string): { stem: string; extension: string } {
+export function splitName(
+  name: string,
+  kind: RenameKind = 'file',
+): { stem: string; extension: string } {
+  if (kind === 'folder') return { stem: name, extension: '' }
   const dot = name.lastIndexOf('.')
   if (dot <= 0) return { stem: name, extension: '' }
   return { stem: name.slice(0, dot), extension: name.slice(dot) }
@@ -75,13 +81,17 @@ function renamedStem(stem: string, config: RenameConfig, index: number, now: Dat
  * collisions are resolved by the main process when applying.
  */
 export function previewRename(
-  names: readonly string[],
+  items: readonly (string | RenameItem)[],
   config: RenameConfig,
   now = new Date(),
 ): string[] {
   const used = new Set<string>()
-  return names.map((name, index) => {
-    const { stem, extension } = splitName(name)
+  return items.map((item, index) => {
+    const { name, kind } =
+      typeof item === 'string'
+        ? { name: item, kind: 'file' as const }
+        : item
+    const { stem, extension } = splitName(name, kind)
     let candidate = sanitizeStem(
       renamedStem(stem, config, index, now),
     )

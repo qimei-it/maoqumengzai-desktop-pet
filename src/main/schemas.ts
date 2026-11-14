@@ -232,7 +232,8 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('rename-open'),
-      fileIds: z.array(z.string().uuid()).max(32),
+      fileIds: z.array(fileId).max(32).default([]),
+      folderIds: z.array(fileId).max(32).default([]),
     })
     .strict(),
   z

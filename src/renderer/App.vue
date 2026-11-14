@@ -596,6 +596,23 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       return;
     }
 
+    if (action === "rename") {
+      const total = ids.length + folderIds.length;
+      if (!total) {
+        flashMissedFolders(skipped, "未参与批量重命名");
+        return;
+      }
+      state.value = unwrap(
+        await api.command({
+          type: "rename-open",
+          fileIds: ids,
+          folderIds,
+        }),
+      );
+      flashMissedFolders(skipped, "未参与批量重命名");
+      return;
+    }
+
     const folderResult = fileOnlyFolderResults[action] ?? "未处理";
     const missed = [...folderNames, ...skipped];
     if (!ids.length) {
@@ -622,14 +639,6 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
     } else if (action === "mail") {
       state.value = unwrap(await api.command({ type: "mail-open" }));
       flash("邮件附件发送尚未接入");
-    } else if (action === "rename") {
-      if (ids.length < 2) {
-        flash("至少选择两个文件才能批量重命名");
-        return;
-      }
-      state.value = unwrap(
-        await api.command({ type: "rename-open", fileIds: ids }),
-      );
     } else if (action === "stash") {
       // Files are shelved as soon as they are received, so the wheel action
       // just surfaces the pocket instead of asking for a second confirmation.

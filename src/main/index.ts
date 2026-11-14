@@ -259,6 +259,7 @@ import { shrinkImage } from './compress-images'
 import { convertImage } from './convert-images'
 import {
   previewRename,
+  splitName,
   type RenameConfig,
 } from '../shared/rename'
 import {
@@ -488,6 +489,11 @@ let archiveFolder: string | undefined
 let archiveToken = 0
 let archiveFolderPaths = new Map<string, string>()
 let renameFiles: RenameFile[] = []
+let renameSession = 0
+let renameFolders = new Map<
+  string,
+  { path: string; device: number; inode: number }
+>()
 let renameBusy = false
 let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
@@ -620,7 +626,7 @@ const agent = createAgentRuntime({
   extractFiles: (ids) => extractSelected(ids),
   renameFiles: async (ids, config) => {
     openRename(ids)
-    if (renameFiles.length < 2) throw new Error('至少需要两个文件。')
+    if (!renameFiles.length) throw new Error('没有可重命名的项目。')
     try {
       return await applyRename(config)
     } finally {
@@ -2265,7 +2271,11 @@ async function revealConvert(): Promise<void> {
   if (error) throw new Error('无法打开输出目录。')
 }
 function renameState(): RenameState {
-  return { busy: renameBusy, files: [...renameFiles] }
+  return {
+    busy: renameBusy,
+    session: renameSession,
+    files: [...renameFiles],
+  }
 }
 function positionRename(): void {
   if (!renameWindow || renameWindow.isDestroyed()) return
@@ -2282,15 +2292,41 @@ function positionRename(): void {
   )
   renameWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-function openRename(fileIds: string[]): void {
-  const selected = fileIds
+function openRename(fileIds: string[], folderIds: string[] = []): void {
+  const selectedFiles = fileIds
     .map((id) => files.get(id))
     .filter((file): file is NonNullable<typeof file> => Boolean(file))
-  if (selected.length < 2) {
-    showToast('至少选择两个文件才能批量重命名')
+  const selectedFolders = folderIds.flatMap((id) => {
+    const folder = receivedFolders.get(id)
+    return folder ? [{ id, ...folder }] : []
+  })
+  if (!selectedFiles.length && !selectedFolders.length) {
+    showToast('没有可重命名的项目')
     return
   }
-  renameFiles = selected.slice(0, 32).map(({ id, name }) => ({ id, name }))
+  renameFolders = new Map(
+    selectedFolders.map((folder) => [
+      folder.id,
+      {
+        path: folder.path,
+        device: folder.device,
+        inode: folder.inode,
+      },
+    ]),
+  )
+  renameFiles = [
+    ...selectedFiles.map(({ id, name }) => ({
+      id,
+      name,
+      kind: 'file' as const,
+    })),
+    ...selectedFolders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      kind: 'folder' as const,
+    })),
+  ].slice(0, 32)
+  renameSession += 1
   renameBusy = false
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
@@ -2306,6 +2342,7 @@ function openRename(fileIds: string[]): void {
 }
 function closeRename(): void {
   renameWindow?.hide()
+  renameFolders = new Map()
   broadcast()
 }
 function settingsState(): SettingsState {
@@ -5613,14 +5650,45 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 async function applyRename(config: RenameConfig): Promise<number> {
-  if (renameFiles.length < 2) throw new Error('至少选择两个文件。')
-  const sources: { id: string; path: string; name: string; dir: string }[] = []
-  for (const file of renameFiles) {
-    const path = await registeredFile(file.id)
-    sources.push({ id: file.id, path, name: file.name, dir: dirname(path) })
+  if (!renameFiles.length) throw new Error('没有可重命名的项目。')
+  const sources: {
+    id: string
+    kind: 'file' | 'folder'
+    path: string
+    name: string
+    dir: string
+  }[] = []
+  for (const item of renameFiles) {
+    if (item.kind === 'folder') {
+      const folder = renameFolders.get(item.id)
+      if (!folder) throw new Error(`文件夹“${item.name}”记录不存在。`)
+      const info = await lstat(folder.path).catch(() => null)
+      if (
+        !info?.isDirectory() ||
+        info.dev !== folder.device ||
+        info.ino !== folder.inode
+      )
+        throw new Error(`文件夹“${item.name}”已不存在。`)
+      sources.push({
+        id: item.id,
+        kind: 'folder',
+        path: folder.path,
+        name: item.name,
+        dir: dirname(folder.path),
+      })
+      continue
+    }
+    const path = await registeredFile(item.id)
+    sources.push({
+      id: item.id,
+      kind: 'file',
+      path,
+      name: item.name,
+      dir: dirname(path),
+    })
   }
   const preview = previewRename(
-    sources.map((source) => source.name),
+    sources.map((source) => ({ name: source.name, kind: source.kind })),
     config,
   )
   const sourcePaths = new Set(sources.map((source) => source.path))
@@ -5628,8 +5696,7 @@ async function applyRename(config: RenameConfig): Promise<number> {
   for (let index = 0; index < sources.length; index += 1) {
     const source = sources[index]
     const name = preview[index]
-    const extension = extname(name)
-    const stem = extension ? name.slice(0, -extension.length) : name
+    const { stem, extension } = splitName(name, source.kind)
     let attempt = 1
     let destination = join(source.dir, name)
     while (
@@ -5687,6 +5754,7 @@ async function applyRename(config: RenameConfig): Promise<number> {
 
   let shelved = false
   for (const entry of planned) {
+    if (entry.source.kind !== 'file') continue
     const file = files.get(entry.source.id)
     if (!file) continue
     file.path = entry.destination
@@ -5702,7 +5770,7 @@ async function applyRename(config: RenameConfig): Promise<number> {
     if (file.status === 'shelved') shelved = true
   }
   if (shelved) await saveShelf()
-  addEvent(`已重命名 ${changes.length} 个文件。`)
+  addEvent(`已重命名 ${changes.length} 个项目。`)
   return changes.length
 }
 async function registerOutputs(paths: readonly string[]): Promise<void> {
@@ -8328,7 +8396,7 @@ function setupIpc(): void {
         await revealConvert()
         break
       case 'rename-open':
-        openRename(command.fileIds)
+        openRename(command.fileIds, command.folderIds)
         break
       case 'rename-apply':
         if (renameBusy) throw new Error('正在重命名，请稍候。')

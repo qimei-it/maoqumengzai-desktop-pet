@@ -347,9 +347,14 @@ export type FocusState = {
   sessions: FocusSession[]
   waterLog: WaterEntry[]
 }
-export type RenameFile = { id: string; name: string }
+export type RenameFile = {
+  id: string
+  name: string
+  kind: 'file' | 'folder'
+}
 export type RenameState = {
   busy: boolean
+  session: number
   files: RenameFile[]
 }
 export type ConvertState = {
@@ -511,7 +516,7 @@ export type Command =
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
   | { type: 'notify'; text: string }
-  | { type: 'rename-open'; fileIds: string[] }
+  | { type: 'rename-open'; fileIds: string[]; folderIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
   | { type: 'rename-close' }
   | { type: 'archive-open'; fileIds: string[]; folderIds: string[] }

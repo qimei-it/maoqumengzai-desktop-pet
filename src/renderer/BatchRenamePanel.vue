@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { PenLine } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
@@ -27,6 +27,18 @@ const start = ref(1)
 
 const files = computed(() => props.state?.rename.files ?? [])
 const busy = computed(() => Boolean(props.state?.rename.busy))
+const session = computed(() => props.state?.rename.session ?? 0)
+watch(session, () => {
+  mode.value = 'replace'
+  find.value = ''
+  replace.value = ''
+  addText.value = ''
+  addPosition.value = 'after'
+  format.value = 'index'
+  formatText.value = '文件'
+  formatPosition.value = 'after'
+  start.value = 1
+})
 const config = computed<RenameConfig>(() => ({
   mode: mode.value,
   find: find.value,
@@ -38,7 +50,7 @@ const config = computed<RenameConfig>(() => ({
 }))
 const preview = computed(() =>
   previewRename(
-    files.value.map((file) => file.name),
+    files.value.map((file) => ({ name: file.name, kind: file.kind })),
     config.value,
   ),
 )
@@ -131,7 +143,7 @@ function apply(): void {
           <span>名称格式</span>
           <SelectField v-model="format" size="md" wide>
             <option value="index">名称和索引</option>
-            <option value="counter">名称和计数</option>
+            <option value="counter">名称和计数器</option>
             <option value="date">名称和日期</option>
           </SelectField>
         </label>
