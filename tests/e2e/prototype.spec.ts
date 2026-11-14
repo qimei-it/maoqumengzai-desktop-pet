@@ -664,7 +664,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
       .toBe(false);
 });
 
-test("panels hide on app deactivation and Command-W closes them", async () => {
+test("panels keep normal macOS window behavior and Command-W closes them", async () => {
   test.skip(process.platform !== "darwin", "macOS window focus behavior");
   const visible = (title: string) =>
     application.evaluate(({ BrowserWindow }, title) => {
@@ -673,6 +673,8 @@ test("panels hide on app deactivation and Command-W closes them", async () => {
       );
       return window ? window.isVisible() : false;
     }, title);
+  const dockVisible = () =>
+    application.evaluate(({ app }) => app.dock?.isVisible() ?? false);
   const focus = (title: string) =>
     application.evaluate(({ BrowserWindow }, title) => {
       const window = BrowserWindow.getAllWindows().find((item) =>
@@ -683,13 +685,18 @@ test("panels hide on app deactivation and Command-W closes them", async () => {
     }, title);
   await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
   await expect.poll(() => visible("设置")).toBe(true);
+  await expect.poll(dockVisible).toBe(true);
   await focus("设置");
   await promisify(execFile)("/usr/bin/osascript", [
     "-e",
     'tell application "Finder" to activate',
   ]);
-  await expect.poll(() => visible("设置")).toBe(false);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  await expect.poll(() => visible("设置")).toBe(true);
   await expect.poll(() => visible("交互标记")).toBe(true);
+
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-close" }));
+  await expect.poll(dockVisible).toBe(false);
 
   await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
   await expect.poll(() => visible("待办清单")).toBe(true);

@@ -959,6 +959,7 @@ function snapshot(): Snapshot {
   }
 }
 function broadcast(): void {
+  syncPanelActivationPolicy()
   if (broadcastTimer || shuttingDown || !pet || pet.isDestroyed()) return
   broadcastTimer = setTimeout(() => {
     broadcastTimer = undefined
@@ -4594,21 +4595,28 @@ function applyDockIcon(): void {
   const icon = nativeImage.createFromPath(iconPath('app-icon.png'))
   if (!icon.isEmpty()) app.dock.setIcon(icon)
 }
-let settingsDockWasVisible = true
-function setSettingsDock(open: boolean): void {
-  if (process.platform !== 'darwin') return
-  if (open) {
-    settingsDockWasVisible = app.dock?.isVisible() ?? true
+let panelPolicyRegular = false
+/**
+ * A panel window puts the app into the regular activation policy so macOS
+ * lists it in Command+Tab, Mission Control, Stage Manager and the Dock. The
+ * pet-only state stays accessory, with the menu bar icon as the entry point.
+ */
+function syncPanelActivationPolicy(): void {
+  if (process.platform !== 'darwin' || !app.isReady()) return
+  const anyPanel = panelWindowList().some((window) => windowVisible(window))
+  if (anyPanel) {
+    if (panelPolicyRegular) return
+    panelPolicyRegular = true
     app.setActivationPolicy('regular')
-    // Switching from accessory to regular resets the Dock image, so apply
-    // the runtime icon again after the policy change.
+    // Switching from accessory to regular resets the Dock image.
     applyDockIcon()
-  } else if (!settingsDockWasVisible) {
-    app.setActivationPolicy('accessory')
+    return
   }
+  if (!panelPolicyRegular) return
+  panelPolicyRegular = false
+  app.setActivationPolicy('accessory')
 }
 function openSettings(): void {
-  setSettingsDock(true)
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     positionPanelOnce(settingsWindow, positionSettings)
     if (process.platform === 'darwin' || settingsWindow.isMinimized())
@@ -4621,7 +4629,6 @@ function openSettings(): void {
 }
 function closeSettings(): void {
   settingsWindow?.hide()
-  setSettingsDock(false)
   broadcast()
 }
 async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
@@ -9144,7 +9151,7 @@ function setupIpc(): void {
           if (owner.isMaximized()) owner.unmaximize()
           else owner.maximize()
         } else if (command.action === 'close') {
-          if (isAutoHidePanel(owner)) closePanelWindow(owner)
+          if (isPanelWindow(owner)) closePanelWindow(owner)
           else owner.hide()
         }
         break
@@ -9410,7 +9417,7 @@ function configurePanelChrome(
   window.setMaximizable(options.maximizable === true)
   window.setFullScreenable(false)
 }
-const autoHidePanelList = (): BrowserWindow[] =>
+const panelWindowList = (): BrowserWindow[] =>
   [
     pocket,
     askWindow,
@@ -9429,8 +9436,8 @@ const autoHidePanelList = (): BrowserWindow[] =>
   ].filter((window): window is BrowserWindow =>
     Boolean(window && !window.isDestroyed()),
   )
-function isAutoHidePanel(window: BrowserWindow): boolean {
-  return autoHidePanelList().includes(window)
+function isPanelWindow(window: BrowserWindow): boolean {
+  return panelWindowList().includes(window)
 }
 function closePanelWindow(window: BrowserWindow): void {
   if (window === pocket) hidePocket()
@@ -9448,47 +9455,6 @@ function closePanelWindow(window: BrowserWindow): void {
   else if (window === clipboardWindow) closeClipboard()
   else if (window === todoWindow) closeTodo()
   else window.hide()
-}
-/** Deactivation hides panels without cancelling a running batch. */
-function hidePanelOnly(window: BrowserWindow): void {
-  if (window === pocket) {
-    hidePocket()
-    return
-  }
-  if (window === settingsWindow) {
-    window.hide()
-    setSettingsDock(false)
-    return
-  }
-  window.hide()
-}
-let panelHideTimer: ReturnType<typeof setTimeout> | undefined
-function cancelPanelHide(): void {
-  if (panelHideTimer) clearTimeout(panelHideTimer)
-  panelHideTimer = undefined
-}
-function hideVisiblePanels(): void {
-  let hidden = false
-  for (const window of autoHidePanelList()) {
-    if (!windowVisible(window)) continue
-    hidePanelOnly(window)
-    hidden = true
-  }
-  if (!hidden) return
-  syncOverlays()
-  broadcast()
-}
-function schedulePanelHide(): void {
-  cancelPanelHide()
-  panelHideTimer = setTimeout(() => {
-    panelHideTimer = undefined
-    if (shuttingDown) return
-    const focused = BrowserWindow.getFocusedWindow()
-    if (focused && isAutoHidePanel(focused)) return
-    // Native dialogs and app menus leave the app active without a panel focus.
-    if (!focused && app.isActive()) return
-    hideVisiblePanels()
-  }, 160)
 }
 /**
  * Pet-attached overlays must share the pet's Mission Control behavior.
@@ -9531,7 +9497,7 @@ function installApplicationMenu(): void {
             accelerator: 'CommandOrControl+W',
             click: () => {
               const focused = BrowserWindow.getFocusedWindow()
-              if (focused && isAutoHidePanel(focused))
+              if (focused && isPanelWindow(focused))
                 closePanelWindow(focused)
             },
           },
@@ -10229,11 +10195,6 @@ async function createWindows(): Promise<void> {
       closeTodo()
     }
   })
-  app.on('browser-window-blur', (_event, window) => {
-    if (!isAutoHidePanel(window)) return
-    schedulePanelHide()
-  })
-  app.on('browser-window-focus', cancelPanelHide)
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -10321,6 +10282,7 @@ async function createWindows(): Promise<void> {
   ])
   pet.showInactive()
   syncOverlays()
+  if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   tray = new Tray(trayImage())
   tray.setToolTip('毛趣萌仔 · P0 交互原型')
   tray.setContextMenu(
