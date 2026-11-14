@@ -9092,17 +9092,7 @@ function setupIpc(): void {
           if (owner.isMaximized()) owner.unmaximize()
           else owner.maximize()
         } else if (command.action === 'close') {
-          if (owner === pocket) hidePocket()
-          else if (owner === askWindow) closeAsk()
-          else if (owner === convertWindow) closeConvert()
-          else if (owner === archiveWindow) closeArchive()
-          else if (owner === renameWindow) closeRename()
-          else if (owner === settingsWindow) closeSettings()
-          else if (owner === pomodoroWindow) closePomodoro()
-          else if (owner === waterWindow) closeWater()
-          else if (owner === breakWindow) closeBreak()
-          else if (owner === profileWindow) closeProfile()
-          else if (owner === clipboardWindow) closeClipboard()
+          if (isAutoHidePanel(owner)) closePanelWindow(owner)
           else owner.hide()
         }
         break
@@ -9346,10 +9336,98 @@ function configurePanelChrome(
   window: BrowserWindow,
   options: { maximizable?: boolean } = {},
 ): void {
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const modifier = process.platform === 'darwin' ? input.meta : input.control
+    if (modifier && input.key.toLowerCase() === 'w') {
+      event.preventDefault()
+      closePanelWindow(window)
+    }
+  })
   if (process.platform !== 'darwin') return
   window.setWindowButtonVisibility(true)
   window.setMaximizable(options.maximizable === true)
   window.setFullScreenable(false)
+}
+const autoHidePanelList = (): BrowserWindow[] =>
+  [
+    pocket,
+    askWindow,
+    convertWindow,
+    archiveWindow,
+    renameWindow,
+    settingsWindow,
+    mailWindow,
+    mailComposeWindow,
+    pomodoroWindow,
+    waterWindow,
+    breakWindow,
+    profileWindow,
+    clipboardWindow,
+    todoWindow,
+  ].filter((window): window is BrowserWindow =>
+    Boolean(window && !window.isDestroyed()),
+  )
+function isAutoHidePanel(window: BrowserWindow): boolean {
+  return autoHidePanelList().includes(window)
+}
+function closePanelWindow(window: BrowserWindow): void {
+  if (window === pocket) hidePocket()
+  else if (window === askWindow) closeAsk()
+  else if (window === convertWindow) closeConvert()
+  else if (window === archiveWindow) closeArchive()
+  else if (window === renameWindow) closeRename()
+  else if (window === settingsWindow) closeSettings()
+  else if (window === mailWindow) closeMail()
+  else if (window === mailComposeWindow) closeMailCompose()
+  else if (window === pomodoroWindow) closePomodoro()
+  else if (window === waterWindow) closeWater()
+  else if (window === breakWindow) closeBreak()
+  else if (window === profileWindow) closeProfile()
+  else if (window === clipboardWindow) closeClipboard()
+  else if (window === todoWindow) closeTodo()
+  else window.hide()
+}
+/** Deactivation hides panels without cancelling a running batch. */
+function hidePanelOnly(window: BrowserWindow): void {
+  if (window === pocket) {
+    hidePocket()
+    return
+  }
+  if (window === settingsWindow) {
+    window.hide()
+    setSettingsDock(false)
+    return
+  }
+  window.hide()
+}
+let panelHideTimer: ReturnType<typeof setTimeout> | undefined
+function cancelPanelHide(): void {
+  if (panelHideTimer) clearTimeout(panelHideTimer)
+  panelHideTimer = undefined
+}
+function hideVisiblePanels(): void {
+  let hidden = false
+  for (const window of autoHidePanelList()) {
+    if (!windowVisible(window)) continue
+    hidePanelOnly(window)
+    hidden = true
+  }
+  if (!hidden) return
+  syncOverlays()
+  broadcast()
+}
+function schedulePanelHide(): void {
+  cancelPanelHide()
+  panelHideTimer = setTimeout(() => {
+    panelHideTimer = undefined
+    if (shuttingDown) return
+    const focused = BrowserWindow.getFocusedWindow()
+    if (focused && isAutoHidePanel(focused)) return
+    // Native dialogs and app menus leave the app active without a panel focus.
+    if (!focused && app.isActive()) return
+    hideVisiblePanels()
+  }, 160)
 }
 /**
  * Pet-attached overlays must share the pet's Mission Control behavior.
@@ -9382,6 +9460,20 @@ function installApplicationMenu(): void {
           { role: 'unhide' },
           { type: 'separator' },
           { label: '退出毛趣萌仔', role: 'quit' },
+        ],
+      },
+      {
+        label: '文件',
+        submenu: [
+          {
+            label: '关闭窗口',
+            accelerator: 'CommandOrControl+W',
+            click: () => {
+              const focused = BrowserWindow.getFocusedWindow()
+              if (focused && isAutoHidePanel(focused))
+                closePanelWindow(focused)
+            },
+          },
         ],
       },
       { role: 'editMenu' },
@@ -10028,6 +10120,12 @@ async function createWindows(): Promise<void> {
       closeSettings()
     }
   })
+  mailWindow?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      closeMail()
+    }
+  })
   mailComposeWindow?.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -10070,6 +10168,11 @@ async function createWindows(): Promise<void> {
       closeTodo()
     }
   })
+  app.on('browser-window-blur', (_event, window) => {
+    if (!isAutoHidePanel(window)) return
+    schedulePanelHide()
+  })
+  app.on('browser-window-focus', cancelPanelHide)
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()

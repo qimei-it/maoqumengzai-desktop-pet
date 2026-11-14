@@ -278,7 +278,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     "字符上限",
     "记录上限",
     "保留期限",
-    "剪贴板",
+    "剪贴板记录",
     "忽略敏感内容",
   ]);
   await settings.getByRole("button", { name: "文件置物架", exact: true }).click();
@@ -662,6 +662,53 @@ test("settings panel updates theme, scale, and bubbles", async () => {
         timeout: 10_000,
       })
       .toBe(false);
+});
+
+test("panels hide on app deactivation and Command-W closes them", async () => {
+  test.skip(process.platform !== "darwin", "macOS window focus behavior");
+  const visible = (title: string) =>
+    application.evaluate(({ BrowserWindow }, title) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes(title),
+      );
+      return window ? window.isVisible() : false;
+    }, title);
+  const focus = (title: string) =>
+    application.evaluate(({ BrowserWindow }, title) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes(title),
+      );
+      window?.show();
+      window?.focus();
+    }, title);
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
+  await expect.poll(() => visible("设置")).toBe(true);
+  await focus("设置");
+  await promisify(execFile)("/usr/bin/osascript", [
+    "-e",
+    'tell application "Finder" to activate',
+  ]);
+  await expect.poll(() => visible("设置")).toBe(false);
+  await expect.poll(() => visible("交互标记")).toBe(true);
+
+  await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
+  await expect.poll(() => visible("待办清单")).toBe(true);
+  await focus("待办清单");
+  await promisify(execFile)("/usr/bin/osascript", [
+    "-e",
+    'tell application "System Events" to keystroke "w" using command down',
+  ]);
+  await expect.poll(() => visible("待办清单")).toBe(false);
+
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
+  await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
+  await focus("待办清单");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await expect.poll(() => visible("设置")).toBe(true);
+  await expect.poll(() => visible("待办清单")).toBe(true);
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-close" }));
+  await pet.evaluate(() => window.mqmz!.command({ type: "todo-close" }));
+  await application.evaluate(({ app }) => app.focus({ steal: true }));
 });
 
 test("hovering the pet centre opens companion tools", async () => {
