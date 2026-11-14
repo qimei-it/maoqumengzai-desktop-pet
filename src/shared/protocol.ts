@@ -427,6 +427,7 @@ export type Snapshot = {
   aiOpen: boolean
   ai: AiState
   agent: AgentState
+  agentMaximized: boolean
   aiQuota: AiQuotaState
   convertOpen: boolean
   convert: ConvertState

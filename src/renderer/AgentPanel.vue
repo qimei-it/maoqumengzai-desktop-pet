@@ -4,10 +4,12 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Copy,
   Folder,
   FolderOpen,
   Inbox,
   KeyRound,
+  Minus,
   Plus,
   Send,
   Square,
@@ -39,6 +41,7 @@ const keyDraft = ref('')
 const list = ref<HTMLElement>()
 const mac = /Mac/i.test(navigator.platform)
 const collapsed = ref<Record<string, boolean>>({})
+const maximized = computed(() => props.state?.agentMaximized === true)
 
 const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
 const model = computed<DeepSeekModel>(
@@ -113,8 +116,23 @@ function send(): void {
 function stop(): void {
   emit('command', { type: 'agent-cancel' })
 }
-function close(): void {
-  emit('command', { type: 'agent-close' })
+function windowAction(action: 'minimize' | 'maximize' | 'close'): void {
+  emit('command', { type: 'panel-control', action })
+}
+/** Snapshot the state before the native drag region may zoom the window. */
+let headerPressMaximized = false
+function onHeaderMouseDown(): void {
+  headerPressMaximized = maximized.value
+}
+function onHeaderDoubleClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button')) return
+  const before = headerPressMaximized
+  window.setTimeout(() => {
+    // If the native title bar already toggled, leave its result alone.
+    if (maximized.value !== before) return
+    emit('command', { type: 'panel-control', action: 'maximize' })
+  }, 220)
 }
 function newSession(): void {
   emit('command', { type: 'agent-session-new' })
@@ -185,10 +203,17 @@ function statusLabel(status: string): string {
 </script>
 
 <template>
-  <main class="agent-shell" :class="{ 'is-mac': mac }">
+  <main
+    class="agent-shell"
+    :class="{ 'is-mac': mac, 'is-maximized': maximized }"
+  >
     <section class="agent-surface">
       <aside class="agent-side">
-        <div class="agent-side-head">
+        <div
+          class="agent-side-head"
+          @mousedown="onHeaderMouseDown"
+          @dblclick="onHeaderDoubleClick"
+        >
           <span class="agent-side-title">会话</span>
           <button
             type="button"
@@ -345,18 +370,52 @@ function statusLabel(status: string): string {
       </aside>
 
       <section class="agent-main">
-        <header class="agent-head">
+        <header
+          class="agent-head"
+          @mousedown="onHeaderMouseDown"
+          @dblclick="onHeaderDoubleClick"
+        >
           <h1 class="agent-title">{{ title }}</h1>
-          <button
-            v-if="!mac"
-            type="button"
-            class="agent-icon-button"
-            aria-label="关闭"
-            title="关闭"
-            @click="close"
-          >
-            <X :size="15" :stroke-width="2" aria-hidden="true" />
-          </button>
+          <div v-if="!mac" class="agent-window-controls">
+            <button
+              type="button"
+              class="agent-window-button"
+              aria-label="最小化"
+              title="最小化"
+              @click="windowAction('minimize')"
+            >
+              <Minus :size="14" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="agent-window-button"
+              :aria-label="maximized ? '还原' : '最大化'"
+              :title="maximized ? '还原' : '最大化'"
+              @click="windowAction('maximize')"
+            >
+              <Copy
+                v-if="maximized"
+                :size="12"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <Square
+                v-else
+                :size="12"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              class="agent-window-button close"
+              aria-label="关闭"
+              title="关闭"
+              @click="windowAction('close')"
+            >
+              <X :size="14" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
         </header>
 
         <template v-if="!configured">
@@ -572,6 +631,13 @@ function statusLabel(status: string): string {
   background: transparent;
   color: var(--color-ink);
   user-select: none;
+}
+.agent-shell.is-maximized {
+  padding: 0;
+}
+.agent-shell.is-maximized .agent-surface {
+  border-radius: 0;
+  box-shadow: none;
 }
 .agent-surface {
   display: flex;
@@ -1109,6 +1175,36 @@ function statusLabel(status: string): string {
   line-height: 1.5;
   text-align: right;
   overflow-wrap: anywhere;
+}
+.agent-window-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  -webkit-app-region: no-drag;
+}
+.agent-window-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-window-button:hover {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.agent-window-button.close:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.agent-window-button:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-icon-button {
   display: grid;

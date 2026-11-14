@@ -448,6 +448,8 @@ let lyrics: LyricsState | undefined
 let lyricsKey: string | undefined
 let lyricsAvailable: boolean | undefined
 let askWindow: BrowserWindow | undefined
+let agentWindowMaximized = false
+let agentWindowSaveTimer: ReturnType<typeof setTimeout> | undefined
 let convertWindow: BrowserWindow | undefined
 let archiveWindow: BrowserWindow | undefined
 let renameWindow: BrowserWindow | undefined
@@ -567,6 +569,7 @@ const mailSecretsPath = join(dataRoot, 'mqmz.mail.secrets.json')
 const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 const agentPath = join(dataRoot, 'mqmz.agent.json')
+const agentWindowPath = join(dataRoot, 'mqmz.agent-window.json')
 
 const services = createServices({
   shelfFiles: () =>
@@ -883,6 +886,7 @@ function snapshot(): Snapshot {
     aiOpen: windowVisible(askWindow),
     ai: aiState(),
     agent: agent.state(),
+    agentMaximized: !!askWindow && !askWindow.isDestroyed() && askWindow.isMaximized(),
     aiQuota,
     convertOpen: windowVisible(convertWindow),
     convert: convertState(),
@@ -1198,6 +1202,59 @@ async function sendAi(prompt: string): Promise<void> {
     }
   }
 }
+type AgentWindowState = { bounds: Rect; maximized: boolean }
+
+async function loadAgentWindowState(): Promise<AgentWindowState | undefined> {
+  try {
+    const value = z
+      .object({
+        version: z.literal(1),
+        bounds: z.object({
+          x: z.number().finite(),
+          y: z.number().finite(),
+          width: z.number().int().min(320).max(10_000),
+          height: z.number().int().min(240).max(10_000),
+        }),
+        maximized: z.boolean(),
+      })
+      .parse(JSON.parse(await readFile(agentWindowPath, 'utf8')))
+    return { bounds: value.bounds, maximized: value.maximized }
+  } catch {
+    return undefined
+  }
+}
+
+async function saveAgentWindowState(): Promise<void> {
+  if (!askWindow || askWindow.isDestroyed()) return
+  const maximized = askWindow.isMaximized()
+  const bounds = maximized ? askWindow.getNormalBounds() : askWindow.getBounds()
+  const value = JSON.stringify({ version: 1, bounds, maximized })
+  await writeFile(`${agentWindowPath}.tmp`, value, { mode: 0o600 })
+  await rename(`${agentWindowPath}.tmp`, agentWindowPath)
+}
+
+function scheduleAgentWindowSave(): void {
+  if (agentWindowSaveTimer) clearTimeout(agentWindowSaveTimer)
+  agentWindowSaveTimer = setTimeout(() => {
+    agentWindowSaveTimer = undefined
+    void saveAgentWindowState().catch(() => {})
+  }, 300)
+}
+
+/** Keep a user-resized agent window on screen without re-centering it. */
+function fitAgentWindowToDisplays(): void {
+  if (!askWindow || askWindow.isDestroyed() || askWindow.isMaximized()) return
+  const current = askWindow.getBounds()
+  const next = fitToDisplays(current, areas())
+  if (
+    next.x !== current.x ||
+    next.y !== current.y ||
+    next.width !== current.width ||
+    next.height !== current.height
+  )
+    askWindow.setBounds(next)
+}
+
 function positionAsk(): void {
   if (!askWindow || askWindow.isDestroyed()) return
   const b = pet.getBounds()
@@ -1214,6 +1271,7 @@ function openAgentPanel(): void {
     if (process.platform === 'darwin' || askWindow.isMinimized())
       askWindow.restore()
     askWindow.show()
+    if (agentWindowMaximized && !askWindow.isMaximized()) askWindow.maximize()
     askWindow.moveTop()
     askWindow.focus()
   }
@@ -7753,6 +7811,7 @@ function reconcileDisplays(): void {
   mask = undefined
   setPassthrough(false)
   persist()
+  fitAgentWindowToDisplays()
   addEvent('显示环境变化：已重新约束窗口位置。')
 }
 function authorized(
@@ -9283,10 +9342,13 @@ const panelChrome =
  * behavior, so other apps can cover them and the system screenshot picker can
  * highlight them. Only the pet and its `configurePetOverlay` layers stay on top.
  */
-function configurePanelChrome(window: BrowserWindow): void {
+function configurePanelChrome(
+  window: BrowserWindow,
+  options: { maximizable?: boolean } = {},
+): void {
   if (process.platform !== 'darwin') return
   window.setWindowButtonVisibility(true)
-  window.setMaximizable(false)
+  window.setMaximizable(options.maximizable === true)
   window.setFullScreenable(false)
 }
 /**
@@ -9567,6 +9629,8 @@ async function createWindows(): Promise<void> {
   })
   toastWindow.setIgnoreMouseEvents(true)
   configurePetOverlay(toastWindow)
+  const savedAgentWindow = await loadAgentWindowState()
+  agentWindowMaximized = savedAgentWindow?.maximized ?? false
   askWindow = new BrowserWindow({
     width: 920,
     height: 640,
@@ -9588,6 +9652,25 @@ async function createWindows(): Promise<void> {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+  if (savedAgentWindow) {
+    askWindow.setBounds(fitToDisplays(savedAgentWindow.bounds, areas()))
+    positionedPanels.add(askWindow)
+  }
+  askWindow.on('resize', () => {
+    scheduleAgentWindowSave()
+    broadcast()
+  })
+  askWindow.on('move', scheduleAgentWindowSave)
+  askWindow.on('maximize', () => {
+    agentWindowMaximized = true
+    scheduleAgentWindowSave()
+    broadcast()
+  })
+  askWindow.on('unmaximize', () => {
+    agentWindowMaximized = false
+    scheduleAgentWindowSave()
+    broadcast()
   })
   convertWindow = new BrowserWindow({
     width: 400,
@@ -9856,7 +9939,7 @@ async function createWindows(): Promise<void> {
     clipboardWindow,
     todoWindow,
   ])
-    configurePanelChrome(panel)
+    configurePanelChrome(panel, { maximizable: panel === askWindow })
   focusBadge = new BrowserWindow({
     width: 76,
     height: 76,
@@ -10004,7 +10087,6 @@ async function createWindows(): Promise<void> {
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()
     if (windowVisible(volumePopup)) positionVolumePopup()
-    if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(archiveWindow)) positionArchive()
     if (windowVisible(renameWindow)) positionRename()
@@ -10026,7 +10108,6 @@ async function createWindows(): Promise<void> {
     if (windowVisible(lyricsWindow)) positionLyrics()
     if (windowVisible(bubbleWindow)) positionBubble()
     if (windowVisible(volumePopup)) positionVolumePopup()
-    if (windowVisible(askWindow)) positionAsk()
     if (windowVisible(convertWindow)) positionConvert()
     if (windowVisible(archiveWindow)) positionArchive()
     if (windowVisible(renameWindow)) positionRename()
@@ -10321,6 +10402,7 @@ else {
     shuttingDown = true
     agent.cancel()
     void agent.flush()
+    void saveAgentWindowState().catch(() => {})
     if (focusTimer) {
       clearInterval(focusTimer)
       focusTimer = undefined

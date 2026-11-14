@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { waitForAppWindows } from './app-windows'
@@ -8,10 +8,12 @@ import { waitForAppWindows } from './app-windows'
 let application: ElectronApplication
 let agent: Page
 let settings: Page
+let dataDirectory = ''
 const errors: string[] = []
 
 test.beforeAll(async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-ui-'))
+  dataDirectory = directory
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
       (entry): entry is [string, string] => entry[1] !== undefined,
@@ -114,6 +116,94 @@ test('project sessions group under the workspace', async () => {
       created.id,
     )
   }
+})
+
+test('agent window resizes, maximizes, and remembers bounds', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  const readWindow = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes('智能体'),
+      )!
+      return {
+        bounds: window.getBounds(),
+        maximized: window.isMaximized(),
+        resizable: window.isResizable(),
+        maximizable: window.isMaximizable(),
+      }
+    })
+
+  const initial = await readWindow()
+  expect(initial.resizable).toBe(true)
+  if (process.platform === 'darwin') expect(initial.maximizable).toBe(true)
+  expect(initial.bounds.width).toBeGreaterThanOrEqual(700)
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('智能体'),
+    )!
+    window.setBounds({ ...window.getBounds(), width: 860, height: 600 })
+  })
+  await agent.waitForTimeout(600)
+  const resized = await readWindow()
+  expect(resized.bounds.width).toBe(860)
+  expect(resized.bounds.height).toBe(600)
+
+  await expect
+    .poll(async () => {
+      try {
+        const saved = JSON.parse(
+          await readFile(
+            join(dataDirectory, 'data', 'mqmz.agent-window.json'),
+            'utf8',
+          ),
+        ) as {
+          bounds: { width: number; height: number }
+          maximized: boolean
+        }
+        return `${saved.bounds.width}x${saved.bounds.height}:${saved.maximized}`
+      } catch {
+        return 'missing'
+      }
+    })
+    .toBe('860x600:false')
+
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'maximize' }),
+  )
+  await expect
+    .poll(async () => (await readWindow()).maximized)
+    .toBe(true)
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.agentMaximized : false
+    })
+    .toBe(true)
+  await expect(agent.locator('.agent-shell.is-maximized')).toBeVisible()
+
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'maximize' }),
+  )
+  await expect
+    .poll(async () => (await readWindow()).maximized)
+    .toBe(false)
+  expect((await readWindow()).bounds.width).toBe(860)
+
+  await agent.locator('.agent-head').dblclick({
+    position: { x: 300, y: 20 },
+  })
+  await expect
+    .poll(async () => (await readWindow()).maximized, { timeout: 4000 })
+    .toBe(true)
+  await agent.locator('.agent-head').dblclick({
+    position: { x: 300, y: 20 },
+  })
+  await expect
+    .poll(async () => (await readWindow()).maximized, { timeout: 4000 })
+    .toBe(false)
 })
 
 test('pet profile section exposes create and bind entries', async () => {
