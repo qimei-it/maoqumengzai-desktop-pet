@@ -9278,6 +9278,11 @@ const panelChrome =
       }
     : {}
 
+/**
+ * Feature panels are ordinary windows: normal window level and no cross-space
+ * behavior, so other apps can cover them and the system screenshot picker can
+ * highlight them. Only the pet and its `configurePetOverlay` layers stay on top.
+ */
 function configurePanelChrome(window: BrowserWindow): void {
   if (process.platform !== 'darwin') return
   window.setWindowButtonVisibility(true)
@@ -9394,8 +9399,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
+    alwaysOnTop: false,
+    skipTaskbar: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -9404,8 +9409,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    pocket.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   notes = new BrowserWindow({
     width: 240,
     height: 240,
@@ -9576,8 +9579,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: true,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -9586,8 +9589,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    askWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   convertWindow = new BrowserWindow({
     width: 400,
     height: 460,
@@ -9598,8 +9599,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -9608,8 +9609,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    convertWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   archiveWindow = new BrowserWindow({
     width: 400,
     height: 440,
@@ -9620,8 +9619,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -9630,8 +9629,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    archiveWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   renameWindow = new BrowserWindow({
     width: 560,
     height: 480,
@@ -9642,8 +9639,8 @@ async function createWindows(): Promise<void> {
     transparent: true,
     backgroundColor: '#00000000',
     resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    skipTaskbar: false,
+    alwaysOnTop: false,
     webPreferences: {
       preload: preloadPath,
       backgroundThrottling: false,
@@ -9652,8 +9649,6 @@ async function createWindows(): Promise<void> {
       sandbox: true,
     },
   })
-  if (process.platform === 'darwin')
-    renameWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   settingsWindow = new BrowserWindow({
     width: 760,
     height: 620,

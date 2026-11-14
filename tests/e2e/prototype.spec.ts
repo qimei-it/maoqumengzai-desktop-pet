@@ -203,12 +203,15 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
     expect(panel.fullScreenable).toBe(false);
     expect(panel.closable).toBe(true);
     expect(panel.minimizable).toBe(true);
-    expect(panel.alwaysOnTop).toBe(
-      !panel.title.includes("设置") &&
-        !panel.title.includes("宠物档案") &&
-        !panel.title.includes("剪贴板"),
-    );
+    expect(panel.alwaysOnTop).toBe(false);
   }
+  // The pet and its overlays keep floating; only feature panels are ordinary.
+  const petOnTop = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle().includes("交互标记"))
+      ?.isAlwaysOnTop(),
+  );
+  expect(petOnTop).toBe(true);
   const pocketState = () =>
     application.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows().find((item) =>
