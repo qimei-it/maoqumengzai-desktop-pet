@@ -359,6 +359,7 @@ function onEscape(): void {
             :wheel-labels="sliceLabelColumns"
             :min="minWheelActions"
             :max="maxWheelActions"
+            single-line
             :pet-image="catBase"
             @update="updateFileWheel"
             @close="wheelEditor = null"
@@ -438,6 +439,7 @@ function onEscape(): void {
                   :actions="settings.fileWheelActions"
                   :labels="sliceLabelColumns"
                   :label-size="11"
+                  single-line
                   :pet-image="catBase"
                   aria-label="文件轮盘预览"
                 />

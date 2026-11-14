@@ -1419,7 +1419,7 @@ onUnmounted(() => {
           :actions="donutActions"
           :labels="donutLabels"
           :label-size="11"
-          :single-line="donutMode === 'hover'"
+          single-line
           :aria-label="donutMode === 'hover' ? '桌宠功能轮盘' : '文件操作轮盘'"
         />
         <span

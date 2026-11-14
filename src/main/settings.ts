@@ -42,16 +42,42 @@ const previousHoverActions = [
   'settings',
 ] as const
 
+/** The file order shipped before the file wheel led with the agent. */
+const previousFileActions = [
+  'stash',
+  'convert',
+  'archive',
+  'extract',
+  'shrink',
+  'eat',
+  'copy',
+  'mail',
+  'rename',
+  'ask',
+] as const
+
+function matchesOrder<T extends string>(
+  value: readonly T[],
+  expected: readonly T[],
+): boolean {
+  return (
+    value.length === expected.length &&
+    value.every((action, index) => action === expected[index])
+  )
+}
+
 function migrateSettings(value: Settings): Settings {
-  const matchesPrevious =
-    value.hoverWheelActions.length === previousHoverActions.length &&
-    value.hoverWheelActions.every(
-      (action, index) => action === previousHoverActions[index],
-    )
-  if (!matchesPrevious) return value
+  const previousHover = matchesOrder(value.hoverWheelActions, previousHoverActions)
+  const previousFile = matchesOrder(value.fileWheelActions, previousFileActions)
+  if (!previousHover && !previousFile) return value
   return {
     ...value,
-    hoverWheelActions: [...defaultSettings.hoverWheelActions],
+    ...(previousHover
+      ? { hoverWheelActions: [...defaultSettings.hoverWheelActions] }
+      : {}),
+    ...(previousFile
+      ? { fileWheelActions: [...defaultSettings.fileWheelActions] }
+      : {}),
   }
 }
 

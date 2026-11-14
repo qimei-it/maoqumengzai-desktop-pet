@@ -132,6 +132,45 @@ describe('settings store', () => {
     ])
   })
 
+  test('migrates the previous file wheel order without touching other settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        petName: '团子',
+        fileWheelActions: [
+          'stash',
+          'convert',
+          'archive',
+          'extract',
+          'shrink',
+          'eat',
+          'copy',
+          'mail',
+          'rename',
+          'ask',
+        ],
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.petName).toBe('团子')
+    expect(loaded.settings.fileWheelActions).toEqual([
+      'ask',
+      'stash',
+      'archive',
+      'extract',
+      'shrink',
+      'eat',
+      'copy',
+      'mail',
+      'convert',
+      'rename',
+    ])
+  })
+
   test('drops the removed archive format without losing other settings', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
     const path = join(directory, 'mqmz.settings.json')

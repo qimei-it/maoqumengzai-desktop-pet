@@ -37,16 +37,16 @@ export const maxWheelActions = 10
 
 /** Every action the file wheel can offer, in the default ring order. */
 export const sliceActions = [
+  'ask',
   'stash',
-  'convert',
   'archive',
   'extract',
   'shrink',
   'eat',
   'copy',
   'mail',
+  'convert',
   'rename',
-  'ask',
 ] as const
 export type DropAction = (typeof sliceActions)[number]
 /** Every action the hover wheel can offer, in the default ring order. */
@@ -65,8 +65,8 @@ export const hoverActions = [
 export type HoverAction = (typeof hoverActions)[number]
 
 /**
- * Labels longer than three characters are split into two vertical columns;
- * short labels stay in one column. The split follows words, not just length.
+ * Labels follow the hover wheel's curved layout: up to three characters stay
+ * on one line, four characters split into two rows of two along the words.
  */
 export const sliceLabelColumns: Record<DropAction, string[]> = {
   stash: ['置物架'],
@@ -77,7 +77,7 @@ export const sliceLabelColumns: Record<DropAction, string[]> = {
   eat: ['吃掉'],
   copy: ['另存', '副本'],
   mail: ['发送', '邮件'],
-  rename: ['批量', '重命名'],
+  rename: ['重命名'],
   ask: ['智能体'],
 }
 
@@ -90,7 +90,7 @@ export const sliceLabels: Record<DropAction, string> = {
   eat: '吃掉',
   copy: '另存副本',
   mail: '发送邮件',
-  rename: '批量重命名',
+  rename: '重命名',
   ask: '智能体',
 }
 
