@@ -3309,6 +3309,15 @@ test("dropping two files on 批量重命名 renames them with a format", async (
     rename.getByRole("heading", { name: "批量重命名", exact: true }),
   ).toBeVisible();
   await rename.getByRole("button", { name: "格式", exact: true }).click();
+  await expect(rename.locator(".rename-mode-thumb")).toHaveAttribute(
+    "style",
+    /translateX\(200%\)/,
+  );
+  expect(
+    await rename
+      .locator(".rename-mode-thumb")
+      .evaluate((element) => getComputedStyle(element).transitionProperty),
+  ).toContain("transform");
   await rename.getByRole("button", { name: "重命名", exact: true }).click();
   await expect
     .poll(async () => {
@@ -3345,6 +3354,27 @@ test("dropping one file on 批量重命名 opens the panel", async () => {
   await expect
     .poll(async () => (await readdir(directory)).includes("新名.txt"))
     .toBe(true);
+  await expect(rename.getByText("已重命名 1 个项目")).toBeVisible();
+  const undo = rename.getByRole("button", {
+    name: "撤销重命名",
+    exact: true,
+  });
+  await expect(undo).toBeVisible();
+  await expect(undo).toHaveClass(/danger/);
+  const undoBox = await undo.boundingBox();
+  const closeBox = await rename
+    .getByRole("button", { name: "关闭", exact: true })
+    .boundingBox();
+  expect(undoBox!.x).toBeLessThan(closeBox!.x);
+  await undo.click();
+  await expect(rename.getByText("已撤销重命名")).toBeVisible();
+  await expect(undo).toHaveCount(0);
+  await expect
+    .poll(async () => (await readdir(directory)).includes("旧名.txt"))
+    .toBe(true);
+  await expect
+    .poll(async () => (await readdir(directory)).includes("新名.txt"))
+    .toBe(false);
   await rename.evaluate(() =>
     window.mqmz!.command({ type: "rename-close" }),
   );

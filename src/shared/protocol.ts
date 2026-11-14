@@ -354,9 +354,12 @@ export type RenameFile = {
   name: string
   kind: 'file' | 'folder'
 }
+export type RenameOutcome = { count: number; undone: boolean }
 export type RenameState = {
   busy: boolean
   files: RenameFile[]
+  canUndo: boolean
+  outcome?: RenameOutcome
 }
 export type ConvertState = {
   mode: 'convert' | 'audio'
@@ -519,6 +522,7 @@ export type Command =
   | { type: 'notify'; text: string }
   | { type: 'rename-open'; fileIds: string[]; folderIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
+  | { type: 'rename-undo' }
   | { type: 'rename-close' }
   | { type: 'archive-open'; fileIds: string[]; folderIds: string[] }
   | { type: 'archive-start'; format: ArchiveFormat }

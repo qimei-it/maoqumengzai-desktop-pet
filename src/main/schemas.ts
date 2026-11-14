@@ -252,6 +252,7 @@ export const commandSchema = z.discriminatedUnion('type', [
         .strict(),
     })
     .strict(),
+  z.object({ type: z.literal('rename-undo') }).strict(),
   z.object({ type: z.literal('rename-close') }).strict(),
   z
     .object({

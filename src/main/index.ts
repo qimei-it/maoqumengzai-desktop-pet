@@ -147,6 +147,7 @@ import type {
   MusicState,
   ReceivedBatch,
   RenameFile,
+  RenameOutcome,
   RenameState,
   Rect,
   Result,
@@ -489,6 +490,14 @@ let archiveFolder: string | undefined
 let archiveToken = 0
 let archiveFolderPaths = new Map<string, string>()
 let renameFiles: RenameFile[] = []
+type RenameChange = {
+  id: string
+  kind: 'file' | 'folder'
+  source: string
+  destination: string
+}
+let renameUndo: RenameChange[] | undefined
+let renameOutcome: RenameOutcome | undefined
 let renameFolders = new Map<
   string,
   { path: string; device: number; inode: number }
@@ -2270,7 +2279,12 @@ async function revealConvert(): Promise<void> {
   if (error) throw new Error('无法打开输出目录。')
 }
 function renameState(): RenameState {
-  return { busy: renameBusy, files: [...renameFiles] }
+  return {
+    busy: renameBusy,
+    files: [...renameFiles],
+    canUndo: Boolean(renameUndo?.length),
+    ...(renameOutcome ? { outcome: renameOutcome } : {}),
+  }
 }
 function positionRename(): void {
   if (!renameWindow || renameWindow.isDestroyed()) return
@@ -2329,6 +2343,8 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
     return [item]
   })
   renameFiles = [...ordered, ...byId.values()].slice(0, 32)
+  renameUndo = undefined
+  renameOutcome = undefined
   renameBusy = false
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
@@ -2345,6 +2361,8 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
 function closeRename(): void {
   renameWindow?.hide()
   renameFolders = new Map()
+  renameUndo = undefined
+  renameOutcome = undefined
   broadcast()
 }
 function settingsState(): SettingsState {
@@ -5756,23 +5774,138 @@ async function applyRename(config: RenameConfig): Promise<number> {
 
   let shelved = false
   for (const entry of planned) {
-    if (entry.source.kind !== 'file') continue
-    const file = files.get(entry.source.id)
-    if (!file) continue
-    file.path = entry.destination
-    file.name = basename(entry.destination)
-    try {
-      const info = await lstat(entry.destination)
-      file.modifiedAt = info.mtimeMs
-      file.device = info.dev
-      file.inode = info.ino
-    } catch {
-      /* keep the old metadata if the file vanished right after rename */
+    const renamed = basename(entry.destination)
+    const item = renameFiles.find(
+      (candidate) => candidate.id === entry.source.id,
+    )
+    if (item) item.name = renamed
+    if (entry.source.kind === 'file') {
+      const file = files.get(entry.source.id)
+      if (!file) continue
+      file.path = entry.destination
+      file.name = renamed
+      try {
+        const info = await lstat(entry.destination)
+        file.modifiedAt = info.mtimeMs
+        file.device = info.dev
+        file.inode = info.ino
+      } catch {
+        /* keep the old metadata if the file vanished right after rename */
+      }
+      if (file.status === 'shelved') shelved = true
+      continue
     }
-    if (file.status === 'shelved') shelved = true
+    const folder = renameFolders.get(entry.source.id)
+    if (folder) {
+      folder.path = entry.destination
+      try {
+        const info = await lstat(entry.destination)
+        folder.device = info.dev
+        folder.inode = info.ino
+      } catch {
+        /* keep the old folder identity if it vanished */
+      }
+    }
   }
   if (shelved) await saveShelf()
+  renameUndo = changes.map((entry) => ({
+    id: entry.source.id,
+    kind: entry.source.kind,
+    source: entry.source.path,
+    destination: entry.destination,
+  }))
+  renameOutcome = { count: changes.length, undone: false }
   addEvent(`已重命名 ${changes.length} 个项目。`)
+  return changes.length
+}
+
+async function undoRename(): Promise<number> {
+  const changes = renameUndo
+  if (!changes?.length) throw new Error('没有可撤销的重命名。')
+  const destinationKeys = new Set(
+    changes.map((change) => change.destination.toLocaleLowerCase()),
+  )
+  for (const change of changes) {
+    if (!(await pathExists(change.destination)))
+      throw new Error(`无法撤销：${basename(change.destination)} 已不存在。`)
+    if (
+      change.source !== change.destination &&
+      !destinationKeys.has(change.source.toLocaleLowerCase()) &&
+      (await pathExists(change.source))
+    )
+      throw new Error(
+        `无法撤销：原名称“${basename(change.source)}”已被占用。`,
+      )
+  }
+  const temps: { change: RenameChange; temp: string }[] = []
+  const completed: RenameChange[] = []
+  try {
+    for (const change of changes) {
+      const temp = join(
+        dirname(change.destination),
+        `.mqmz-rename-undo-${randomUUID()}`,
+      )
+      await rename(change.destination, temp)
+      temps.push({ change, temp })
+    }
+    for (const item of temps) {
+      await rename(item.temp, item.change.source)
+      completed.push(item.change)
+    }
+  } catch {
+    for (const change of [...completed].reverse()) {
+      try {
+        await rename(change.source, change.destination)
+      } catch {
+        /* best-effort rollback */
+      }
+    }
+    for (const item of temps) {
+      try {
+        await rename(item.temp, item.change.destination)
+      } catch {
+        /* best-effort rollback */
+      }
+    }
+    throw new Error('撤销重命名失败，已尽量回滚；请检查文件是否被占用。')
+  }
+  let shelved = false
+  for (const change of changes) {
+    const name = basename(change.source)
+    const item = renameFiles.find((candidate) => candidate.id === change.id)
+    if (item) item.name = name
+    if (change.kind === 'file') {
+      const file = files.get(change.id)
+      if (!file) continue
+      file.path = change.source
+      file.name = name
+      try {
+        const info = await lstat(change.source)
+        file.modifiedAt = info.mtimeMs
+        file.device = info.dev
+        file.inode = info.ino
+      } catch {
+        /* keep the old metadata if the file vanished right after undo */
+      }
+      if (file.status === 'shelved') shelved = true
+      continue
+    }
+    const folder = renameFolders.get(change.id)
+    if (folder) {
+      folder.path = change.source
+      try {
+        const info = await lstat(change.source)
+        folder.device = info.dev
+        folder.inode = info.ino
+      } catch {
+        /* keep the old folder identity if it vanished */
+      }
+    }
+  }
+  if (shelved) await saveShelf()
+  renameUndo = undefined
+  renameOutcome = { count: changes.length, undone: true }
+  addEvent(`已撤销 ${changes.length} 个项目的重命名。`)
   return changes.length
 }
 async function registerOutputs(paths: readonly string[]): Promise<void> {
@@ -8053,6 +8186,7 @@ function setupIpc(): void {
       'panel-control',
       'rename-open',
       'rename-apply',
+      'rename-undo',
       'rename-close',
       'archive-open',
       'archive-start',
@@ -8423,9 +8557,18 @@ function setupIpc(): void {
         renameBusy = true
         broadcast()
         try {
-          const count = await applyRename(command.config)
-          closeRename()
-          if (count > 0) showToast(`已重命名 ${count} 个文件`)
+          await applyRename(command.config)
+        } finally {
+          renameBusy = false
+          broadcast()
+        }
+        break
+      case 'rename-undo':
+        if (renameBusy) throw new Error('正在重命名，请稍候。')
+        renameBusy = true
+        broadcast()
+        try {
+          await undoRename()
         } finally {
           renameBusy = false
           broadcast()

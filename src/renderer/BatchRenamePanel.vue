@@ -27,6 +27,11 @@ const start = ref(1)
 
 const files = computed(() => props.state?.rename.files ?? [])
 const busy = computed(() => Boolean(props.state?.rename.busy))
+const outcome = computed(() => props.state?.rename.outcome)
+const canUndo = computed(() => Boolean(props.state?.rename.canUndo))
+const modeIndex = computed(() =>
+  ["replace", "add", "format"].indexOf(mode.value),
+)
 const config = computed<RenameConfig>(() => ({
   mode: mode.value,
   find: find.value,
@@ -54,6 +59,10 @@ function apply(): void {
   if (!changed.value || busy.value) return
   emit('command', { type: 'rename-apply', config: config.value })
 }
+function undo(): void {
+  if (!canUndo.value || busy.value) return
+  emit('command', { type: 'rename-undo' })
+}
 </script>
 
 <template>
@@ -78,9 +87,15 @@ function apply(): void {
       <p class="rename-count">给 {{ files.length }} 个项目重新命名</p>
 
       <div class="rename-modes" role="group" aria-label="重命名方式">
+        <span
+          class="rename-mode-thumb"
+          aria-hidden="true"
+          :style="{ transform: `translateX(${modeIndex * 100}%)` }"
+        />
         <button
           type="button"
           :class="{ active: mode === 'replace' }"
+          :aria-pressed="mode === 'replace'"
           @click="mode = 'replace'"
         >
           替换文本
@@ -88,6 +103,7 @@ function apply(): void {
         <button
           type="button"
           :class="{ active: mode === 'add' }"
+          :aria-pressed="mode === 'add'"
           @click="mode = 'add'"
         >
           添加文本
@@ -95,6 +111,7 @@ function apply(): void {
         <button
           type="button"
           :class="{ active: mode === 'format' }"
+          :aria-pressed="mode === 'format'"
           @click="mode = 'format'"
         >
           格式
@@ -178,9 +195,31 @@ function apply(): void {
 
       <p v-if="error" class="rename-error" role="alert">{{ error }}</p>
 
+      <p
+        v-if="outcome"
+        class="rename-outcome"
+        :class="{ undone: outcome.undone }"
+        role="status"
+      >
+        {{
+          outcome.undone
+            ? "已撤销重命名"
+            : `已重命名 ${outcome.count} 个项目`
+        }}
+      </p>
+
       <footer class="rename-actions">
+        <button
+          v-if="canUndo"
+          type="button"
+          class="settings-button danger rename-undo"
+          :disabled="busy"
+          @click="undo"
+        >
+          撤销重命名
+        </button>
         <button type="button" class="settings-button" @click="close">
-          取消
+          {{ outcome ? "关闭" : "取消" }}
         </button>
         <button
           type="button"
@@ -218,14 +257,28 @@ function apply(): void {
   font-size: var(--font-size-label);
 }
 .rename-modes {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
   padding: 3px;
   border-radius: var(--radius-control);
   background: var(--color-fill-secondary);
 }
+.rename-mode-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / 3);
+  border-radius: calc(var(--radius-control) - 3px);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  transition: transform var(--motion-slow) var(--ease-out);
+}
 .rename-modes button {
+  position: relative;
+  z-index: 1;
   min-height: 34px;
   padding: 0 10px;
   border: 0;
@@ -233,11 +286,16 @@ function apply(): void {
   background: transparent;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+  transition: color var(--motion-fast) var(--ease-out);
 }
 .rename-modes button.active {
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-brand-ink);
-  box-shadow: var(--shadow-control);
+  box-shadow: none;
+}
+.rename-modes button:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: -2px;
 }
 .rename-fields {
   display: flex;
@@ -331,10 +389,27 @@ function apply(): void {
   min-height: 34px;
   font-size: var(--font-size-body);
 }
+.rename-undo {
+  margin-right: auto;
+}
+.rename-outcome {
+  flex: none;
+  margin: 8px 0 0;
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-label);
+}
+.rename-outcome.undone {
+  color: var(--color-muted);
+}
 .rename-error {
   margin: 8px 0 0;
   color: var(--color-danger);
   font-size: var(--font-size-label);
   line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rename-mode-thumb {
+    transition: none;
+  }
 }
 </style>
