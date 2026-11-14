@@ -8345,6 +8345,7 @@ function setupIpc(): void {
       'agent-approve',
       'agent-deny',
       'agent-session-new',
+      'agent-project-new',
       'agent-session-select',
       'agent-session-delete',
       'agent-mode',
@@ -8494,6 +8495,9 @@ function setupIpc(): void {
         break
       case 'agent-session-new':
         agent.newSession()
+        break
+      case 'agent-project-new':
+        agent.newSessionIn(command.workspace)
         break
       case 'agent-session-select':
         agent.select(command.id)

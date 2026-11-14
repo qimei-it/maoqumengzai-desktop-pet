@@ -501,6 +501,7 @@ export type Command =
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-deny'; id: string }
   | { type: 'agent-session-new' }
+  | { type: 'agent-project-new'; workspace: string }
   | { type: 'agent-session-select'; id: string }
   | { type: 'agent-session-delete'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }

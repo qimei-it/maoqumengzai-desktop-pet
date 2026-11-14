@@ -41,6 +41,7 @@ export type AgentSessionSummary = {
   id: string
   title: string
   mode: AgentMode
+  workspace: string | null
   updatedAt: number
 }
 

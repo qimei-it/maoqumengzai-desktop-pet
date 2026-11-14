@@ -55,6 +55,7 @@ export type AgentRuntime = {
   approve(id: string): void
   deny(id: string): void
   newSession(): void
+  newSessionIn(workspace: string): void
   select(id: string): void
   remove(id: string): void
   setMode(mode: AgentMode): void
@@ -473,6 +474,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           id: item.id,
           title: item.title,
           mode: item.mode,
+          workspace: item.workspace,
           updatedAt: item.updatedAt,
         })),
         sessionId: session?.id ?? null,
@@ -544,6 +546,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     newSession() {
       if (busy) this.cancel()
       const session = newSession(deps.getSettings().aiModel)
+      sessions.unshift(session)
+      if (sessions.length > maxAgentSessions)
+        sessions.splice(maxAgentSessions)
+      activeId = session.id
+      errorText = undefined
+      persist()
+      emit()
+    },
+    newSessionIn(workspace: string) {
+      if (busy) this.cancel()
+      const session = newSession(deps.getSettings().aiModel)
+      session.workspace = workspace
       sessions.unshift(session)
       if (sessions.length > maxAgentSessions)
         sessions.splice(maxAgentSessions)

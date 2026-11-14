@@ -807,6 +807,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('agent-session-new') }).strict(),
   z
     .object({
+      type: z.literal('agent-project-new'),
+      workspace: z.string().trim().min(1).max(4096),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('agent-session-select'),
       id: z.string().uuid(),
     })

@@ -82,6 +82,40 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   expect(errors).toEqual([])
 })
 
+test('project sessions group under the workspace', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  const project = process.cwd()
+  const name = project.split('/').filter(Boolean).pop()!
+  await agent.evaluate(
+    (workspace) =>
+      window.mqmz!.command({ type: 'agent-project-new', workspace }),
+    project,
+  )
+  await expect(agent.getByText('项目', { exact: true })).toBeVisible()
+  await expect(
+    agent.locator('.agent-project-row').filter({ hasText: name }),
+  ).toBeVisible()
+  await expect(
+    agent.locator('.agent-project-toggle').filter({ hasText: name }),
+  ).toBeVisible()
+
+  const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+  const created = snapshot.ok
+    ? snapshot.value.agent.sessions.find(
+        (session) => session.workspace === project,
+      )
+    : undefined
+  expect(created).toBeTruthy()
+  if (created) {
+    await agent.evaluate(
+      (id) => window.mqmz!.command({ type: 'agent-session-delete', id }),
+      created.id,
+    )
+  }
+})
+
 test('pet profile section exposes create and bind entries', async () => {
   await settings.evaluate(() =>
     window.mqmz!.command({ type: 'settings-open' }),

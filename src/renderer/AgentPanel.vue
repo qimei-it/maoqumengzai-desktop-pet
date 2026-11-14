@@ -2,7 +2,11 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronRight,
   Folder,
+  FolderOpen,
+  Inbox,
   KeyRound,
   Plus,
   Send,
@@ -11,14 +15,17 @@ import {
   Wrench,
   X,
 } from '@lucide/vue'
-import { agentModeLabels, type AgentMode } from '../shared/agent'
+import {
+  agentModeLabels,
+  type AgentMode,
+  type AgentSessionSummary,
+} from '../shared/agent'
 import {
   deepseekModelIds,
   deepseekModelLabels,
   type DeepSeekModel,
 } from '../shared/deepseek'
 import type { Command, Snapshot } from '../shared/protocol'
-import SegmentedControl from './SegmentedControl.vue'
 import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
@@ -31,11 +38,8 @@ const draft = ref('')
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
 const mac = /Mac/i.test(navigator.platform)
+const collapsed = ref<Record<string, boolean>>({})
 
-const modeOptions = [
-  { value: 'plan', label: agentModeLabels.plan },
-  { value: 'build', label: agentModeLabels.build },
-] as const
 const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
 const model = computed<DeepSeekModel>(
   () => agent.value?.model ?? 'deepseek-flash',
@@ -47,12 +51,47 @@ const title = computed(() => activeSession.value?.title ?? '新会话')
 const workspace = computed(() => {
   const path = agent.value?.workspace
   if (!path) return '选择工作区'
-  return path.split('/').filter(Boolean).pop() ?? path
+  return groupName(path)
 })
 const canSend = computed(
   () => Boolean(draft.value.trim()) && !busy.value && configured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
+
+function groupName(path: string): string {
+  return path.split('/').filter(Boolean).pop() ?? path
+}
+
+const projectGroups = computed(() => {
+  const groups = new Map<string, AgentSessionSummary[]>()
+  for (const session of agent.value?.sessions ?? []) {
+    if (!session.workspace) continue
+    const list = groups.get(session.workspace) ?? []
+    list.push(session)
+    groups.set(session.workspace, list)
+  }
+  return [...groups.entries()]
+    .map(([path, sessions]) => ({
+      path,
+      name: groupName(path),
+      sessions,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name))
+})
+
+const ungrouped = computed(() =>
+  (agent.value?.sessions ?? []).filter((session) => !session.workspace),
+)
+
+function isOpen(path: string): boolean {
+  return !collapsed.value[path]
+}
+function toggleGroup(path: string): void {
+  collapsed.value = {
+    ...collapsed.value,
+    [path]: isOpen(path),
+  }
+}
 
 function scrollToEnd(): void {
   void nextTick(() => {
@@ -80,6 +119,9 @@ function close(): void {
 function newSession(): void {
   emit('command', { type: 'agent-session-new' })
 }
+function newSessionIn(path: string): void {
+  emit('command', { type: 'agent-project-new', workspace: path })
+}
 function selectSession(id: string): void {
   emit('command', { type: 'agent-session-select', id })
 }
@@ -90,8 +132,9 @@ function removeSession(id: string): void {
 function chooseWorkspace(): void {
   emit('command', { type: 'agent-workspace' })
 }
-function setMode(value: string | number): void {
-  emit('command', { type: 'agent-mode', mode: value as AgentMode })
+function setMode(value: AgentMode): void {
+  if (mode.value === value) return
+  emit('command', { type: 'agent-mode', mode: value })
 }
 function setModel(value: string | number): void {
   emit('command', {
@@ -157,36 +200,137 @@ function statusLabel(status: string): string {
             <Plus :size="16" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
-        <div class="agent-sessions">
-          <div
-            v-for="session in agent?.sessions ?? []"
-            :key="session.id"
-            class="agent-session"
-            :class="{ active: session.id === agent?.sessionId }"
-            role="button"
-            tabindex="0"
-            :aria-current="session.id === agent?.sessionId"
-            @click="selectSession(session.id)"
-            @keydown.enter.prevent="selectSession(session.id)"
-          >
-            <span class="agent-session-text">{{ session.title }}</span>
-            <span class="agent-session-time">{{
-              timeLabel(session.updatedAt)
-            }}</span>
-            <button
-              type="button"
-              class="agent-session-delete"
-              aria-label="删除会话"
-              title="删除会话"
-              @click.stop="removeSession(session.id)"
+
+        <div class="agent-side-scroll">
+          <section class="agent-section">
+            <div class="agent-section-head">
+              <Folder :size="12" :stroke-width="2" aria-hidden="true" />
+              <span>项目</span>
+            </div>
+
+            <div
+              v-for="group in projectGroups"
+              :key="group.path"
+              class="agent-project"
             >
-              <Trash2 :size="12" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-          <p v-if="!(agent?.sessions ?? []).length" class="agent-side-empty">
-            还没有会话
-          </p>
+              <div class="agent-project-row" :title="group.path">
+                <button
+                  type="button"
+                  class="agent-project-toggle"
+                  :aria-expanded="isOpen(group.path)"
+                  @click="toggleGroup(group.path)"
+                >
+                  <ChevronDown
+                    v-if="isOpen(group.path)"
+                    :size="12"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <ChevronRight
+                    v-else
+                    :size="12"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <FolderOpen
+                    v-if="isOpen(group.path)"
+                    :size="14"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <Folder
+                    v-else
+                    :size="14"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <span class="agent-project-name">{{ group.name }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="agent-project-new"
+                  :aria-label="`在${group.name}中新建会话`"
+                  title="新建会话"
+                  @click="newSessionIn(group.path)"
+                >
+                  <Plus :size="13" :stroke-width="2" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div v-if="isOpen(group.path)" class="agent-project-sessions">
+                <div
+                  v-for="session in group.sessions"
+                  :key="session.id"
+                  class="agent-session"
+                  :class="{ active: session.id === agent?.sessionId }"
+                  role="button"
+                  tabindex="0"
+                  :aria-current="session.id === agent?.sessionId"
+                  @click="selectSession(session.id)"
+                  @keydown.enter.prevent="selectSession(session.id)"
+                >
+                  <span class="agent-session-text">{{ session.title }}</span>
+                  <span class="agent-session-time">{{
+                    timeLabel(session.updatedAt)
+                  }}</span>
+                  <button
+                    type="button"
+                    class="agent-session-delete"
+                    aria-label="删除会话"
+                    title="删除会话"
+                    @click.stop="removeSession(session.id)"
+                  >
+                    <Trash2
+                      :size="12"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p v-if="!projectGroups.length" class="agent-side-empty">
+              还没有项目
+            </p>
+          </section>
+
+          <section class="agent-section">
+            <div class="agent-section-head">
+              <Inbox :size="12" :stroke-width="2" aria-hidden="true" />
+              <span>未分组</span>
+            </div>
+            <div
+              v-for="session in ungrouped"
+              :key="session.id"
+              class="agent-session"
+              :class="{ active: session.id === agent?.sessionId }"
+              role="button"
+              tabindex="0"
+              :aria-current="session.id === agent?.sessionId"
+              @click="selectSession(session.id)"
+              @keydown.enter.prevent="selectSession(session.id)"
+            >
+              <span class="agent-session-text">{{ session.title }}</span>
+              <span class="agent-session-time">{{
+                timeLabel(session.updatedAt)
+              }}</span>
+              <button
+                type="button"
+                class="agent-session-delete"
+                aria-label="删除会话"
+                title="删除会话"
+                @click.stop="removeSession(session.id)"
+              >
+                <Trash2 :size="12" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+            <p v-if="!ungrouped.length" class="agent-side-empty">
+              没有未分组会话
+            </p>
+          </section>
         </div>
+
         <div class="agent-side-foot">
           <button
             type="button"
@@ -203,68 +347,48 @@ function statusLabel(status: string): string {
       <section class="agent-main">
         <header class="agent-head">
           <h1 class="agent-title">{{ title }}</h1>
-          <div class="agent-head-actions">
-            <SegmentedControl
-              :model-value="mode"
-              :options="modeOptions"
-              :disabled="busy"
-              aria-label="执行模式"
-              @update="setMode"
-            />
-            <SelectField
-              :model-value="model"
-              :disabled="busy"
-              aria-label="对话模型"
-              @update:model-value="setModel"
-            >
-              <option
-                v-for="id in deepseekModelIds"
-                :key="id"
-                :value="id"
-              >
-                {{ deepseekModelLabels[id] }}
-              </option>
-            </SelectField>
-            <button
-              type="button"
-              class="agent-icon-button"
-              aria-label="关闭"
-              title="关闭"
-              @click="close"
-            >
-              <X :size="16" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            v-if="!mac"
+            type="button"
+            class="agent-icon-button"
+            aria-label="关闭"
+            title="关闭"
+            @click="close"
+          >
+            <X :size="15" :stroke-width="2" aria-hidden="true" />
+          </button>
         </header>
 
-        <div v-if="!configured" class="agent-setup">
-          <h2>连接 DeepSeek</h2>
-          <input
-            v-model="keyDraft"
-            class="agent-key-input"
-            type="password"
-            placeholder="API Key"
-            aria-label="DeepSeek API Key"
-            @keydown.enter.prevent="saveKey"
-          />
-          <div class="agent-setup-actions">
-            <button
-              type="button"
-              class="agent-button primary"
-              :disabled="!keyDraft.trim()"
-              @click="saveKey"
-            >
-              保存
-            </button>
-            <button type="button" class="agent-text-button" @click="getKey">
-              <KeyRound :size="14" :stroke-width="2" aria-hidden="true" />
-              获取 API Key
-            </button>
+        <template v-if="!configured">
+          <div class="agent-setup">
+            <h2>连接 DeepSeek</h2>
+            <input
+              v-model="keyDraft"
+              class="agent-key-input"
+              type="password"
+              placeholder="API Key"
+              aria-label="DeepSeek API Key"
+              @keydown.enter.prevent="saveKey"
+            />
+            <div class="agent-setup-actions">
+              <button
+                type="button"
+                class="agent-button primary"
+                :disabled="!keyDraft.trim()"
+                @click="saveKey"
+              >
+                保存
+              </button>
+              <button type="button" class="agent-text-button" @click="getKey">
+                <KeyRound :size="14" :stroke-width="2" aria-hidden="true" />
+                获取 API Key
+              </button>
+            </div>
+            <p v-if="error || agent?.error" class="agent-error">
+              {{ error || agent?.error }}
+            </p>
           </div>
-          <p v-if="error || agent?.error" class="agent-error">
-            {{ error || agent?.error }}
-          </p>
-        </div>
+        </template>
 
         <template v-else>
           <div ref="list" class="agent-messages">
@@ -346,43 +470,94 @@ function statusLabel(status: string): string {
             </div>
           </div>
 
-          <form class="agent-composer" @submit.prevent="send">
-            <textarea
-              v-model="draft"
-              class="agent-input"
-              rows="1"
-              placeholder="交给智能体一条指令"
-              aria-label="给智能体发送指令"
-              @keydown.enter.exact.prevent="send"
-            ></textarea>
-            <button
-              v-if="busy"
-              type="button"
-              class="agent-send stop"
-              aria-label="停止"
-              title="停止"
-              @click="stop"
-            >
-              <Square :size="14" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <button
-              v-else
-              type="submit"
-              class="agent-send"
-              :disabled="!canSend"
-              aria-label="发送"
-              title="发送"
-            >
-              <Send :size="16" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </form>
-          <div class="agent-foot">
-            <span class="agent-usage">
-              {{ usage.input }} / {{ usage.output }} tokens
-            </span>
-            <p v-if="error || agent?.error" class="agent-error">
-              {{ error || agent?.error }}
-            </p>
+          <div class="agent-composer-wrap">
+            <form class="agent-composer" @submit.prevent="send">
+              <textarea
+                v-model="draft"
+                class="agent-input"
+                rows="1"
+                placeholder="交给智能体一条指令"
+                aria-label="给智能体发送指令"
+                @keydown.enter.exact.prevent="send"
+              ></textarea>
+              <div class="agent-composer-row">
+                <div class="agent-modes" role="group" aria-label="执行模式">
+                  <button
+                    type="button"
+                    :disabled="busy"
+                    :class="{ active: mode === 'plan' }"
+                    :aria-pressed="mode === 'plan'"
+                    @click="setMode('plan')"
+                  >
+                    {{ agentModeLabels.plan }}
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="busy"
+                    :class="{ active: mode === 'build' }"
+                    :aria-pressed="mode === 'build'"
+                    @click="setMode('build')"
+                  >
+                    {{ agentModeLabels.build }}
+                  </button>
+                </div>
+
+                <div class="agent-composer-trailing">
+                  <span class="agent-model">
+                    <SelectField
+                      :model-value="model"
+                      :disabled="busy"
+                      aria-label="对话模型"
+                      @update:model-value="setModel"
+                    >
+                      <option
+                        v-for="id in deepseekModelIds"
+                        :key="id"
+                        :value="id"
+                      >
+                        {{ deepseekModelLabels[id] }}
+                      </option>
+                    </SelectField>
+                  </span>
+                  <button
+                    v-if="busy"
+                    type="button"
+                    class="agent-send stop"
+                    aria-label="停止"
+                    title="停止"
+                    @click="stop"
+                  >
+                    <Square
+                      :size="13"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <button
+                    v-else
+                    type="submit"
+                    class="agent-send"
+                    :disabled="!canSend"
+                    aria-label="发送"
+                    title="发送"
+                  >
+                    <Send
+                      :size="15"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+              </div>
+            </form>
+            <div class="agent-composer-meta">
+              <span class="agent-usage">
+                {{ usage.input }} / {{ usage.output }} tokens
+              </span>
+              <p v-if="error || agent?.error" class="agent-error">
+                {{ error || agent?.error }}
+              </p>
+            </div>
           </div>
         </template>
       </section>
@@ -410,7 +585,7 @@ function statusLabel(status: string): string {
   display: flex;
   flex: none;
   flex-direction: column;
-  width: 216px;
+  width: 224px;
   min-width: 0;
   border-right: 1px solid var(--color-line);
   background: var(--color-surface-muted);
@@ -435,20 +610,93 @@ function statusLabel(status: string): string {
   color: var(--color-muted);
   font-size: var(--font-size-label);
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
-.agent-sessions {
+.agent-side-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-3) var(--space-3);
+  padding: 0 var(--space-3) var(--space-4);
+}
+.agent-section + .agent-section {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+}
+.agent-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+.agent-project {
+  margin-top: var(--space-1);
+}
+.agent-project-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-control);
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+.agent-project-row:hover {
+  background: var(--color-surface);
+}
+.agent-project-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-align: left;
+}
+.agent-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-project-new {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-subtle);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.agent-project-row:hover .agent-project-new,
+.agent-project-new:focus-visible {
+  opacity: 1;
+}
+.agent-project-new:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-project-sessions {
+  padding: 2px 0 2px var(--space-5);
 }
 .agent-session {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease-standard);
@@ -459,15 +707,17 @@ function statusLabel(status: string): string {
 .agent-session.active {
   background: var(--color-brand-soft);
 }
-.agent-session:focus-visible {
+.agent-session:focus-visible,
+.agent-project-toggle:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: -2px;
 }
 .agent-session-text {
   overflow: hidden;
+  padding-right: 18px;
   color: var(--color-ink);
   font-size: var(--font-size-label);
-  font-weight: 600;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -501,10 +751,10 @@ function statusLabel(status: string): string {
   color: var(--color-danger);
 }
 .agent-side-empty {
-  margin: var(--space-8) 0;
+  margin: var(--space-2) 0 var(--space-2);
+  padding: 0 var(--space-3);
   color: var(--color-subtle);
-  font-size: var(--font-size-label);
-  text-align: center;
+  font-size: var(--font-size-caption);
 }
 .agent-side-foot {
   flex: none;
@@ -545,15 +795,12 @@ function statusLabel(status: string): string {
   flex: none;
   align-items: center;
   gap: var(--space-4);
-  height: 52px;
+  height: 48px;
   padding: 0 var(--space-6);
   border-bottom: 1px solid var(--color-line);
   -webkit-app-region: drag;
 }
-.agent-head-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.agent-head button {
   -webkit-app-region: no-drag;
 }
 .agent-title {
@@ -572,7 +819,7 @@ function statusLabel(status: string): string {
   flex-direction: column;
   gap: var(--space-5);
   min-height: 0;
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-6) var(--space-8) var(--space-4);
   overflow: auto;
   user-select: text;
 }
@@ -653,7 +900,7 @@ function statusLabel(status: string): string {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--font-size-caption);
   line-height: 1.55;
-  max-height: 240px;
+  max-height: 200px;
   overflow: auto;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -666,7 +913,7 @@ function statusLabel(status: string): string {
 }
 .agent-approval {
   flex: none;
-  margin: var(--space-3) var(--space-8) 0;
+  margin: 0 var(--space-8) var(--space-2);
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-warning);
   border-radius: var(--radius-card);
@@ -708,37 +955,111 @@ function statusLabel(status: string): string {
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
+.agent-composer-wrap {
+  flex: none;
+  padding: var(--space-3) var(--space-8) var(--space-5);
+}
 .agent-composer {
   display: flex;
-  flex: none;
-  align-items: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-8) var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 10px 10px 8px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-stage);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.agent-composer:focus-within {
+  border-color: var(--color-brand);
 }
 .agent-input {
-  flex: 1;
-  min-height: 40px;
+  width: 100%;
+  min-height: 44px;
   max-height: 140px;
-  padding: 9px 12px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  padding: 2px 2px 0;
+  border: 0;
+  background: transparent;
   color: var(--color-ink);
   font: inherit;
   font-size: var(--font-size-body);
-  line-height: 1.5;
+  line-height: 1.55;
   resize: none;
+  outline: none;
 }
-.agent-input:focus-visible,
-.agent-key-input:focus-visible {
+.agent-composer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.agent-modes {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
+}
+.agent-modes button {
+  min-height: 24px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-modes button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.agent-modes button.active {
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-control);
+}
+.agent-modes button:focus-visible {
   outline: var(--mqmz-focus-ring);
-  outline-offset: 1px;
+  outline-offset: -1px;
+}
+.agent-composer-trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.agent-model {
+  display: inline-flex;
+  min-width: 0;
+}
+.agent-model :deep(select) {
+  height: 28px;
+  padding: 0 24px 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.agent-model :deep(.select-field-icon) {
+  right: 6px;
+  color: var(--color-muted);
 }
 .agent-send {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--color-brand-ink);
   border-radius: var(--radius-circle);
@@ -768,14 +1089,13 @@ function statusLabel(status: string): string {
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
-.agent-foot {
+.agent-composer-meta {
   display: flex;
-  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
-  min-height: 22px;
-  padding: 0 var(--space-8) var(--space-4);
+  min-height: 18px;
+  padding: var(--space-2) var(--space-2) 0;
   color: var(--color-subtle);
   font-size: var(--font-size-caption);
 }
@@ -810,8 +1130,7 @@ function statusLabel(status: string): string {
 }
 .agent-icon-button:focus-visible,
 .agent-button:focus-visible,
-.agent-text-button:focus-visible,
-.agent-session-delete:focus-visible {
+.agent-text-button:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
 }
@@ -883,6 +1202,10 @@ function statusLabel(status: string): string {
   font: inherit;
   font-size: var(--font-size-body);
 }
+.agent-key-input:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-setup-actions {
   display: flex;
   align-items: center;
@@ -906,7 +1229,12 @@ function statusLabel(status: string): string {
   }
   .agent-session,
   .agent-session-delete,
-  .agent-send {
+  .agent-project-row,
+  .agent-project-new,
+  .agent-composer,
+  .agent-modes button,
+  .agent-send,
+  .agent-icon-button {
     transition: none;
   }
 }
