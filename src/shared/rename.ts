@@ -50,7 +50,12 @@ function dateStamp(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const hours = date.getHours()
+  const period = hours < 12 ? '上午' : '下午'
+  const hour = hours % 12 || 12
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${period}${hour}.${minute}.${second}`
 }
 
 function renamedStem(stem: string, config: RenameConfig, index: number, now: Date): string {
@@ -67,13 +72,13 @@ function renamedStem(stem: string, config: RenameConfig, index: number, now: Dat
   const base = config.text.trim() || stem
   const suffix =
     config.format === 'index'
-      ? String(index + 1)
+      ? String(config.start + index)
       : config.format === 'counter'
-        ? String(config.start + index)
+        ? String(config.start + index).padStart(5, '0')
         : dateStamp(now)
   return config.position === 'before'
-    ? `${suffix}${base}`
-    : `${base}${suffix}`
+    ? `${suffix} ${base}`
+    : `${base} ${suffix}`
 }
 
 /**

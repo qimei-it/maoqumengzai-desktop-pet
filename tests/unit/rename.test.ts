@@ -41,7 +41,7 @@ describe('batch rename preview', () => {
         text: '文件',
         format: 'index',
       })),
-    ).toEqual(['文件1.jpg', '文件2.jpg'])
+    ).toEqual(['文件 1.jpg', '文件 2.jpg'])
     expect(
       previewRename(names, config({
         mode: 'format',
@@ -49,21 +49,21 @@ describe('batch rename preview', () => {
         format: 'counter',
         start: 10,
       })),
-    ).toEqual(['文件10.jpg', '文件11.jpg'])
+    ).toEqual(['文件 00010.jpg', '文件 00011.jpg'])
     expect(
       previewRename(names, config({
         mode: 'format',
         text: '文件',
         format: 'date',
         position: 'before',
-      }), new Date(2026, 10, 10)),
-    ).toEqual(['2026-11-10文件.jpg', '2026-11-10文件 (2).jpg'])
+      }), new Date(2026, 10, 10, 9, 6, 11)),
+    ).toEqual(['2026-11-10 上午9.06.11 文件.jpg', '2026-11-10 上午9.06.11 文件 (2).jpg'])
   })
 
   test('duplicate preview names get a suffix and illegal characters are replaced', () => {
     expect(
       previewRename(['a.png', 'a.png'], config({ mode: 'format', text: '同名' })),
-    ).toEqual(['同名1.png', '同名2.png'])
+    ).toEqual(['同名 1.png', '同名 2.png'])
     expect(sanitizeStem('合同/附件:*?')).toBe('合同_附件___')
   })
 
@@ -76,7 +76,7 @@ describe('batch rename preview', () => {
         ],
         config({ mode: 'format', text: '项目', format: 'index' }),
       ),
-    ).toEqual(['项目1', '项目2.txt'])
+    ).toEqual(['项目 1', '项目 2.txt'])
     expect(
       previewRename(
         [{ name: '素材.v2', kind: 'folder' }],

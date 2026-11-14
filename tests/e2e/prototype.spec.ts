@@ -3313,7 +3313,7 @@ test("dropping two files on 批量重命名 renames them with a format", async (
   await expect
     .poll(async () => {
       const files = await readdir(directory);
-      return files.includes("文件1.txt") && files.includes("文件2.txt");
+      return files.includes("文件 1.txt") && files.includes("文件 2.txt");
     })
     .toBe(true);
   await rename.evaluate(() =>

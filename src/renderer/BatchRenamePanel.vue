@@ -143,7 +143,7 @@ function apply(): void {
           <span>名称格式</span>
           <SelectField v-model="format" size="md" wide>
             <option value="index">名称和索引</option>
-            <option value="counter">名称和计数器</option>
+            <option value="counter">名称和计数</option>
             <option value="date">名称和日期</option>
           </SelectField>
         </label>
@@ -154,13 +154,19 @@ function apply(): void {
             <option value="after">名称之后</option>
           </SelectField>
         </label>
-        <label class="rename-wide">
+        <label>
           <span>自定义格式</span>
           <input v-model="formatText" type="text" placeholder="文件名" />
         </label>
-        <label v-if="format === 'counter'">
+        <label>
           <span>开始数字</span>
-          <input v-model.number="start" type="number" min="0" max="999999" />
+          <input
+            v-model.number="start"
+            type="number"
+            min="0"
+            max="999999"
+            :disabled="format === 'date'"
+          />
         </label>
       </div>
 
@@ -276,6 +282,10 @@ function apply(): void {
 .rename-fields input:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
+}
+.rename-fields input:disabled {
+  color: var(--color-muted);
+  opacity: 0.55;
 }
 .rename-preview {
   flex: 1;
