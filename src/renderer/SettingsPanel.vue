@@ -809,14 +809,7 @@ function onEscape(): void {
 
                 </div>
                 <p
-                  v-if="engine.id === 'ffmpeg' && ffmpeg?.error"
-                  class="engine-error"
-                  role="alert"
-                >
-                  {{ ffmpeg.error }}
-                </p>
-                <p
-                  v-else-if="engine.id === 'libreoffice' && libreOffice?.error"
+                  v-if="engine.id === 'libreoffice' && libreOffice?.error"
                   class="engine-error"
                   role="alert"
                 >

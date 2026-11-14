@@ -162,6 +162,7 @@ export type ArchiveFile = {
   name: string
   size: number
   kind: 'file' | 'folder'
+  shortcut?: boolean
 }
 export type ArchiveOutcome = {
   count: number

@@ -33,19 +33,20 @@
 | 类型 | 扩展名 | 图标 |
 | --- | --- | --- |
 | 文件夹 | 目录条目（`kind=folder`） | `folder.svg` |
-| 文本 | txt / text / log | `txt.svg` |
+| 文本 | txt / text / log / srt / ass / vtt / lrc | `txt.svg` |
 | PDF | pdf | `pdf.svg` |
-| 图片 | jpg / jpeg / png / webp / heic / gif 等 | `image.svg` |
-| 视频 | mp4 / mov / mkv / webm / avi 等（含 `.ts`） | `video.svg` |
+| 图片 | jpg / jpeg / png / webp / heic / gif / dng / cr2 / nef / ico 等 | `image.svg` |
+| 视频 | mp4 / mov / mkv / webm / avi / mts / vob / rmvb 等（含 `.ts`） | `video.svg` |
+| 音频 | mp3 / wav / flac / m4a / aac / ogg / opus / wma / aiff | `audio.svg` |
 | Markdown | md / markdown | `markdown.svg` |
-| 表格 | xls / xlsx / xlsm / xlsb / numbers | `spreadsheet.svg` |
+| 表格 | xls / xlsx / xlsm / xlsb / numbers / ods | `spreadsheet.svg` |
 | CSV | csv / tsv | `csv.svg` |
-| 演示文稿 | ppt / pptx / pps / ppsx / key | `slides.svg` |
-| 文档 | doc / docx / rtf / odt / pages | `doc.svg` |
+| 演示文稿 | ppt / pptx / pps / ppsx / key / odp | `slides.svg` |
+| 文档 | doc / docx / rtf / odt / pages / ofd / epub / mobi / azw3 | `doc.svg` |
 | 设计稿 | psd / psb / ai / sketch / fig | `psd.svg` |
-| XML | xml / xsl / xslt / plist | `xml.svg` |
-| 可执行文件 | exe / msi / dmg / pkg / deb / rpm / apk 等 | `exe.svg` |
-| 源代码 | js / tsx / vue / py / java / go / rs 等 | `code.svg` |
+| XML | xml / xsl / xslt / plist / drawio | `xml.svg` |
+| 可执行文件 | exe / msi / dmg / pkg / deb / rpm / apk / ipa / appx 等 | `exe.svg` |
+| 源代码 | js / tsx / vue / py / java / go / rs / ipynb 等 | `code.svg` |
 | 快捷方式 | lnk / alias / url / webloc / desktop | `shortcut.svg` |
 | 其他文档 | 未识别扩展名 | `document.svg` |
 

@@ -14,16 +14,16 @@ const emit = defineEmits<{
 }>()
 const selectedId = ref('')
 const over = ref(false)
-const selected = computed(
-  () =>
-    props.state?.files.find((file) => file.id === selectedId.value) ||
-    props.state?.files.at(-1),
+const selected = computed(() =>
+  props.state?.files.find((file) => file.id === selectedId.value),
 )
 const selectedIsFolder = computed(() => selected.value?.kind === 'folder')
+const noSelection = computed(() => !selected.value)
 watch(
   () => props.state?.files.map((file) => file.id).join(':'),
   () => {
-    selectedId.value = props.state?.files.at(-1)?.id || ''
+    if (!props.state?.files.some((file) => file.id === selectedId.value))
+      selectedId.value = ''
   },
 )
 function size(value: number): string {
@@ -172,26 +172,28 @@ function commandForSelected(
         </button>
         <button
           class="settings-button"
-          :disabled="selectedIsFolder"
+          :disabled="noSelection || selectedIsFolder"
           @click="convertSelected"
         >
           格式转换
         </button>
         <button
           class="settings-button"
-          :disabled="selectedIsFolder"
+          :disabled="noSelection || selectedIsFolder"
           @click="commandForSelected('save-copy')"
         >
           另存副本
         </button>
         <button
           class="settings-button"
+          :disabled="noSelection"
           @click="commandForSelected('remove-file')"
         >
           移出置物架
         </button>
         <button
           class="settings-button"
+          :disabled="noSelection"
           @click="commandForSelected('reveal-file')"
         >
           定位源文件

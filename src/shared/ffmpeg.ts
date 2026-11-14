@@ -1,7 +1,8 @@
 /** Optional LGPL FFmpeg bundle downloaded on demand. */
 export type FfmpegBuild = {
   version: string
-  url: string
+  /** Direct release host first, then public GitHub mirrors. */
+  urls: string[]
   sha256: string
   compressedBytes: number
   installedBytes: number
@@ -35,13 +36,27 @@ const version = '9.0.2'
 const release = 'v9.0.2'
 const source = 'AgentDVR FFmpeg · LGPL v3'
 const base = `https://github.com/ispysoftware/agentdvr-ffmpeg-build/releases/download/${release}`
+/**
+ * The release host is often blocked on mainland networks. These public GitHub
+ * proxies serve the same asset; the SHA-256 check below still decides whether
+ * the bytes are accepted.
+ */
+const mirrorPrefixes = [
+  'https://gh-proxy.com/',
+  'https://ghproxy.net/',
+  'https://ghfast.top/',
+]
+const downloadUrls = (asset: string): string[] => [
+  `${base}/${asset}`,
+  ...mirrorPrefixes.map((prefix) => `${prefix}${base}/${asset}`),
+]
 
 const builds: Record<
   string,
   Omit<FfmpegBuild, 'version' | 'source' | 'license'>
 > = {
   'darwin-arm64': {
-    url: `${base}/ffmpeg9.0.2-lgpl-macos-arm64-notarized.zip`,
+    urls: downloadUrls('ffmpeg9.0.2-lgpl-macos-arm64-notarized.zip'),
     sha256:
       '9d38382b7ae47e7cc22ce6a4f09d020c8c9c65aaa20f25608b9b5c4d4fab3ac1',
     compressedBytes: 14_488_314,
@@ -51,7 +66,7 @@ const builds: Record<
     binaryName: 'ffmpeg',
   },
   'win32-x64': {
-    url: `${base}/ffmpeg9.0.2-lgpl-windows-x64.zip`,
+    urls: downloadUrls('ffmpeg9.0.2-lgpl-windows-x64.zip'),
     sha256:
       '68dbe655beb35f3453bae31d3c7d0985e7ce62cb7414cdc88cb263df0829d1a5',
     compressedBytes: 18_092_098,

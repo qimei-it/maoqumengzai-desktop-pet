@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Folder, FolderOpen, X } from '@lucide/vue'
+import { FolderOpen, X } from '@lucide/vue'
 import {
   archiveFormatLabels,
   archiveFormats,
@@ -85,14 +85,12 @@ function start(): void {
             class="archive-file"
             :title="file.name"
           >
-            <Folder
-              v-if="file.kind === 'folder'"
+            <FileTypeIcon
+              :name="file.name"
+              :kind="file.kind"
+              :shortcut="file.shortcut"
               :size="18"
-              :stroke-width="2"
-              aria-hidden="true"
-              focusable="false"
             />
-            <FileTypeIcon v-else :name="file.name" :size="18" />
             <span class="archive-file-name">{{ file.name }}</span>
             <span class="archive-file-size">{{
               file.kind === 'folder' ? '文件夹' : formatSize(file.size)

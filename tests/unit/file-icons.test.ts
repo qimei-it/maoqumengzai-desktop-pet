@@ -51,4 +51,23 @@ describe('folder and office file icons', () => {
     expect(fileIconFor('播放列表.ts')).toBe(fileIconFor('片段.mp4'))
     expect(fileIconFor('组件.tsx')).not.toBe(fileIconFor('片段.mp4'))
   })
+
+  test('audio files use their own artwork', () => {
+    const audio = fileIconFor('歌曲.mp3')
+    expect(audio).toBe(fileIconFor('录音.wav'))
+    expect(audio).toBe(fileIconFor('无损.flac'))
+    expect(audio).not.toBe(fileIconFor('说明.txt'))
+    expect(audio).not.toBe(fileIconFor('未知.zzz'))
+  })
+
+  test('LibreOffice, ebook, subtitle and installer extensions stay mapped', () => {
+    expect(fileIconFor('表格.ods')).toBe(fileIconFor('预算.xlsx'))
+    expect(fileIconFor('演示.odp')).toBe(fileIconFor('汇报.pptx'))
+    expect(fileIconFor('版式.ofd')).toBe(fileIconFor('说明.docx'))
+    expect(fileIconFor('书.epub')).toBe(fileIconFor('说明.docx'))
+    expect(fileIconFor('字幕.srt')).toBe(fileIconFor('说明.txt'))
+    expect(fileIconFor('安装.ipa')).toBe(fileIconFor('安装包.exe'))
+    expect(fileIconFor('图.drawio')).toBe(fileIconFor('配置.xml'))
+    expect(fileIconFor('相机.dng')).toBe(fileIconFor('照片.jpg'))
+  })
 })

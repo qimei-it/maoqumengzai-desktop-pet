@@ -4,6 +4,7 @@ import archive7z from './assets/file-icons/7z.svg'
 import archive from './assets/file-icons/archive.svg'
 import image from './assets/file-icons/image.svg'
 import video from './assets/file-icons/video.svg'
+import audio from './assets/file-icons/audio.svg'
 import markdown from './assets/file-icons/markdown.svg'
 import document from './assets/file-icons/document.svg'
 import folder from './assets/file-icons/folder.svg'
@@ -35,6 +36,18 @@ const imageExtensions = new Set([
   'tiff',
   'svg',
   'avif',
+  'jfif',
+  'ico',
+  'icns',
+  // Camera raw stays on the image artwork.
+  'raw',
+  'dng',
+  'cr2',
+  'cr3',
+  'nef',
+  'arw',
+  'orf',
+  'rw2',
 ])
 const videoExtensions = new Set([
   // `.ts` stays a video container (MPEG-TS); TypeScript files keep this icon.
@@ -50,6 +63,30 @@ const videoExtensions = new Set([
   'mpeg',
   'ts',
   '3gp',
+  'vob',
+  'mts',
+  'm2ts',
+  'ogv',
+  'asf',
+  'f4v',
+  'rmvb',
+  'rm',
+])
+
+const audioExtensions = new Set([
+  'mp3',
+  'wav',
+  'flac',
+  'm4a',
+  'aac',
+  'ogg',
+  'opus',
+  'wma',
+  'aiff',
+  'aif',
+  'alac',
+  'mid',
+  'midi',
 ])
 
 const archiveExtensions = new Set([
@@ -75,12 +112,35 @@ const archiveExtensions = new Set([
   'lzh',
 ])
 
-const spreadsheetExtensions = new Set(['xls', 'xlsx', 'xlsm', 'xlsb', 'numbers'])
+const spreadsheetExtensions = new Set([
+  'xls',
+  'xlsx',
+  'xlsm',
+  'xlsb',
+  'numbers',
+  'ods',
+])
 const csvExtensions = new Set(['csv', 'tsv'])
-const slidesExtensions = new Set(['ppt', 'pptx', 'pps', 'ppsx', 'key'])
-const docExtensions = new Set(['doc', 'docx', 'rtf', 'odt', 'pages'])
+const slidesExtensions = new Set(['ppt', 'pptx', 'pps', 'ppsx', 'key', 'odp'])
+const docExtensions = new Set([
+  'doc',
+  'docx',
+  'rtf',
+  'odt',
+  'pages',
+  'ofd',
+  'epub',
+  'mobi',
+  'azw3',
+  'djvu',
+  'ics',
+  'vcf',
+  'xmind',
+  'mm',
+  'mindnode',
+])
 const psdExtensions = new Set(['psd', 'psb', 'ai', 'sketch', 'fig'])
-const xmlExtensions = new Set(['xml', 'xsl', 'xslt', 'plist'])
+const xmlExtensions = new Set(['xml', 'xsl', 'xslt', 'plist', 'drawio'])
 const exeExtensions = new Set([
   'exe',
   'msi',
@@ -93,6 +153,9 @@ const exeExtensions = new Set([
   'rpm',
   'apk',
   'appimage',
+  'ipa',
+  'appx',
+  'msix',
 ])
 const codeExtensions = new Set([
   'js',
@@ -144,6 +207,8 @@ const codeExtensions = new Set([
   'gradle',
   'groovy',
   'tex',
+  'ipynb',
+  'rmd',
 ])
 const shortcutExtensions = new Set(['lnk', 'alias', 'url', 'webloc', 'desktop'])
 
@@ -161,9 +226,13 @@ export function fileIconFor(
   if (extension === 'md' || extension === 'markdown') return markdown
   if (extension === 'txt' || extension === 'text' || extension === 'log')
     return txt
+  if (extension === 'srt' || extension === 'ass' || extension === 'vtt')
+    return txt
+  if (extension === 'lrc') return txt
   if (extension === 'pdf') return pdf
   if (imageExtensions.has(extension)) return image
   if (videoExtensions.has(extension)) return video
+  if (audioExtensions.has(extension)) return audio
   if (spreadsheetExtensions.has(extension)) return spreadsheet
   if (csvExtensions.has(extension)) return csv
   if (slidesExtensions.has(extension)) return slides

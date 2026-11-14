@@ -637,11 +637,7 @@ const services = createServices({
       folderIds,
     )
     if (!renameFiles.length) throw new Error('没有可重命名的项目。')
-    try {
-      return await applyRename(config)
-    } finally {
-      closeRename()
-    }
+    return applyRename(config)
   },
   todos: () => focusData.todos,
   todoLists: () => focusData.todoLists,
@@ -804,6 +800,24 @@ function permission(): string {
 }
 function windowVisible(window: BrowserWindow | undefined): boolean {
   return Boolean(window && !window.isDestroyed() && window.isVisible())
+}
+/** Every feature panel except the shelf itself. */
+function otherPanelVisible(): boolean {
+  return Boolean(
+    windowVisible(askWindow) ||
+      windowVisible(convertWindow) ||
+      windowVisible(archiveWindow) ||
+      windowVisible(renameWindow) ||
+      windowVisible(settingsWindow) ||
+      windowVisible(mailWindow) ||
+      windowVisible(mailComposeWindow) ||
+      windowVisible(pomodoroWindow) ||
+      windowVisible(waterWindow) ||
+      windowVisible(breakWindow) ||
+      windowVisible(profileWindow) ||
+      windowVisible(clipboardWindow) ||
+      windowVisible(todoWindow),
+  )
 }
 const positionedPanels = new WeakSet<BrowserWindow>()
 /** Centers a panel only on its first open; later user moves are preserved. */
@@ -1195,9 +1209,6 @@ function positionAsk(): void {
   askWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openAgentPanel(): void {
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
   if (askWindow && !askWindow.isDestroyed()) {
     positionPanelOnce(askWindow, positionAsk)
     if (process.platform === 'darwin' || askWindow.isMinimized())
@@ -1511,11 +1522,12 @@ function openArchive(fileIds: string[], folderIds: string[] = []): void {
   archiveBusy = false
   archiveFolderPaths = new Map()
   archiveFiles = [
-    ...selectedFiles.map(({ id, name, size }) => ({
+    ...selectedFiles.map(({ id, name, size, shortcut }) => ({
       id,
       name,
       size,
       kind: 'file' as const,
+      ...(shortcut ? { shortcut: true } : {}),
     })),
     ...selectedFolders.map((folder) => {
       archiveFolderPaths.set(folder.id, folder.path)
@@ -1530,9 +1542,6 @@ function openArchive(fileIds: string[], folderIds: string[] = []): void {
   archiveOutcome = undefined
   archiveNotice = undefined
   archiveFolder = undefined
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  hidePocket()
   if (archiveWindow && !archiveWindow.isDestroyed()) {
     positionArchive()
     if (process.platform === 'darwin' || archiveWindow.isMinimized())
@@ -1755,9 +1764,6 @@ async function openConvert(
           : skipped
             ? `已跳过 ${skipped} 个不支持的文件。`
             : undefined
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  hidePocket()
   if (convertWindow && !convertWindow.isDestroyed()) {
     convertWindow.setTitle(
       mode === 'audio' ? '毛趣萌仔 · 提取音频' : '毛趣萌仔 · 文件转换',
@@ -2417,8 +2423,6 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
   renameUndo = undefined
   renameOutcome = undefined
   renameBusy = false
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow && !renameWindow.isDestroyed()) {
     positionPanelOnce(renameWindow, positionRename)
     if (process.platform === 'darwin' || renameWindow.isMinimized())
@@ -3212,11 +3216,6 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
   mailPanelQuery = ''
   mailPanelNotice = undefined
   loadMailMessages(account.id, mailPanelFolder)
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  hidePocket()
   if (mailWindow && !mailWindow.isDestroyed()) {
     positionPanelOnce(mailWindow, positionMail)
     if (process.platform === 'darwin' || mailWindow.isMinimized())
@@ -4377,6 +4376,40 @@ async function ffmpegExecutable(): Promise<string | null> {
   if (ffmpegOrigin === 'local') return enginePrefs.localPaths.ffmpeg ?? null
   return ffmpegTargetPath()
 }
+const ffmpegConnectTimeoutMs = 12_000
+/** Tries the release host and its mirrors until one answers with an archive. */
+async function openFfmpegResponse(
+  urls: readonly string[],
+  cancel: AbortController,
+): Promise<Response> {
+  let lastError: Error | undefined
+  for (const [index, url] of urls.entries()) {
+    if (cancel.signal.aborted) throw new Error('AbortError')
+    const attempt = new AbortController()
+    const timer = setTimeout(() => attempt.abort(), ffmpegConnectTimeoutMs)
+    try {
+      const response = await session
+        .fromPartition('mqmz-engine-download', { cache: false })
+        .fetch(url, { signal: AbortSignal.any([cancel.signal, attempt.signal]) })
+      if (!response.ok) {
+        lastError = new Error(`下载失败：HTTP ${response.status}`)
+        continue
+      }
+      if ((response.headers.get('content-type') ?? '').includes('text/html')) {
+        lastError = new Error('下载源返回了网页，已跳过。')
+        continue
+      }
+      if (index > 0) addEvent('直连下载源不可用，已切换到备用镜像。')
+      return response
+    } catch (error) {
+      if (cancel.signal.aborted) throw new Error('AbortError')
+      lastError = error instanceof Error ? error : new Error('下载失败')
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw lastError ?? new Error('下载失败')
+}
 async function installFfmpeg(): Promise<void> {
   if (!ffmpegRelease || ffmpegInstalling) return
   await refreshFfmpegState()
@@ -4392,13 +4425,7 @@ async function installFfmpeg(): Promise<void> {
   broadcast()
   try {
     await mkdir(dirname(part), { recursive: true, mode: 0o700 })
-    const response = await session
-      .fromPartition('mqmz-engine-download', { cache: false })
-      .fetch(ffmpegRelease.url, {
-        signal: controller.signal,
-      })
-    if (!response.ok)
-      throw new Error(`下载失败：HTTP ${response.status}`)
+    const response = await openFfmpegResponse(ffmpegRelease.urls, controller)
     const total =
       Number(response.headers.get('content-length')) ||
       ffmpegRelease.compressedBytes
@@ -4444,7 +4471,9 @@ async function installFfmpeg(): Promise<void> {
       addEvent('FFmpeg 下载已取消。')
     } else {
       const message = error instanceof Error ? error.message : ''
-      ffmpegError = /fetch failed|network|ECONN|ENOTFOUND/i.test(message)
+      ffmpegError = /fetch failed|network|ECONN|ENOTFOUND|ERR_(?:NAME_NOT_RESOLVED|CONNECTION|TIMED_OUT|INTERNET_DISCONNECTED|PROXY)/i.test(
+        message,
+      )
         ? '无法连接下载源，请检查网络后重试。'
         : message || 'FFmpeg 安装失败。'
       addEvent(ffmpegError)
@@ -4488,17 +4517,6 @@ function positionTodo(): void {
   todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openTodo(): void {
-  const wasVisible = windowVisible(todoWindow)
-  if (windowVisible(pomodoroWindow)) closePomodoro()
-  if (windowVisible(waterWindow)) closeWater()
-  if (windowVisible(breakWindow)) closeBreak()
-  if (windowVisible(profileWindow)) closeProfile()
-  if (windowVisible(clipboardWindow)) closeClipboard()
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
   if (todoWindow && !todoWindow.isDestroyed()) {
     positionPanelOnce(todoWindow, positionTodo)
     if (process.platform === 'darwin' || todoWindow.isMinimized())
@@ -4533,11 +4551,6 @@ function setSettingsDock(open: boolean): void {
 }
 function openSettings(): void {
   setSettingsDock(true)
-  hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     positionPanelOnce(settingsWindow, positionSettings)
     if (process.platform === 'darwin' || settingsWindow.isMinimized())
@@ -5534,17 +5547,6 @@ function positionProfile(): void {
   profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openProfile(): void {
-  const wasVisible = windowVisible(profileWindow)
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  if (todoWindow?.isVisible()) todoWindow.hide()
-  if (windowVisible(pomodoroWindow)) closePomodoro()
-  if (windowVisible(waterWindow)) closeWater()
-  if (windowVisible(breakWindow)) closeBreak()
-  if (windowVisible(clipboardWindow)) closeClipboard()
   if (profileWindow && !profileWindow.isDestroyed()) {
     positionPanelOnce(profileWindow, positionProfile)
     if (process.platform === 'darwin' || profileWindow.isMinimized())
@@ -5577,17 +5579,6 @@ function positionClipboard(): void {
   clipboardWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openClipboard(): void {
-  const wasVisible = windowVisible(clipboardWindow)
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  if (todoWindow?.isVisible()) todoWindow.hide()
-  if (windowVisible(pomodoroWindow)) closePomodoro()
-  if (windowVisible(waterWindow)) closeWater()
-  if (windowVisible(breakWindow)) closeBreak()
-  if (windowVisible(profileWindow)) closeProfile()
   if (clipboardWindow && !clipboardWindow.isDestroyed()) {
     positionPanelOnce(clipboardWindow, positionClipboard)
     if (process.platform === 'darwin' || clipboardWindow.isMinimized())
@@ -5620,17 +5611,6 @@ function positionBreak(): void {
   breakWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openBreak(): void {
-  const wasVisible = windowVisible(breakWindow)
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  if (todoWindow?.isVisible()) todoWindow.hide()
-  if (windowVisible(pomodoroWindow)) closePomodoro()
-  if (windowVisible(waterWindow)) closeWater()
-  if (windowVisible(profileWindow)) closeProfile()
-  if (windowVisible(clipboardWindow)) closeClipboard()
   if (breakWindow && !breakWindow.isDestroyed()) {
     positionPanelOnce(breakWindow, positionBreak)
     if (process.platform === 'darwin' || breakWindow.isMinimized())
@@ -5648,17 +5628,6 @@ function closeBreak(): void {
   broadcast()
 }
 function openWater(): void {
-  const wasVisible = windowVisible(waterWindow)
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  if (todoWindow?.isVisible()) todoWindow.hide()
-  if (windowVisible(breakWindow)) closeBreak()
-  if (windowVisible(profileWindow)) closeProfile()
-  if (windowVisible(clipboardWindow)) closeClipboard()
-  if (windowVisible(pomodoroWindow)) closePomodoro()
   if (waterWindow && !waterWindow.isDestroyed()) {
     positionPanelOnce(waterWindow, positionWater)
     if (process.platform === 'darwin' || waterWindow.isMinimized())
@@ -5710,17 +5679,6 @@ function updateFocusBadge(): void {
   }
 }
 function openPomodoro(): void {
-  const wasVisible = windowVisible(pomodoroWindow)
-  if (pocket?.isVisible()) hidePocket()
-  if (askWindow?.isVisible()) askWindow.hide()
-  if (convertWindow?.isVisible()) convertWindow.hide()
-  if (archiveWindow?.isVisible()) archiveWindow.hide()
-  if (renameWindow?.isVisible()) renameWindow.hide()
-  if (todoWindow?.isVisible()) todoWindow.hide()
-  if (waterWindow?.isVisible()) waterWindow.hide()
-  if (breakWindow?.isVisible()) breakWindow.hide()
-  if (profileWindow?.isVisible()) profileWindow.hide()
-  if (clipboardWindow?.isVisible()) clipboardWindow.hide()
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
     positionPanelOnce(pomodoroWindow, positionPomodoro)
     if (process.platform === 'darwin' || pomodoroWindow.isMinimized())
@@ -6374,6 +6332,9 @@ function schedulePocketBlurHide(): void {
   pocketBlurTimer = setTimeout(() => {
     pocketBlurTimer = undefined
     if (shuttingDown || pocketDialogOpen) return
+    // Panels are independent surfaces: focus moving to one of them must not
+    // collapse the shelf the user opened earlier.
+    if (otherPanelVisible()) return
     if (pocket.isFocused() || pocket.isMinimized()) return
     // macOS 27 + Electron can minimize the window without reporting
     // isMinimized() or firing 'minimize'. A blur whose cursor is still on the
@@ -8507,6 +8468,7 @@ function setupIpc(): void {
       }
       case 'reveal-file':
         shell.showItemInFolder(await registeredPath(command.fileId))
+        hidePocket()
         break
       case 'wheel':
         if (command.open) openWheelWindow()
@@ -8666,6 +8628,8 @@ function setupIpc(): void {
         break
       case 'convert-reveal':
         await revealConvert()
+        // Revealing hands the user to Finder, so the panel has done its job.
+        closeConvert()
         break
       case 'rename-open':
         openRename(command.fileIds, command.folderIds)
@@ -8709,6 +8673,7 @@ function setupIpc(): void {
         break
       case 'archive-reveal':
         await revealArchive()
+        closeArchive()
         break
       case 'extract-archives':
         await extractSelected(command.fileIds)
@@ -8733,6 +8698,7 @@ function setupIpc(): void {
       case 'settings-open-data': {
         const error = await shell.openPath(dataRoot)
         if (error) throw new Error('无法打开数据目录。')
+        closeSettings()
         break
       }
       case 'settings-clear-cache':

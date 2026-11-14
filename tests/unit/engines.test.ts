@@ -62,7 +62,10 @@ describe('conversion engine manifest', () => {
       expect(build?.sha256, target).toMatch(/^[a-f0-9]{64}$/)
       expect(build?.compressedBytes ?? 0, target).toBeGreaterThan(0)
       expect(build?.installedBytes ?? 0, target).toBeGreaterThan(0)
-      expect(build?.url, target).toMatch(/^https:\/\//)
+      // The direct release host comes first, then public mirrors.
+      expect(build?.urls.length ?? 0, target).toBeGreaterThan(1)
+      for (const url of build?.urls ?? [])
+        expect(url, target).toMatch(/^https:\/\//)
     }
   })
 

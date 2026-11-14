@@ -890,12 +890,13 @@ test("hovering the pet centre opens companion tools", async () => {
       return snapshot.ok && snapshot.value.waterOpen;
     })
     .toBe(true);
+  // Panels are independent now: the pomodoro window keeps running behind it.
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok && snapshot.value.pomodoroOpen;
     })
-    .toBe(false);
+    .toBe(true);
   await expect(
     water.getByRole("heading", { name: "喝水提醒" }),
   ).toBeVisible();
@@ -1919,6 +1920,11 @@ test("OS-backed File objects reach the real local registry; removal preserves so
   await expect(pocket.getByRole("button", { name: /^拖出/ })).toHaveCount(0);
   await expect(
     pocket.getByRole("button", { name: "格式转换", exact: true }),
+  ).toBeDisabled();
+  // The shelf no longer preselects a row; pick it before using the actions.
+  await pocket.getByTestId("pocket-file").click();
+  await expect(
+    pocket.getByRole("button", { name: "格式转换", exact: true }),
   ).toBeEnabled();
   const themes = [
     {
@@ -2093,6 +2099,7 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
       ),
     )
     .toBe(await realpath(fixture));
+  await pocket.getByTestId("pocket-file").click();
   await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
   await pocket
     .locator("#mqmz-card-input")
@@ -3546,6 +3553,7 @@ test("dropping on 置物架 opens the shelf with the received file", async () =>
   await expect(
     pocket.getByRole("button", { name: "移出置物架", exact: true }),
   ).toBeVisible();
+  await pocket.getByTestId("pocket-file").click();
   await pocket.getByRole("button", { name: "移出置物架", exact: true }).click();
 });
 
@@ -3645,6 +3653,7 @@ test("saving a real copy preserves the original and refuses to overwrite it", as
     await application.evaluate(({ dialog }, path) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: path });
     }, fixture);
+    await pocket.getByTestId("pocket-file").click();
     await pocket.getByRole("button", { name: "另存副本", exact: true }).click();
     await expect(pocket.getByRole("alert")).toContainText("不同的保存位置");
     await application.evaluate(({ dialog }, path) => {
@@ -3897,6 +3906,9 @@ test("receiving persists a local index across restart and removing the card pres
   await expect(
     pocket.getByRole("button", { name: "文件 重启后仍保留.txt", exact: true }),
   ).toBeVisible();
+  await pocket
+    .getByRole("button", { name: "文件 重启后仍保留.txt", exact: true })
+    .click();
   await expect(
     pocket.getByRole("button", { name: "移出置物架", exact: true }),
   ).toBeVisible();
