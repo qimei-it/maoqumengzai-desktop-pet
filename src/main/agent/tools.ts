@@ -5,12 +5,17 @@ import { readFile } from 'node:fs/promises'
 import type { AgentMode, AgentPetProfile } from '../../shared/agent'
 import type { ClipboardState } from '../../shared/clipboard'
 import type {
+  ArchiveFormat,
+  ConvertAction,
   FocusTodo,
   LyricsState,
   MusicState,
   TodoGroup,
   TodoList,
+  TodoRepeat,
 } from '../../shared/protocol'
+import { archiveFormats, todoRepeats } from '../../shared/protocol'
+import type { RenameConfig } from '../../shared/rename'
 import type {
   MailAccount,
   MailMessageSummary,
@@ -71,6 +76,59 @@ export type AgentDeps = {
   lyrics(): LyricsState | undefined
   controlMusic(action: 'previous' | 'toggle' | 'next' | 'mute'): void
   clipboard(): ClipboardState
+  revealFile(id: string): Promise<void>
+  saveCopy(id: string): Promise<string | null>
+  removeFromShelf(id: string): Promise<void>
+  convertFiles(
+    fileIds: string[],
+    action: ConvertAction,
+    password?: string,
+  ): Promise<string>
+  archiveFiles(fileIds: string[], format: ArchiveFormat): Promise<string>
+  extractFiles(fileIds: string[]): Promise<number>
+  renameFiles(fileIds: string[], config: RenameConfig): Promise<number>
+  mailRead(
+    accountId: string,
+    uid: number,
+    folder: string,
+  ): Promise<{
+    subject: string
+    from: string
+    date?: number
+    body: string
+    attachments: string[]
+  }>
+  mailMove(
+    accountId: string,
+    folder: string,
+    uid: number,
+    mode: 'archive' | 'delete' | 'move',
+    targetFolder?: string,
+  ): Promise<string>
+  updateTodo(
+    id: string,
+    patch: {
+      text?: string
+      dueAt?: number | null
+      urgent?: boolean
+      flagged?: boolean
+      notes?: string
+      tags?: string[]
+      repeat?: TodoRepeat
+    },
+  ): void
+  removeTodo(id: string): void
+  clearDoneTodos(): number
+  addTodoList(name: string): void
+  focusControl(action: 'start' | 'pause' | 'reset' | 'skip'): {
+    phase: string
+    running: boolean
+  }
+  waterDrink(): { count: number; goal: number }
+  waterSnooze(minutes: number): void
+  breakSnooze(kind: 'sitting' | 'eyes', minutes: number): void
+  clipboardCopy(id: string): Promise<void>
+  clipboardPin(id: string, pinned: boolean): void
   mailAccounts(): MailAccount[]
   mailMessages(
     accountId: string,
@@ -132,6 +190,73 @@ function formatSize(bytes: number): string {
 function formatTime(value: number | undefined): string {
   if (!value) return '未设置'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
+}
+
+const convertActions = [
+  'jpg',
+  'png',
+  'webp',
+  'mp4',
+  'mov',
+  'mkv',
+  'webm',
+  'gif',
+  'webp-anim',
+  'mp3',
+  'wav',
+  'm4a',
+  'flac',
+  'ogg',
+  'pdf-png',
+  'pdf-jpg',
+  'pdf-txt',
+  'office-pdf',
+  'office-docx',
+  'office-xlsx',
+  'office-pptx',
+  'ofd-pdf',
+  'ofd-png',
+  'ofd-jpg',
+  'csv-xlsx',
+  'document-pdf',
+  'pdf',
+  'merge-pdf',
+  'split-pdf',
+  'pdf-encrypt',
+  'pdf-decrypt',
+] as const
+
+const convertActionSet = new Set<string>(convertActions)
+
+function convertActionArg(value: unknown): ConvertAction {
+  if (typeof value !== 'string' || !convertActionSet.has(value))
+    throw new Error('不支持的转换目标。')
+  return value as ConvertAction
+}
+
+function fileIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error('缺少文件 ID 列表。')
+  const ids = value.filter((id): id is string => typeof id === 'string')
+  if (!ids.length) throw new Error('至少需要一个文件。')
+  if (ids.length > 16) throw new Error('一次最多处理 16 个文件。')
+  return ids
+}
+
+function mailFolderArg(value: unknown): string {
+  const folder = optionalText(value, 200)
+  if (!folder) return 'INBOX'
+  return folder.toLowerCase() === 'inbox' ? 'INBOX' : folder
+}
+
+function mailUidArg(value: unknown): number {
+  const uid = numberArg(value, 1, 2_000_000_000)
+  if (!uid) throw new Error('缺少邮件 uid。')
+  return uid
+}
+
+function booleanArg(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`参数 ${field} 必须是布尔值。`)
+  return value
 }
 
 function json(value: unknown): string {
@@ -775,6 +900,691 @@ export function createTools(deps: AgentDeps): Record<string, AgentTool> {
           text: `邮件已发送给 ${to}${attachments.length ? `，附件 ${attachments.length} 个` : ''}。${
             result.savedToSent ? '' : '未能保存到已发送。'
           }`,
+        }
+      },
+    },
+    {
+      name: 'file_reveal',
+      description: '在访达或资源管理器中定位置物架里的文件，不修改源文件。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `定位 ${String(args.fileId ?? '文件')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        await deps.revealFile(id)
+        return { ok: true, text: '已在访达中定位该文件。' }
+      },
+    },
+    {
+      name: 'file_save_copy',
+      description: '通过保存对话框把置物架文件另存一份副本。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `另存副本 ${String(args.fileId ?? '')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        const saved = await deps.saveCopy(id)
+        if (!saved) return { ok: false, text: '已取消另存。' }
+        return { ok: true, text: `已另存到 ${saved}` }
+      },
+    },
+    {
+      name: 'shelf_remove',
+      description: '把文件移出置物架；源文件不会被删除。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileId: { type: 'string', description: '置物架文件 ID' },
+        },
+        required: ['fileId'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `移出置物架 ${String(args.fileId ?? '')}`,
+      async run(args) {
+        const id = text(args.fileId, 'fileId', 100)
+        const file = deps.shelfFiles().find((item) => item.id === id)
+        if (!file) throw new Error('置物架里没有这个文件。')
+        await deps.removeFromShelf(id)
+        return {
+          ok: true,
+          text: `已把 ${file.name} 移出置物架；源文件保留。`,
+        }
+      },
+    },
+    {
+      name: 'convert_start',
+      description:
+        '把置物架里的文件转换成指定格式。音视频需要 FFmpeg，Office 需要 LibreOffice；缺少引擎时会在设置中提示。PDF 加密/解密需要 password。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '置物架文件 ID 列表',
+          },
+          action: {
+            type: 'string',
+            enum: [...convertActions],
+            description: '目标格式动作',
+          },
+          password: { type: 'string', description: 'PDF 加密/解密密码' },
+        },
+        required: ['fileIds', 'action'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `转换 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.action ?? '')}`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        const action = convertActionArg(args.action)
+        const password = optionalText(args.password, 200)
+        return {
+          ok: true,
+          text: await deps.convertFiles(ids, action, password),
+        }
+      },
+    },
+    {
+      name: 'archive_start',
+      description: '把置物架里的文件打包成压缩包。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '置物架文件 ID 列表',
+          },
+          format: {
+            type: 'string',
+            enum: [...archiveFormats],
+            description: '压缩格式',
+          },
+        },
+        required: ['fileIds', 'format'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `打包 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件为 ${String(args.format ?? '')}`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        if (
+          typeof args.format !== 'string' ||
+          !(archiveFormats as readonly string[]).includes(args.format)
+        )
+          throw new Error('不支持的压缩格式。')
+        return {
+          ok: true,
+          text: await deps.archiveFiles(
+            ids,
+            args.format as ArchiveFormat,
+          ),
+        }
+      },
+    },
+    {
+      name: 'extract_archive',
+      description: '解压置物架里的压缩包到原目录附近，并把结果放回置物架。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '压缩包文件 ID 列表',
+          },
+        },
+        required: ['fileIds'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `解压 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个压缩包`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        const count = await deps.extractFiles(ids)
+        return { ok: true, text: `已解压 ${count} 个文件。` }
+      },
+    },
+    {
+      name: 'rename_files',
+      description:
+        '批量重命名置物架里的文件。replace 替换文本，add 添加文本，format 使用序号/日期重命名。',
+      parameters: {
+        type: 'object',
+        properties: {
+          fileIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '至少两个置物架文件 ID',
+          },
+          mode: {
+            type: 'string',
+            enum: ['replace', 'add', 'format'],
+            description: '重命名方式',
+          },
+          find: { type: 'string', description: 'replace 模式要查找的文本' },
+          replace: { type: 'string', description: 'replace 模式的替换文本' },
+          text: { type: 'string', description: 'add 模式要添加的文本' },
+          position: {
+            type: 'string',
+            enum: ['before', 'after'],
+            description: 'add 模式的位置，默认 after',
+          },
+          format: {
+            type: 'string',
+            enum: ['index', 'counter', 'date'],
+            description: 'format 模式的格式',
+          },
+          start: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 9999,
+            description: '序号起始值，默认 1',
+          },
+        },
+        required: ['fileIds', 'mode'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `重命名 ${Array.isArray(args.fileIds) ? args.fileIds.length : 0} 个文件`,
+      async run(args) {
+        const ids = fileIdList(args.fileIds)
+        if (ids.length < 2) throw new Error('至少需要两个文件。')
+        const mode =
+          args.mode === 'add' || args.mode === 'format'
+            ? args.mode
+            : 'replace'
+        const config: RenameConfig = {
+          mode,
+          find: optionalText(args.find, 200) ?? '',
+          replace: optionalText(args.replace, 200) ?? '',
+          text: optionalText(args.text, 200) ?? '',
+          position: args.position === 'before' ? 'before' : 'after',
+          format:
+            args.format === 'counter' || args.format === 'date'
+              ? args.format
+              : 'index',
+          start: numberArg(args.start, 1, 9999) ?? 1,
+        }
+        if (mode === 'replace' && !config.find)
+          throw new Error('replace 模式需要 find。')
+        if (mode === 'add' && !config.text)
+          throw new Error('add 模式需要 text。')
+        const count = await deps.renameFiles(ids, config)
+        if (!count) return { ok: false, text: '没有文件被重命名。' }
+        return { ok: true, text: `已重命名 ${count} 个文件。` }
+      },
+    },
+    {
+      name: 'mail_read',
+      description: '读取一封邮件的正文和附件名称，不会把邮件标记为已读。',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: '邮箱账户 ID' },
+          uid: { type: 'integer', description: '邮件 uid，来自 mail_list' },
+          folder: { type: 'string', description: '文件夹，默认 INBOX' },
+        },
+        required: ['accountId', 'uid'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `读取邮件 ${String(args.uid ?? '')}`,
+      async run(args) {
+        const accountId = text(args.accountId, 'accountId', 100)
+        if (!deps.mailAccounts().some((item) => item.id === accountId))
+          throw new Error('找不到这个邮箱账户。')
+        const uid = mailUidArg(args.uid)
+        const folder = mailFolderArg(args.folder)
+        const detail = await deps.mailRead(accountId, uid, folder)
+        return {
+          ok: true,
+          text: json({
+            subject: detail.subject,
+            from: detail.from,
+            date: detail.date
+              ? new Date(detail.date).toISOString()
+              : null,
+            attachments: detail.attachments,
+            body: detail.body.slice(0, 6000),
+          }),
+        }
+      },
+    },
+    {
+      name: 'mail_archive',
+      description: '把一封邮件归档。',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: '邮箱账户 ID' },
+          uid: { type: 'integer', description: '邮件 uid' },
+          folder: { type: 'string', description: '当前文件夹，默认 INBOX' },
+        },
+        required: ['accountId', 'uid'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `归档邮件 ${String(args.uid ?? '')}`,
+      async run(args) {
+        const accountId = text(args.accountId, 'accountId', 100)
+        const uid = mailUidArg(args.uid)
+        const folder = mailFolderArg(args.folder)
+        const subject = await deps.mailMove(
+          accountId,
+          folder,
+          uid,
+          'archive',
+        )
+        return { ok: true, text: `已归档「${subject}」。` }
+      },
+    },
+    {
+      name: 'mail_delete',
+      description:
+        '删除一封邮件：普通文件夹移动到已删除，已删除文件夹中永久删除。',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: '邮箱账户 ID' },
+          uid: { type: 'integer', description: '邮件 uid' },
+          folder: { type: 'string', description: '当前文件夹，默认 INBOX' },
+        },
+        required: ['accountId', 'uid'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `删除邮件 ${String(args.uid ?? '')}`,
+      async run(args) {
+        const accountId = text(args.accountId, 'accountId', 100)
+        const uid = mailUidArg(args.uid)
+        const folder = mailFolderArg(args.folder)
+        const subject = await deps.mailMove(
+          accountId,
+          folder,
+          uid,
+          'delete',
+        )
+        return { ok: true, text: `已删除「${subject}」。` }
+      },
+    },
+    {
+      name: 'mail_move',
+      description: '把一封邮件移动到指定文件夹。',
+      parameters: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: '邮箱账户 ID' },
+          uid: { type: 'integer', description: '邮件 uid' },
+          folder: { type: 'string', description: '当前文件夹，默认 INBOX' },
+          targetFolder: {
+            type: 'string',
+            description: '目标文件夹路径，来自 mail_list 的文件夹列表',
+          },
+        },
+        required: ['accountId', 'uid', 'targetFolder'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `移动邮件到 ${String(args.targetFolder ?? '')}`,
+      async run(args) {
+        const accountId = text(args.accountId, 'accountId', 100)
+        const uid = mailUidArg(args.uid)
+        const folder = mailFolderArg(args.folder)
+        const targetFolder = text(args.targetFolder, 'targetFolder', 200)
+        const subject = await deps.mailMove(
+          accountId,
+          folder,
+          uid,
+          'move',
+          targetFolder,
+        )
+        return {
+          ok: true,
+          text: `已把「${subject}」移动到 ${targetFolder}。`,
+        }
+      },
+    },
+    {
+      name: 'todo_update',
+      description:
+        '修改一条待办。dueAt 使用 ISO 8601 时间；传 null 表示清除截止时间。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '待办 ID' },
+          text: { type: 'string', description: '新的待办内容' },
+          dueAt: {
+            type: 'string',
+            description:
+              'ISO 8601 截止时间；传空字符串表示清除截止时间',
+          },
+          urgent: { type: 'boolean' },
+          flagged: { type: 'boolean' },
+          notes: { type: 'string', description: '备注' },
+          tags: { type: 'array', items: { type: 'string' } },
+          repeat: {
+            type: 'string',
+            enum: [...todoRepeats],
+            description: '重复规则',
+          },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `修改待办 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const todo = deps.todos().find((item) => item.id === id)
+        if (!todo) throw new Error('找不到这条待办。')
+        const patch: {
+          text?: string
+          dueAt?: number | null
+          urgent?: boolean
+          flagged?: boolean
+          notes?: string
+          tags?: string[]
+          repeat?: TodoRepeat
+        } = {}
+        if (args.text !== undefined)
+          patch.text = text(args.text, 'text', 200)
+        if (args.dueAt !== undefined) {
+          if (args.dueAt === null || args.dueAt === '') {
+            patch.dueAt = null
+          } else {
+            if (typeof args.dueAt !== 'string')
+              throw new Error('截止时间格式不正确。')
+            const parsed = Date.parse(args.dueAt)
+            if (Number.isNaN(parsed))
+              throw new Error('截止时间格式不正确。')
+            patch.dueAt = parsed
+          }
+        }
+        if (args.urgent !== undefined)
+          patch.urgent = booleanArg(args.urgent, 'urgent')
+        if (args.flagged !== undefined)
+          patch.flagged = booleanArg(args.flagged, 'flagged')
+        if (args.notes !== undefined)
+          patch.notes = optionalText(args.notes, 2000) ?? ''
+        if (args.tags !== undefined) {
+          if (!Array.isArray(args.tags))
+            throw new Error('参数 tags 必须是数组。')
+          patch.tags = args.tags
+            .filter((tag): tag is string => typeof tag === 'string')
+            .slice(0, 8)
+        }
+        if (args.repeat !== undefined) {
+          if (
+            typeof args.repeat !== 'string' ||
+            !(todoRepeats as readonly string[]).includes(args.repeat)
+          )
+            throw new Error('不支持的重复规则。')
+          patch.repeat = args.repeat as TodoRepeat
+        }
+        if (!Object.keys(patch).length)
+          return { ok: false, text: '没有需要修改的字段。' }
+        deps.updateTodo(id, patch)
+        return { ok: true, text: `已更新待办：${todo.text}` }
+      },
+    },
+    {
+      name: 'todo_remove',
+      description: '删除一条待办；不能删除重复待办生成的整组记录。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '待办 ID' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `删除待办 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const todo = deps.todos().find((item) => item.id === id)
+        if (!todo) throw new Error('找不到这条待办。')
+        deps.removeTodo(id)
+        return { ok: true, text: `已删除待办：${todo.text}` }
+      },
+    },
+    {
+      name: 'todo_clear_done',
+      description: '清理所有已完成的待办。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: () => '清理已完成待办',
+      async run() {
+        const count = deps.clearDoneTodos()
+        return {
+          ok: true,
+          text: count ? `已清理 ${count} 条已完成待办。` : '没有已完成待办。',
+        }
+      },
+    },
+    {
+      name: 'todo_list_create',
+      description: '新建一个待办清单。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '清单名称，1-40 字' },
+        },
+        required: ['name'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `新建清单：${String(args.name ?? '')}`,
+      async run(args) {
+        const name = text(args.name, 'name', 40)
+        deps.addTodoList(name)
+        return { ok: true, text: `已新建清单：${name}` }
+      },
+    },
+    {
+      name: 'focus_control',
+      description: '控制番茄时钟：开始、暂停、重置或跳到下一阶段。',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['start', 'pause', 'reset', 'skip'],
+            description: '控制动作',
+          },
+        },
+        required: ['action'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'allow',
+      title: (args) => `番茄时钟：${String(args.action ?? '')}`,
+      async run(args) {
+        const action = args.action
+        if (
+          action !== 'start' &&
+          action !== 'pause' &&
+          action !== 'reset' &&
+          action !== 'skip'
+        )
+          throw new Error('不支持的番茄时钟操作。')
+        const state = deps.focusControl(action)
+        const phase =
+          state.phase === 'focus'
+            ? '专注'
+            : state.phase === 'short'
+              ? '短休'
+              : '长休'
+        return {
+          ok: true,
+          text: `番茄时钟已${action === 'start' ? '开始' : action === 'pause' ? '暂停' : action === 'reset' ? '重置' : '跳到下一阶段'}：${phase}，${state.running ? '进行中' : '未运行'}。`,
+        }
+      },
+    },
+    {
+      name: 'water_drink',
+      description: '记录一次喝水。',
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'allow',
+      title: () => '记录喝水',
+      async run() {
+        const { count, goal } = deps.waterDrink()
+        return { ok: true, text: `已记录一次喝水：${count}/${goal}。` }
+      },
+    },
+    {
+      name: 'water_snooze',
+      description: '把下一次喝水提醒延后指定分钟数。',
+      parameters: {
+        type: 'object',
+        properties: {
+          minutes: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 60,
+            description: '延后分钟数，默认 10',
+          },
+        },
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'allow',
+      title: (args) => `喝水提醒延后 ${String(args.minutes ?? 10)} 分钟`,
+      async run(args) {
+        const minutes = numberArg(args.minutes, 1, 60) ?? 10
+        deps.waterSnooze(minutes)
+        return { ok: true, text: `喝水提醒已延后 ${minutes} 分钟。` }
+      },
+    },
+    {
+      name: 'break_snooze',
+      description: '把久坐或护眼提醒延后指定分钟数。',
+      parameters: {
+        type: 'object',
+        properties: {
+          kind: {
+            type: 'string',
+            enum: ['sitting', 'eyes'],
+            description: 'sitting 久坐，eyes 护眼',
+          },
+          minutes: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 60,
+            description: '延后分钟数，默认 10',
+          },
+        },
+        required: ['kind'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'allow',
+      title: (args) =>
+        `${args.kind === 'eyes' ? '护眼' : '久坐'}提醒延后 ${String(args.minutes ?? 10)} 分钟`,
+      async run(args) {
+        const kind = args.kind
+        if (kind !== 'sitting' && kind !== 'eyes')
+          throw new Error('不支持的提醒类型。')
+        const minutes = numberArg(args.minutes, 1, 60) ?? 10
+        deps.breakSnooze(kind, minutes)
+        return {
+          ok: true,
+          text: `${kind === 'eyes' ? '护眼' : '久坐'}提醒已延后 ${minutes} 分钟。`,
+        }
+      },
+    },
+    {
+      name: 'clipboard_copy',
+      description: '把一条剪贴板历史记录重新复制到剪贴板。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '剪贴板记录 ID' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `复制剪贴板记录 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        if (!deps.clipboard().entries.some((entry) => entry.id === id))
+          throw new Error('剪贴板里没有这条记录。')
+        await deps.clipboardCopy(id)
+        return { ok: true, text: '已复制到剪贴板。' }
+      },
+    },
+    {
+      name: 'clipboard_pin',
+      description: '固定或取消固定一条剪贴板记录。',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: '剪贴板记录 ID' },
+          pinned: { type: 'boolean', description: '是否固定' },
+        },
+        required: ['id', 'pinned'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `${args.pinned ? '固定' : '取消固定'}剪贴板记录 ${String(args.id ?? '')}`,
+      async run(args) {
+        const id = text(args.id, 'id', 100)
+        const pinned = booleanArg(args.pinned, 'pinned')
+        if (!deps.clipboard().entries.some((entry) => entry.id === id))
+          throw new Error('剪贴板里没有这条记录。')
+        deps.clipboardPin(id, pinned)
+        return {
+          ok: true,
+          text: pinned ? '已固定该记录。' : '已取消固定。',
         }
       },
     },

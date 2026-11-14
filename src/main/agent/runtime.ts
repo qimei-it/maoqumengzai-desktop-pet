@@ -39,6 +39,8 @@ export type AgentRuntimeDeps = AgentDeps & {
   getKey(): string | undefined
   broadcast(): void
   pickWorkspace(): Promise<string | null>
+  /** Injectable for tests; production uses the real streaming client. */
+  stream?: typeof streamChat
 }
 
 export type AgentRuntime = {
@@ -152,9 +154,13 @@ function systemPrompt(
 }
 
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
+  const stream = deps.stream ?? streamChat
   const tools = createTools(deps)
   const toolList = Object.values(tools)
-  const definitions = toolList.map(toolDefinition)
+  const buildDefinitions = toolList.map(toolDefinition)
+  const planDefinitions = toolList
+    .filter((tool) => tool.plan === 'allow')
+    .map(toolDefinition)
   let sessions: StoredSession[] = []
   let activeId: string | null = null
   let busy = false
@@ -287,7 +293,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       let textPart: AgentTextPart | null = null
       let result: StreamResult | null = null
       try {
-        result = await streamChat(key, {
+        result = await stream(key, {
           model: session.model,
           messages: [
             {
@@ -300,7 +306,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             },
             ...trimHistory(session.history),
           ],
-          tools: definitions,
+          tools:
+            session.mode === 'plan' ? planDefinitions : buildDefinitions,
           signal,
           onText: (delta) => {
             if (!textPart) {

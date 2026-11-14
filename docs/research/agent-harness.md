@@ -31,7 +31,7 @@ Agent Runtime（src/main/agent/runtime.ts）
 
 ## 模式与权限
 
-- `plan`：只读工具。
+- `plan`：只读工具；请求只带 allow 的只读工具定义，写工具不进入上下文。
 - `build`：默认模式；写操作逐次确认。
 - 权限按工具静态声明，`allow / ask / deny`。
 
@@ -39,16 +39,37 @@ Agent Runtime（src/main/agent/runtime.ts）
 | --- | --- | --- | --- |
 | `shelf_list` | 置物架文件列表 | allow | allow |
 | `file_read` | 读取置物架文本文件 | allow | allow |
+| `file_reveal` | 在访达中定位文件 | allow | allow |
+| `file_save_copy` | 另存文件副本 | deny | ask |
+| `shelf_remove` | 移出置物架 | deny | ask |
+| `convert_start` | 格式转换 | deny | ask |
+| `archive_start` | 打包归档 | deny | ask |
+| `extract_archive` | 解压压缩包 | deny | ask |
+| `rename_files` | 批量重命名 | deny | ask |
 | `todo_list` | 待办与清单 | allow | allow |
 | `todo_create` | 新建待办 | deny | ask |
 | `todo_complete` | 完成待办 | deny | ask |
+| `todo_update` | 修改待办 | deny | ask |
+| `todo_remove` | 删除待办 | deny | ask |
+| `todo_clear_done` | 清理已完成待办 | deny | ask |
+| `todo_list_create` | 新建清单 | deny | ask |
 | `music_status` | 播放器与歌词 | allow | allow |
 | `music_control` | 播放控制 | deny | allow |
 | `settings_read` | 读取常用设置 | allow | allow |
 | `settings_update` | 修改白名单设置 | deny | ask |
 | `clipboard_list` | 剪贴板记录（脱敏） | allow | allow |
+| `clipboard_copy` | 复制记录到剪贴板 | deny | ask |
+| `clipboard_pin` | 固定/取消固定记录 | deny | ask |
 | `mail_list` | 邮箱与最近摘要 | allow | allow |
+| `mail_read` | 读取正文与附件名 | allow | allow |
 | `mail_send` | 发送邮件 | deny | ask |
+| `mail_archive` | 归档邮件 | deny | ask |
+| `mail_delete` | 删除邮件 | deny | ask |
+| `mail_move` | 移动邮件 | deny | ask |
+| `focus_control` | 番茄时钟开始/暂停/重置/跳过 | deny | allow |
+| `water_drink` | 记录喝水 | deny | allow |
+| `water_snooze` | 延后喝水提醒 | deny | allow |
+| `break_snooze` | 延后久坐/护眼提醒 | deny | allow |
 | `shell_run` | 执行命令 | deny | ask（每条） |
 | `ui_open` | 打开功能面板 | allow | allow |
 
@@ -82,7 +103,6 @@ Agent Runtime（src/main/agent/runtime.ts）
 - 生图 Provider 与 `image_generate` 工具。
 - 宠物档案新建流程与 Seedream 生成。
 - 小程序二维码绑定与档案同步。
-- 格式转换工具、邮件正文读取、邮件归档/删除、剪贴板写入。
 - 子 Agent、项目分组、代码编辑工具。
 
 设置 → 宠物档案已提供“新建桌宠”卡片与“绑定小程序”按钮，点击暂时只给出“即将开放”提示。
@@ -93,3 +113,4 @@ Agent Runtime（src/main/agent/runtime.ts）
 - 运行时真实联调：`shelf_list` 只读调用、`todo_create` 审批后落库、`shell_run` 审批后执行并返回输出、`plan` 模式未产生写入、会话重启后恢复、token 用量累计。
 - 人格切换联调：麻薯 → 小白后，下一次回复使用新名字；同一会话仍正常调用工具。
 - Electron 定向用例：`tests/e2e/agent-panel.spec.ts` 覆盖连接页、模型切换、模式切换、新建会话、宠物档案按钮。
+- 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、shell 超时与截断。

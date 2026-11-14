@@ -573,6 +573,86 @@ const agent = createAgentRuntime({
   lyrics: () => lyrics,
   controlMusic: (action) => controlMusic(action),
   clipboard: () => clipboardState(),
+  revealFile: async (id) => {
+    shell.showItemInFolder(await registeredFile(id))
+  },
+  saveCopy: (id) => saveCopyForAgent(id),
+  removeFromShelf: async (id) => {
+    const file = files.get(id)
+    if (!file) throw new Error('置物架里没有这个文件。')
+    files.delete(id)
+    try {
+      await saveShelf()
+    } catch (error) {
+      files.set(id, file)
+      throw error
+    }
+    refreshPocketLayout()
+    broadcast()
+  },
+  convertFiles: async (ids, action, password) => {
+    const opened = await openConvert(ids)
+    if (!opened) throw new Error(convertNotice ?? '无法开始转换。')
+    await startConvert(action, password)
+    const outcome = convertOutcome
+    if (!outcome) throw new Error(convertNotice ?? '转换没有执行。')
+    if (!outcome.converted)
+      throw new Error(outcome.messages[0] ?? '转换失败。')
+    const names = outcome.outputs
+      .map((output) => output.name)
+      .slice(0, 6)
+      .join('、')
+    return `已转换 ${outcome.converted} 个文件${
+      outcome.failed ? `，失败 ${outcome.failed} 个` : ''
+    }${names ? `：${names}` : ''}`
+  },
+  archiveFiles: async (ids, format) => {
+    openArchive(ids)
+    if (!archiveFiles.length) throw new Error('没有可打包的文件。')
+    await startArchive(format)
+    if (!archiveOutcome) throw new Error(archiveNotice ?? '打包失败。')
+    const size =
+      archiveOutcome.size >= 1024 * 1024
+        ? `${(archiveOutcome.size / 1024 / 1024).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(archiveOutcome.size / 1024))} KB`
+    return `已生成 ${archiveOutcome.name}（${size}）`
+  },
+  extractFiles: (ids) => extractSelected(ids),
+  renameFiles: async (ids, config) => {
+    openRename(ids)
+    if (renameFiles.length < 2) throw new Error('至少需要两个文件。')
+    try {
+      return await applyRename(config)
+    } finally {
+      closeRename()
+    }
+  },
+  mailRead: (accountId, uid, folder) =>
+    readMailForAgent(accountId, uid, folder),
+  mailMove: (accountId, folder, uid, mode, targetFolder) =>
+    moveMailForAgent(accountId, folder, uid, mode, targetFolder),
+  updateTodo: (id, patch) => updateTodo(id, patch),
+  removeTodo: (id) => removeTodo(id),
+  clearDoneTodos: () => clearDoneTodos(),
+  addTodoList: (name) => addTodoList(name),
+  focusControl: (action) => {
+    if (action === 'start') startFocus()
+    else if (action === 'pause') pauseFocusTimer()
+    else if (action === 'reset') resetFocusTimer()
+    else skipFocusTimer()
+    return { phase: focusData.phase, running: focusData.running }
+  },
+  waterDrink: () => {
+    addWaterDrink()
+    return {
+      count: focusData.waterLog.length,
+      goal: focusData.waterGoal,
+    }
+  },
+  waterSnooze: (minutes) => snoozeWater(minutes),
+  breakSnooze: (kind, minutes) => snoozeBreak(kind, minutes),
+  clipboardCopy: (id) => copyClipboardEntry(id),
+  clipboardPin: (id, pinned) => setClipboardPinned(id, pinned),
   mailAccounts: () => mailDb?.listAccounts() ?? [],
   mailMessages: (accountId, folder, limit) =>
     mailDb?.listMessages(accountId, folder, limit) ?? [],
@@ -611,7 +691,8 @@ const agent = createAgentRuntime({
     }
   },
   pickWorkspace: async () => {
-    const result = await dialog.showOpenDialog(pet, {
+    const owner = askWindow && askWindow.isVisible() ? askWindow : pet
+    const result = await dialog.showOpenDialog(owner, {
       title: '选择 shell 工作区',
       properties: ['openDirectory', 'createDirectory'],
     })
@@ -1370,7 +1451,6 @@ function openArchive(fileIds: string[], folderIds: string[] = []): void {
   archiveOutcome = undefined
   archiveNotice = undefined
   archiveFolder = undefined
-  if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
@@ -1593,7 +1673,6 @@ async function openConvert(
           : skipped
             ? `已跳过 ${skipped} 个不支持的文件。`
             : undefined
-  if (askWindow?.isVisible()) askWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow?.isVisible()) renameWindow.hide()
   hidePocket()
@@ -2213,7 +2292,6 @@ function openRename(fileIds: string[]): void {
   }
   renameFiles = selected.slice(0, 32).map(({ id, name }) => ({ id, name }))
   renameBusy = false
-  if (askWindow?.isVisible()) askWindow.hide()
   if (convertWindow?.isVisible()) convertWindow.hide()
   if (archiveWindow?.isVisible()) archiveWindow.hide()
   if (renameWindow && !renameWindow.isDestroyed()) {
@@ -3415,6 +3493,101 @@ async function moveMailMessageOperation(
     broadcast()
   }
 }
+/** Agent-facing mail read; never marks the message as seen. */
+async function readMailForAgent(
+  accountId: string,
+  uid: number,
+  folder: string,
+): Promise<{
+  subject: string
+  from: string
+  date?: number
+  body: string
+  attachments: string[]
+}> {
+  const detail = await ensureMailDetail(accountId, uid, folder, false)
+  if (!detail) throw new Error('邮件不存在。')
+  const text = detail.bodyText?.trim()
+  const html = detail.bodyHtml?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  return {
+    subject: detail.subject,
+    from: detail.fromName || detail.fromAddress || '',
+    ...(detail.date ? { date: detail.date } : {}),
+    body: text || html || '',
+    attachments: detail.attachments.map((attachment) => attachment.filename),
+  }
+}
+
+/** Agent-facing archive/delete/move; confirmation happens in the agent panel. */
+async function moveMailForAgent(
+  accountId: string,
+  folder: string,
+  uid: number,
+  mode: 'archive' | 'delete' | 'move',
+  targetFolder?: string,
+): Promise<string> {
+  if (!mailDb) throw new Error('邮件数据库尚未就绪。')
+  const account = mailDb.account(accountId)
+  const message = mailDb.message(accountId, folder, uid)
+  if (!account || !message) throw new Error('邮件不存在。')
+  const secret = await loadMailSecret(mailSecretsPath, accountId)
+  if (!secret) throw new Error('授权已失效，请重新授权。')
+  if (mode === 'move' && !targetFolder) throw new Error('请选择目标文件夹。')
+  const permanent =
+    mode === 'delete' && mailFolderKind(accountId, folder) === 'trash'
+  if (permanent) {
+    await deleteMailMessages(
+      account.provider,
+      account.email,
+      secret,
+      [uid],
+      folder,
+    )
+  } else if (mode === 'move') {
+    await moveMailMessagesToFolder(
+      account.provider,
+      account.email,
+      secret,
+      [uid],
+      targetFolder!,
+      folder,
+    )
+  } else {
+    const target: 'archive' | 'trash' =
+      mode === 'archive' ? 'archive' : 'trash'
+    const moved = await moveMailMessages(
+      account.provider,
+      account.email,
+      secret,
+      [uid],
+      target,
+      folder,
+    )
+    if (!moved)
+      throw new Error(
+        target === 'archive'
+          ? '未找到归档文件夹，无法归档。'
+          : '未找到已删除文件夹，无法删除。',
+      )
+  }
+  mailDb.removeMessage(accountId, folder, uid)
+  await rm(
+    join(dataRoot, 'mail-cache', accountId, folder, String(uid)),
+    { recursive: true, force: true },
+  ).catch(() => {})
+  reduceAccountUnread(
+    accountId,
+    folder === 'INBOX' && message.unread ? 1 : 0,
+  )
+  if (mailPanelSelected?.uid === uid) mailPanelSelected = undefined
+  if (mailPanelAccountId === accountId && mailPanelFolder === folder)
+    loadMailMessages(accountId, folder)
+  void refreshMailCacheSize()
+  void updateMailBadge()
+  broadcast()
+  return message.subject
+}
+
 async function sendMail(command: {
   accountId: string
   draftId?: string
@@ -5166,15 +5339,17 @@ function removeTodoGroup(id: string): void {
   persistFocus()
   broadcast()
 }
-function clearDoneTodos(ids?: string[]): void {
+function clearDoneTodos(ids?: string[]): number {
   const scope = ids ? new Set(ids) : null
   const remaining = focusData.todos.filter(
     (todo) => !todo.done || (scope !== null && !scope.has(todo.id)),
   )
-  if (remaining.length === focusData.todos.length) return
+  const removed = focusData.todos.length - remaining.length
+  if (!removed) return 0
   focusData = { ...focusData, todos: remaining }
   persistFocus()
   broadcast()
+  return removed
 }
 function removeTodo(id: string): void {
   focusData = {
@@ -5555,7 +5730,7 @@ function shortSize(value: number): string {
     ? `${(value / 1024 ** 2).toFixed(1)} MB`
     : `${Math.max(1, Math.round(value / 1024))} KB`
 }
-async function extractSelected(fileIds: string[]): Promise<void> {
+async function extractSelected(fileIds: string[]): Promise<number> {
   let count = 0
   const folders: string[] = []
   for (const id of fileIds) {
@@ -5568,6 +5743,7 @@ async function extractSelected(fileIds: string[]): Promise<void> {
   }
   showToast(`已解压 ${count} 个文件`)
   addEvent(`已解压 ${count} 个文件到「${folders[0]}」。`)
+  return count
 }
 async function shrinkSelected(fileIds: string[]): Promise<void> {
   const paths: string[] = []
@@ -7598,6 +7774,41 @@ async function restoreEaten(entryId: string): Promise<void> {
   refreshPocketLayout()
   addEvent(`已取回「${entry.name}」；已回到本地磁盘。`)
 }
+/** Save a shelf copy through a dialog; the agent asks the user for the path. */
+async function saveCopyForAgent(fileId: string): Promise<string | null> {
+  const original = await registeredFile(fileId)
+  const owner = askWindow && askWindow.isVisible() ? askWindow : pet
+  const destination = await dialog.showSaveDialog(owner, {
+    title: '另存文件副本',
+    defaultPath: basename(original),
+  })
+  if (destination.canceled || !destination.filePath) return null
+  if (destination.filePath === original)
+    throw new Error('请选择不同的保存位置，保留原文件。')
+  try {
+    if ((await realpath(destination.filePath)) === original)
+      throw new Error('请选择不同的保存位置，保留原文件。')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  try {
+    const [sourceInfo, targetInfo] = await Promise.all([
+      lstat(original),
+      lstat(destination.filePath),
+    ])
+    if (
+      sourceInfo.dev === targetInfo.dev &&
+      sourceInfo.ino === targetInfo.ino
+    )
+      throw new Error('请选择不同的保存位置，保留原文件。')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  await copyFile(original, destination.filePath)
+  addEvent('文件副本已保存到所选位置。')
+  return destination.filePath
+}
+
 async function registeredFile(id: string): Promise<string> {
   const file = files.get(id)
   if (!file) throw new Error('文件记录不存在。')
