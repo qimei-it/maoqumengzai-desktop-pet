@@ -42,7 +42,17 @@ export type AgentSessionSummary = {
   title: string
   mode: AgentMode
   workspace: string | null
+  projectId: string | null
+  pinned: boolean
   updatedAt: number
+}
+
+export type AgentProjectView = {
+  id: string
+  name: string
+  workspace: string
+  pinned: boolean
+  createdAt: number
 }
 
 export type AgentApproval = {
@@ -70,6 +80,7 @@ export type AgentState = {
   configured: boolean
   busy: boolean
   sessions: AgentSessionSummary[]
+  projects: AgentProjectView[]
   sessionId: string | null
   mode: AgentMode
   model: DeepSeekModel
@@ -84,6 +95,7 @@ export const agentEmptyState: AgentState = {
   configured: false,
   busy: false,
   sessions: [],
+  projects: [],
   sessionId: null,
   mode: 'build',
   model: 'deepseek-flash',

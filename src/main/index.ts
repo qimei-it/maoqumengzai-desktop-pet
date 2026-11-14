@@ -8429,6 +8429,14 @@ function setupIpc(): void {
       'agent-deny',
       'agent-session-new',
       'agent-project-new',
+      'agent-project-create',
+      'agent-project-update',
+      'agent-project-delete',
+      'agent-project-pin',
+      'agent-project-reveal',
+      'agent-session-rename',
+      'agent-session-pin',
+      'agent-session-move',
       'agent-session-select',
       'agent-session-delete',
       'agent-mode',
@@ -8579,7 +8587,51 @@ function setupIpc(): void {
         agent.newSession()
         break
       case 'agent-project-new':
-        agent.newSessionIn(command.workspace)
+        agent.newSessionIn(command.projectId)
+        break
+      case 'agent-project-create': {
+        const info = await stat(command.workspace).catch(() => null)
+        if (!info?.isDirectory()) throw new Error('项目文件夹不存在。')
+        agent.createProject(command.name, command.workspace)
+        break
+      }
+      case 'agent-project-update': {
+        if (command.workspace !== undefined) {
+          const info = await stat(command.workspace).catch(() => null)
+          if (!info?.isDirectory()) throw new Error('项目文件夹不存在。')
+        }
+        agent.updateProject(command.id, {
+          ...(command.name !== undefined ? { name: command.name } : {}),
+          ...(command.workspace !== undefined
+            ? { workspace: command.workspace }
+            : {}),
+        })
+        break
+      }
+      case 'agent-project-delete':
+        agent.deleteProject(command.id)
+        break
+      case 'agent-project-pin':
+        agent.setProjectPinned(command.id, command.pinned)
+        break
+      case 'agent-project-reveal': {
+        const project = agent
+          .state()
+          .projects.find((item) => item.id === command.id)
+        if (project) {
+          const error = await shell.openPath(project.workspace)
+          if (error) throw new Error('无法打开项目文件夹。')
+        }
+        break
+      }
+      case 'agent-session-rename':
+        agent.renameSession(command.id, command.title)
+        break
+      case 'agent-session-pin':
+        agent.setSessionPinned(command.id, command.pinned)
+        break
+      case 'agent-session-move':
+        agent.moveSession(command.id, command.projectId)
         break
       case 'agent-session-select':
         agent.select(command.id)
@@ -9179,6 +9231,15 @@ function setupIpc(): void {
     if (windowVisible(pocket)) positionPocket()
     broadcast()
     return snapshot()
+  })
+  handle(channels.pickDirectory, 'either', async (event) => {
+    const owner = BrowserWindow.fromWebContents(event.sender) ?? pet
+    const selection = await dialog.showOpenDialog(owner, {
+      title: '选择项目文件夹',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (selection.canceled) return null
+    return selection.filePaths[0] ?? null
   })
   handle(channels.selectFiles, 'either', async (event) => {
     const owner = BrowserWindow.fromWebContents(event.sender)

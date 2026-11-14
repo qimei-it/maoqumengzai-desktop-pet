@@ -6,6 +6,9 @@ import image from './assets/file-icons/image.svg'
 import video from './assets/file-icons/video.svg'
 import audio from './assets/file-icons/audio.svg'
 import markdown from './assets/file-icons/markdown.svg'
+import pages from './assets/file-icons/pages.png'
+import keynote from './assets/file-icons/keynote.png'
+import numbers from './assets/file-icons/numbers.png'
 import document from './assets/file-icons/document.svg'
 import folder from './assets/file-icons/folder.svg'
 import spreadsheet from './assets/file-icons/spreadsheet.svg'
@@ -211,6 +214,13 @@ const codeExtensions = new Set([
   'rmd',
 ])
 const shortcutExtensions = new Set(['lnk', 'alias', 'url', 'webloc', 'desktop'])
+// Pages, Keynote and Numbers save as macOS document packages (folders), so the
+// extension decides their artwork even when the shelf records a directory.
+const documentPackageExtensions = new Set(['pages', 'key', 'numbers'])
+
+export function isAppleDocumentPackage(name: string): boolean {
+  return documentPackageExtensions.has(extensionOf(name))
+}
 
 /** File-type artwork chosen by extension; unknown documents use the blue sheet. */
 export function fileIconFor(
@@ -218,9 +228,12 @@ export function fileIconFor(
   kind: 'file' | 'folder' = 'file',
   shortcutFile = false,
 ): string {
-  if (kind === 'folder') return folder
-  if (shortcutFile) return shortcut
   const extension = extensionOf(name)
+  if (kind === 'folder' && !isAppleDocumentPackage(name)) return folder
+  if (shortcutFile) return shortcut
+  if (extension === 'pages') return pages
+  if (extension === 'key') return keynote
+  if (extension === 'numbers') return numbers
   if (extension === '7z') return archive7z
   if (archiveExtensions.has(extension)) return archive
   if (extension === 'md' || extension === 'markdown') return markdown

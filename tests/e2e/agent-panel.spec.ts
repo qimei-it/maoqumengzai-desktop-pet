@@ -73,7 +73,7 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
 
   const before = await agent.evaluate(() => window.mqmz!.snapshot())
   const count = before.ok ? before.value.agent.sessions.length : 0
-  await agent.getByRole('button', { name: '新建会话', exact: true }).click()
+  await agent.locator('.agent-new-chat').click()
   await expect
     .poll(async () => {
       const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
@@ -84,38 +84,211 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   expect(errors).toEqual([])
 })
 
-test('project sessions group under the workspace', async () => {
+test('projects group sessions and support session actions', async () => {
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
-  const project = process.cwd()
-  const name = project.split('/').filter(Boolean).pop()!
+  const workspace = process.cwd()
+  const name = workspace.split('/').filter(Boolean).pop()!
   await agent.evaluate(
-    (workspace) =>
-      window.mqmz!.command({ type: 'agent-project-new', workspace }),
-    project,
+    ({ name, workspace }) =>
+      window.mqmz!.command({
+        type: 'agent-project-create',
+        name,
+        workspace,
+      }),
+    { name, workspace },
   )
+
+  const invalid = await agent.evaluate(() =>
+    window.mqmz!.command({
+      type: 'agent-project-create',
+      name: '无效项目',
+      workspace: '/definitely/not/a/real/folder',
+    }),
+  )
+  expect(invalid.ok).toBe(false)
+
+  let projectId = ''
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      const project = snapshot.ok
+        ? snapshot.value.agent.projects.find(
+            (item) => item.workspace === workspace,
+          )
+        : undefined
+      projectId = project?.id ?? ''
+      return Boolean(projectId)
+    })
+    .toBe(true)
+
+  await agent.evaluate(
+    (id) => window.mqmz!.command({ type: 'agent-project-new', projectId: id }),
+    projectId,
+  )
+
+  let sessionId = ''
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      const session = snapshot.ok
+        ? snapshot.value.agent.sessions.find(
+            (item) => item.projectId === projectId,
+          )
+        : undefined
+      sessionId = session?.id ?? ''
+      return Boolean(sessionId)
+    })
+    .toBe(true)
+
   await expect(agent.getByText('项目', { exact: true })).toBeVisible()
+  const projectRow = agent
+    .locator('.agent-project-row')
+    .filter({ hasText: name })
+  await expect(projectRow).toBeVisible()
+
+  await projectRow.hover()
+  await projectRow.getByRole('button', { name: '项目菜单' }).click()
+  for (const label of ['置顶', '编辑', /Finder|资源管理器/, '删除']) {
+    await expect(
+      agent.getByRole('menuitem', {
+        name: label instanceof RegExp ? label : new RegExp(label),
+      }),
+    ).toBeVisible()
+  }
+  await agent.keyboard.press('Escape')
   await expect(
-    agent.locator('.agent-project-row').filter({ hasText: name }),
-  ).toBeVisible()
-  await expect(
-    agent.locator('.agent-project-toggle').filter({ hasText: name }),
+    agent.locator('.agent-project-sessions .agent-session').first(),
   ).toBeVisible()
 
-  const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
-  const created = snapshot.ok
-    ? snapshot.value.agent.sessions.find(
-        (session) => session.workspace === project,
+  await agent.evaluate(
+    ({ id }) =>
+      window.mqmz!.command({
+        type: 'agent-session-rename',
+        id,
+        title: '重命名测试',
+      }),
+    { id: sessionId },
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.sessions.find((item) => item.id === sessionId)
+            ?.title
+        : ''
+    })
+    .toBe('重命名测试')
+
+  const sessionRow = agent
+    .locator('.agent-project-sessions .agent-session')
+    .filter({ hasText: '重命名测试' })
+  await sessionRow.hover()
+  await sessionRow.getByRole('button', { name: '对话菜单' }).click()
+  await expect(
+    agent.getByRole('menuitem', { name: '重命名' }),
+  ).toBeVisible()
+  await expect(agent.getByRole('menuitem', { name: '移动' })).toBeVisible()
+  await agent.keyboard.press('Escape')
+
+  await agent.evaluate(
+    ({ id }) =>
+      window.mqmz!.command({
+        type: 'agent-session-move',
+        id,
+        projectId: null,
+      }),
+    { id: sessionId },
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.sessions.find((item) => item.id === sessionId)
+            ?.projectId
+        : projectId
+    })
+    .toBeNull()
+
+  await agent.evaluate(
+    ({ id }) =>
+      window.mqmz!.command({
+        type: 'agent-session-pin',
+        id,
+        pinned: true,
+      }),
+    { id: sessionId },
+  )
+  await agent.evaluate(
+    ({ id }) =>
+      window.mqmz!.command({
+        type: 'agent-project-pin',
+        id,
+        pinned: true,
+      }),
+    { id: projectId },
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      if (!snapshot.ok) return false
+      const session = snapshot.value.agent.sessions.find(
+        (item) => item.id === sessionId,
       )
-    : undefined
-  expect(created).toBeTruthy()
-  if (created) {
-    await agent.evaluate(
-      (id) => window.mqmz!.command({ type: 'agent-session-delete', id }),
-      created.id,
-    )
-  }
+      const project = snapshot.value.agent.projects.find(
+        (item) => item.id === projectId,
+      )
+      return session?.pinned === true && project?.pinned === true
+    })
+    .toBe(true)
+
+  await agent.evaluate(
+    ({ id, projectId }) =>
+      window.mqmz!.command({
+        type: 'agent-session-move',
+        id,
+        projectId,
+      }),
+    { id: sessionId, projectId },
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.sessions.find((item) => item.id === sessionId)
+            ?.projectId
+        : null
+    })
+    .toBe(projectId)
+
+  await agent.evaluate(
+    ({ id }) =>
+      window.mqmz!.command({
+        type: 'agent-project-update',
+        id,
+        name: '项目重命名',
+      }),
+    { id: projectId },
+  )
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.projects.find((item) => item.id === projectId)
+            ?.name
+        : ''
+    })
+    .toBe('项目重命名')
+
+  await agent.evaluate(
+    (id) => window.mqmz!.command({ type: 'agent-session-delete', id }),
+    sessionId,
+  )
+  await agent.evaluate(
+    (id) => window.mqmz!.command({ type: 'agent-project-delete', id }),
+    projectId,
+  )
 })
 
 test('agent window resizes, maximizes, and remembers bounds', async () => {

@@ -59,6 +59,8 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 ## Artwork
 
 - 应用主图标、7z 文件图标与通用归档文件图标由用户提供；文件图标保存在 `src/renderer/assets/file-icons/7z.svg` 与 `archive.svg`。应用主图标保存在 `build/icon-source.png`；派生的 `build/icon.icns`、`build/icon.ico` 与 `resources/icons/app-icon*.png` 仅用于毛趣萌仔桌面应用。
+- 音频、视频、Markdown 与 Office 文件类型图标由用户提供，保存在 `src/renderer/assets/file-icons/`；其中 Word、Excel、PowerPoint 图标使用 Microsoft 文件类型识别样式，相关标识归 Microsoft 所有，仅用于本地文件类型识别。
+- Pages、Keynote、Numbers 文件类型图标由用户提供的 macOS 应用 `.icns` 图标转换为 PNG，保存在 `src/renderer/assets/file-icons/pages.png`、`keynote.png`、`numbers.png`；Apple、Pages、Keynote、Numbers 标识归 Apple Inc. 所有，仅用于本地文件类型识别。
 - 待办清单图标使用 Mozilla FxEmojis（https://github.com/mozilla/fxemoji）的官方 SVG，保存在 `src/renderer/assets/fxemoji/`，清单与中文名称见同目录 `manifest.json`。视觉设计采用 CC BY 4.0，代码采用 Apache-2.0；仅移除未使用的内嵌字体与文本元数据，图形路径未改动。许可证原文：`resources/licenses/fxemoji-LICENSE.md`。
 - OpenAI 服务标识来自 LobeHub Icons（https://github.com/lobehub/lobe-icons，MIT，Copyright (c) 2023 LobeHub），保存在 `src/renderer/OpenAiMark.vue`，仅用于识别 OpenAI 额度药丸；未使用其品牌名以外的素材。
 

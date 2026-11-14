@@ -15,10 +15,12 @@ import type { DeepSeekModel } from '../../shared/deepseek'
 import type { SettingsState } from '../../shared/settings'
 import {
   loadAgentStore,
+  maxAgentProjects,
   maxHistoryEntries,
   maxSessionMessages,
   maxAgentSessions,
   saveAgentStore,
+  type StoredProject,
   type StoredSession,
 } from './store'
 import {
@@ -55,7 +57,17 @@ export type AgentRuntime = {
   approve(id: string): void
   deny(id: string): void
   newSession(): void
-  newSessionIn(workspace: string): void
+  newSessionIn(projectId: string): void
+  createProject(name: string, workspace: string): void
+  updateProject(
+    id: string,
+    patch: { name?: string; workspace?: string },
+  ): void
+  deleteProject(id: string): void
+  setProjectPinned(id: string, pinned: boolean): void
+  renameSession(id: string, title: string): void
+  setSessionPinned(id: string, pinned: boolean): void
+  moveSession(id: string, projectId: string | null): void
   select(id: string): void
   remove(id: string): void
   setMode(mode: AgentMode): void
@@ -71,14 +83,20 @@ function now(): number {
   return Date.now()
 }
 
-function newSession(model: DeepSeekModel): StoredSession {
+function newSession(
+  model: DeepSeekModel,
+  projectId: string | null = null,
+  workspace: string | null = null,
+): StoredSession {
   const stamp = now()
   return {
     id: randomUUID(),
     title: '新会话',
     mode: 'build',
     model,
-    workspace: null,
+    workspace,
+    projectId,
+    pinned: false,
     createdAt: stamp,
     updatedAt: stamp,
     ui: [],
@@ -167,6 +185,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     .filter((tool) => tool.plan === 'allow')
     .map(toolDefinition)
   let sessions: StoredSession[] = []
+  let projects: StoredProject[] = []
   let activeId: string | null = null
   let busy = false
   let controller: AbortController | null = null
@@ -178,7 +197,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   let loaded = false
 
   function persist(): void {
-    void saveAgentStore(deps.storePath, sessions).catch(() => {})
+    void saveAgentStore(deps.storePath, { sessions, projects }).catch(() => {})
   }
 
   function activeSession(): StoredSession | undefined {
@@ -462,7 +481,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async load() {
       if (loaded) return
       loaded = true
-      sessions = await loadAgentStore(deps.storePath)
+      const store = await loadAgentStore(deps.storePath)
+      sessions = store.sessions
+      projects = store.projects
       activeId = sessions[0]?.id ?? null
     },
     state(): AgentState {
@@ -475,8 +496,23 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           title: item.title,
           mode: item.mode,
           workspace: item.workspace,
+          projectId: item.projectId,
+          pinned: item.pinned,
           updatedAt: item.updatedAt,
         })),
+        projects: [...projects]
+          .sort(
+            (left, right) =>
+              Number(right.pinned) - Number(left.pinned) ||
+              left.createdAt - right.createdAt,
+          )
+          .map((project) => ({
+            id: project.id,
+            name: project.name,
+            workspace: project.workspace,
+            pinned: project.pinned,
+            createdAt: project.createdAt,
+          })),
         sessionId: session?.id ?? null,
         mode: session?.mode ?? 'build',
         model: session?.model ?? deps.getSettings().aiModel,
@@ -554,15 +590,108 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
       emit()
     },
-    newSessionIn(workspace: string) {
+    newSessionIn(projectId: string) {
+      const project = projects.find((item) => item.id === projectId)
+      if (!project) return
       if (busy) this.cancel()
-      const session = newSession(deps.getSettings().aiModel)
-      session.workspace = workspace
+      const session = newSession(
+        deps.getSettings().aiModel,
+        project.id,
+        project.workspace,
+      )
       sessions.unshift(session)
       if (sessions.length > maxAgentSessions)
         sessions.splice(maxAgentSessions)
       activeId = session.id
       errorText = undefined
+      persist()
+      emit()
+    },
+    createProject(name: string, workspace: string) {
+      const value = name.trim().slice(0, 40)
+      if (!value) throw new Error('缺少项目名称。')
+      if (!workspace.trim()) throw new Error('缺少项目文件夹。')
+      if (projects.some((item) => item.workspace === workspace))
+        throw new Error('这个文件夹已经是项目。')
+      projects.push({
+        id: randomUUID(),
+        name: value,
+        workspace,
+        pinned: false,
+        createdAt: now(),
+      })
+      if (projects.length > maxAgentProjects)
+        projects.splice(0, projects.length - maxAgentProjects)
+      persist()
+      emit()
+    },
+    updateProject(id, patch) {
+      const project = projects.find((item) => item.id === id)
+      if (!project) return
+      if (patch.name !== undefined) {
+        const name = patch.name.trim().slice(0, 40)
+        if (!name) throw new Error('缺少项目名称。')
+        project.name = name
+      }
+      if (patch.workspace !== undefined) {
+        const workspace = patch.workspace.trim()
+        if (!workspace) throw new Error('缺少项目文件夹。')
+        if (
+          projects.some(
+            (item) => item.id !== id && item.workspace === workspace,
+          )
+        )
+          throw new Error('这个文件夹已经是项目。')
+        project.workspace = workspace
+        for (const session of sessions) {
+          if (session.projectId === id) session.workspace = workspace
+        }
+      }
+      persist()
+      emit()
+    },
+    deleteProject(id: string) {
+      const index = projects.findIndex((item) => item.id === id)
+      if (index < 0) return
+      projects.splice(index, 1)
+      for (const session of sessions) {
+        if (session.projectId === id) session.projectId = null
+      }
+      persist()
+      emit()
+    },
+    setProjectPinned(id: string, pinned: boolean) {
+      const project = projects.find((item) => item.id === id)
+      if (!project) return
+      project.pinned = pinned
+      persist()
+      emit()
+    },
+    renameSession(id: string, title: string) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return
+      const value = title.trim().slice(0, 60)
+      if (!value) throw new Error('缺少对话名称。')
+      session.title = value
+      persist()
+      emit()
+    },
+    setSessionPinned(id: string, pinned: boolean) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return
+      session.pinned = pinned
+      persist()
+      emit()
+    },
+    moveSession(id: string, projectId: string | null) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return
+      const project = projectId
+        ? projects.find((item) => item.id === projectId)
+        : null
+      if (projectId && !project) return
+      session.projectId = project?.id ?? null
+      if (project) session.workspace = project.workspace
       persist()
       emit()
     },
@@ -611,7 +740,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       emit()
     },
     async flush() {
-      await saveAgentStore(deps.storePath, sessions)
+      await saveAgentStore(deps.storePath, { sessions, projects })
     },
   }
 }

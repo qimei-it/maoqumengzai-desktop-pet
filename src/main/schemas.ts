@@ -808,7 +808,62 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('agent-project-new'),
+      projectId: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-project-create'),
+      name: z.string().trim().min(1).max(40),
       workspace: z.string().trim().min(1).max(4096),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-project-update'),
+      id: z.string().uuid(),
+      name: z.string().trim().min(1).max(40).optional(),
+      workspace: z.string().trim().min(1).max(4096).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-project-delete'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-project-pin'),
+      id: z.string().uuid(),
+      pinned: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-project-reveal'),
+      id: z.string().uuid(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-session-rename'),
+      id: z.string().uuid(),
+      title: z.string().trim().min(1).max(60),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-session-pin'),
+      id: z.string().uuid(),
+      pinned: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-session-move'),
+      id: z.string().uuid(),
+      projectId: z.string().uuid().nullable(),
     })
     .strict(),
   z

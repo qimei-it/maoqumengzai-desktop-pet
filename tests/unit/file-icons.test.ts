@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { fileIconFor } from '../../src/renderer/file-icons'
+import {
+  fileIconFor,
+  isAppleDocumentPackage,
+} from '../../src/renderer/file-icons'
 
 describe('archive file icons', () => {
   test('7z uses its own icon; other archives share the generic icon', () => {
@@ -15,6 +18,22 @@ describe('folder and office file icons', () => {
     expect(fileIconFor('素材', 'folder')).toBe(fileIconFor('项目', 'folder'))
     expect(fileIconFor('素材', 'folder')).not.toBe(fileIconFor('素材.zip'))
     expect(fileIconFor('素材.txt')).toBe(fileIconFor('素材.txt', 'file'))
+  })
+
+  test('Pages, Keynote and Numbers packages keep their own artwork', () => {
+    const pages = fileIconFor('年度报告.pages', 'folder')
+    const keynote = fileIconFor('产品演示.key', 'folder')
+    const numbers = fileIconFor('预算.numbers', 'folder')
+    expect(pages).toBe(fileIconFor('年度报告.pages'))
+    expect(keynote).toBe(fileIconFor('产品演示.key'))
+    expect(numbers).toBe(fileIconFor('预算.numbers'))
+    expect(pages).not.toBe(fileIconFor('说明.docx'))
+    expect(keynote).not.toBe(fileIconFor('汇报.pptx'))
+    expect(numbers).not.toBe(fileIconFor('预算.xlsx'))
+    expect(isAppleDocumentPackage('年度报告.pages')).toBe(true)
+    expect(isAppleDocumentPackage('产品演示.key')).toBe(true)
+    expect(isAppleDocumentPackage('预算.numbers')).toBe(true)
+    expect(isAppleDocumentPackage('说明.docx')).toBe(false)
   })
 
   test('Finder aliases without an extension use the shortcut artwork', () => {

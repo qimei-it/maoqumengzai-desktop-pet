@@ -39,10 +39,13 @@
 | 视频 | mp4 / mov / mkv / webm / avi / mts / vob / rmvb 等（含 `.ts`） | `video.svg` |
 | 音频 | mp3 / wav / flac / m4a / aac / ogg / opus / wma / aiff | `audio.svg` |
 | Markdown | md / markdown | `markdown.svg` |
-| 表格 | xls / xlsx / xlsm / xlsb / numbers / ods | `spreadsheet.svg` |
+| 表格 | xls / xlsx / xlsm / xlsb / ods | `spreadsheet.svg` |
 | CSV | csv / tsv | `csv.svg` |
-| 演示文稿 | ppt / pptx / pps / ppsx / key / odp | `slides.svg` |
-| 文档 | doc / docx / rtf / odt / pages / ofd / epub / mobi / azw3 | `doc.svg` |
+| 演示文稿 | ppt / pptx / pps / ppsx / odp | `slides.svg` |
+| 文档 | doc / docx / rtf / odt / ofd / epub / mobi / azw3 | `doc.svg` |
+| Pages | pages | `pages.png` |
+| Keynote | key | `keynote.png` |
+| Numbers | numbers | `numbers.png` |
 | 设计稿 | psd / psb / ai / sketch / fig | `psd.svg` |
 | XML | xml / xsl / xslt / plist / drawio | `xml.svg` |
 | 可执行文件 | exe / msi / dmg / pkg / deb / rpm / apk / ipa / appx 等 | `exe.svg` |
@@ -52,11 +55,17 @@
 
 `.ts` 仍按 MPEG-TS 视频处理，不按 TypeScript 归入源代码；这是为避免同类文件图标回退而保留的既有行为。
 
+macOS 的 Pages、Keynote、Numbers 文档以文件夹包（package）形式保存，置物架会把它们记为文件夹；`.pages`、`.key`、`.numbers` 仍按扩展名分别显示 Pages、Keynote、Numbers 图标，不回落为文件夹图标。
+
 macOS 替身（Finder alias）没有扩展名，文件名通常就是目标名称，因此不能靠扩展名识别。应用在接收文件时读取记录头 `book` + 4 个零字节 + `mark` 判定替身，并把结果记录在置物架索引的 `shortcut` 字段；升级前已入架的条目会在下次启动时补一次探测。Windows 快捷方式（`.lnk`）与 `.url`、`.webloc`、`.desktop` 仍按扩展名识别。
 
-图标来源为用户提供的 iconfont 图标集：[iconfont collections · cid=14749](https://www.iconfont.cn/collections/detail?cid=14749)（2026-11-14 录入）。原始 SVG 的 `t`、`p-id`、`class` 与固定像素宽高已移除，保留 `viewBox`、图形路径和原始填充色，另补 `<title>`；视觉设计授权以该图标集页面标注为准。
+多数图标来源为用户提供的 iconfont 图标集：[iconfont collections · cid=14749](https://www.iconfont.cn/collections/detail?cid=14749)（2026-11-14 录入）。原始 SVG 的 `t`、`p-id`、`class` 与固定像素宽高已移除，保留 `viewBox`、图形路径和原始填充色，另补 `<title>`；视觉设计授权以该图标集页面标注为准。
 
-这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–24px，标记为装饰性。
+音频、视频、Markdown 以及 DOC/DOCX、XLS/XLSX、PPT/PPTX 图标由用户直接提供，分别覆盖 `audio.svg`、`video.svg`、`markdown.svg`、`doc.svg`、`spreadsheet.svg`、`slides.svg`；图形路径与配色保持原样。Office 图标使用 Microsoft 365 文件类型识别样式，Word、Excel、PowerPoint 标识归 Microsoft 所有，仅用于本地文件类型识别。
+
+`pages.png`、`keynote.png`、`numbers.png` 由用户提供的 macOS Pages、Keynote、Numbers 应用 `.icns` 图标转换为 128×128 PNG，裁去应用图标四周的透明留白并保留透明背景，使文件置物架中 22px 的图标与其他文件图标视觉尺寸一致；Apple、Pages、Keynote、Numbers 标识归 Apple Inc. 所有，仅用于本地文件类型识别。
+
+这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–30px，标记为装饰性。
 
 ## 应用图标
 

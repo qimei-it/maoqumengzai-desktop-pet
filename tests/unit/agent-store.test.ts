@@ -4,18 +4,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   loadAgentStore,
+  maxAgentProjects,
   maxAgentSessions,
   saveAgentStore,
+  type StoredProject,
   type StoredSession,
 } from '../../src/main/agent/store'
 
-function session(index: number): StoredSession {
+function session(
+  index: number,
+  projectId: string | null = null,
+): StoredSession {
   return {
     id: `session-${index}`,
     title: `会话 ${index}`,
     mode: 'build',
     model: 'deepseek-flash',
     workspace: null,
+    projectId,
+    pinned: false,
     createdAt: index,
     updatedAt: index,
     ui: [
@@ -30,60 +37,134 @@ function session(index: number): StoredSession {
   }
 }
 
-test('saves and restores sessions with usage', async () => {
+function project(index: number): StoredProject {
+  return {
+    id: `project-${index}`,
+    name: `项目 ${index}`,
+    workspace: `/tmp/project-${index}`,
+    pinned: false,
+    createdAt: index,
+  }
+}
+
+test('saves and restores projects and sessions with usage', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')
-  await saveAgentStore(path, [session(1), session(2)])
+  await saveAgentStore(path, {
+    sessions: [session(1, 'project-1'), session(2)],
+    projects: [project(1)],
+  })
   const loaded = await loadAgentStore(path)
-  expect(loaded).toHaveLength(2)
-  expect(loaded[0].title).toBe('会话 1')
-  expect(loaded[0].usage).toEqual({ input: 1, output: 2 })
-  expect(loaded[0].ui[0].parts[0]).toEqual({ type: 'text', text: '你好' })
+  expect(loaded.sessions).toHaveLength(2)
+  expect(loaded.projects).toHaveLength(1)
+  expect(loaded.sessions[0].projectId).toBe('project-1')
+  expect(loaded.sessions[0].title).toBe('会话 1')
+  expect(loaded.sessions[0].usage).toEqual({ input: 1, output: 2 })
+  expect(loaded.sessions[0].ui[0].parts[0]).toEqual({
+    type: 'text',
+    text: '你好',
+  })
+  expect(loaded.projects[0].name).toBe('项目 1')
 })
 
-test('caps stored sessions', async () => {
+test('caps stored sessions and projects', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')
-  const many = Array.from({ length: maxAgentSessions + 5 }, (_, index) =>
-    session(index),
+  const sessions = Array.from(
+    { length: maxAgentSessions + 5 },
+    (_, index) => session(index),
   )
-  await saveAgentStore(path, many)
+  const projects = Array.from(
+    { length: maxAgentProjects + 2 },
+    (_, index) => project(index),
+  )
+  await saveAgentStore(path, { sessions, projects })
   const loaded = await loadAgentStore(path)
-  expect(loaded).toHaveLength(maxAgentSessions)
+  expect(loaded.sessions).toHaveLength(maxAgentSessions)
+  expect(loaded.projects).toHaveLength(maxAgentProjects)
   const raw = JSON.parse(await readFile(path, 'utf8')) as {
     sessions: unknown[]
+    projects: unknown[]
   }
   expect(raw.sessions).toHaveLength(maxAgentSessions)
+  expect(raw.projects).toHaveLength(maxAgentProjects)
 })
 
 test('ignores corrupt or unknown files', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const corrupt = join(directory, 'corrupt.json')
   await writeFile(corrupt, '{not json')
-  expect(await loadAgentStore(corrupt)).toEqual([])
+  expect(await loadAgentStore(corrupt)).toEqual({
+    sessions: [],
+    projects: [],
+  })
 
   const unknown = join(directory, 'unknown.json')
   await writeFile(unknown, JSON.stringify({ version: 99, sessions: [] }))
-  expect(await loadAgentStore(unknown)).toEqual([])
+  expect(await loadAgentStore(unknown)).toEqual({
+    sessions: [],
+    projects: [],
+  })
 
-  expect(await loadAgentStore(join(directory, 'missing.json'))).toEqual([])
+  expect(await loadAgentStore(join(directory, 'missing.json'))).toEqual({
+    sessions: [],
+    projects: [],
+  })
 })
 
-test('filters invalid sessions without dropping valid ones', async () => {
+test('filters invalid rows without dropping valid ones', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')
   await writeFile(
     path,
     JSON.stringify({
-      version: 1,
+      version: 2,
+      projects: [
+        { id: '', name: 'bad', workspace: '/tmp/a' },
+        { id: 'project-7', name: '', workspace: '/tmp/b' },
+        project(7),
+      ],
       sessions: [
         { id: '', title: 'bad' },
-        { id: 'ok', title: 'ok', mode: 'unknown', model: 'deepseek-flash', ui: [], history: [] },
-        session(7),
+        {
+          id: 'orphan',
+          title: 'orphan',
+          mode: 'build',
+          model: 'deepseek-flash',
+          projectId: 'missing',
+          ui: [],
+          history: [],
+        },
+        session(7, 'project-7'),
       ],
     }),
   )
   const loaded = await loadAgentStore(path)
-  expect(loaded).toHaveLength(1)
-  expect(loaded[0].id).toBe('session-7')
+  expect(loaded.projects).toHaveLength(1)
+  expect(loaded.projects[0].id).toBe('project-7')
+  expect(loaded.sessions).toHaveLength(2)
+  expect(
+    loaded.sessions.find((item) => item.id === 'orphan')?.projectId,
+  ).toBeNull()
+  expect(loaded.sessions.find((item) => item.id === 'session-7')?.projectId).toBe(
+    'project-7',
+  )
+})
+
+test('migrates version 1 workspaces into projects', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
+  const path = join(directory, 'agent.json')
+  const first = { ...session(1), workspace: '/tmp/alpha' }
+  const second = { ...session(2), workspace: '/tmp/alpha' }
+  const third = { ...session(3) }
+  await writeFile(
+    path,
+    JSON.stringify({ version: 1, sessions: [first, second, third] }),
+  )
+  const loaded = await loadAgentStore(path)
+  expect(loaded.projects).toHaveLength(1)
+  expect(loaded.projects[0].workspace).toBe('/tmp/alpha')
+  expect(loaded.sessions[0].projectId).toBe(loaded.projects[0].id)
+  expect(loaded.sessions[1].projectId).toBe(loaded.projects[0].id)
+  expect(loaded.sessions[2].projectId).toBeNull()
 })

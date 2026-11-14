@@ -45,6 +45,7 @@ export const channels = {
   saveCapture: 'mqmz:capture:save-preview',
   mailSecret: 'mqmz:mail:secret',
   mailAttachments: 'mqmz:mail:attachments',
+  pickDirectory: 'mqmz:directory:pick',
 } as const
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -507,7 +508,28 @@ export type Command =
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-deny'; id: string }
   | { type: 'agent-session-new' }
-  | { type: 'agent-project-new'; workspace: string }
+  | { type: 'agent-project-new'; projectId: string }
+  | {
+      type: 'agent-project-create'
+      name: string
+      workspace: string
+    }
+  | {
+      type: 'agent-project-update'
+      id: string
+      name?: string
+      workspace?: string
+    }
+  | { type: 'agent-project-delete'; id: string }
+  | { type: 'agent-project-pin'; id: string; pinned: boolean }
+  | { type: 'agent-project-reveal'; id: string }
+  | { type: 'agent-session-rename'; id: string; title: string }
+  | { type: 'agent-session-pin'; id: string; pinned: boolean }
+  | {
+      type: 'agent-session-move'
+      id: string
+      projectId: string | null
+    }
   | { type: 'agent-session-select'; id: string }
   | { type: 'agent-session-delete'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }
@@ -757,6 +779,7 @@ export interface PrototypeApi {
   saveCapture(id: string): Promise<Result<Snapshot>>
   mailSecret(accountId: string): Promise<Result<string>>
   mailChooseAttachments(): Promise<Result<MailAttachmentPick[]>>
+  pickDirectory(): Promise<Result<string | null>>
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
   onHover(listener: () => void): () => void
 }
