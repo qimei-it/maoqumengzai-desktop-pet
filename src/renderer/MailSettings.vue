@@ -392,7 +392,7 @@ watch(
       <SelectField
         :value="config.syncMinutes"
         :disabled="busy"
-        wide
+        min-width="96px"
         @change="onSyncChange"
       >
         <option
@@ -457,7 +457,7 @@ watch(
       <SelectField
         :value="config.retentionDays"
         :disabled="busy"
-        wide
+        min-width="96px"
         @change="onRetentionChange"
       >
         <option
