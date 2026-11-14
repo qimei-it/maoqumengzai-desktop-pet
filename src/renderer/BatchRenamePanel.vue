@@ -286,6 +286,7 @@ function undo(): void {
   background: transparent;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+  font-weight: 600;
   transition: color var(--motion-fast) var(--ease-out);
 }
 .rename-modes button.active {

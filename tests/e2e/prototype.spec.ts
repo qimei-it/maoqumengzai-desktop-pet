@@ -3309,6 +3309,13 @@ test("dropping two files on 批量重命名 renames them with a format", async (
     rename.getByRole("heading", { name: "批量重命名", exact: true }),
   ).toBeVisible();
   await rename.getByRole("button", { name: "格式", exact: true }).click();
+  expect(
+    await rename
+      .locator(".rename-modes button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => getComputedStyle(button).fontWeight),
+      ),
+  ).toEqual(["600", "600", "600"]);
   await expect(rename.locator(".rename-mode-thumb")).toHaveAttribute(
     "style",
     /translateX\(200%\)/,
