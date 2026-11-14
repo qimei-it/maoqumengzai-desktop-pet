@@ -118,6 +118,7 @@ function commandForSelected(
               <FileTypeIcon
                 :name="file.name"
                 :kind="file.kind"
+                :shortcut="file.shortcut"
                 :size="22"
               />
             </span>

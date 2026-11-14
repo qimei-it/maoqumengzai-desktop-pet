@@ -13,6 +13,8 @@ export type ShelfRecord = {
   device: number
   inode: number
   kind: ShelfKind
+  /** macOS Finder alias; kept for files only. */
+  shortcut?: boolean
   status: 'shelved'
 }
 
@@ -31,6 +33,7 @@ const shelfRecordSchema = z
     device: z.number(),
     inode: z.number(),
     kind: z.enum(['file', 'folder']).default('file'),
+    shortcut: z.boolean().optional(),
     status: z.literal('shelved'),
   })
   .strict()

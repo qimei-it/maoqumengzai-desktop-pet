@@ -17,6 +17,16 @@ describe('folder and office file icons', () => {
     expect(fileIconFor('素材.txt')).toBe(fileIconFor('素材.txt', 'file'))
   })
 
+  test('Finder aliases without an extension use the shortcut artwork', () => {
+    const shortcut = fileIconFor('李焱', 'file', true)
+    expect(shortcut).toBe(fileIconFor('李焱', 'file', true))
+    expect(shortcut).not.toBe(fileIconFor('李焱'))
+    expect(shortcut).toBe(fileIconFor('说明.txt', 'file', true))
+    expect(fileIconFor('素材', 'folder', true)).toBe(
+      fileIconFor('素材', 'folder'),
+    )
+  })
+
   test('spreadsheets, slides and documents each have their own artwork', () => {
     const set = [
       fileIconFor('预算.xlsx'),

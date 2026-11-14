@@ -6,11 +6,14 @@ const props = withDefaults(
   defineProps<{
     name: string
     kind?: 'file' | 'folder'
+    shortcut?: boolean
     size?: number
   }>(),
-  { size: 18, kind: 'file' },
+  { size: 18, kind: 'file', shortcut: false },
 )
-const source = computed(() => fileIconFor(props.name, props.kind))
+const source = computed(() =>
+  fileIconFor(props.name, props.kind, props.shortcut),
+)
 </script>
 
 <template>

@@ -45,6 +45,7 @@ import { createAgentRuntime } from './agent/runtime'
 import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
+import { isFinderAlias } from './alias'
 import { detectClockJump } from '../shared/scheduler'
 import {
   pickLyricsCandidate,
@@ -839,12 +840,13 @@ function snapshot(): Snapshot {
     screenPermission: permission(),
     shortcutRegistered,
     files: [...files.values()].map(
-      ({ id, name, size, modifiedAt, kind, status }) => ({
+      ({ id, name, size, modifiedAt, kind, shortcut, status }) => ({
         id,
         name,
         size,
         modifiedAt,
         kind,
+        ...(shortcut ? { shortcut: true } : {}),
         status,
       }),
     ),
@@ -6605,6 +6607,23 @@ async function restoreShelf(): Promise<void> {
       JSON.parse(await readFile(shelfPath, 'utf8')),
     )
     for (const file of stored) files.set(file.id, file)
+    // Entries written before alias detection existed get one probe so a
+    // restored Finder alias shows the shortcut artwork without re-dropping.
+    const detected = await Promise.all(
+      stored.map(async (file) =>
+        file.kind === 'file' &&
+        file.shortcut === undefined &&
+        (await isFinderAlias(file.path)),
+      ),
+    )
+    let changed = false
+    stored.forEach((file, index) => {
+      const record = files.get(file.id)
+      if (!detected[index] || !record) return
+      record.shortcut = true
+      changed = true
+    })
+    if (changed) await saveShelf()
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
       addEvent('置物架索引读取失败；源文件不受影响。')
@@ -7868,6 +7887,7 @@ type InspectedEntry = {
   device: number
   inode: number
   kind: 'file' | 'folder'
+  shortcut?: boolean
 }
 type InspectOutcome =
   | { ok: true; entry: InspectedEntry }
@@ -7889,15 +7909,20 @@ async function inspectEntry(path: string): Promise<InspectOutcome> {
   if (!info.isFile() && !info.isDirectory())
     return { ok: false, name, folder: false }
   try {
+    const resolved = await realpath(path)
     return {
       ok: true,
       entry: {
-        path: await realpath(path),
+        path: resolved,
         size: info.isFile() ? info.size : 0,
         modifiedAt: info.mtimeMs,
         device: info.dev,
         inode: info.ino,
         kind: info.isDirectory() ? 'folder' : 'file',
+        // Finder aliases carry no extension, so the header decides the icon.
+        ...(info.isFile() && (await isFinderAlias(resolved))
+          ? { shortcut: true }
+          : {}),
       },
     }
   } catch {
@@ -7941,6 +7966,7 @@ async function receivePaths(paths: string[]): Promise<void> {
       device: item.device,
       inode: item.inode,
       kind: item.kind,
+      ...(item.shortcut ? { shortcut: true } : {}),
       // Anything shown in the pocket is already on the shelf, so it is
       // persisted immediately instead of waiting for a separate stash step.
       status: 'shelved',

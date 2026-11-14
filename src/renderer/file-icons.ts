@@ -151,8 +151,10 @@ const shortcutExtensions = new Set(['lnk', 'alias', 'url', 'webloc', 'desktop'])
 export function fileIconFor(
   name: string,
   kind: 'file' | 'folder' = 'file',
+  shortcutFile = false,
 ): string {
   if (kind === 'folder') return folder
+  if (shortcutFile) return shortcut
   const extension = extensionOf(name)
   if (extension === '7z') return archive7z
   if (archiveExtensions.has(extension)) return archive

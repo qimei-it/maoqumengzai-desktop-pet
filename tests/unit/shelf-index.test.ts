@@ -22,9 +22,17 @@ describe('shelf index', () => {
     expect(records).toEqual([{ ...base, kind: 'file' }])
   })
 
-  test('version 2 round-trips folders and files', () => {
+  test('version 2 round-trips folders, files and aliases', () => {
     const files: ShelfRecord[] = [
       { ...base, kind: 'file' },
+      {
+        ...base,
+        id: '33333333-3333-4333-8333-333333333333',
+        name: '李焱',
+        path: '/tmp/李焱',
+        kind: 'file',
+        shortcut: true,
+      },
       {
         ...base,
         id: '22222222-2222-4222-8222-222222222222',

@@ -67,6 +67,8 @@ export type LocalFile = {
   size: number
   modifiedAt: number
   kind: 'file' | 'folder'
+  /** macOS Finder alias; the shelf renders it with the shortcut artwork. */
+  shortcut?: boolean
   status: 'received' | 'shelved'
 }
 export type ReceivedFolder = { id: string; name: string }

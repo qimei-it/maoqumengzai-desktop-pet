@@ -51,6 +51,8 @@
 
 `.ts` 仍按 MPEG-TS 视频处理，不按 TypeScript 归入源代码；这是为避免同类文件图标回退而保留的既有行为。
 
+macOS 替身（Finder alias）没有扩展名，文件名通常就是目标名称，因此不能靠扩展名识别。应用在接收文件时读取记录头 `book` + 4 个零字节 + `mark` 判定替身，并把结果记录在置物架索引的 `shortcut` 字段；升级前已入架的条目会在下次启动时补一次探测。Windows 快捷方式（`.lnk`）与 `.url`、`.webloc`、`.desktop` 仍按扩展名识别。
+
 图标来源为用户提供的 iconfont 图标集：[iconfont collections · cid=14749](https://www.iconfont.cn/collections/detail?cid=14749)（2026-11-14 录入）。原始 SVG 的 `t`、`p-id`、`class` 与固定像素宽高已移除，保留 `viewBox`、图形路径和原始填充色，另补 `<title>`；视觉设计授权以该图标集页面标注为准。
 
 这些是可识别的品牌/文件类型插画，不是功能线性图标，因此不替换为 Lucide；功能按钮仍使用 Lucide。图标由 `FileTypeIcon.vue` 统一渲染，尺寸 13–24px，标记为装饰性。
