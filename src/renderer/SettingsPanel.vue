@@ -1097,7 +1097,7 @@ function onEscape(): void {
               class="settings-row"
               :class="{ 'settings-row-connected': editingKey || modelsOpen }"
             >
-              <span class="settings-label">DeepSeek API Key</span>
+              <span class="settings-label">DeepSeek</span>
               <input
                 v-if="editingKey"
                 v-model="apiKey"
@@ -1258,7 +1258,7 @@ function onEscape(): void {
                 'settings-row-connected': editingMiniMaxKey || minimaxModelsOpen,
               }"
             >
-              <span class="settings-label">MiniMax API Key</span>
+              <span class="settings-label">MiniMax</span>
               <input
                 v-if="editingMiniMaxKey"
                 v-model="minimaxKey"
@@ -1416,7 +1416,7 @@ function onEscape(): void {
               <p v-else class="settings-error">{{ minimaxModelsError }}</p>
             </div>
             <div class="settings-row">
-              <span class="settings-label">百炼 API Key</span>
+              <span class="settings-label">阿里云百炼</span>
               <span class="settings-inline">
                 <span class="settings-value">未接入</span>
                 <button type="button" class="settings-button" disabled>
@@ -1425,7 +1425,7 @@ function onEscape(): void {
               </span>
             </div>
             <div class="settings-row">
-              <span class="settings-label">火山方舟 API Key</span>
+              <span class="settings-label">火山方舟</span>
               <span class="settings-inline">
                 <span class="settings-value">未接入</span>
                 <button type="button" class="settings-button" disabled>
