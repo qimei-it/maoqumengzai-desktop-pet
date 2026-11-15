@@ -1975,6 +1975,7 @@ function onEscape(): void {
   flex: 1;
   min-width: 0;
   height: 34px;
+  margin-right: 42px;
   padding: 0 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);
