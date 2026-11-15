@@ -5434,13 +5434,6 @@ function statusLabel(status: string): string {
 .agent-approval-option:hover {
   background: var(--color-fill-secondary);
 }
-.agent-approval-option[aria-checked='true'] {
-  background: var(--color-brand-soft);
-  box-shadow: inset 0 0 0 1px var(--color-brand-highlight);
-}
-.agent-approval-option[aria-checked='true'] .agent-approval-label {
-  font-weight: 600;
-}
 .agent-approval-option > svg:first-child {
   flex: none;
   margin-top: 1px;
@@ -5473,7 +5466,7 @@ function statusLabel(status: string): string {
 .agent-approval-check {
   flex: none;
   margin-left: auto;
-  color: var(--color-brand-ink);
+  color: var(--color-brand);
 }
 .agent-approval-option:focus-visible {
   outline: var(--mqmz-focus-ring);
