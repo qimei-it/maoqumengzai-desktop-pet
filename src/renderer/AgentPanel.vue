@@ -20,6 +20,7 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  LoaderCircle,
   MessageCirclePlus,
   Minus,
   PenLine,
@@ -92,6 +93,17 @@ const aiTestLatencyClass = computed(() => {
   return 'is-slow'
 })
 const busy = computed(() => agent.value?.busy === true)
+const attachmentProgress = computed(
+  () => props.state?.agentAttachmentProgress,
+)
+const parsing = computed(() => Boolean(attachmentProgress.value))
+const progressLabel = computed(() => {
+  const progress = attachmentProgress.value
+  if (!progress) return ''
+  const index = Math.min(progress.done + 1, progress.total)
+  const stage = progress.stage ? ` · ${progress.stage}` : ''
+  return `解析附件 ${index}/${progress.total} · ${progress.name}${stage}`
+})
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
 const attachmentError = ref('')
@@ -188,7 +200,11 @@ const longProjectName = computed(() => {
   return width > 16
 })
 const canSend = computed(
-  () => Boolean(draft.value.trim()) && !busy.value && configured.value,
+  () =>
+    Boolean(draft.value.trim()) &&
+    !busy.value &&
+    !parsing.value &&
+    configured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
 
@@ -283,7 +299,7 @@ watch(
 )
 
 async function addAttachments(): Promise<void> {
-  if (busy.value) return
+  if (busy.value || parsing.value) return
   attachmentError.value = ''
   const result = await window.mqmz!.pickAgentAttachments()
   if (!result.ok) {
@@ -338,6 +354,10 @@ function removeAttachment(id: string): void {
   void window.mqmz!.releaseAgentAttachment(id)
 }
 
+function cancelParsing(): void {
+  void window.mqmz!.cancelAgentAttachmentParsing()
+}
+
 const dropLabel = computed(() =>
   busy.value ? '当前回复结束后再添加附件' : '添加到当前对话',
 )
@@ -365,7 +385,7 @@ function armDropWatchdog(): void {
 }
 
 function onDragEnter(event: DragEvent): void {
-  if (!hasFileDrag(event)) return
+  if (!hasFileDrag(event) || parsing.value) return
   event.preventDefault()
   dragDepth += 1
   dropActive.value = true
@@ -399,6 +419,10 @@ async function onDrop(event: DragEvent): Promise<void> {
   dragDepth = 0
   dropActive.value = false
   if (!files.length) return
+  if (parsing.value) {
+    attachmentError.value = '正在解析附件，请稍候。'
+    return
+  }
   if (busy.value) {
     attachmentError.value = '当前回复结束后再添加附件。'
     return
@@ -418,7 +442,7 @@ async function onDrop(event: DragEvent): Promise<void> {
 
 function send(): void {
   const prompt = draft.value.trim()
-  if (!prompt || busy.value || !configured.value) return
+  if (!prompt || busy.value || parsing.value || !configured.value) return
   const attachmentIds = attachments.value.map((item) => item.id)
   modelMenuOpen.value = false
   emit('command', {
@@ -1143,6 +1167,22 @@ function statusLabel(status: string): string {
             </button>
           </div>
         </header>
+        <div v-if="parsing" class="agent-parse-banner" role="status">
+          <LoaderCircle
+            class="agent-parse-spinner"
+            :size="14"
+            :stroke-width="2"
+            aria-hidden="true"
+          />
+          <span class="agent-parse-label">{{ progressLabel }}</span>
+          <button
+            type="button"
+            class="agent-parse-cancel"
+            @click="cancelParsing"
+          >
+            取消
+          </button>
+        </div>
         <div v-if="dropActive" class="agent-drop-hint" aria-hidden="true">
           <div class="agent-drop-hint-inner">
             <Plus :size="16" :stroke-width="2" aria-hidden="true" />
@@ -1429,7 +1469,7 @@ function statusLabel(status: string): string {
                   <button
                     type="button"
                     class="agent-attach"
-                    :disabled="busy"
+                    :disabled="busy || parsing"
                     aria-label="添加附件"
                     title="添加附件"
                     @click="addAttachments"
@@ -2328,6 +2368,52 @@ function statusLabel(status: string): string {
   flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+.agent-parse-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.agent-parse-spinner {
+  flex: none;
+  animation: agent-parse-spin 0.9s linear infinite;
+}
+.agent-parse-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-parse-cancel {
+  flex: none;
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.agent-parse-cancel:hover {
+  background: var(--color-brand-soft);
+}
+.agent-parse-cancel:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+@keyframes agent-parse-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .agent-drop-hint {
   position: absolute;
@@ -3532,7 +3618,8 @@ function statusLabel(status: string): string {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .agent-running {
+  .agent-running,
+  .agent-parse-spinner {
     animation: none;
   }
   .agent-session,

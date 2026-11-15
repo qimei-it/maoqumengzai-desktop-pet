@@ -176,6 +176,7 @@ import type {
   ClipboardConfig,
   TodoListColor,
   TodoRepeat,
+  AgentAttachmentProgress,
 } from '../shared/protocol'
 import { defaultTodoListIcon } from '../shared/protocol'
 import {
@@ -788,8 +789,19 @@ const services = createServices({
 })
 
 const agentDraftAttachments = new Map<string, PreparedAgentAttachment>()
+let agentAttachmentProgress: AgentAttachmentProgress | undefined
+let agentAttachmentController: AbortController | undefined
+const agentAttachmentTimeoutOverride = Number(
+  process.env.MQMZ_AGENT_PARSE_TIMEOUT_MS,
+)
+const agentAttachmentParseTimeoutMs =
+  Number.isFinite(agentAttachmentTimeoutOverride) &&
+  agentAttachmentTimeoutOverride > 0
+    ? agentAttachmentTimeoutOverride
+    : 120_000
 
 function clearAgentDrafts(): void {
+  agentAttachmentController?.abort()
   if (!agentDraftAttachments.size) return
   for (const item of agentDraftAttachments.values())
     void releaseAgentAttachment(item)
@@ -800,45 +812,102 @@ function clearAgentDrafts(): void {
 async function addAgentAttachmentPaths(
   paths: readonly string[],
 ): Promise<{ added: AgentAttachmentPick[]; skipped: string[] }> {
-  const options = {
-    model: agent.state().model,
-    soffice: await libreOfficeExecutable(),
-    ffmpeg: await ffmpegExecutable(),
+  if (!paths.length) return { added: [], skipped: [] }
+  if (agentAttachmentController)
+    throw new Error('正在解析附件，请稍候。')
+  const controller = new AbortController()
+  agentAttachmentController = controller
+  const total = paths.length
+  let completed = 0
+  let currentName = basename(paths[0])
+  const report = (stage?: string): void => {
+    if (controller.signal.aborted) return
+    agentAttachmentProgress = {
+      total,
+      done: completed,
+      name: currentName,
+      ...(stage ? { stage } : {}),
+    }
+    broadcast()
   }
-  const existing = new Set(
-    [...agentDraftAttachments.values()].map((item) => item.sourcePath),
-  )
-  let total = [...agentDraftAttachments.values()].reduce(
-    (sum, item) => sum + (item.text?.length ?? 0),
-    0,
-  )
   const added: AgentAttachmentPick[] = []
   const skipped: string[] = []
-  for (const path of paths) {
-    if (agentDraftAttachments.size >= agentAttachmentLimit) break
-    if (existing.has(path)) continue
-    const remaining = agentAttachmentTotalChars - total
-    const prepared = await prepareAgentAttachment(path, remaining, options)
-    if ('skipped' in prepared) {
-      skipped.push(`${basename(path)}：${prepared.skipped}`)
-      continue
+  try {
+    const options = {
+      model: agent.state().model,
+      soffice: await libreOfficeExecutable(),
+      ffmpeg: await ffmpegExecutable(),
     }
-    const attachment = prepared.attachment
-    agentDraftAttachments.set(attachment.id, attachment)
-    existing.add(path)
-    total += attachment.text?.length ?? 0
-    added.push(agentAttachmentPick(attachment))
-  }
-  if (skipped.length)
-    showToast(
-      skipped.length === 1
-        ? `未添加 ${skipped[0]}`
-        : `已跳过 ${skipped.slice(0, 2).join('；')}${
-            skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
-          }`,
+    const existing = new Set(
+      [...agentDraftAttachments.values()].map((item) => item.sourcePath),
     )
-  if (added.length) broadcast()
-  return { added, skipped }
+    let totalChars = [...agentDraftAttachments.values()].reduce(
+      (sum, item) => sum + (item.text?.length ?? 0),
+      0,
+    )
+    for (const [index, path] of paths.entries()) {
+      if (controller.signal.aborted) break
+      if (agentDraftAttachments.size >= agentAttachmentLimit) break
+      currentName = basename(path)
+      report('准备解析')
+      if (existing.has(path)) {
+        completed = index + 1
+        report('已在附件中')
+        continue
+      }
+      const remaining = agentAttachmentTotalChars - totalChars
+      const timeout = AbortSignal.timeout(agentAttachmentParseTimeoutMs)
+      const signal = AbortSignal.any([controller.signal, timeout])
+      let prepared: Awaited<ReturnType<typeof prepareAgentAttachment>>
+      try {
+        prepared = await prepareAgentAttachment(path, remaining, {
+          ...options,
+          signal,
+          onProgress: report,
+        })
+      } catch (error) {
+        if (controller.signal.aborted) break
+        if (timeout.aborted) {
+          skipped.push(`${currentName}：解析超时`)
+        } else {
+          skipped.push(
+            `${currentName}：${
+              error instanceof Error ? error.message : '解析失败'
+            }`,
+          )
+        }
+        completed = index + 1
+        report('完成')
+        continue
+      }
+      if ('skipped' in prepared) {
+        skipped.push(`${currentName}：${prepared.skipped}`)
+      } else {
+        const attachment = prepared.attachment
+        agentDraftAttachments.set(attachment.id, attachment)
+        existing.add(path)
+        totalChars += attachment.text?.length ?? 0
+        added.push(agentAttachmentPick(attachment))
+      }
+      completed = index + 1
+      report('完成')
+    }
+    if (controller.signal.aborted) showToast('已取消附件解析')
+    if (skipped.length)
+      showToast(
+        skipped.length === 1
+          ? `未添加 ${skipped[0]}`
+          : `已跳过 ${skipped.slice(0, 2).join('；')}${
+              skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
+            }`,
+      )
+    if (added.length) broadcast()
+    return { added, skipped }
+  } finally {
+    agentAttachmentController = undefined
+    agentAttachmentProgress = undefined
+    broadcast()
+  }
 }
 
 function safeOutputName(value: string | undefined): string {
@@ -1046,6 +1115,9 @@ function snapshot(): Snapshot {
     agentDraftAttachments: [...agentDraftAttachments.values()].map(
       agentAttachmentPick,
     ),
+    ...(agentAttachmentProgress
+      ? { agentAttachmentProgress }
+      : {}),
     agentMaximized: !!askWindow && !askWindow.isDestroyed() && askWindow.isMaximized(),
     aiQuota,
     convertOpen: windowVisible(convertWindow),
@@ -8532,6 +8604,8 @@ function setupIpc(): void {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window !== pet)
       throw new Error('仅桌面宠物可以投递文件。')
+    if (agentAttachmentController)
+      throw new Error('正在解析附件，请稍候。')
     const paths = pathsSchema.parse(payload)
     clearAgentDrafts()
     agent.newSession()
@@ -8555,6 +8629,12 @@ function setupIpc(): void {
       broadcast()
     }
     return removed
+  })
+  handle(channels.agentAttachmentCancel, 'either', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以取消附件解析。')
+    agentAttachmentController?.abort()
   })
   handle(channels.agentAttachmentRemove, 'either', (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)

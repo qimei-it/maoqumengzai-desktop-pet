@@ -97,6 +97,26 @@ describe('agent attachment pipeline', () => {
     expect(result.attachment.text).toContain('Hello attachment pipeline')
   })
 
+  test('reports parsing stages and honors an aborted signal', async () => {
+    const root = await directory()
+    const path = join(root, 'progress.pdf')
+    await writeFile(path, await textPdf())
+    const stages: string[] = []
+    await prepareAgentAttachment(path, 30_000, {
+      ...flash,
+      onProgress: (stage) => stages.push(stage),
+    })
+    expect(stages).toContain('抽取 PDF 文字')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      prepareAgentAttachment(path, 30_000, {
+        ...flash,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow('附件解析已取消')
+  })
+
   test.skipIf(!existsSync(soffice))(
     'extracts DOCX text through the local LibreOffice engine',
     async () => {

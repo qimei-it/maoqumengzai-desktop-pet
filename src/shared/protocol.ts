@@ -55,6 +55,7 @@ export const channels = {
   agentAttachmentPrune: 'mqmz:agent:attachments-prune',
   agentAttachFiles: 'mqmz:agent:attach-files',
   agentOpenWithFiles: 'mqmz:agent:open-with-files',
+  agentAttachmentCancel: 'mqmz:agent:attachments-cancel',
   agentSaveOutput: 'mqmz:agent:save-output',
   agentExportAudio: 'mqmz:agent:export-audio',
   openExternal: 'mqmz:open-external',
@@ -396,6 +397,12 @@ export type AiTestState = {
   latencyMs?: number
   error?: string
 }
+export type AgentAttachmentProgress = {
+  total: number
+  done: number
+  name: string
+  stage?: string
+}
 export type AiState = {
   configured: boolean
   busy: boolean
@@ -446,6 +453,7 @@ export type Snapshot = {
   ai: AiState
   agent: AgentState
   agentDraftAttachments: AgentAttachmentPick[]
+  agentAttachmentProgress?: AgentAttachmentProgress
   agentMaximized: boolean
   aiQuota: AiQuotaState
   convertOpen: boolean
@@ -809,6 +817,7 @@ export interface PrototypeApi {
     files: File[],
   ): Promise<Result<{ added: AgentAttachmentPick[]; skipped: string[] }>>
   openAgentWithFiles(files: File[]): Promise<Result<void>>
+  cancelAgentAttachmentParsing(): Promise<Result<void>>
   releaseAgentAttachment(id: string): Promise<Result<void>>
   pruneAgentAttachments(): Promise<Result<string[]>>
   saveAgentOutput(input: {

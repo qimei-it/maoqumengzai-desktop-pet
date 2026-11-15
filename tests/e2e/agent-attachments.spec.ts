@@ -3,6 +3,7 @@ import type { ElectronApplication, Page } from '@playwright/test'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { waitForAppWindows } from './app-windows'
 
 let application: ElectronApplication
@@ -10,6 +11,7 @@ let agent: Page
 let notes = ''
 let image = ''
 let dropped = ''
+let slowPdf = ''
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -26,6 +28,19 @@ test.beforeAll(async () => {
   await writeFile(notes, '# 附件\n本地文本内容。')
   await writeFile(image, png)
   await writeFile(dropped, '# 拖入\n拖入的附件内容。')
+  slowPdf = join(directory, 'slow.pdf')
+  const document = await PDFDocument.create()
+  const font = await document.embedFont(StandardFonts.Helvetica)
+  for (let index = 0; index < 900; index += 1) {
+    const page = document.addPage()
+    page.drawText(`Page ${index + 1} attachment parsing progress test`, {
+      x: 40,
+      y: 700,
+      font,
+      size: 10,
+    })
+  }
+  await writeFile(slowPdf, await document.save())
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
       (entry): entry is [string, string] => entry[1] !== undefined,
@@ -219,5 +234,45 @@ test('dragging files into the agent panel shows a hint and attaches them', async
   await expect(agent.locator('.agent-attachment')).toHaveCount(0)
   await agent
     .locator('#mqmz-agent-drop-input')
+    .evaluate((element) => element.remove())
+})
+
+test('shows attachment parsing progress and can cancel a long parse', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  await agent.evaluate(() => {
+    document.querySelector('#mqmz-agent-parse-input')?.remove()
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.id = 'mqmz-agent-parse-input'
+    input.hidden = true
+    document.body.append(input)
+  })
+  await agent.locator('#mqmz-agent-parse-input').setInputFiles(slowPdf)
+  await agent.evaluate(() => {
+    const input =
+      document.querySelector<HTMLInputElement>('#mqmz-agent-parse-input')!
+    const transfer = new DataTransfer()
+    for (const file of input.files!) transfer.items.add(file)
+    document.querySelector('.agent-main')!.dispatchEvent(
+      new DragEvent('drop', {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+  })
+  await expect(agent.locator('.agent-parse-banner')).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(agent.locator('.agent-parse-label')).toContainText('解析附件')
+  await agent.locator('.agent-parse-cancel').click()
+  await expect(agent.locator('.agent-parse-banner')).toBeHidden({
+    timeout: 10_000,
+  })
+  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
+  await agent
+    .locator('#mqmz-agent-parse-input')
     .evaluate((element) => element.remove())
 })

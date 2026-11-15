@@ -51,6 +51,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 输入框左下角的 `+` 打开系统文件选择框；附件在输入框顶部以药丸显示，文件类型图标复用置物架素材。最多 8 个，文本单文件 12k 字符、整轮 30k 字符；纯文本上限 2 MB，文档/图片/压缩包 20 MB，音视频 200 MB。附件正文随该条消息发送，消息里只保留文件名。
 - 拖动文件到智能体面板可直接加入当前对话，拖入时显示“添加到当前对话”覆盖提示；拖动文件到桌宠并选择“智能体”会按文件路径直接新建未分组对话并挂载附件，不经过置物架。
 - 附件草稿由主进程持有并同步到面板；切换会话、新建对话、删除当前会话或发送成功时清理，发送失败时保留以便重试。
+- 附件解析期间在标题栏下方显示「解析附件 n/总数 · 文件名 · 阶段」和「取消」，解析中禁用发送与继续添加；单文件超时 120 秒，取消后保留已完成附件并清理临时文件。
 - 附件优先本地解析：文本与代码直接读取；PDF 用 PDF.js 抽取文字；Office 走本地 LibreOffice；OFD 用 EasyOFD 渲染；EPUB 读取书脊文本；压缩包解压后只汇总可读文字；BMP/TIFF/HEIC 用 sharp 转 PNG。扫描版 PDF、图片、无本地 Office 的文档和 MOBI 才通过 DeepSeek Files API 上传，音频与视频用 FFmpeg 切成 16 kHz WAV 后调用 ASR 转写。
 - `deepseek-v4-pro` 只接受文字：需要上传解析的图片/文档在添加时直接拦截，切到 Pro 时也会移除已选附件并提示；音频转写结果按文字发送，不受影响。被拒绝或不支持的附件不会出现在输入框下方，只显示 toast。
 - Files API 上传按 30 天有效期保存 `file_id`；后续轮次到期前会自动重传，本地源文件不在时在历史里标注附件已过期。删除会话时同步删除已上传文件。
@@ -156,7 +157,8 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 运行时真实联调：`shelf_list` 只读调用、`todo_create` 审批后落库、`shell_run` 审批后执行并返回输出、`plan` 模式未产生写入、会话重启后恢复、token 用量累计。
 - 人格切换联调：麻薯 → 小白后，下一次回复使用新名字；同一会话仍正常调用工具。
 - Electron 定向用例：`tests/e2e/agent-panel.spec.ts` 覆盖连接页、模型切换、模式切换、新建会话、宠物档案按钮。
-- 附件定向用例：`tests/e2e/agent-attachments.spec.ts` 用本地 mock 验证文本附件、图片 Files API 上传、聊天中的 `file` 内容块，以及切换 Pro 后移除上传类附件；并覆盖拖入智能体面板时的提示和附件药丸。
+- 附件定向用例：`tests/e2e/agent-attachments.spec.ts` 用本地 mock 验证文本附件、图片 Files API 上传、聊天中的 `file` 内容块，以及切换 Pro 后移除上传类附件；并覆盖拖入智能体面板时的提示、附件药丸、解析进度与取消。
+- 解析超时用例：`tests/e2e/agent-attachment-timeout.spec.ts` 通过 `MQMZ_AGENT_PARSE_TIMEOUT_MS=300` 和本地 LibreOffice DOCX 验证超时后不产生附件草稿。
 - 桌宠投递用例：`tests/e2e/prototype.spec.ts` 的“dropping on 智能体”验证直接路径投递、不进入置物架、新建未分组对话并挂载附件。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
 - 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败降级和 30 天过期重传。

@@ -169,6 +169,7 @@ export type AttachmentEngineOptions = {
   soffice: string | null
   ffmpeg: string | null
   signal?: AbortSignal
+  onProgress?: (stage: string) => void
 }
 
 export type PreparedAgentAttachment = AgentAttachmentPick & {
@@ -271,6 +272,7 @@ export async function prepareAgentAttachment(
   remaining: number,
   options: AttachmentEngineOptions,
 ): Promise<PrepareAttachmentResult> {
+  if (options.signal?.aborted) throw new Error('附件解析已取消')
   const info = await stat(path).catch(() => null)
   if (!info?.isFile()) return skipped('不是可读取的文件')
   if (info.size === 0) return skipped('文件是空的')
@@ -280,7 +282,7 @@ export async function prepareAgentAttachment(
   try {
     switch (kind) {
       case 'text':
-        return await prepareText(path, info.size, remaining)
+        return await prepareText(path, info.size, remaining, options)
       case 'pdf':
         return await preparePdf(path, info.size, remaining, options)
       case 'office':
@@ -311,10 +313,13 @@ async function prepareText(
   path: string,
   size: number,
   remaining: number,
+  options: AttachmentEngineOptions,
 ): Promise<PrepareAttachmentResult> {
   if (remaining <= 0) return skipped('本轮附件文字已达上限')
   if (size > agentAttachmentFileBytes) return skipped('文本超过 2 MB')
+  options.onProgress?.('读取文本')
   const raw = await readPlainText(path)
+  if (options.signal?.aborted) throw new Error('附件解析已取消')
   if (!raw?.trim()) return skipped('没有可读取的文字')
   const limit = remainingText(remaining)
   const text = raw.slice(0, limit)
@@ -334,6 +339,7 @@ async function preparePdf(
 ): Promise<PrepareAttachmentResult> {
   if (size > agentAttachmentBinaryBytes) return skipped('PDF 超过 20 MB')
   const limit = remainingText(remaining)
+  if (limit > 0) options.onProgress?.('抽取 PDF 文字')
   const extracted =
     limit > 0
       ? await pdfTextFromPath(path, limit, options.signal)
@@ -352,6 +358,7 @@ async function preparePdf(
         ? '扫描版 PDF 需要 Flash 上传解析'
         : '本轮附件文字已达上限，PDF 需要 Flash 上传解析',
     )
+  options.onProgress?.('准备上传解析')
   const attachment = baseAttachment(path, size, 'pdf', 'document', {
     needsModelUpload: true,
     detail:
@@ -374,12 +381,15 @@ async function prepareOffice(
   const limit = remainingText(remaining)
   const extension = fileExtension(path).toUpperCase()
   if (options.soffice && limit > 0) {
-    const bytes = await officePdfBuffer(
-      options.soffice,
-      path,
-      options.signal,
-    ).catch(() => null)
+    options.onProgress?.('转换文档')
+    let bytes: Buffer | null = null
+    try {
+      bytes = await officePdfBuffer(options.soffice, path, options.signal)
+    } catch (error) {
+      if (options.signal?.aborted) throw error
+    }
     if (bytes) {
+      options.onProgress?.('抽取文字')
       const extracted = await pdfTextFromBytes(bytes, limit, options.signal)
       if (extracted.text.trim().length >= 20) {
         const attachment = baseAttachment(path, size, kind, 'text', {
@@ -399,6 +409,7 @@ async function prepareOffice(
       : ['DOC', 'DOCX', 'PPT', 'PPTX'].includes(extension)
   if (!uploadable)
     return skipped(`${extension} 需要先安装 LibreOffice`)
+  options.onProgress?.('准备上传解析')
   const attachment = baseAttachment(path, size, kind, 'document', {
     needsModelUpload: true,
     detail: `${extension} · 上传解析`,
@@ -420,16 +431,24 @@ async function prepareOfd(
   if (size > agentAttachmentBinaryBytes) return skipped('OFD 超过 20 MB')
   if (!isUploadModel(options))
     return skipped('OFD 需要 Flash 视觉解析')
+  options.onProgress?.('渲染 OFD 页面')
   const { renderOfdPageBuffers } = await import('../convert-ofd')
   const pages = await renderOfdPageBuffers(path, options.signal)
   if (!pages.length) return skipped('OFD 没有可渲染的页面')
+  options.onProgress?.('准备视觉解析')
   const selected = pages.slice(0, agentAttachmentOfdPages)
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-ofd-'))
   const upload: AgentAttachmentUpload[] = []
-  for (const [index, bytes] of selected.entries()) {
-    const page = join(directory, `page-${index + 1}.png`)
-    await writeFile(page, bytes)
-    upload.push({ path: page, purpose: 'user_data' })
+  try {
+    for (const [index, bytes] of selected.entries()) {
+      if (options.signal?.aborted) throw new Error('附件解析已取消')
+      const page = join(directory, `page-${index + 1}.png`)
+      await writeFile(page, bytes)
+      upload.push({ path: page, purpose: 'user_data' })
+    }
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+    throw error
   }
   const attachment = baseAttachment(path, size, 'ofd', 'vision', {
     needsModelUpload: true,
@@ -453,6 +472,7 @@ async function prepareImage(
   if (!isUploadModel(options))
     return skipped('图片需要 Flash 视觉解析')
   const extension = fileExtension(path)
+  options.onProgress?.('准备视觉解析')
   const attachment = baseAttachment(path, size, 'image', 'vision', {
     needsModelUpload: true,
     detail: '图片 · 视觉解析',
@@ -461,18 +481,25 @@ async function prepareImage(
     attachment.upload = [{ path, purpose: 'user_data' }]
     return { attachment }
   }
+  options.onProgress?.('转换图片')
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-image-'))
   const converted = join(directory, 'image.png')
-  await sharp(path)
-    .rotate()
-    .resize({
-      width: 4096,
-      height: 4096,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
-    .png()
-    .toFile(converted)
+  try {
+    await sharp(path)
+      .rotate()
+      .resize({
+        width: 4096,
+        height: 4096,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .png()
+      .toFile(converted)
+    if (options.signal?.aborted) throw new Error('附件解析已取消')
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+    throw error
+  }
   attachment.upload = [{ path: converted, purpose: 'user_data' }]
   attachment.tempPaths.push(directory)
   return { attachment }
@@ -488,6 +515,7 @@ async function prepareMedia(
     return skipped(`${kind === 'audio' ? '音频' : '视频'}超过 200 MB`)
   const chunks: string[] = []
   const tempPaths: string[] = []
+  options.onProgress?.('检查音频')
   if (
     kind === 'audio' &&
     size <= 8 * 1024 * 1024 &&
@@ -501,16 +529,26 @@ async function prepareMedia(
           ? '视频转写需要先安装 FFmpeg'
           : '音频转写需要先安装 FFmpeg',
       )
+    options.onProgress?.(kind === 'video' ? '提取音轨' : '转码音频')
     const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-audio-'))
     tempPaths.push(directory)
-    chunks.push(
-      ...(await audioChunks(
-        options.ffmpeg,
-        path,
-        directory,
-        options.signal,
-      )),
-    )
+    try {
+      chunks.push(
+        ...(await audioChunks(
+          options.ffmpeg,
+          path,
+          directory,
+          options.signal,
+        )),
+      )
+    } catch (error) {
+      await releaseAgentAttachment({ tempPaths })
+      throw error
+    }
+  }
+  if (options.signal?.aborted) {
+    await releaseAgentAttachment({ tempPaths })
+    throw new Error('附件解析已取消')
   }
   if (!chunks.length) return skipped('没有可转写的音频')
   const attachment = baseAttachment(path, size, kind, 'audio', {
@@ -533,7 +571,9 @@ async function prepareEbook(
   const limit = remainingText(remaining)
   if (extension === 'epub') {
     if (limit > 0) {
+      options.onProgress?.('读取电子书')
       const text = await epubText(path, limit).catch(() => null)
+      if (options.signal?.aborted) throw new Error('附件解析已取消')
       if (text?.trim()) {
         const attachment = baseAttachment(path, size, 'ebook', 'text', {
           detail: 'EPUB · 本地文本',
@@ -549,6 +589,7 @@ async function prepareEbook(
   } else if (!isUploadModel(options)) {
     return skipped('MOBI 需要 Flash 上传解析')
   }
+  options.onProgress?.('准备上传解析')
   const attachment = baseAttachment(path, size, 'ebook', 'document', {
     needsModelUpload: true,
     detail: `${extension.toUpperCase()} · 上传解析`,
@@ -569,18 +610,22 @@ async function prepareArchive(
   try {
     const copy = join(root, basename(path))
     await copyFile(path, copy)
+    options.onProgress?.('解压压缩包')
     const { folder } = await extractArchive(copy, {
       inputBytes: agentAttachmentArchiveBytes,
       entries: agentAttachmentArchiveEntries,
       expandedBytes: agentAttachmentArchiveExpandedBytes,
     })
+    if (options.signal?.aborted) throw new Error('附件解析已取消')
     const entries = await walkFiles(folder)
     if (!entries.length) return skipped('压缩包是空的')
+    options.onProgress?.('读取压缩包内容')
     const budget = remainingText(remaining)
     const sections: string[] = []
     let used = 0
     let read = 0
     for (const entry of entries) {
+      if (options.signal?.aborted) throw new Error('附件解析已取消')
       if (used >= budget) break
       if (entry.relative.startsWith('__MACOSX/')) continue
       if (entry.relative.split('/').some((part) => part.startsWith('.')))
@@ -638,11 +683,12 @@ async function innerText(
     options.soffice &&
     info.size <= agentAttachmentBinaryBytes
   ) {
-    const bytes = await officePdfBuffer(
-      options.soffice,
-      path,
-      options.signal,
-    ).catch(() => null)
+    let bytes: Buffer | null = null
+    try {
+      bytes = await officePdfBuffer(options.soffice, path, options.signal)
+    } catch (error) {
+      if (options.signal?.aborted) throw error
+    }
     if (!bytes) return null
     const extracted = await pdfTextFromBytes(bytes, budget, options.signal)
     return extracted.text.trim() ? extracted.text : null

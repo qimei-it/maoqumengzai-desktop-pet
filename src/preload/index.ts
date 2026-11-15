@@ -66,6 +66,8 @@ const api: PrototypeApi = {
       })
     }
   },
+  cancelAgentAttachmentParsing: () =>
+    ipcRenderer.invoke(channels.agentAttachmentCancel),
   releaseAgentAttachment: (id) =>
     ipcRenderer.invoke(channels.agentAttachmentRemove, id),
   pruneAgentAttachments: () =>
