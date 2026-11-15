@@ -139,4 +139,89 @@ describe('agent skill store', () => {
     expect(one.id).not.toBe(two.id)
     expect(store.list()).toHaveLength(2)
   })
+
+  test('loads read-only built-in skills with categories and opt-in state', async () => {
+    const root = await directory()
+    const builtin = join(root, 'builtin')
+    await mkdir(join(builtin, 'paper', 'alpha', 'references'), {
+      recursive: true,
+    })
+    await mkdir(join(builtin, 'paper', 'beta'), { recursive: true })
+    await writeFile(
+      join(builtin, 'paper', 'alpha', 'SKILL.md'),
+      skillFile('Paper Alpha', 'Default paper skill.', '# Alpha'),
+    )
+    await writeFile(
+      join(builtin, 'paper', 'alpha', 'references', 'guide.md'),
+      'reference body',
+    )
+    await writeFile(
+      join(builtin, 'paper', 'beta', 'SKILL.md'),
+      skillFile('Paper Beta', 'Opt-in paper skill.', '# Beta'),
+    )
+    await writeFile(
+      join(builtin, 'manifest.json'),
+      JSON.stringify({
+        version: 1,
+        skills: [
+          {
+            id: 'builtin-alpha',
+            dir: 'paper/alpha',
+            category: '论文科研',
+            defaultEnabled: true,
+          },
+          {
+            id: 'builtin-beta',
+            dir: 'paper/beta',
+            category: '论文科研',
+            defaultEnabled: false,
+          },
+        ],
+      }),
+    )
+    const store = await createSkillStore(
+      join(root, 'skills'),
+      join(root, 'mqmz.skills.json'),
+      builtin,
+    )
+    const list = store.list()
+    expect(list).toHaveLength(2)
+    expect(list.find((item) => item.id === 'builtin-alpha')).toMatchObject({
+      name: 'Paper Alpha',
+      category: '论文科研',
+      builtin: true,
+      enabled: true,
+    })
+    expect(list.find((item) => item.id === 'builtin-beta')).toMatchObject({
+      builtin: true,
+      enabled: false,
+    })
+    expect(await store.files('builtin-alpha')).toEqual([
+      'SKILL.md',
+      'references/guide.md',
+    ])
+    expect(
+      await store.readFile('builtin-alpha', 'references/guide.md'),
+    ).toBe('reference body')
+    await expect(
+      store.readFile('builtin-alpha', '../beta/SKILL.md'),
+    ).rejects.toThrow('超出技能目录')
+
+    await store.setEnabled('builtin-beta', true)
+    await store.setEnabled('builtin-alpha', false)
+    const reopened = await createSkillStore(
+      join(root, 'skills'),
+      join(root, 'mqmz.skills.json'),
+      builtin,
+    )
+    expect(
+      reopened.list().find((item) => item.id === 'builtin-beta')?.enabled,
+    ).toBe(true)
+    expect(
+      reopened.list().find((item) => item.id === 'builtin-alpha')?.enabled,
+    ).toBe(false)
+    await expect(reopened.remove('builtin-alpha')).rejects.toThrow(
+      '内置技能不能卸载',
+    )
+  })
 })

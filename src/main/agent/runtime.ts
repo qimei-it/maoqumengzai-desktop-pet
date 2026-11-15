@@ -76,7 +76,9 @@ export type AgentFilesClient = {
 export type AgentSkillPrompt = {
   name: string
   description: string
+  category?: string
   content: string
+  files?: string[]
 }
 
 export type AgentRuntimeDeps = {
@@ -93,6 +95,10 @@ export type AgentRuntimeDeps = {
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
   loadSkills?(): Promise<AgentSkillPrompt[]>
+  /** Reads one text file inside an enabled skill directory. */
+  readSkillFile?(name: string, path: string): Promise<string>
+  /** Lists text files inside an enabled skill directory. */
+  listSkillFiles?(name: string): Promise<string[]>
   /** Directory for recoverable file-edit backups. */
   backupRoot?: string
 }
@@ -377,13 +383,15 @@ function systemPrompt(
       ? [
           '',
           '# 已启用技能',
-          '需要按某个技能执行时，先调用 skill_load 读取完整说明，再照做。',
-          ...skills
-            .slice(0, 50)
-            .map(
-              (skill) =>
-                `- ${skill.name}：${(skill.description || '无描述').slice(0, 160)}`,
-            ),
+          skills.length > 60
+            ? `当前启用了 ${skills.length} 个技能。先用 skill_search 检索相关技能，再用 skill_load 读取完整说明。`
+            : '需要按某个技能执行时，先调用 skill_load 读取完整说明，再照做。',
+          ...(skills.length > 60
+            ? []
+            : skills.map(
+                (skill) =>
+                  `- ${skill.name}：${(skill.description || '无描述').slice(0, 160)}`,
+              )),
         ]
       : []),
   ].join('\n')
@@ -497,10 +505,88 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ok: false,
           text: `没有找到技能“${name}”。先查看系统提示里已启用的技能列表。`,
         }
-      return { ok: true, text: truncate(match.content, 20_000) }
+      const files = deps.listSkillFiles
+        ? await deps.listSkillFiles(match.name).catch(() => [])
+        : (match.files ?? [])
+      const listing = files.length
+        ? `\n\n技能目录文件（可用 skill_read 读取）：\n${files
+            .slice(0, 60)
+            .join('\n')}${files.length > 60 ? '\n…' : ''}`
+        : ''
+      return {
+        ok: true,
+        text: `${truncate(match.content, 20_000)}${listing}`.slice(0, 24_000),
+      }
     },
   }
-  const toolList = [...Object.values(tools), skillTool]
+  const skillSearchTool: AgentTool = {
+    name: 'skill_search',
+    description: '按关键词搜索已启用技能，返回名称和用途，再用 skill_load 读取。',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: '搜索关键词' },
+      },
+      required: ['query'],
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) => `搜索技能 ${String(args.query ?? '')}`.slice(0, 80),
+    async run(args) {
+      const query = String(args.query ?? '').trim().toLowerCase()
+      if (!query) return { ok: false, text: '缺少搜索关键词。' }
+      const skills = await (deps.loadSkills?.() ?? Promise.resolve([]))
+      const matches = skills.filter((skill) =>
+        `${skill.name}\n${skill.description}\n${skill.content}`
+          .toLowerCase()
+          .includes(query),
+      )
+      if (!matches.length)
+        return { ok: true, text: `没有找到与“${query}”相关的技能。` }
+      return {
+        ok: true,
+        text: matches
+          .slice(0, 12)
+          .map(
+            (skill) =>
+              `- ${skill.name}：${(skill.description || '无描述').slice(0, 160)}`,
+          )
+          .join('\n'),
+      }
+    },
+  }
+  const skillReadTool: AgentTool = {
+    name: 'skill_read',
+    description: '读取技能目录里的参考文件或脚本内容。先使用 skill_load 查看文件列表。',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '技能名称' },
+        path: { type: 'string', description: '技能目录内的相对文件路径' },
+      },
+      required: ['name', 'path'],
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) => `读取技能文件 ${String(args.path ?? '')}`.slice(0, 80),
+    async run(args) {
+      if (!deps.readSkillFile)
+        return { ok: false, text: '当前没有可读取的技能文件。' }
+      const name = String(args.name ?? '').trim()
+      const path = String(args.path ?? '').trim()
+      if (!name || !path) return { ok: false, text: '缺少技能名称或文件路径。' }
+      const content = await deps.readSkillFile(name, path)
+      return { ok: true, text: truncate(content, 30_000) }
+    },
+  }
+  const toolList = [
+    ...Object.values(tools),
+    skillTool,
+    skillSearchTool,
+    skillReadTool,
+  ]
   const subagentNames = new Set([
     'workspace_list',
     'workspace_read',
@@ -1147,9 +1233,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         const tool =
           call.name === 'skill_load'
             ? skillTool
-            : call.name === 'subagent_run'
-              ? subagentTool
-              : tools[call.name]
+            : call.name === 'skill_search'
+              ? skillSearchTool
+              : call.name === 'skill_read'
+                ? skillReadTool
+                : call.name === 'subagent_run'
+                  ? subagentTool
+                  : tools[call.name]
         let args: Record<string, unknown> = {}
         let parseError: string | undefined
         try {

@@ -616,6 +616,11 @@ const agentPath = join(dataRoot, 'mqmz.agent.json')
 const agentWindowPath = join(dataRoot, 'mqmz.agent-window.json')
 const agentSkillsRoot = join(dataRoot, 'skills')
 const agentSkillsIndexPath = join(dataRoot, 'mqmz.skills.json')
+const agentSkillsBuiltinRoot =
+  process.env.MQMZ_SKILLS_BUILTIN_ROOT ??
+  (app.isPackaged
+    ? join(process.resourcesPath, 'skills')
+    : join(app.getAppPath(), 'resources', 'skills'))
 let agentSkillStore: SkillStore | undefined
 let agentSkills: AgentSkillView[] = []
 
@@ -1043,6 +1048,7 @@ async function loadEnabledSkillPrompts(): Promise<AgentSkillPrompt[]> {
       prompts.push({
         name: detail.name,
         description: detail.description,
+        category: detail.category,
         content: detail.content.slice(0, 40_000),
       })
     } catch {
@@ -1059,6 +1065,25 @@ const agent = createAgentRuntime({
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
+  listSkillFiles: async (name) => {
+    const store = agentSkillStore
+    if (!store) return []
+    const skill = store.list().find((item) => item.name === name)
+    return skill ? store.files(skill.id).catch(() => []) : []
+  },
+  readSkillFile: async (name, path) => {
+    const store = agentSkillStore
+    if (!store) throw new Error('技能库尚未就绪。')
+    const skill =
+      store.list().find((item) => item.name === name) ??
+      store
+        .list()
+        .find(
+          (item) => item.name.toLowerCase() === name.toLowerCase(),
+        )
+    if (!skill) throw new Error(`没有找到技能“${name}”。`)
+    return store.readFile(skill.id, path)
+  },
   backupRoot: join(dataRoot, 'agent-backups'),
   broadcast: () => broadcast(),
   pickWorkspace: async () => {
@@ -11450,6 +11475,7 @@ else {
         agentSkillStore = await createSkillStore(
           agentSkillsRoot,
           agentSkillsIndexPath,
+          agentSkillsBuiltinRoot,
         )
         agentSkills = agentSkillStore.list()
       } catch {

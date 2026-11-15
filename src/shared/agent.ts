@@ -95,6 +95,9 @@ export type AgentSkillView = {
   id: string
   name: string
   description: string
+  category: string
+  /** Bundled with the app and read-only. */
+  builtin: boolean
   enabled: boolean
 }
 

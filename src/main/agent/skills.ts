@@ -3,9 +3,29 @@
  * YAML frontmatter. Packages are imported as archives or a single Markdown file.
  */
 
-import { cp, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import {
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, extname, isAbsolute, join, relative } from 'node:path'
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path'
 import { copyFile } from 'node:fs/promises'
 import type {
   AgentSkillDetail,
@@ -25,17 +45,35 @@ type LoadedSkill = AgentSkillView & {
   file: string
   isFile: boolean
   content: string
+  defaultEnabled: boolean
 }
 
 type SkillIndex = {
-  version: 1
+  version: 2
   disabled: string[]
+  enabled: string[]
+}
+
+type BuiltinManifestEntry = {
+  id: string
+  dir: string
+  category: string
+  defaultEnabled?: boolean
+  source?: string
+  license?: string
+}
+
+type BuiltinManifest = {
+  version: 1
+  skills: BuiltinManifestEntry[]
 }
 
 export type SkillStore = {
   list(): AgentSkillView[]
   refresh(): Promise<AgentSkillView[]>
   read(id: string): Promise<AgentSkillDetail>
+  files(id: string): Promise<string[]>
+  readFile(id: string, path: string): Promise<string>
   install(sourcePath: string): Promise<AgentSkillDetail[]>
   setEnabled(id: string, enabled: boolean): Promise<AgentSkillView>
   remove(id: string): Promise<boolean>
@@ -74,11 +112,12 @@ function unquote(value: string): string {
 function parseSkill(
   content: string,
   fallbackName: string,
-): { name: string; description: string; body: string } {
+): { name: string; description: string; category: string; body: string } {
   const normalized = content.replace(/^\uFEFF/, '')
   let body = normalized
   let name = ''
   let description = ''
+  let category = ''
   const frontmatter = /^---\s*\r?\n([\s\S]*?)\r?\n---\s*(?:\r?\n|$)/.exec(
     normalized,
   )
@@ -102,6 +141,7 @@ function parseSkill(
       }
       if (key === 'name') name = unquote(value)
       if (key === 'description') description = unquote(value)
+      if (key === 'category') category = unquote(value)
     }
   }
   const trimmedBody = body.trim()
@@ -116,6 +156,7 @@ function parseSkill(
   return {
     name: name.trim().slice(0, 80) || fallbackName,
     description: description.trim().slice(0, 240),
+    category: category.trim().slice(0, 40),
     body: trimmedBody,
   }
 }
@@ -198,38 +239,85 @@ async function uniqueDirectory(root: string, base: string): Promise<string> {
   throw new Error('技能目录里没有可用的名称。')
 }
 
-function parseIndex(value: unknown): Set<string> {
-  if (!value || typeof value !== 'object') return new Set()
-  const record = value as Partial<SkillIndex>
-  if (record.version !== 1 || !Array.isArray(record.disabled)) return new Set()
-  return new Set(
-    record.disabled.filter(
-      (item): item is string => typeof item === 'string' && Boolean(item),
-    ),
-  )
+function parseIndex(value: unknown): {
+  disabled: Set<string>
+  enabled: Set<string>
+} {
+  const disabled = new Set<string>()
+  const enabled = new Set<string>()
+  if (!value || typeof value !== 'object')
+    return { disabled, enabled }
+  const record = value as {
+    version?: unknown
+    disabled?: unknown
+    enabled?: unknown
+  }
+  if (record.version !== 1 && record.version !== 2)
+    return { disabled, enabled }
+  if (Array.isArray(record.disabled))
+    for (const item of record.disabled)
+      if (typeof item === 'string' && item) disabled.add(item)
+  if (Array.isArray(record.enabled))
+    for (const item of record.enabled)
+      if (typeof item === 'string' && item) enabled.add(item)
+  return { disabled, enabled }
 }
 
-async function loadDisabled(indexPath: string): Promise<Set<string>> {
+async function loadIndex(indexPath: string): Promise<{
+  disabled: Set<string>
+  enabled: Set<string>
+}> {
   try {
     return parseIndex(JSON.parse(await readFile(indexPath, 'utf8')))
   } catch {
-    return new Set()
+    return { disabled: new Set(), enabled: new Set() }
   }
 }
 
-async function saveDisabled(
+async function saveIndex(
   indexPath: string,
   disabled: Set<string>,
+  enabled: Set<string>,
 ): Promise<void> {
   const value: SkillIndex = {
-    version: 1,
+    version: 2,
     disabled: [...disabled].sort(),
+    enabled: [...enabled].sort(),
   }
   await mkdir(dirname(indexPath), { recursive: true })
   await writeFile(`${indexPath}.tmp`, JSON.stringify(value), {
     mode: 0o600,
   })
   await rename(`${indexPath}.tmp`, indexPath)
+}
+
+async function loadBuiltinManifest(
+  builtinRoot: string | undefined,
+): Promise<BuiltinManifestEntry[]> {
+  if (!builtinRoot) return []
+  const path = join(builtinRoot, 'manifest.json')
+  const value = JSON.parse(await readFile(path, 'utf8').catch(() => 'null')) as
+    | BuiltinManifest
+    | null
+  if (!value || value.version !== 1 || !Array.isArray(value.skills))
+    return []
+  return value.skills.filter(
+    (entry) =>
+      entry &&
+      typeof entry.id === 'string' &&
+      typeof entry.dir === 'string' &&
+      typeof entry.category === 'string',
+  )
+}
+
+function builtinDirectory(
+  builtinRoot: string,
+  relativeDirectory: string,
+): string | null {
+  const path = resolve(builtinRoot, relativeDirectory)
+  const rel = relative(resolve(builtinRoot), path)
+  if (rel.startsWith('..') || isAbsolute(rel)) return null
+  return path
 }
 
 async function copySkillSource(source: string, target: string): Promise<void> {
@@ -247,21 +335,55 @@ async function copySkillSource(source: string, target: string): Promise<void> {
 export async function createSkillStore(
   root: string,
   indexPath: string,
+  builtinRoot?: string,
 ): Promise<SkillStore> {
   await mkdir(root, { recursive: true })
-  let disabled = await loadDisabled(indexPath)
+  const index = await loadIndex(indexPath)
+  const disabled = index.disabled
+  const enabledOverrides = index.enabled
   const records = new Map<string, LoadedSkill>()
+
+  const enabledFor = (skill: LoadedSkill): boolean =>
+    skill.builtin
+      ? skill.defaultEnabled
+        ? !disabled.has(skill.id)
+        : enabledOverrides.has(skill.id)
+      : !disabled.has(skill.id)
 
   const view = (skill: LoadedSkill): AgentSkillView => ({
     id: skill.id,
     name: skill.name,
     description: skill.description,
-    enabled: skill.enabled,
+    category: skill.category,
+    builtin: skill.builtin,
+    enabled: enabledFor(skill),
   })
 
   const refresh = async (): Promise<AgentSkillView[]> => {
-    const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
     const next = new Map<string, LoadedSkill>()
+    for (const entry of await loadBuiltinManifest(builtinRoot)) {
+      if (!builtinRoot) continue
+      const directory = builtinDirectory(builtinRoot, entry.dir)
+      if (!directory) continue
+      const file = join(directory, 'SKILL.md')
+      const info = await stat(file).catch(() => null)
+      if (!info?.isFile()) continue
+      const parsed = await readSkillFile(file, entry.dir)
+      next.set(entry.id, {
+        id: entry.id,
+        name: parsed.name,
+        description: parsed.description,
+        category: entry.category || parsed.category || '其他',
+        builtin: true,
+        enabled: false,
+        dir: directory,
+        file,
+        isFile: false,
+        content: parsed.body,
+        defaultEnabled: entry.defaultEnabled !== false,
+      })
+    }
+    const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
     for (const entry of entries) {
       if (entry.name === '__MACOSX' || entry.name === '.DS_Store') continue
       if (entry.isDirectory()) {
@@ -273,11 +395,14 @@ export async function createSkillStore(
           id,
           name: parsed.name,
           description: parsed.description,
-          enabled: !disabled.has(id),
+          category: parsed.category || '我的技能',
+          builtin: false,
+          enabled: false,
           dir: dirname(file),
           file,
           isFile: false,
           content: parsed.body,
+          defaultEnabled: true,
         })
         continue
       }
@@ -290,19 +415,22 @@ export async function createSkillStore(
         id,
         name: parsed.name,
         description: parsed.description,
-        enabled: !disabled.has(id),
+        category: parsed.category || '我的技能',
+        builtin: false,
+        enabled: false,
         dir: root,
         file,
         isFile: true,
         content: parsed.body,
+        defaultEnabled: true,
       })
     }
     records.clear()
     for (const [id, skill] of next) records.set(id, skill)
-    for (const id of [...disabled]) {
-      if (!records.has(id)) disabled.delete(id)
-    }
-    await saveDisabled(indexPath, disabled)
+    for (const id of [...disabled]) if (!records.has(id)) disabled.delete(id)
+    for (const id of [...enabledOverrides])
+      if (!records.has(id)) enabledOverrides.delete(id)
+    await saveIndex(indexPath, disabled, enabledOverrides)
     return [...records.values()]
       .map(view)
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
@@ -398,9 +526,16 @@ export async function createSkillStore(
   ): Promise<AgentSkillView> => {
     const record = records.get(id)
     if (!record) throw new Error('技能不存在。')
-    if (enabled) disabled.delete(id)
-    else disabled.add(id)
-    await saveDisabled(indexPath, disabled)
+    if (record.builtin && !record.defaultEnabled) {
+      if (enabled) enabledOverrides.add(id)
+      else enabledOverrides.delete(id)
+      disabled.delete(id)
+    } else {
+      if (enabled) disabled.delete(id)
+      else disabled.add(id)
+      enabledOverrides.delete(id)
+    }
+    await saveIndex(indexPath, disabled, enabledOverrides)
     record.enabled = enabled
     return view(record)
   }
@@ -408,12 +543,68 @@ export async function createSkillStore(
   const remove = async (id: string): Promise<boolean> => {
     const record = records.get(id)
     if (!record) throw new Error('技能不存在。')
+    if (record.builtin) throw new Error('内置技能不能卸载。')
     if (record.isFile) await unlink(record.file)
     else await rm(record.dir, { recursive: true, force: true })
     disabled.delete(id)
-    await saveDisabled(indexPath, disabled)
+    enabledOverrides.delete(id)
+    await saveIndex(indexPath, disabled, enabledOverrides)
     await refresh()
     return true
+  }
+
+  const files = async (id: string): Promise<string[]> => {
+    const record = records.get(id)
+    if (!record) throw new Error('技能不存在。')
+    if (record.isFile) return [basename(record.file)]
+    const result: string[] = []
+    const stack = [record.dir]
+    while (stack.length && result.length < 200) {
+      const directory = stack.pop()!
+      const entries = await readdir(directory, {
+        withFileTypes: true,
+      }).catch(() => [])
+      for (const entry of entries) {
+        if (entry.isSymbolicLink() || entry.name === '.git') continue
+        const path = join(directory, entry.name)
+        if (entry.isDirectory()) {
+          stack.push(path)
+          continue
+        }
+        if (!entry.isFile()) continue
+        if (!/\.[A-Za-z0-9]{1,8}$/.test(entry.name)) continue
+        result.push(relative(record.dir, path).split(sep).join('/'))
+        if (result.length >= 200) break
+      }
+    }
+    return result.sort()
+  }
+
+  const readSkillContent = async (
+    id: string,
+    value: string,
+  ): Promise<string> => {
+    const record = records.get(id)
+    if (!record) throw new Error('技能不存在。')
+    const clean = value.trim()
+    if (!clean || isAbsolute(clean)) throw new Error('技能文件路径不正确。')
+    const path = resolve(record.dir, clean)
+    const rel = relative(resolve(record.dir), path)
+    if (rel.startsWith('..') || isAbsolute(rel))
+      throw new Error('技能文件路径超出技能目录。')
+    const realRoot = await realpath(record.dir).catch(() => record.dir)
+    const realPath = await realpath(path).catch(() => null)
+    if (!realPath) throw new Error('技能文件不存在。')
+    const realRel = relative(realRoot, realPath)
+    if (realRel.startsWith('..') || isAbsolute(realRel))
+      throw new Error('技能文件路径超出技能目录。')
+    const info = await stat(path).catch(() => null)
+    if (!info?.isFile()) throw new Error('技能文件不存在。')
+    if (info.size > 512 * 1024) throw new Error('技能文件超过 512 KB。')
+    const content = await readFile(path, 'utf8').catch(() => null)
+    if (content === null) throw new Error('无法读取技能文件。')
+    if (content.includes('\u0000')) throw new Error('技能文件不是文本。')
+    return content
   }
 
   await refresh()
@@ -424,6 +615,8 @@ export async function createSkillStore(
         .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')),
     refresh,
     read,
+    files,
+    readFile: readSkillContent,
     install,
     setEnabled,
     remove,

@@ -177,6 +177,27 @@ const filteredSkills = computed(() => {
     return searchable.includes(query)
   })
 })
+const skillCategoryOrder = ['论文科研', '文档办公', '电商运营']
+const skillGroups = computed(() => {
+  const groups = new Map<string, AgentSkillView[]>()
+  for (const category of [...skillCategoryOrder, '我的技能'])
+    groups.set(category, [])
+  for (const skill of filteredSkills.value) {
+    const category =
+      skill.category.trim() ||
+      (skill.builtin ? '其他' : '我的技能')
+    if (!groups.has(category)) groups.set(category, [])
+    groups.get(category)!.push(skill)
+  }
+  const searching = Boolean(skillQuery.value.trim())
+  return [...groups.entries()]
+    .map(([category, items]) => ({ category, items }))
+    .filter(
+      (group) =>
+        group.items.length ||
+        (!searching && skillCategoryOrder.includes(group.category)),
+    )
+})
 const pinnedOpen = ref(true)
 const projectsOpen = ref(true)
 const ungroupedOpen = ref(true)
@@ -1571,6 +1592,27 @@ function statusLabel(status: string): string {
         ></div>
 
         <div class="agent-side-top">
+          <label class="agent-session-search">
+            <Search :size="14" :stroke-width="2" aria-hidden="true" />
+            <input
+              ref="sessionSearchInput"
+              v-model="sessionQuery"
+              type="text"
+              placeholder="搜索对话"
+              aria-label="搜索对话"
+              autocomplete="off"
+            />
+            <button
+              v-if="sessionQuery"
+              type="button"
+              class="agent-session-search-clear"
+              aria-label="清空搜索"
+              title="清空搜索"
+              @click="sessionQuery = ''"
+            >
+              <X :size="12" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </label>
           <button type="button" class="agent-new-chat" @click="newSession">
             <MessageCirclePlus
               :size="12"
@@ -1593,27 +1635,6 @@ function statusLabel(status: string): string {
             />
             <span>技能</span>
           </button>
-          <label class="agent-session-search">
-            <Search :size="14" :stroke-width="2" aria-hidden="true" />
-            <input
-              ref="sessionSearchInput"
-              v-model="sessionQuery"
-              type="text"
-              placeholder="搜索对话"
-              aria-label="搜索对话"
-              autocomplete="off"
-            />
-            <button
-              v-if="sessionQuery"
-              type="button"
-              class="agent-session-search-clear"
-              aria-label="清空搜索"
-              title="清空搜索"
-              @click="sessionQuery = ''"
-            >
-              <X :size="12" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </label>
         </div>
 
         <div class="agent-side-scroll">
@@ -2176,37 +2197,55 @@ function statusLabel(status: string): string {
               </button>
             </div>
             <p v-if="skillError" class="agent-error">{{ skillError }}</p>
-            <div v-if="filteredSkills.length" class="agent-skills-grid">
-              <button
-                v-for="skill in filteredSkills"
-                :key="skill.id"
-                type="button"
-                class="agent-skill-card"
-                :class="{ disabled: !skill.enabled }"
-                @click="openSkill(skill)"
+            <template v-if="filteredSkills.length">
+              <section
+                v-for="group in skillGroups"
+                :key="group.category"
+                class="agent-skill-group"
               >
-                <span class="agent-skill-icon">
-                  <Component
-                    :size="17"
-                    :stroke-width="2"
-                    aria-hidden="true"
-                  />
-                </span>
-                <span class="agent-skill-text">
-                  <span class="agent-skill-name">{{ skill.name }}</span>
-                  <span class="agent-skill-description">{{
-                    skill.description
-                  }}</span>
-                </span>
-                <Check
-                  v-if="skill.enabled"
-                  class="agent-skill-check"
-                  :size="14"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </button>
-            </div>
+                <div class="agent-skill-group-head">
+                  <h3>{{ group.category }}</h3>
+                  <span>{{ group.items.length }}</span>
+                </div>
+                <div
+                  v-if="group.items.length"
+                  class="agent-skills-grid"
+                >
+                  <button
+                    v-for="skill in group.items"
+                    :key="skill.id"
+                    type="button"
+                    class="agent-skill-card"
+                    :class="{ disabled: !skill.enabled }"
+                    @click="openSkill(skill)"
+                  >
+                    <span class="agent-skill-icon">
+                      <Component
+                        :size="17"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span class="agent-skill-text">
+                      <span class="agent-skill-name">{{
+                        skill.name
+                      }}</span>
+                      <span class="agent-skill-description">{{
+                        skill.description
+                      }}</span>
+                    </span>
+                    <Check
+                      v-if="skill.enabled"
+                      class="agent-skill-check"
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+                <p v-else class="agent-skills-empty">暂无技能</p>
+              </section>
+            </template>
             <p v-else-if="skillQuery.trim()" class="agent-skills-empty">
               没有找到匹配的技能
             </p>
@@ -2236,7 +2275,9 @@ function statusLabel(status: string): string {
                 <div class="agent-skill-detail-title">
                   <h2>
                     {{ skillDetail.name }}
-                    <span>Skill</span>
+                    <span>{{
+                      skillDetail.builtin ? '内置 Skill' : 'Skill'
+                    }}</span>
                   </h2>
                   <p>{{ skillDetail.description }}</p>
                 </div>
@@ -2280,6 +2321,7 @@ function statusLabel(status: string): string {
               </div>
               <footer class="agent-skill-detail-foot">
                 <button
+                  v-if="!skillDetail.builtin"
                   type="button"
                   class="agent-button danger"
                   @click="removeSkill"
@@ -3775,7 +3817,7 @@ function statusLabel(status: string): string {
   gap: var(--space-2);
   width: 100%;
   min-height: 32px;
-  margin-top: 6px;
+  margin-bottom: 6px;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
@@ -5528,6 +5570,28 @@ function statusLabel(status: string): string {
   flex: none;
   align-items: center;
   gap: var(--space-1);
+}
+.agent-skill-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.agent-skill-group + .agent-skill-group {
+  margin-top: var(--space-6);
+}
+.agent-skill-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.agent-skill-group-head h3 {
+  margin: 0;
+  font-size: var(--font-size-label);
+  font-weight: 650;
+}
+.agent-skill-group-head span {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
 }
 .agent-skills-grid {
   display: grid;

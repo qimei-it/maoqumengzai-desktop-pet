@@ -43,6 +43,7 @@ async function makeRuntime(
     stream?: typeof import('../../src/main/agent/provider').streamChat
     files?: import('../../src/main/agent/runtime').AgentFilesClient
     loadSkills?: () => Promise<AgentSkillPrompt[]>
+    readSkillFile?: (name: string, path: string) => Promise<string>
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -59,6 +60,9 @@ async function makeRuntime(
     stream: override?.stream ?? script.stream,
     ...(override?.files ? { files: override.files } : {}),
     ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
+    ...(override?.readSkillFile
+      ? { readSkillFile: override.readSkillFile }
+      : {}),
   })
   await runtime.load()
   runtime.newSession()
@@ -1279,6 +1283,61 @@ describe('agent runtime', () => {
             item.type === 'text' && item.text.includes('子 Agent 已找到'),
         ),
     ).toBe(true)
+  })
+
+  test('uses skill search and skill file reads when many skills exist', async () => {
+    const skills = Array.from({ length: 61 }, (_, index) => ({
+      name: `Skill ${index}`,
+      description: `Description ${index}`,
+      content: `Body ${index}`,
+      files: ['notes.md'],
+    }))
+    const seen: StreamOptions[] = []
+    const { runtime } = await makeRuntime([], [], {
+      loadSkills: async () => skills,
+      readSkillFile: async () => 'skill asset content',
+      stream: async (_key, options) => {
+        seen.push(options)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'search-1',
+                name: 'skill_search',
+                arguments: JSON.stringify({ query: 'Skill 42' }),
+              },
+              {
+                id: 'read-1',
+                name: 'skill_read',
+                arguments: JSON.stringify({
+                  name: 'Skill 42',
+                  path: 'notes.md',
+                }),
+              },
+            ],
+          }
+        options.onText?.('完成')
+        return { text: '完成', toolCalls: [] }
+      },
+    })
+    await runtime.send('找一下技能')
+    const system = seen[0].messages.find(
+      (message) => message.role === 'system',
+    )
+    expect(system?.content).toContain('skill_search')
+    expect(system?.content).not.toContain('- Skill 0：')
+    const parts = toolParts(runtime)
+    const search = parts.find(
+      (part) => part.type === 'tool' && part.name === 'skill_search',
+    )
+    const read = parts.find(
+      (part) => part.type === 'tool' && part.name === 'skill_read',
+    )
+    expect(search?.type === 'tool' ? search.output : '').toContain('Skill 42')
+    expect(read?.type === 'tool' ? read.output : '').toContain(
+      'skill asset content',
+    )
   })
 
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {

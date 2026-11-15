@@ -1,0 +1,1621 @@
+{
+  "version": 1,
+  "skills": [
+    {
+      "id": "builtin-k-dense-13c-metabolic-flux",
+      "dir": "k-dense/13c-metabolic-flux",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/13c-metabolic-flux",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-adaptyv",
+      "dir": "k-dense/adaptyv",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/adaptyv",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-aeon",
+      "dir": "k-dense/aeon",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/aeon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-alphagenome",
+      "dir": "k-dense/alphagenome",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/alphagenome",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-analytical-method-validation",
+      "dir": "k-dense/analytical-method-validation",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/analytical-method-validation",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-anndata",
+      "dir": "k-dense/anndata",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/anndata",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-arbor",
+      "dir": "k-dense/arbor",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/arbor",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-arboreto",
+      "dir": "k-dense/arboreto",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/arboreto",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-astropy",
+      "dir": "k-dense/astropy",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/astropy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-autoskill",
+      "dir": "k-dense/autoskill",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/autoskill",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-benchling-integration",
+      "dir": "k-dense/benchling-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/benchling-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-bgpt-paper-search",
+      "dir": "k-dense/bgpt-paper-search",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/bgpt-paper-search",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-bids",
+      "dir": "k-dense/bids",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/bids",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-biopython",
+      "dir": "k-dense/biopython",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/biopython",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-bioservices",
+      "dir": "k-dense/bioservices",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/bioservices",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-bulk-rnaseq",
+      "dir": "k-dense/bulk-rnaseq",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/bulk-rnaseq",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-cantera",
+      "dir": "k-dense/cantera",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/cantera",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-cellprofiler",
+      "dir": "k-dense/cellprofiler",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/cellprofiler",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-cellxgene-census",
+      "dir": "k-dense/cellxgene-census",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/cellxgene-census",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-cirq",
+      "dir": "k-dense/cirq",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/cirq",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-citation-management",
+      "dir": "k-dense/citation-management",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/citation-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-clinical-decision-support",
+      "dir": "k-dense/clinical-decision-support",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/clinical-decision-support",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-clinical-reports",
+      "dir": "k-dense/clinical-reports",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/clinical-reports",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-cobrapy",
+      "dir": "k-dense/cobrapy",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/cobrapy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-consciousness-council",
+      "dir": "k-dense/consciousness-council",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/consciousness-council",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-dask",
+      "dir": "k-dense/dask",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/dask",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-database-lookup",
+      "dir": "k-dense/database-lookup",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/database-lookup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-datalad",
+      "dir": "k-dense/datalad",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/datalad",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-datamol",
+      "dir": "k-dense/datamol",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/datamol",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-deepchem",
+      "dir": "k-dense/deepchem",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/deepchem",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-deepspot-m",
+      "dir": "k-dense/deepspot-m",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/deepspot-m",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-deeptools",
+      "dir": "k-dense/deeptools",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/deeptools",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-depmap",
+      "dir": "k-dense/depmap",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/depmap",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-dhdna-profiler",
+      "dir": "k-dense/dhdna-profiler",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/dhdna-profiler",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-diffdock",
+      "dir": "k-dense/diffdock",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/diffdock",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-dnanexus-integration",
+      "dir": "k-dense/dnanexus-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/dnanexus-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-esm",
+      "dir": "k-dense/esm",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/esm",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-etetoolkit",
+      "dir": "k-dense/etetoolkit",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/etetoolkit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-exa-search",
+      "dir": "k-dense/exa-search",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/exa-search",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-experimental-design",
+      "dir": "k-dense/experimental-design",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/experimental-design",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-exploratory-data-analysis",
+      "dir": "k-dense/exploratory-data-analysis",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/exploratory-data-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-fictiv",
+      "dir": "k-dense/fictiv",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/fictiv",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-flowio",
+      "dir": "k-dense/flowio",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/flowio",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-flowkit",
+      "dir": "k-dense/flowkit",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/flowkit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-fluidsim",
+      "dir": "k-dense/fluidsim",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/fluidsim",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-folklore-variant-evidence",
+      "dir": "k-dense/folklore-variant-evidence",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/folklore-variant-evidence",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-generate-image",
+      "dir": "k-dense/generate-image",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/generate-image",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-geniml",
+      "dir": "k-dense/geniml",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/geniml",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-genomic-coordinates",
+      "dir": "k-dense/genomic-coordinates",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/genomic-coordinates",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-genomic-intelligence",
+      "dir": "k-dense/genomic-intelligence",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/genomic-intelligence",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-geomaster",
+      "dir": "k-dense/geomaster",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/geomaster",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-geopandas",
+      "dir": "k-dense/geopandas",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/geopandas",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-get-available-resources",
+      "dir": "k-dense/get-available-resources",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/get-available-resources",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-gget",
+      "dir": "k-dense/gget",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/gget",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-ginkgo-cloud-lab",
+      "dir": "k-dense/ginkgo-cloud-lab",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/ginkgo-cloud-lab",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-glycoengineering",
+      "dir": "k-dense/glycoengineering",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/glycoengineering",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-gtars",
+      "dir": "k-dense/gtars",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/gtars",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-histolab",
+      "dir": "k-dense/histolab",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/histolab",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-hugging-science",
+      "dir": "k-dense/hugging-science",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/hugging-science",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-hypogenic",
+      "dir": "k-dense/hypogenic",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/hypogenic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-hypothesis-generation",
+      "dir": "k-dense/hypothesis-generation",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/hypothesis-generation",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-imaging-data-commons",
+      "dir": "k-dense/imaging-data-commons",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/imaging-data-commons",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-infographics",
+      "dir": "k-dense/infographics",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/infographics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-iso-standards-readiness",
+      "dir": "k-dense/iso-standards-readiness",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/iso-standards-readiness",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-lab-hardware-cad",
+      "dir": "k-dense/lab-hardware-cad",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/lab-hardware-cad",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-labarchive-integration",
+      "dir": "k-dense/labarchive-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/labarchive-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-lamindb",
+      "dir": "k-dense/lamindb",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/lamindb",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-latchbio-integration",
+      "dir": "k-dense/latchbio-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/latchbio-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-latex-posters",
+      "dir": "k-dense/latex-posters",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/latex-posters",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-liteparse",
+      "dir": "k-dense/liteparse",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/liteparse",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-literature-review",
+      "dir": "k-dense/literature-review",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/literature-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-mageck",
+      "dir": "k-dense/mageck",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/mageck",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-marine-carbonate-chemistry",
+      "dir": "k-dense/marine-carbonate-chemistry",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/marine-carbonate-chemistry",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-markdown-mermaid-writing",
+      "dir": "k-dense/markdown-mermaid-writing",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/markdown-mermaid-writing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-market-research-reports",
+      "dir": "k-dense/market-research-reports",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/market-research-reports",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-markitdown",
+      "dir": "k-dense/markitdown",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/markitdown",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-matchms",
+      "dir": "k-dense/matchms",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/matchms",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-matlab",
+      "dir": "k-dense/matlab",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/matlab",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-matplotlib",
+      "dir": "k-dense/matplotlib",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/matplotlib",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-medchem",
+      "dir": "k-dense/medchem",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/medchem",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-modal",
+      "dir": "k-dense/modal",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/modal",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-molecular-dynamics",
+      "dir": "k-dense/molecular-dynamics",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/molecular-dynamics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-molfeat",
+      "dir": "k-dense/molfeat",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/molfeat",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-ncats-arax",
+      "dir": "k-dense/ncats-arax",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/ncats-arax",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-networkx",
+      "dir": "k-dense/networkx",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/networkx",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-neurokit2",
+      "dir": "k-dense/neurokit2",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/neurokit2",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-neuropixels-analysis",
+      "dir": "k-dense/neuropixels-analysis",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/neuropixels-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-nextflow",
+      "dir": "k-dense/nextflow",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/nextflow",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-nmrglue",
+      "dir": "k-dense/nmrglue",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/nmrglue",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-nwb-conversion",
+      "dir": "k-dense/nwb-conversion",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/nwb-conversion",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-omero-integration",
+      "dir": "k-dense/omero-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/omero-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-onekgpd",
+      "dir": "k-dense/onekgpd",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/onekgpd",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-ontology-term-resolution",
+      "dir": "k-dense/ontology-term-resolution",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/ontology-term-resolution",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-open-notebook",
+      "dir": "k-dense/open-notebook",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/open-notebook",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-openpiv",
+      "dir": "k-dense/openpiv",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/openpiv",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-opentrons-integration",
+      "dir": "k-dense/opentrons-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/opentrons-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-optimize-for-gpu",
+      "dir": "k-dense/optimize-for-gpu",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/optimize-for-gpu",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pacsomatic",
+      "dir": "k-dense/pacsomatic",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pacsomatic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-paper-lookup",
+      "dir": "k-dense/paper-lookup",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/paper-lookup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-paperclip",
+      "dir": "k-dense/paperclip",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/paperclip",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-paperzilla",
+      "dir": "k-dense/paperzilla",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/paperzilla",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-parallel-web",
+      "dir": "k-dense/parallel-web",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/parallel-web",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pathml",
+      "dir": "k-dense/pathml",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pathml",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pathogen-variant-surveillance",
+      "dir": "k-dense/pathogen-variant-surveillance",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pathogen-variant-surveillance",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pathway-enrichment",
+      "dir": "k-dense/pathway-enrichment",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pathway-enrichment",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-peer-review",
+      "dir": "k-dense/peer-review",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/peer-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pennylane",
+      "dir": "k-dense/pennylane",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pennylane",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-phylogenetics",
+      "dir": "k-dense/phylogenetics",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/phylogenetics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pi-agent",
+      "dir": "k-dense/pi-agent",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pi-agent",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pkpd-modeling",
+      "dir": "k-dense/pkpd-modeling",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pkpd-modeling",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-polars",
+      "dir": "k-dense/polars",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/polars",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-polars-bio",
+      "dir": "k-dense/polars-bio",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/polars-bio",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pptx-posters",
+      "dir": "k-dense/pptx-posters",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pptx-posters",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-primekg",
+      "dir": "k-dense/primekg",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/primekg",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-primer-design",
+      "dir": "k-dense/primer-design",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/primer-design",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-protocolsio-integration",
+      "dir": "k-dense/protocolsio-integration",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/protocolsio-integration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pufferlib",
+      "dir": "k-dense/pufferlib",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pufferlib",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pybamm",
+      "dir": "k-dense/pybamm",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pybamm",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pycalphad",
+      "dir": "k-dense/pycalphad",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pycalphad",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pydeseq2",
+      "dir": "k-dense/pydeseq2",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pydeseq2",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pydicom",
+      "dir": "k-dense/pydicom",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pydicom",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pyhealth",
+      "dir": "k-dense/pyhealth",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pyhealth",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pylabrobot",
+      "dir": "k-dense/pylabrobot",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pylabrobot",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pymatgen",
+      "dir": "k-dense/pymatgen",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pymatgen",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pymc",
+      "dir": "k-dense/pymc",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pymc",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pymoo",
+      "dir": "k-dense/pymoo",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pymoo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pyopenms",
+      "dir": "k-dense/pyopenms",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pyopenms",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pysam",
+      "dir": "k-dense/pysam",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pysam",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pytdc",
+      "dir": "k-dense/pytdc",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pytdc",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pytorch-lightning",
+      "dir": "k-dense/pytorch-lightning",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pytorch-lightning",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-pyzotero",
+      "dir": "k-dense/pyzotero",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pyzotero",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-qiime2-amplicon",
+      "dir": "k-dense/qiime2-amplicon",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/qiime2-amplicon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-qiskit",
+      "dir": "k-dense/qiskit",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/qiskit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-qutip",
+      "dir": "k-dense/qutip",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/qutip",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-rdkit",
+      "dir": "k-dense/rdkit",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/rdkit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-relion",
+      "dir": "k-dense/relion",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/relion",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-relsa-severity-assessment",
+      "dir": "k-dense/relsa-severity-assessment",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/relsa-severity-assessment",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-research-grants",
+      "dir": "k-dense/research-grants",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/research-grants",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-research-lookup",
+      "dir": "k-dense/research-lookup",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/research-lookup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-rowan",
+      "dir": "k-dense/rowan",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/rowan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scanpy",
+      "dir": "k-dense/scanpy",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scanpy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scholar-evaluation",
+      "dir": "k-dense/scholar-evaluation",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scholar-evaluation",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-brainstorming",
+      "dir": "k-dense/scientific-brainstorming",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-brainstorming",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-critical-thinking",
+      "dir": "k-dense/scientific-critical-thinking",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-critical-thinking",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-schematics",
+      "dir": "k-dense/scientific-schematics",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-schematics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-slides",
+      "dir": "k-dense/scientific-slides",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-slides",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-visualization",
+      "dir": "k-dense/scientific-visualization",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-visualization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scientific-writing",
+      "dir": "k-dense/scientific-writing",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-writing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scikit-bio",
+      "dir": "k-dense/scikit-bio",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scikit-bio",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scikit-learn",
+      "dir": "k-dense/scikit-learn",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scikit-learn",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scikit-survival",
+      "dir": "k-dense/scikit-survival",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scikit-survival",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scvelo",
+      "dir": "k-dense/scvelo",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scvelo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-scvi-tools",
+      "dir": "k-dense/scvi-tools",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scvi-tools",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-seaborn",
+      "dir": "k-dense/seaborn",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/seaborn",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-shap",
+      "dir": "k-dense/shap",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/shap",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-simpy",
+      "dir": "k-dense/simpy",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/simpy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-stable-baselines3",
+      "dir": "k-dense/stable-baselines3",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/stable-baselines3",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-statistical-analysis",
+      "dir": "k-dense/statistical-analysis",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/statistical-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-statistical-power",
+      "dir": "k-dense/statistical-power",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/statistical-power",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-statsmodels",
+      "dir": "k-dense/statsmodels",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/statsmodels",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-sympy",
+      "dir": "k-dense/sympy",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/sympy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-tamarind",
+      "dir": "k-dense/tamarind",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/tamarind",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-tellurium",
+      "dir": "k-dense/tellurium",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/tellurium",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-tiledbvcf",
+      "dir": "k-dense/tiledbvcf",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/tiledbvcf",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-timesfm-forecasting",
+      "dir": "k-dense/timesfm-forecasting",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/timesfm-forecasting",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-torch-geometric",
+      "dir": "k-dense/torch-geometric",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/torch-geometric",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-torchdrug",
+      "dir": "k-dense/torchdrug",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/torchdrug",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-transformers",
+      "dir": "k-dense/transformers",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/transformers",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-treatment-plans",
+      "dir": "k-dense/treatment-plans",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/treatment-plans",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-umap-learn",
+      "dir": "k-dense/umap-learn",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/umap-learn",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-uncertainty-and-units",
+      "dir": "k-dense/uncertainty-and-units",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/uncertainty-and-units",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-usfiscaldata",
+      "dir": "k-dense/usfiscaldata",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/usfiscaldata",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-vaex",
+      "dir": "k-dense/vaex",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/vaex",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-venue-templates",
+      "dir": "k-dense/venue-templates",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/venue-templates",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-waypoint-bio",
+      "dir": "k-dense/waypoint-bio",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/waypoint-bio",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-what-if-oracle",
+      "dir": "k-dense/what-if-oracle",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/what-if-oracle",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-k-dense-zarr-python",
+      "dir": "k-dense/zarr-python",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/zarr-python",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nature-nature-academic-search",
+      "dir": "nature/nature-academic-search",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-academic-search",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-citation",
+      "dir": "nature/nature-citation",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-citation",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-data",
+      "dir": "nature/nature-data",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-data",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-downloader",
+      "dir": "nature/nature-downloader",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-downloader",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-experiment-log",
+      "dir": "nature/nature-experiment-log",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-experiment-log",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-figure",
+      "dir": "nature/nature-figure",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-figure",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-image2ppt",
+      "dir": "nature/nature-image2ppt",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-image2ppt",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-literature-pipeline",
+      "dir": "nature/nature-literature-pipeline",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-literature-pipeline",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper-card",
+      "dir": "nature/nature-paper-card",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper-card",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper-to-patent",
+      "dir": "nature/nature-paper-to-patent",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper-to-patent",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper-trans",
+      "dir": "nature/nature-paper-trans",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper-trans",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper-xray",
+      "dir": "nature/nature-paper-xray",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper-xray",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper2ppt",
+      "dir": "nature/nature-paper2ppt",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper2ppt",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-paper2word",
+      "dir": "nature/nature-paper2word",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-paper2word",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-polishing",
+      "dir": "nature/nature-polishing",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-polishing",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-proposal-writer",
+      "dir": "nature/nature-proposal-writer",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-proposal-writer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-reader",
+      "dir": "nature/nature-reader",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-reader",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-ref-verifier",
+      "dir": "nature/nature-ref-verifier",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-ref-verifier",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-response",
+      "dir": "nature/nature-response",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-response",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-reviewer",
+      "dir": "nature/nature-reviewer",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-reviewer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-shared",
+      "dir": "nature/nature-shared",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-shared",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-social-science",
+      "dir": "nature/nature-social-science",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-social-science",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-statistics",
+      "dir": "nature/nature-statistics",
+      "category": "论文科研",
+      "defaultEnabled": false,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-statistics",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-nature-nature-writing",
+      "dir": "nature/nature-writing",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-writing",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-humanizer",
+      "dir": "humanizer/humanizer",
+      "category": "论文科研",
+      "defaultEnabled": true,
+      "source": "https://github.com/blader/humanizer/tree/b48c832f0f809c1b5658edbb838c2521b72f2413",
+      "license": "MIT"
+    }
+  ]
+}

@@ -39,6 +39,8 @@ extraResources:
     to: licenses
   - from: resources/helpers
     to: helpers
+  - from: resources/skills
+    to: skills
   - from: resources/engines/qpdf/LICENSE.txt
     to: engines/qpdf/LICENSE.txt
   - from: resources/engines/qpdf/SOURCE.txt

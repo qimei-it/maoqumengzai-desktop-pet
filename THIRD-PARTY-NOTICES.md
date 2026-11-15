@@ -56,6 +56,18 @@ Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原�
 
 FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64、Windows x64），安装前校验固定 SHA-256。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录安装，保持可替换性。上游源码与构建来源见 `resources/licenses/ffmpeg-SOURCE.txt`。
 
+## Bundled skills
+
+`resources/skills` 内置论文科研类 Agent Skills，来源、固定 commit 与许可证见 `resources/skills/SOURCES.md`，许可证原文保存在 `resources/skills/licenses/`。
+
+| 来源 | 许可 | 数量 | 说明 |
+| --- | --- | --- | --- |
+| k-dense-ai/scientific-agent-skills | MIT | 177 | 仅文本与代码文件，排除二进制模板、图片与媒体 |
+| Yuan1z0825/nature-skills | Apache-2.0 | 24 | 仅文本与代码文件，排除二进制模板、图片与媒体 |
+| blader/humanizer | MIT | 1 | 单 Skill 仓库 |
+
+Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。
+
 ## Artwork
 
 - 应用主图标、7z 文件图标与通用归档文件图标由用户提供；文件图标保存在 `src/renderer/assets/file-icons/7z.svg` 与 `archive.svg`。应用主图标保存在 `build/icon-source.png`；派生的 `build/icon.icns`、`build/icon.ico` 与 `resources/icons/app-icon*.png` 仅用于毛趣萌仔桌面应用。

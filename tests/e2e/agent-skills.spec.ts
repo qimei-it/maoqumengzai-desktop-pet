@@ -18,6 +18,8 @@ test.beforeAll(async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-skills-e2e-'))
   const data = join(directory, 'data')
   const skills = join(data, 'skills')
+  const emptyBuiltin = join(directory, 'no-builtin-skills')
+  await mkdir(emptyBuiltin, { recursive: true })
   await mkdir(join(skills, 'pet-views'), { recursive: true })
   await mkdir(join(skills, 'banner-design'), { recursive: true })
   await writeFile(
@@ -58,6 +60,7 @@ test.beforeAll(async () => {
     ),
   )
   environment.MQMZ_DATA_DIR = data
+  environment.MQMZ_SKILLS_BUILTIN_ROOT = emptyBuiltin
   environment.MQMZ_SCREENSHOT_DIR = join(directory, 'shots')
   environment.MQMZ_QUOTA_DEEPSEEK_URL = 'http://127.0.0.1:1/balance'
   environment.MQMZ_QUOTA_OPENAI_URL = 'http://127.0.0.1:1/usage'
