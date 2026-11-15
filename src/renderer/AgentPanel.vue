@@ -375,7 +375,7 @@ const activeProject = computed(() =>
 const workspaceLabel = computed(() => {
   if (activeProject.value) return activeProject.value.name
   const path = workspace.value
-  if (!path) return '选择工作区'
+  if (!path) return '选择项目'
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path
 })
 const filteredProjects = computed(() => {
@@ -3139,9 +3139,9 @@ function statusLabel(status: string): string {
                       :title="
                         activeProject?.workspace ??
                         workspace ??
-                        '选择对话工作区'
+                        '选择项目'
                       "
-                      aria-label="选择对话工作区"
+                      aria-label="选择项目"
                       :aria-expanded="workspaceMenuOpen"
                       aria-haspopup="dialog"
                       @click="toggleWorkspaceMenu"
@@ -4986,7 +4986,8 @@ function statusLabel(status: string): string {
   z-index: 30;
   display: flex;
   flex-direction: column;
-  width: 280px;
+  width: 220px;
+  max-width: calc(100vw - 24px);
   max-height: 360px;
   padding: var(--space-1);
   border: 1px solid var(--color-line);

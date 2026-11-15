@@ -1319,7 +1319,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return {
         allowed: false,
         ok: false,
-        text: '还没有绑定工作区，命令未执行。先调用 workspace_set 绑定目录，或让用户在输入框下方选择工作区。',
+        text: '还没有绑定工作区，命令未执行。先调用 workspace_set 绑定目录，或让用户在输入框下方选择项目。',
       }
     }
     if (
