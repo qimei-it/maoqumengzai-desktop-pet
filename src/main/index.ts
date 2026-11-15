@@ -468,6 +468,7 @@ let lastEyesRemaining: number | null = null
 const notifiedReminderDues = new Map<string, number>()
 let dropMode = false
 let wheelOpen = false
+let wheelOutsideSince = 0
 let baseBounds: Rect | undefined
 let passthrough = false
 let mask: HitMask | undefined
@@ -7056,6 +7057,7 @@ function openWheelWindow(): void {
   if (shuttingDown || wheelOpen || pet.isDestroyed()) return
   baseBounds = pet.getBounds()
   wheelOpen = true
+  wheelOutsideSince = 0
   updateQuotaWindow()
   const size = donutWindowSize(scale)
   const width = Math.max(baseBounds.width, size.width)
@@ -7078,6 +7080,7 @@ function openWheelWindow(): void {
 function closeWheelWindow(): void {
   if (shuttingDown || !wheelOpen || pet.isDestroyed()) return
   wheelOpen = false
+  wheelOutsideSince = 0
   const target = baseBounds
     ? fitToDisplays(baseBounds, areas())
     : pet.getBounds()
@@ -11763,6 +11766,22 @@ async function createWindows(): Promise<void> {
       setPassthrough(false)
     } else {
       const b = pet.getBounds()
+      if (wheelOpen) {
+        const outside =
+          cursor.x < b.x - 16 ||
+          cursor.x > b.x + b.width + 16 ||
+          cursor.y < b.y - 16 ||
+          cursor.y > b.y + b.height + 16
+        if (outside) {
+          if (!wheelOutsideSince) wheelOutsideSince = Date.now()
+          else if (Date.now() - wheelOutsideSince > 600) {
+            closeWheelWindow()
+            return
+          }
+        } else {
+          wheelOutsideSince = 0
+        }
+      }
       const inside =
         cursor.x >= b.x &&
         cursor.y >= b.y &&
