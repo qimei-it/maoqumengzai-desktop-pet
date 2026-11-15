@@ -48,6 +48,18 @@ function project(index: number): StoredProject {
   }
 }
 
+test('keeps archived sessions and project tool policies', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-policy-'))
+  const path = join(directory, 'agent.json')
+  await saveAgentStore(path, {
+    sessions: [{ ...session(1), archived: true }],
+    projects: [{ ...project(1), toolPolicy: 'allow' }],
+  })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0].archived).toBe(true)
+  expect(loaded.projects[0].toolPolicy).toBe('allow')
+})
+
 test('saves and restores projects and sessions with usage', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')

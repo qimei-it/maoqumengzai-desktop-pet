@@ -578,6 +578,11 @@ export type Command =
     }
   | { type: 'agent-project-delete'; id: string }
   | { type: 'agent-project-pin'; id: string; pinned: boolean }
+  | {
+      type: 'agent-project-policy'
+      id: string
+      policy: 'ask' | 'allow' | 'deny'
+    }
   | { type: 'agent-project-reveal'; id: string }
   | { type: 'agent-session-rename'; id: string; title: string }
   | { type: 'agent-session-pin'; id: string; pinned: boolean }

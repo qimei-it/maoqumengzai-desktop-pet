@@ -309,11 +309,21 @@ test('attachments use local text, upload images, and respect the Pro model', asy
       })
   }, [image])
   await agent.getByLabel('添加附件').click()
-  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
-
-  await agent.evaluate(() =>
-    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.locator('.agent-attachment-name')).toHaveAttribute(
+    'title',
+    /图片 · 视觉解析/,
   )
+  await expect
+    .poll(async () =>
+      agent.evaluate(async () => {
+        const result = await window.mqmz!.snapshot()
+        return result.ok ? result.value.agent.model : ''
+      }),
+    )
+    .toBe('deepseek-flash')
+  await agent.getByRole('button', { name: /移除附件 photo/ }).click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
 })
 
 test('renders a spec-compliant OFD attachment for vision parsing', async () => {

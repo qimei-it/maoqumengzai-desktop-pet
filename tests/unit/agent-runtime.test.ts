@@ -1156,6 +1156,54 @@ describe('agent runtime', () => {
     })
   })
 
+  test('applies a project tool policy to write tools', async () => {
+    const calls: string[] = []
+    const createArguments = JSON.stringify({ text: '项目任务' })
+    const { runtime } = await makeRuntime(
+      [
+        {
+          text: '',
+          toolCalls: [
+            { id: 'call-1', name: 'todo_create', arguments: createArguments },
+          ],
+        },
+        { text: '完成', toolCalls: [] },
+        {
+          text: '',
+          toolCalls: [
+            { id: 'call-2', name: 'todo_create', arguments: createArguments },
+          ],
+        },
+        { text: '完成', toolCalls: [] },
+      ],
+      calls,
+    )
+    runtime.createProject('允许项目', `/tmp/mqmz-allow-${Date.now()}`)
+    const allowProject = runtime
+      .state()
+      .projects.find((project) => project.name === '允许项目')!
+    runtime.newSessionIn(allowProject.id)
+    runtime.setProjectToolPolicy(allowProject.id, 'allow')
+    await runtime.send('建个待办')
+    expect(calls).toContain('addTodo:项目任务')
+    expect(runtime.state().approval).toBeNull()
+
+    runtime.createProject('禁止项目', `/tmp/mqmz-deny-${Date.now()}`)
+    const denyProject = runtime
+      .state()
+      .projects.find((project) => project.name === '禁止项目')!
+    runtime.newSessionIn(denyProject.id)
+    runtime.setProjectToolPolicy(denyProject.id, 'deny')
+    await runtime.send('再建一个')
+    expect(
+      calls.filter((call) => call === 'addTodo:项目任务'),
+    ).toHaveLength(1)
+    const denied = toolParts(runtime).find(
+      (part) => part.type === 'tool' && part.name === 'todo_create',
+    )
+    expect(denied?.type === 'tool' ? denied.status : '').toBe('denied')
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

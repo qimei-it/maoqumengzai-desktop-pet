@@ -884,6 +884,13 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('agent-project-policy'),
+      id: z.string().uuid(),
+      policy: z.enum(['ask', 'allow', 'deny']),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('agent-project-reveal'),
       id: z.string().uuid(),
     })

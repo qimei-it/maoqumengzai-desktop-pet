@@ -865,10 +865,18 @@ function releaseAgentDraft(attachment: PreparedAgentAttachment): void {
   void releaseAgentAttachment(attachment)
 }
 
-async function addAgentAttachmentPaths(
-  paths: readonly string[],
-): Promise<{ added: AgentAttachmentPick[]; skipped: string[] }> {
-  if (!paths.length) return { added: [], skipped: [] }
+type SkippedAttachment = {
+  path: string
+  text: string
+  upload: boolean
+}
+
+async function addAgentAttachmentPathsOnce(paths: readonly string[]): Promise<{
+  added: AgentAttachmentPick[]
+  skipped: SkippedAttachment[]
+  uploadNeeded: string[]
+}> {
+  if (!paths.length) return { added: [], skipped: [], uploadNeeded: [] }
   if (agentAttachmentController)
     throw new Error('正在解析附件，请稍候。')
   const controller = new AbortController()
@@ -887,7 +895,7 @@ async function addAgentAttachmentPaths(
     broadcast()
   }
   const added: AgentAttachmentPick[] = []
-  const skipped: string[] = []
+  const skipped: SkippedAttachment[] = []
   try {
     const options = {
       model: agent.state().model,
@@ -924,20 +932,30 @@ async function addAgentAttachmentPaths(
       } catch (error) {
         if (controller.signal.aborted) break
         if (timeout.aborted) {
-          skipped.push(`${currentName}：解析超时`)
+          skipped.push({
+            path,
+            text: `${currentName}：解析超时`,
+            upload: false,
+          })
         } else {
-          skipped.push(
-            `${currentName}：${
-              error instanceof Error ? error.message : '解析失败'
-            }`,
-          )
+          const message =
+            error instanceof Error ? error.message : '解析失败'
+          skipped.push({
+            path,
+            text: `${currentName}：${message}`,
+            upload: /Flash/.test(message),
+          })
         }
         completed = index + 1
         report('完成')
         continue
       }
       if ('skipped' in prepared) {
-        skipped.push(`${currentName}：${prepared.skipped}`)
+        skipped.push({
+          path,
+          text: `${currentName}：${prepared.skipped}`,
+          upload: /Flash/.test(prepared.skipped),
+        })
       } else {
         const attachment = prepared.attachment
         agentDraftAttachments.set(attachment.id, attachment)
@@ -952,17 +970,56 @@ async function addAgentAttachmentPaths(
     if (skipped.length)
       showToast(
         skipped.length === 1
-          ? `未添加 ${skipped[0]}`
-          : `已跳过 ${skipped.slice(0, 2).join('；')}${
+          ? `未添加 ${skipped[0].text}`
+          : `已跳过 ${skipped
+              .slice(0, 2)
+              .map((item) => item.text)
+              .join('；')}${
               skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
             }`,
       )
     if (added.length) broadcast()
-    return { added, skipped }
+    return {
+      added,
+      skipped,
+      uploadNeeded: skipped
+        .filter((item) => item.upload)
+        .map((item) => item.path),
+    }
   } finally {
     agentAttachmentController = undefined
     agentAttachmentProgress = undefined
     broadcast()
+  }
+}
+
+/**
+ * Adding upload-only files on Pro retries them once after switching to Flash,
+ * so images and scanned documents do not silently fail.
+ */
+async function addAgentAttachmentPaths(
+  paths: readonly string[],
+): Promise<{ added: AgentAttachmentPick[]; skipped: string[] }> {
+  const first = await addAgentAttachmentPathsOnce(paths)
+  if (
+    agent.state().model !== 'deepseek-v4-pro' ||
+    !first.uploadNeeded.length
+  )
+    return {
+      added: first.added,
+      skipped: first.skipped.map((item) => item.text),
+    }
+  agent.setModel('deepseek-flash')
+  showToast('已切换到 Flash 解析需要上传的附件')
+  const second = await addAgentAttachmentPathsOnce(first.uploadNeeded)
+  return {
+    added: [...first.added, ...second.added],
+    skipped: [
+      ...first.skipped
+        .filter((item) => !item.upload)
+        .map((item) => item.text),
+      ...second.skipped.map((item) => item.text),
+    ],
   }
 }
 
@@ -9213,6 +9270,7 @@ function setupIpc(): void {
       'agent-project-update',
       'agent-project-delete',
       'agent-project-pin',
+      'agent-project-policy',
       'agent-project-reveal',
       'agent-session-rename',
       'agent-session-pin',
@@ -9461,6 +9519,9 @@ function setupIpc(): void {
         break
       case 'agent-project-pin':
         agent.setProjectPinned(command.id, command.pinned)
+        break
+      case 'agent-project-policy':
+        agent.setProjectToolPolicy(command.id, command.policy)
         break
       case 'agent-project-reveal': {
         const project = agent

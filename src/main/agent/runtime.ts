@@ -17,6 +17,7 @@ import type {
   AgentState,
   AgentTextPart,
   AgentToolPart,
+  AgentToolPolicy,
 } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
 import type { DeepSeekModel } from '../../shared/deepseek'
@@ -117,6 +118,7 @@ export type AgentRuntime = {
   ): void
   deleteProject(id: string): void
   setProjectPinned(id: string, pinned: boolean): void
+  setProjectToolPolicy(id: string, policy: AgentToolPolicy): void
   renameSession(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
   setSessionArchived(id: string, archived: boolean): void
@@ -799,12 +801,21 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     ok: boolean
     artifacts?: { name: string; path: string }[]
   }> {
-    const permission = permissionFor(tool, session.mode)
+    let permission = permissionFor(tool, session.mode)
+    const project = session.projectId
+      ? projects.find((item) => item.id === session.projectId)
+      : undefined
+    if (permission === 'ask' && project?.toolPolicy === 'allow')
+      permission = 'allow'
+    else if (permission === 'ask' && project?.toolPolicy === 'deny')
+      permission = 'deny'
     if (permission === 'deny') {
       return {
         allowed: false,
         ok: false,
-        text: `工具 ${tool.name} 在当前模式下不可用。`,
+        text: project?.toolPolicy === 'deny' && tool.build === 'ask'
+          ? `项目策略禁止 ${tool.name}。`
+          : `工具 ${tool.name} 在当前模式下不可用。`,
       }
     }
     if (tool.name === 'shell_run' && !session.workspace) {
@@ -1176,6 +1187,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             name: project.name,
             workspace: project.workspace,
             pinned: project.pinned,
+            toolPolicy: project.toolPolicy ?? 'ask',
             createdAt: project.createdAt,
           })),
         sessionId: session?.id ?? null,
@@ -1459,6 +1471,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const project = projects.find((item) => item.id === id)
       if (!project) return
       project.pinned = pinned
+      persist()
+      emit()
+    },
+    setProjectToolPolicy(id: string, policy: AgentToolPolicy) {
+      const project = projects.find((item) => item.id === id)
+      if (!project) return
+      if (policy === 'ask') delete project.toolPolicy
+      else project.toolPolicy = policy
       persist()
       emit()
     },

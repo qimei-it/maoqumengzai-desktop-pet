@@ -17,6 +17,7 @@ export type StoredProject = {
   name: string
   workspace: string
   pinned: boolean
+  toolPolicy?: 'ask' | 'allow' | 'deny'
   createdAt: number
 }
 
@@ -82,7 +83,9 @@ function parseProject(value: unknown): StoredProject | null {
     name: value.name.slice(0, 40),
     workspace: value.workspace,
     pinned: value.pinned === true,
-    ...(value.archived === true ? { archived: true } : {}),
+    ...(value.toolPolicy === 'allow' || value.toolPolicy === 'deny'
+      ? { toolPolicy: value.toolPolicy }
+      : {}),
     createdAt:
       typeof value.createdAt === 'number' ? value.createdAt : Date.now(),
   }
@@ -154,6 +157,7 @@ function parseSession(value: unknown): StoredSession | null {
         ? value.projectId
         : null,
     pinned: value.pinned === true,
+    ...(value.archived === true ? { archived: true } : {}),
     createdAt:
       typeof value.createdAt === 'number' ? value.createdAt : Date.now(),
     updatedAt:

@@ -49,7 +49,15 @@ test.beforeAll(async () => {
     join(data, 'mqmz.agent.json'),
     JSON.stringify({
       version: 2,
-      projects: [],
+      projects: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          name: '策略项目',
+          workspace: '/tmp',
+          pinned: false,
+          createdAt: 1,
+        },
+      ],
       sessions: [
         session(
           '33333333-3333-4333-8333-333333333333',
@@ -140,4 +148,47 @@ test('supports search, archive, clear and shortcuts', async () => {
   await expect(
     agent.getByText('今天我们要做点什么？我可以处理待办、文件和邮件哦～'),
   ).toBeVisible()
+})
+
+test('configures a project tool policy', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  const project = agent
+    .locator('.agent-project-row')
+    .filter({ hasText: '策略项目' })
+  await project.getByRole('button', { name: '项目菜单' }).click()
+  await agent.getByRole('menuitem', { name: '工具权限' }).click()
+  await expect(
+    agent.getByRole('dialog', { name: '工具权限' }),
+  ).toBeVisible()
+  await agent.getByRole('button', { name: '自动允许写操作' }).click()
+  await expect
+    .poll(async () =>
+      agent.evaluate(async () => {
+        const result = await window.mqmz!.snapshot()
+        return result.ok
+          ? result.value.agent.projects.find(
+              (item) => item.name === '策略项目',
+            )?.toolPolicy
+          : undefined
+      }),
+    )
+    .toBe('allow')
+
+  await project.getByRole('button', { name: '项目菜单' }).click()
+  await agent.getByRole('menuitem', { name: '工具权限' }).click()
+  await agent.getByRole('button', { name: '逐次确认' }).click()
+  await expect
+    .poll(async () =>
+      agent.evaluate(async () => {
+        const result = await window.mqmz!.snapshot()
+        return result.ok
+          ? result.value.agent.projects.find(
+              (item) => item.name === '策略项目',
+            )?.toolPolicy
+          : undefined
+      }),
+    )
+    .toBe('ask')
 })

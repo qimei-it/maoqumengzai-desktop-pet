@@ -150,11 +150,20 @@ export type AgentSessionSummary = {
   updatedAt: number
 }
 
+export const agentToolPolicies = ['ask', 'allow', 'deny'] as const
+export type AgentToolPolicy = (typeof agentToolPolicies)[number]
+export const agentToolPolicyLabels: Record<AgentToolPolicy, string> = {
+  ask: '逐次确认',
+  allow: '自动允许写操作',
+  deny: '禁止写操作',
+}
+
 export type AgentProjectView = {
   id: string
   name: string
   workspace: string
   pinned: boolean
+  toolPolicy: AgentToolPolicy
   createdAt: number
 }
 

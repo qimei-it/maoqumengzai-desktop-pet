@@ -39,6 +39,7 @@ import {
   Search,
   Send,
   Settings,
+  Shield,
   Square,
   SquareArrowOutUpRight,
   Trash2,
@@ -49,6 +50,8 @@ import {
 import {
   agentModeLabels,
   agentReasoningLabels,
+  agentToolPolicies,
+  agentToolPolicyLabels,
   agentReasoningLevels,
   type AgentAttachmentPick,
   type AgentMessageView,
@@ -86,6 +89,7 @@ type DialogState =
   | { kind: 'edit-project'; id: string }
   | { kind: 'rename-session'; id: string }
   | { kind: 'move-session'; id: string }
+  | { kind: 'project-policy'; id: string }
 
 type ConfirmState = {
   kind: 'session' | 'project' | 'clear-session'
@@ -378,6 +382,11 @@ const moveSession = computed(() => {
   const state = dialog.value
   if (state?.kind !== 'move-session') return undefined
   return sessions.value.find((item) => item.id === state.id)
+})
+const policyProject = computed(() => {
+  const state = dialog.value
+  if (state?.kind !== 'project-policy') return undefined
+  return projects.value.find((item) => item.id === state.id)
 })
 
 function sortSessions(list: AgentSessionSummary[]): AgentSessionSummary[] {
@@ -1379,6 +1388,21 @@ function toggleProjectPin(project: AgentProjectView): void {
 function revealProject(project: AgentProjectView): void {
   emit('command', { type: 'agent-project-reveal', id: project.id })
   closeMenu()
+}
+function openProjectPolicy(project: AgentProjectView): void {
+  closeMenu()
+  dialog.value = { kind: 'project-policy', id: project.id }
+}
+function setProjectPolicy(
+  policy: (typeof agentToolPolicies)[number],
+): void {
+  if (dialog.value?.kind !== 'project-policy') return
+  emit('command', {
+    type: 'agent-project-policy',
+    id: dialog.value.id,
+    policy,
+  })
+  closeDialog()
 }
 function editProjectFromMenu(project: AgentProjectView): void {
   closeMenu()
@@ -3241,6 +3265,15 @@ function statusLabel(status: string): string {
             type="button"
             class="agent-menu-item"
             role="menuitem"
+            @click="openProjectPolicy(menuProject)"
+          >
+            <Shield :size="14" :stroke-width="2" aria-hidden="true" />
+            工具权限
+          </button>
+          <button
+            type="button"
+            class="agent-menu-item"
+            role="menuitem"
             @click="revealProject(menuProject)"
           >
             <FolderOpen :size="14" :stroke-width="2" aria-hidden="true" />
@@ -3363,7 +3396,9 @@ function statusLabel(status: string): string {
               ? '编辑项目'
               : dialog.kind === 'rename-session'
                 ? '重命名对话'
-                : '移动对话'
+                : dialog.kind === 'move-session'
+                  ? '移动对话'
+                  : '工具权限'
         "
       >
         <header class="agent-modal-head">
@@ -3375,7 +3410,9 @@ function statusLabel(status: string): string {
                   ? '编辑项目'
                   : dialog.kind === 'rename-session'
                     ? '重命名对话'
-                    : '移动对话'
+                    : dialog.kind === 'move-session'
+                      ? '移动对话'
+                      : '工具权限'
             }}
           </h2>
           <button
@@ -3393,7 +3430,36 @@ function statusLabel(status: string): string {
           </button>
         </header>
 
-        <template v-if="dialog.kind === 'move-session'">
+        <template v-if="dialog.kind === 'project-policy'">
+          <div class="agent-move-list">
+            <button
+              v-for="policy in agentToolPolicies"
+              :key="policy"
+              type="button"
+              class="agent-move-row"
+              :class="{
+                active: policyProject?.toolPolicy === policy,
+              }"
+              @click="setProjectPolicy(policy)"
+            >
+              <Check
+                v-if="policyProject?.toolPolicy === policy"
+                :size="15"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <Shield
+                v-else
+                :size="15"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <span>{{ agentToolPolicyLabels[policy] }}</span>
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="dialog.kind === 'move-session'">
           <div class="agent-move-list">
             <button
               type="button"
