@@ -164,6 +164,23 @@ describe('skill admin', () => {
     expect(base).toBeTruthy()
   })
 
+  test('notifies after install, toggle and uninstall', async () => {
+    const { sourceRoot, store, scansPath } = await setup()
+    let changes = 0
+    const admin = await createSkillAdmin({
+      store,
+      scansPath,
+      scanDirectory: async () => scan('safe'),
+      onChange: () => {
+        changes += 1
+      },
+    })
+    await admin.installLocal(await writeSkill(sourceRoot, 'notify'))
+    await admin.setEnabled('notify', false)
+    await admin.remove('notify')
+    expect(changes).toBe(3)
+  })
+
   test('caps directory installs at the configured limit', async () => {
     const { sourceRoot, store } = await setup()
     const bundle = join(sourceRoot, 'bundle')

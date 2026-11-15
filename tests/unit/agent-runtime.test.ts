@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -57,7 +57,6 @@ async function makeRuntime(
     getSettings: () => ({ ...defaultSettings }),
     getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
     broadcast: () => {},
-    pickWorkspace: async () => directory,
     stream: override?.stream ?? script.stream,
     ...(override?.files ? { files: override.files } : {}),
     ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
@@ -372,7 +371,6 @@ describe('agent runtime', () => {
       getSettings: () => ({ ...defaultSettings }),
       getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
-      pickWorkspace: async () => '/tmp',
       stream: scripted([]).stream,
     })
     await restored.load()
@@ -638,8 +636,7 @@ describe('agent runtime', () => {
       getSettings: () => ({ ...defaultSettings }),
       getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
-      pickWorkspace: async () => directory,
-      stream: async (_key, options) => {
+        stream: async (_key, options) => {
         captured = options.messages
         return { text: '好了', toolCalls: [] }
       },
@@ -721,8 +718,7 @@ describe('agent runtime', () => {
       getSettings: () => ({ ...defaultSettings }),
       getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
-      pickWorkspace: async () => directory,
-      stream: async () => ({ text: '完成', toolCalls: [] }),
+        stream: async () => ({ text: '完成', toolCalls: [] }),
       files: {
         upload: async () => ({ id: 'unused', expiresAt: null }),
         transcribe: async () => '',
@@ -796,8 +792,7 @@ describe('agent runtime', () => {
       getSettings: () => ({ ...defaultSettings }),
       getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
-      pickWorkspace: async () => directory,
-      stream: async () => ({ text: '完成', toolCalls: [] }),
+        stream: async () => ({ text: '完成', toolCalls: [] }),
       files: {
         upload: async () => ({ id: 'unused', expiresAt: null }),
         transcribe: async () => '',
@@ -851,8 +846,7 @@ describe('agent runtime', () => {
       getSettings: () => ({ ...defaultSettings }),
       getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
       broadcast: () => {},
-      pickWorkspace: async () => directory,
-      stream: async (_key, options) => {
+        stream: async (_key, options) => {
         captured = options.messages
         return { text: '好的', toolCalls: [] }
       },
@@ -1492,5 +1486,60 @@ describe('agent runtime', () => {
     await running
     expect(toggles).toEqual(['演示:true'])
     expect(seen[0].some((message) => message.role === 'system')).toBe(true)
+  })
+
+  test('binds a workspace only after approval', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-workspace-'))
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'ws-1',
+                name: 'workspace_set',
+                arguments: JSON.stringify({ path: directory }),
+              },
+            ],
+          }
+        return { text: '已绑定。', toolCalls: [] }
+      },
+    })
+    expect(runtime.state().workspace).toBeNull()
+    const running = runtime.send('绑定工作区')
+    await waitFor(() => runtime.state().approval?.name === 'workspace_set')
+    const approval = runtime.state().approval!
+    expect(approval.title).toBe(`绑定工作区 ${directory}`)
+    runtime.approve(approval.id)
+    await running
+    expect(runtime.state().workspace).toBe(await realpath(directory))
+  })
+
+  test('refuses shell without a workspace instead of opening a picker', async () => {
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'shell-1',
+                name: 'shell_run',
+                arguments: JSON.stringify({ command: 'ls' }),
+              },
+            ],
+          }
+        return { text: '需要工作区。', toolCalls: [] }
+      },
+    })
+    await runtime.send('查看目录')
+    expect(runtime.state().approval).toBeNull()
+    const result = seen[1].find((message) => message.role === 'tool')
+    expect(result?.content).toContain('还没有绑定工作区')
   })
 })

@@ -138,6 +138,8 @@ let copyTimer: ReturnType<typeof setTimeout> | undefined
 const pendingSend = ref(false)
 let pendingSendTimer: ReturnType<typeof setTimeout> | undefined
 let pendingSendBase = 0
+let pendingDraft = ''
+let pendingDraftAttachments: AgentAttachmentPick[] = []
 const retryingAttachmentId = ref<string | null>(null)
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
@@ -179,7 +181,7 @@ const filteredSkills = computed(() => {
     .slice(0, 30)
 })
 const skillCategoryOrder = [
-  '用户 Skill',
+  '用户技能',
   '通用工具',
   '论文科研',
   '文档办公',
@@ -212,7 +214,7 @@ const skillGroups = computed(() => {
   for (const skill of filteredSkills.value) {
     const category =
       skill.category.trim() ||
-      (skill.builtin ? '其他' : '用户 Skill')
+      (skill.builtin ? '其他' : '用户技能')
     if (!groups.has(category)) groups.set(category, [])
     groups.get(category)!.push(skill)
   }
@@ -605,32 +607,17 @@ watch(
   () => agent.value?.messages.length,
   () => {
     if (!pendingSend.value) return
-    const messages = agent.value?.messages ?? []
-    if (
-      messages.length <= pendingSendBase ||
-      messages[messages.length - 1]?.role !== 'user'
-    )
-      return
-    pendingSend.value = false
-    if (pendingSendTimer) clearTimeout(pendingSendTimer)
-    pendingSendTimer = undefined
-    draft.value = ''
-    attachments.value = []
-    attachmentError.value = ''
+    if (!pendingSendLanded()) return
+    settlePendingSend()
+    pendingDraft = ''
+    pendingDraftAttachments = []
   },
 )
 watch(busy, (value) => {
   scheduleFollow()
   if (value || !pendingSend.value) return
-  const messages = agent.value?.messages ?? []
-  if (
-    messages.length > pendingSendBase &&
-    messages[messages.length - 1]?.role === 'user'
-  )
-    return
-  pendingSend.value = false
-  if (pendingSendTimer) clearTimeout(pendingSendTimer)
-  pendingSendTimer = undefined
+  if (!pendingSendLanded()) restorePendingDraft()
+  settlePendingSend()
 })
 watch(listInner, (element) => {
   messageObserver?.disconnect()
@@ -1056,6 +1043,23 @@ async function onPaste(event: ClipboardEvent): Promise<void> {
     attachmentError.value = `未添加 ${result.value.skipped[0]}`
 }
 
+function pendingSendLanded(): boolean {
+  return (agent.value?.messages ?? [])
+    .slice(pendingSendBase)
+    .some((message) => message.role === 'user')
+}
+function settlePendingSend(): void {
+  pendingSend.value = false
+  if (pendingSendTimer) clearTimeout(pendingSendTimer)
+  pendingSendTimer = undefined
+}
+function restorePendingDraft(): void {
+  if (!draft.value.trim()) draft.value = pendingDraft
+  if (!attachments.value.length)
+    attachments.value = pendingDraftAttachments
+  pendingDraft = ''
+  pendingDraftAttachments = []
+}
 function send(): void {
   const prompt = draft.value.trim()
   if (
@@ -1072,11 +1076,17 @@ function send(): void {
   attachmentError.value = ''
   pendingSend.value = true
   pendingSendBase = agent.value?.messages.length ?? 0
+  pendingDraft = prompt
+  pendingDraftAttachments = [...attachments.value]
   if (pendingSendTimer) clearTimeout(pendingSendTimer)
   pendingSendTimer = setTimeout(() => {
     pendingSendTimer = undefined
-    if (pendingSend.value && !busy.value) pendingSend.value = false
+    if (!pendingSend.value) return
+    if (!pendingSendLanded()) restorePendingDraft()
+    settlePendingSend()
   }, 5000)
+  draft.value = ''
+  attachments.value = []
   emit('command', {
     type: 'agent-send',
     prompt,
@@ -2203,6 +2213,9 @@ function statusLabel(status: string): string {
         <template v-if="skillsOpen">
           <div class="agent-skills-page">
             <div class="agent-skills-toolbar">
+              <span class="agent-skills-total"
+                >共 {{ skills.length }} 个技能</span
+              >
               <label class="agent-skills-search">
                 <Search
                   :size="14"
@@ -2274,9 +2287,6 @@ function statusLabel(status: string): string {
                     <span class="agent-skill-group-count">{{
                       group.items.length
                     }}</span>
-                    <span class="agent-skill-group-enabled"
-                      >（已启用 {{ group.enabledCount }}）</span
-                    >
                   </div>
                   <div
                     class="agent-skills-filter"
@@ -2761,11 +2771,8 @@ function statusLabel(status: string): string {
                       </button>
                     </div>
                     <pre
-                      v-if="part.output"
+                      v-if="part.output && isToolExpanded(part.id)"
                       class="agent-tool-output"
-                      :class="{
-                        'is-collapsed': !isToolExpanded(part.id),
-                      }"
                       >{{ part.output }}</pre
                     >
                     <div
@@ -4634,10 +4641,6 @@ function statusLabel(status: string): string {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-.agent-tool-output.is-collapsed {
-  max-height: 3.4em;
-  overflow: hidden;
-}
 .agent-artifacts {
   display: flex;
   flex-wrap: wrap;
@@ -5713,6 +5716,12 @@ function statusLabel(status: string): string {
   align-items: center;
   gap: var(--space-2);
 }
+.agent-skills-total {
+  flex: none;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
 .agent-skills-search {
   display: flex;
   flex: 0 1 320px;
@@ -5802,8 +5811,7 @@ function statusLabel(status: string): string {
   font-size: var(--font-size-label);
   font-weight: 650;
 }
-.agent-skill-group-count,
-.agent-skill-group-enabled {
+.agent-skill-group-count {
   color: var(--color-muted);
   font-size: var(--font-size-label);
   font-weight: 400;

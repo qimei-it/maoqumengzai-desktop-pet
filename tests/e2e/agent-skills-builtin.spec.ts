@@ -113,9 +113,10 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   )
   await agent.getByRole('button', { name: '技能', exact: true }).click()
   await expect(agent.locator('.agent-skills-page')).toBeVisible()
+  await expect(agent.locator('.agent-skills-total')).toHaveText('共 3 个技能')
   const heads = agent.locator('.agent-skill-group-head h3')
   await expect(heads).toHaveText([
-    '用户 Skill',
+    '用户技能',
     '通用工具',
     '论文科研',
     '文档办公',
@@ -139,7 +140,7 @@ test('groups built-in skills by category and keeps them read-only', async () => 
 
   const paperGroup = groups.nth(2)
   await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
-    '论文科研2（已启用 1）',
+    '论文科研2',
   )
   await paperGroup.getByRole('tab', { name: '已启用 1' }).click()
   await expect(paperGroup.locator('.agent-skill-card')).toHaveCount(1)
@@ -151,7 +152,7 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(paperGroup.locator('.agent-skill-card')).toHaveCount(2)
 
   const beta = groups
-    .nth(1)
+    .nth(2)
     .locator('.agent-skill-card')
     .filter({ hasText: 'Paper Beta' })
   await beta.click()
@@ -166,7 +167,7 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await detail.getByRole('button', { name: '关闭' }).click()
   await expect(agent.locator('.agent-skill-check')).toHaveCount(3)
   await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
-    '论文科研2（已启用 2）',
+    '论文科研2',
   )
 
   const snapshot = await agent.evaluate(async () => {

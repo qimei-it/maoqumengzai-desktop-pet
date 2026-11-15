@@ -33,7 +33,7 @@ describe('agent skill store', () => {
     expect(detail).toMatchObject({
       name: 'Pet Views',
       description: 'Generate pet garment views.',
-      category: '用户 Skill',
+      category: '用户技能',
       enabled: true,
     })
     expect(detail.content).toContain('# Instructions')

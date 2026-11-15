@@ -178,10 +178,11 @@ test('agent renders Mermaid, copies output, exports the chat, and follows scroll
   expect(clipboardText).toContain('这是一段普通文本。')
 
   const tool = agent.locator('.agent-tool').first()
-  const output = tool.locator('.agent-tool-output')
-  await expect(output).toHaveClass(/is-collapsed/)
+  await expect(tool.locator('.agent-tool-output')).toHaveCount(0)
   await tool.getByRole('button', { name: '展开完整输出' }).click()
-  await expect(output).not.toHaveClass(/is-collapsed/)
+  const output = tool.locator('.agent-tool-output')
+  await expect(output).toBeVisible()
+  await expect(output).toContainText('已生成 转换结果.pdf')
   await tool.getByRole('button', { name: '复制输出' }).click()
   expect(
     await application.evaluate(({ clipboard }) => clipboard.readText()),

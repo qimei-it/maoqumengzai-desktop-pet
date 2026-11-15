@@ -1093,15 +1093,6 @@ const agent = createAgentRuntime({
   getSkillAdmin: () => agentSkillAdmin,
   backupRoot: join(dataRoot, 'agent-backups'),
   broadcast: () => broadcast(),
-  pickWorkspace: async () => {
-    const owner = askWindow && askWindow.isVisible() ? askWindow : pet
-    const result = await dialog.showOpenDialog(owner, {
-      title: '选择对话工作区',
-      properties: ['openDirectory', 'createDirectory'],
-    })
-    if (result.canceled) return null
-    return result.filePaths[0] ?? null
-  },
 })
 let shelfQueue = Promise.resolve()
 let bellyQueue = Promise.resolve()
@@ -11507,6 +11498,11 @@ else {
           store: agentSkillStore,
           scansPath: agentSkillScansPath,
           fetch: (input, init) => net.fetch(input as string, init),
+          onChange: () => {
+            if (!agentSkillStore) return
+            agentSkills = agentSkillStore.list()
+            broadcast()
+          },
           scannerScript: join(
             agentSkillsBuiltinRoot,
             'sentry',

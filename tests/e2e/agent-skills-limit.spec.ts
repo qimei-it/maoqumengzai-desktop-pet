@@ -83,7 +83,7 @@ test('limits each category to 12 cards and adapts the column count', async () =>
     .locator('.agent-skill-group')
     .filter({ hasText: '论文科研' })
   await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
-    '论文科研14（已启用 3）',
+    '论文科研14',
   )
   await expect(agent.locator('.agent-skill-card')).toHaveCount(12)
   await expect(

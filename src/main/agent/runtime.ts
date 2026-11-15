@@ -1,8 +1,8 @@
 /** Agent loop: streaming, tool calls, approvals, cancellation and sessions. */
 
 import { randomUUID } from 'node:crypto'
-import { stat } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { realpath, stat } from 'node:fs/promises'
+import { basename, isAbsolute } from 'node:path'
 import type {
   AgentApproval,
   AgentArtifactKind,
@@ -90,7 +90,6 @@ export type AgentRuntimeDeps = {
   getSettings(): SettingsState
   getPetProfile(): AgentPetProfile
   broadcast(): void
-  pickWorkspace(): Promise<string | null>
   /** Injectable for tests; production uses the real streaming client. */
   stream?: typeof streamChat
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
@@ -370,6 +369,8 @@ function systemPrompt(
     '你可以调用工具处理待办、置物架文件、邮件、音乐、设置、应用面板、联网搜索、shell 与技能管理。',
     '工具调用会直接改到真实应用状态；不要声称完成了没有调用工具的事情。',
     '工具失败时如实说明原因，不要编造结果。',
+    '用户给出本地路径要求安装技能时，直接用 skill_install_local，不要先用 shell 查看目录。',
+    '需要 shell 或工作区文件工具但还没有工作区时，先调用 workspace_set 申请绑定目录；不要直接运行 shell_run。',
     mode === 'plan'
       ? '当前是计划模式：只允许只读工具。需要修改时，说明打算怎么做，让用户切换到执行模式。'
       : '当前是执行模式：写操作会请求用户确认，被拒绝时不要重复尝试同一条操作。',
@@ -822,6 +823,35 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return { ok: true, text: `已卸载技能“${skill.name}”。` }
     },
   }
+  const workspaceSetTool: AgentTool = {
+    name: 'workspace_set',
+    description:
+      '把当前会话的工作区绑定到一个本地目录。绑定后 Shell 与工作区文件工具都使用它；需要用户确认。',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: '本地目录的绝对路径' },
+      },
+      required: ['path'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) => `绑定工作区 ${String(args.path ?? '')}`.slice(0, 80),
+    async run(args, ctx) {
+      const value = String(args.path ?? '').trim()
+      if (!value) return { ok: false, text: '缺少目录路径。' }
+      if (!isAbsolute(value))
+        return { ok: false, text: '请提供绝对目录路径。' }
+      const real = await realpath(value).catch(() => null)
+      if (!real) return { ok: false, text: '目录不存在。' }
+      const info = await stat(real).catch(() => null)
+      if (!info?.isDirectory())
+        return { ok: false, text: '这个路径不是目录。' }
+      ctx.bindWorkspace?.(real)
+      return { ok: true, text: `已绑定工作区：${real}` }
+    },
+  }
   const toolList = [
     ...Object.values(tools),
     skillTool,
@@ -833,6 +863,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     skillInstallLocalTool,
     skillInstallUrlTool,
     skillRemoveTool,
+    workspaceSetTool,
   ]
   const subagentNames = new Set([
     'workspace_list',
@@ -1285,17 +1316,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       }
     }
     if (tool.name === 'shell_run' && !session.workspace) {
-      const picked = await deps.pickWorkspace()
-      if (!picked)
-        return {
-          allowed: false,
-          ok: false,
-          text: '没有选择 shell 工作区，命令未执行。',
-        }
-      session.workspace = picked
-      session.updatedAt = now()
-      persist()
-      emit()
+      return {
+        allowed: false,
+        ok: false,
+        text: '还没有绑定工作区，命令未执行。先调用 workspace_set 绑定目录，或让用户在输入框下方选择工作区。',
+      }
     }
     if (
       permission === 'ask' &&
@@ -1317,6 +1342,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         reasoning: session.reasoning,
         ...(deps.backupRoot ? { backupRoot: deps.backupRoot } : {}),
         ...(onProgress ? { onProgress } : {}),
+        bindWorkspace: (path: string) => {
+          if (session.projectId)
+            throw new Error(
+              '当前会话属于项目，请在项目设置里修改工作区。',
+            )
+          session.workspace = path
+          session.updatedAt = now()
+          persist()
+          emit()
+        },
       })
       return {
         allowed: true,

@@ -64,6 +64,8 @@ export type ToolContext = {
   reasoning?: 'off' | 'low' | 'high' | 'max'
   /** Recoverable backup directory for file writes. */
   backupRoot?: string
+  /** Binds a directory as the session workspace after user approval. */
+  bindWorkspace?(path: string): void
   /** Streams progress for long-running tools such as sub-agents. */
   onProgress?: (output: string) => void
 }

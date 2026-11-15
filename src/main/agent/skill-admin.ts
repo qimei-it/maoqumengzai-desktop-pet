@@ -55,6 +55,8 @@ type SkillAdminOptions = {
   fetch?: typeof fetch
   resolve?: typeof resolveSkillSource
   scanDirectory?: typeof scanSkillDirectory
+  /** Runs after install, enable/disable or uninstall changes the library. */
+  onChange?: () => void
 }
 
 async function loadScans(path: string): Promise<Map<string, StoredScan>> {
@@ -123,6 +125,7 @@ export async function createSkillAdmin(
   }
 
   const persist = () => saveScans(options.scansPath, scans).catch(() => {})
+  const changed = (): void => options.onChange?.()
 
   const runScan = async (view: AgentSkillView): Promise<AgentSkillScan> => {
     const location = store.locate(view.id)
@@ -193,7 +196,9 @@ export async function createSkillAdmin(
   ): Promise<AgentSkillView> => {
     const view = find(target)
     if (enabled) await ensureCanEnable(view.id)
-    return store.setEnabled(view.id, enabled)
+    const skill = await store.setEnabled(view.id, enabled)
+    changed()
+    return skill
   }
 
   const finishInstall = async (
@@ -208,6 +213,7 @@ export async function createSkillAdmin(
       results.push({ skill: viewOf(view.id), scan: result })
     }
     await persist()
+    changed()
     return {
       installed: results.map((item) => item.skill),
       scans: results,
@@ -243,6 +249,7 @@ export async function createSkillAdmin(
       const removed = await store.remove(view.id)
       scans.delete(view.id)
       await persist()
+      changed()
       return removed
     },
   }

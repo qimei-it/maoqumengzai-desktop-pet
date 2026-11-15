@@ -101,6 +101,7 @@ test('injects enabled skills and loads one during the conversation', async () =>
 
   await agent.getByLabel('给智能体发送指令').fill('写日报')
   await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue('')
   await expect(agent.getByText('日报已完成')).toBeVisible({
     timeout: 15_000,
   })
@@ -118,4 +119,9 @@ test('injects enabled skills and loads one during the conversation', async () =>
   const card = agent.locator('.agent-tool').first()
   await expect(card.locator('.agent-tool-title')).toHaveText('读取技能 日报')
   await expect(card.locator('.agent-tool-status')).toHaveText('完成')
+  await expect(card.locator('.agent-tool-output')).toHaveCount(0)
+  await card.getByRole('button', { name: '展开完整输出' }).click()
+  await expect(card.locator('.agent-tool-output')).toContainText(
+    '请按“进展、问题、下一步”三段写日报。',
+  )
 })

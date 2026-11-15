@@ -194,6 +194,7 @@ test('blocks paths outside the workspace', async () => {
     '读取 ../outside.txt',
   )
   await expect(card).toHaveAttribute('data-status', 'error')
+  await card.getByRole('button', { name: '展开完整输出' }).click()
   await expect(card.locator('.agent-tool-output')).toContainText(
     '路径超出工作区',
   )
