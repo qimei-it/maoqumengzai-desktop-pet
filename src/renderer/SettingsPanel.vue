@@ -1172,6 +1172,28 @@ function onEscape(): void {
               class="settings-field settings-field-end"
               :class="{ 'settings-field-connected': modelsOpen }"
             >
+              <SelectField
+                v-if="modelsOpen && aiModels.length"
+                :model-value="modelPreview"
+                aria-label="可用模型"
+                title="仅查看，不会切换当前模型"
+                min-width="200px"
+                @update:model-value="value => (modelPreview = value)"
+              >
+                <option
+                  v-for="model in aiModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                </option>
+              </SelectField>
+              <p
+                v-else-if="modelsOpen && aiModelsError"
+                class="settings-error settings-model-error"
+              >
+                {{ aiModelsError }}
+              </p>
               <button
                 type="button"
                 class="settings-button"
@@ -1205,7 +1227,11 @@ function onEscape(): void {
               </button>
             </div>
             <div
-              v-if="modelsOpen && (aiModels.length || aiModelsError)"
+              v-if="
+                !editingKey &&
+                modelsOpen &&
+                (aiModels.length || aiModelsError)
+              "
               class="settings-model-list"
             >
               <SelectField
@@ -1303,6 +1329,30 @@ function onEscape(): void {
               class="settings-field settings-field-end"
               :class="{ 'settings-field-connected': minimaxModelsOpen }"
             >
+              <SelectField
+                v-if="minimaxModelsOpen && minimaxModels.length"
+                :model-value="minimaxModelPreview"
+                aria-label="MiniMax 可用模型"
+                title="仅查看，不会切换当前模型"
+                min-width="200px"
+                @update:model-value="
+                  value => (minimaxModelPreview = value)
+                "
+              >
+                <option
+                  v-for="model in minimaxModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                </option>
+              </SelectField>
+              <p
+                v-else-if="minimaxModelsOpen && minimaxModelsError"
+                class="settings-error settings-model-error"
+              >
+                {{ minimaxModelsError }}
+              </p>
               <button
                 type="button"
                 class="settings-button"
@@ -1339,6 +1389,7 @@ function onEscape(): void {
             </div>
             <div
               v-if="
+                !editingMiniMaxKey &&
                 minimaxModelsOpen &&
                 (minimaxModels.length || minimaxModelsError)
               "
@@ -1959,6 +2010,11 @@ function onEscape(): void {
 }
 .settings-model-list .settings-error {
   margin: 0;
+}
+.settings-model-error {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
 }
 .settings-field-end {
   justify-content: flex-end;
