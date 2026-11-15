@@ -8650,6 +8650,55 @@ function setupIpc(): void {
     }
     return removed
   })
+  handle(channels.agentAttachmentPaste, 'either', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以粘贴附件。')
+    const items = await electronClipboard.read()
+    const extensions: Record<string, string> = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/webp': 'webp',
+      'image/tiff': 'tiff',
+    }
+    let bytes: Buffer | null = null
+    let extension = 'png'
+    for (const item of items) {
+      const type = item.types.find((value) => extensions[value])
+      if (!type) continue
+      const value = await item.getType(type).catch(() => null)
+      if (!value || typeof value === 'string' || !('arrayBuffer' in value))
+        continue
+      bytes = Buffer.from(await value.arrayBuffer())
+      extension = extensions[type]
+      break
+    }
+    if (!bytes?.length) return null
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-paste-'))
+    const path = join(directory, `截图.${extension}`)
+    await writeFile(path, bytes)
+    const result = await addAgentAttachmentPaths([path])
+    for (const pick of result.added) {
+      const draft = agentDraftAttachments.get(pick.id)
+      if (draft && !draft.tempPaths.includes(directory))
+        draft.tempPaths.push(directory)
+    }
+    return result
+  })
+  handle(channels.agentAttachmentPreview, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以预览附件。')
+    const id = z.string().uuid().parse(payload)
+    const draft = agentDraftAttachments.get(id)
+    if (!draft || draft.kind !== 'image' || !draft.sourcePath) return null
+    const sharp = (await import('sharp')).default
+    const thumbnail = await sharp(draft.sourcePath)
+      .resize({ width: 64, height: 64, fit: 'inside' })
+      .png()
+      .toBuffer()
+    return `data:image/png;base64,${thumbnail.toString('base64')}`
+  })
   handle(channels.agentAttachmentCancel, 'either', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
