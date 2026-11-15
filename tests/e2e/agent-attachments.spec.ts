@@ -1,6 +1,7 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { existsSync } from 'node:fs'
+import { readFile as readFileSync } from 'node:fs/promises'
 import {
   mkdir,
   mkdtemp,
@@ -19,6 +20,7 @@ let notes = ''
 let image = ''
 let dropped = ''
 let slowDocx = ''
+let ofd = ''
 let saveDirectory = ''
 
 const soffice = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
@@ -27,6 +29,30 @@ const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
 )
+
+const ofdFonts = [
+  '/System/Library/Fonts/Supplemental/Arial.ttf',
+  '/Library/Fonts/Arial.ttf',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+]
+
+function ofdSample(font: Uint8Array): Uint8Array {
+  return zipSync({
+    'OFD.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><ofd:OFD xmlns:ofd="http://www.ofdspec.org/2016" DocType="OFD" Version="1.0"><ofd:DocBody><ofd:DocInfo><ofd:DocID>mqmz-ofd-test</ofd:DocID><ofd:DocTitle>OFD 附件</ofd:DocTitle></ofd:DocInfo><ofd:DocRoot>Doc_0/Document.xml</ofd:DocRoot></ofd:DocBody></ofd:OFD>',
+    ),
+    'Doc_0/Document.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><ofd:Document xmlns:ofd="http://www.ofdspec.org/2016"><ofd:CommonData><ofd:PageArea><ofd:PhysicalBox>0 0 210 297</ofd:PhysicalBox></ofd:PageArea><ofd:DocumentRes>PublicRes.xml</ofd:DocumentRes><ofd:MaxUnitID>10</ofd:MaxUnitID></ofd:CommonData><ofd:Pages><ofd:Page ID="1" BaseLoc="Pages/Page_0/Content.xml"/></ofd:Pages></ofd:Document>',
+    ),
+    'Doc_0/PublicRes.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><ofd:Res xmlns:ofd="http://www.ofdspec.org/2016" BaseLoc="Res"><ofd:Fonts><ofd:Font ID="1" FontName="Arial" FamilyName="Arial" Charset="unicode"><ofd:FontFile>font.ttf</ofd:FontFile></ofd:Font></ofd:Fonts></ofd:Res>',
+    ),
+    'Doc_0/Res/font.ttf': font,
+    'Doc_0/Pages/Page_0/Content.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><ofd:Page xmlns:ofd="http://www.ofdspec.org/2016"><ofd:Area><ofd:PhysicalBox>0 0 210 297</ofd:PhysicalBox></ofd:Area><ofd:Content><ofd:Layer><ofd:TextObject ID="2" Boundary="20 20 170 30" Font="1" Size="12" CTM="1 0 0 1 0 0"><ofd:TextCode X="0" Y="12">OFD sample text</ofd:TextCode></ofd:TextObject></ofd:Layer></ofd:Content></ofd:Page>',
+    ),
+  })
+}
 
 function docx(): Uint8Array {
   const paragraphs = Array.from(
@@ -60,6 +86,11 @@ test.beforeAll(async () => {
   await writeFile(dropped, '# 拖入\n拖入的附件内容。')
   slowDocx = join(directory, 'slow.docx')
   await writeFile(slowDocx, docx())
+  const fontPath = ofdFonts.find((path) => existsSync(path))
+  if (fontPath) {
+    ofd = join(directory, 'sample.ofd')
+    await writeFile(ofd, ofdSample(new Uint8Array(await readFileSync(fontPath))))
+  }
   if (existsSync(soffice))
     await writeFile(
       join(data, 'mqmz.engines.json'),
@@ -228,6 +259,30 @@ test('attachments use local text, upload images, and respect the Pro model', asy
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
   )
+})
+
+test('renders a spec-compliant OFD attachment for vision parsing', async () => {
+  test.skip(!ofd, 'no TTF font available for the OFD sample')
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
+  )
+  await application.evaluate(({ dialog }, paths) => {
+    ;(globalThis as unknown as { __mqmzPick: string[] }).__mqmzPick = paths
+    dialog.showOpenDialog = async () =>
+      ({
+        canceled: false,
+        filePaths: (globalThis as unknown as { __mqmzPick: string[] })
+          .__mqmzPick,
+      })
+  }, [ofd])
+  await agent.getByLabel('添加附件').click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.locator('.agent-attachment-name')).toHaveAttribute(
+    'title',
+    /OFD · 1 页 · 视觉解析/,
+  )
+  await agent.getByRole('button', { name: '移除附件 sample.ofd' }).click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
 })
 
 test('keeps the draft when switching to the Pro model and can switch back', async () => {

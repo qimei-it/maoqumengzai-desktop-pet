@@ -640,15 +640,18 @@ async function prepareArchive(
       if (entry.relative.startsWith('__MACOSX/')) continue
       if (entry.relative.split('/').some((part) => part.startsWith('.')))
         continue
-      const text = await innerText(entry.path, budget - used, options).catch(
+      const header = `<attachment name="${escapeAttribute(`${basename(path)}/${entry.relative}`)}">\n`
+      const footer = '\n</attachment>'
+      const overhead = header.length + footer.length + 2
+      if (used + overhead >= budget) break
+      const limit = budget - used - overhead
+      const text = await innerText(entry.path, limit, options).catch(
         () => null,
       )
       if (!text?.trim()) continue
-      const clipped = text.slice(0, budget - used)
-      sections.push(
-        `<attachment name="${escapeAttribute(`${basename(path)}/${entry.relative}`)}">\n${clipped}\n</attachment>`,
-      )
-      used += clipped.length
+      const clipped = text.slice(0, limit)
+      sections.push(`${header}${clipped}${footer}`)
+      used += overhead + clipped.length
       read += 1
     }
     if (!sections.length) return skipped('压缩包里没有可读取的文字')
@@ -811,6 +814,10 @@ async function pdfTextFromBytes(
       truncated:
         truncated || text.length > limit || document.numPages > pages,
     }
+  } catch (error) {
+    if ((error as { name?: string })?.name === 'PasswordException')
+      throw new Error('PDF 已加密，暂不支持读取')
+    throw error
   } finally {
     await task.destroy().catch(() => {})
   }

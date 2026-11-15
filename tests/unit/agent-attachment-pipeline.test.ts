@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -46,6 +46,25 @@ async function textPdf(): Promise<Buffer> {
   const page = document.addPage()
   page.drawText('Hello attachment pipeline', { x: 60, y: 700, font, size: 18 })
   return Buffer.from(await document.save())
+}
+
+async function longPdf(pages: number): Promise<Buffer> {
+  const document = await PDFDocument.create()
+  const font = await document.embedFont(StandardFonts.Helvetica)
+  for (let index = 0; index < pages; index += 1) {
+    const page = document.addPage()
+    page.drawText(`Page ${index + 1} of a long attachment`, {
+      x: 60,
+      y: 700,
+      font,
+      size: 14,
+    })
+  }
+  return Buffer.from(await document.save())
+}
+
+function hasQpdf(): boolean {
+  return spawnSync('qpdf', ['--version']).status === 0
 }
 
 function textDocx(): Uint8Array {
@@ -96,6 +115,106 @@ describe('agent attachment pipeline', () => {
     expect(result.attachment.mode).toBe('text')
     expect(result.attachment.text).toContain('Hello attachment pipeline')
   })
+
+  test('reads a long PDF and marks it truncated by the text budget', async () => {
+    const root = await directory()
+    const path = join(root, 'long.pdf')
+    await writeFile(path, await longPdf(300))
+    const result = await prepareAgentAttachment(path, 4_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.mode).toBe('text')
+    expect(result.attachment.detail).toContain('300 页')
+    expect(result.attachment.truncated).toBe(true)
+    expect(result.attachment.text?.length).toBeLessThanOrEqual(4_000)
+    expect(result.attachment.text).toContain('Page 1 of a long attachment')
+  })
+
+  test('rejects a PDF that needs a password', async () => {
+    if (!hasQpdf()) return
+    const root = await directory()
+    const plain = join(root, 'plain.pdf')
+    const encrypted = join(root, 'locked.pdf')
+    await writeFile(plain, await textPdf())
+    execFileSync('qpdf', [
+      '--encrypt',
+      'user-pass',
+      'owner-pass',
+      '256',
+      '--',
+      plain,
+      encrypted,
+    ])
+    const result = await prepareAgentAttachment(encrypted, 30_000, flash)
+    expect(result).toEqual({ skipped: 'PDF 已加密，暂不支持读取' })
+  })
+
+  test('stops reading a large archive at the text budget', async () => {
+    const root = await directory()
+    const path = join(root, 'bundle.zip')
+    const entries: Record<string, Uint8Array> = {}
+    for (let index = 0; index < 400; index += 1)
+      entries[`docs/file-${index}.md`] = strToU8(
+        `# 文件 ${index}\n${'内容'.repeat(20)}`,
+      )
+    await writeFile(path, zipSync(entries))
+    const result = await prepareAgentAttachment(path, 5_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.mode).toBe('text')
+    expect(result.attachment.detail).toMatch(/压缩包 · \d+ 个文件/)
+    expect(result.attachment.truncated).toBe(true)
+    expect(result.attachment.text?.length).toBeLessThan(8_000)
+    expect(result.attachment.text).toContain('文件 0')
+    await releaseAgentAttachment(result.attachment)
+  })
+
+  test.skipIf(process.platform !== 'darwin' || !existsSync(ffmpeg))(
+    'extracts the audio track from a real video',
+    async () => {
+      const root = await directory()
+      const path = join(root, 'clip.mp4')
+      execFileSync(
+        ffmpeg,
+        [
+          '-y',
+          '-f',
+          'lavfi',
+          '-i',
+          'color=c=black:s=320x240:d=1',
+          '-f',
+          'lavfi',
+          '-i',
+          'sine=frequency=440:duration=1',
+          '-shortest',
+          '-c:v',
+          'libx264',
+          '-c:a',
+          'aac',
+          path,
+        ],
+        { stdio: 'ignore' },
+      )
+      const result = await prepareAgentAttachment(path, 30_000, {
+        model: 'deepseek-flash',
+        soffice: null,
+        ffmpeg,
+      })
+      expect('attachment' in result).toBe(true)
+      if (!('attachment' in result)) return
+      expect(result.attachment.kind).toBe('video')
+      expect(result.attachment.mode).toBe('audio')
+      expect(result.attachment.detail).toContain('视频 · 语音转写')
+      const chunk = result.attachment.audio?.[0]
+      expect(chunk).toBeTruthy()
+      if (!chunk) return
+      const bytes = await readFile(chunk)
+      expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF')
+      expect(bytes.readUInt32LE(24)).toBe(16_000)
+      await releaseAgentAttachment(result.attachment)
+    },
+    60_000,
+  )
 
   test('reports parsing stages and honors an aborted signal', async () => {
     const root = await directory()
