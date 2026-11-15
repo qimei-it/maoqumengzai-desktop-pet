@@ -815,7 +815,7 @@ function plainAgentText(value: string): string {
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: 120_000 }, (error) => {
+    execFile(command, args, { timeout: 10 * 60 * 1000 }, (error) => {
       if (error) reject(error)
       else resolve()
     })
