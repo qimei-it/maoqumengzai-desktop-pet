@@ -106,6 +106,7 @@ const aiModels = computed(() => props.state?.ai.models ?? [])
 const aiModelsError = computed(() => props.state?.ai.modelsError)
 const supportedModels = new Set<string>(deepseekModelIds)
 const modelPreview = ref('')
+const modelsOpen = ref(false)
 watch(
   aiModels,
   (models) => {
@@ -114,7 +115,18 @@ watch(
   },
   { immediate: true },
 )
-function pullModels(): void {
+watch(editingKey, (value) => {
+  if (!value) modelsOpen.value = false
+})
+watch(configured, (value) => {
+  if (!value) modelsOpen.value = false
+})
+function toggleModels(): void {
+  if (modelsOpen.value) {
+    modelsOpen.value = false
+    return
+  }
+  modelsOpen.value = true
   const draft = editingKey.value ? apiKey.value.trim() : ''
   emit('command', {
     type: 'ai-models',
@@ -1013,7 +1025,7 @@ function onEscape(): void {
           <template v-else-if="section === 'ai'">
             <div
               class="settings-row"
-              :class="{ 'settings-row-connected': editingKey }"
+              :class="{ 'settings-row-connected': editingKey || modelsOpen }"
             >
               <span class="settings-label">DeepSeek API Key</span>
               <span class="settings-inline">
@@ -1053,9 +1065,9 @@ function onEscape(): void {
                   v-if="!editingKey && configured"
                   type="button"
                   class="settings-button"
-                  @click="pullModels"
+                  @click="toggleModels"
                 >
-                  拉取模型
+                  模型列表
                 </button>
                 <button
                   v-if="!editingKey && configured"
@@ -1075,7 +1087,11 @@ function onEscape(): void {
                 </button>
               </span>
             </div>
-            <div v-if="editingKey" class="settings-field">
+            <div
+              v-if="editingKey"
+              class="settings-field"
+              :class="{ 'settings-field-connected': modelsOpen }"
+            >
               <input
                 v-model="apiKey"
                 type="password"
@@ -1103,9 +1119,9 @@ function onEscape(): void {
                 type="button"
                 class="settings-button"
                 :disabled="!apiKey.trim()"
-                @click="pullModels"
+                @click="toggleModels"
               >
-                拉取模型
+                模型列表
               </button>
               <button
                 type="button"
@@ -1116,12 +1132,16 @@ function onEscape(): void {
                 添加
               </button>
             </div>
-            <div v-if="aiModels.length" class="settings-row">
-              <span class="settings-label">可用模型</span>
+            <div
+              v-if="modelsOpen && (aiModels.length || aiModelsError)"
+              class="settings-model-list"
+            >
               <SelectField
+                v-if="aiModels.length"
                 :model-value="modelPreview"
                 aria-label="可用模型"
                 title="仅查看，不会切换当前模型"
+                min-width="220px"
                 @update:model-value="value => (modelPreview = value)"
               >
                 <option
@@ -1132,10 +1152,8 @@ function onEscape(): void {
                   {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
                 </option>
               </SelectField>
+              <p v-else class="settings-error">{{ aiModelsError }}</p>
             </div>
-            <p v-else-if="aiModelsError" class="settings-error">
-              {{ aiModelsError }}
-            </p>
             <div class="settings-row">
               <span class="settings-label">MiniMax API Key</span>
               <span class="settings-inline">
@@ -1710,6 +1728,18 @@ function onEscape(): void {
 }
 .settings-row-connected {
   border-bottom: 0;
+}
+.settings-field-connected {
+  border-bottom: 0;
+}
+.settings-model-list {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+.settings-model-list .settings-error {
+  margin: 0;
 }
 .settings-field-end {
   justify-content: flex-end;
