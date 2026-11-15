@@ -458,11 +458,11 @@ describe('agent runtime', () => {
     ).rejects.toThrow('当前模型只支持文字附件')
   })
 
-  test('keeps the turn going when an upload fails', async () => {
-    let captured: StreamOptions['messages'] = []
+  test('aborts a turn when an upload fails and marks the attachment', async () => {
+    let streamed = false
     const { runtime } = await makeRuntime([], [], {
-      stream: async (_key, options) => {
-        captured = options.messages
+      stream: async () => {
+        streamed = true
         return { text: '收到了', toolCalls: [] }
       },
       files: {
@@ -472,20 +472,24 @@ describe('agent runtime', () => {
         transcribe: async () => '',
       },
     })
-    await runtime.send('看看这张图', [
-      {
-        id: 'attachment-image',
-        name: 'photo.png',
-        size: 128,
-        kind: 'image',
-        mode: 'vision',
-        needsModelUpload: true,
-        truncated: false,
-        upload: [{ path: '/tmp/photo.png', purpose: 'user_data' }],
-      },
-    ])
-    const user = captured.find((message) => message.role === 'user')
-    expect(user?.content).toContain('[附件 photo.png 上传失败：网络错误]')
+    const attachment = {
+      id: 'attachment-image',
+      name: 'photo.png',
+      size: 128,
+      kind: 'image' as const,
+      mode: 'vision' as const,
+      needsModelUpload: true,
+      truncated: false,
+      uploadError: undefined,
+      upload: [{ path: '/tmp/photo.png', purpose: 'user_data' as const }],
+    }
+    await runtime.send('看看这张图', [attachment])
+    expect(streamed).toBe(false)
+    const state = runtime.state()
+    expect(state.error).toContain('上传失败')
+    expect(state.messages).toHaveLength(1)
+    expect(state.messages[0].role).toBe('assistant')
+    expect(attachment.uploadError).toContain('上传失败：网络错误')
   })
 
   test('refreshes an expired uploaded file when its source still exists', async () => {

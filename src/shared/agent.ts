@@ -104,12 +104,16 @@ export type AgentAttachmentPick = AgentAttachmentView & {
   needsModelUpload: boolean
   /** One-line status shown in diagnostics and tooltips. */
   detail?: string
+  /** Last upload/transcription failure for this draft. */
+  uploadError?: string
   truncated: boolean
 }
 
 export type AgentAttachmentUpload = {
   path: string
   purpose: 'user_data' | 'text_recognition' | 'rich_layout_recognition'
+  fileId?: string
+  expiresAt?: number | null
 }
 
 export type AgentAttachmentInput = AgentAttachmentPick & {

@@ -428,15 +428,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     const views = attachments.map(({ id, name, size }) => ({ id, name, size }))
     const textFiles = attachments.filter((item) => item.text?.trim())
     const uploads = attachments.flatMap((item) =>
-      (item.upload ?? []).map((file) => ({ ...file, name: item.name })),
+      (item.upload ?? []).map((file) => ({ item, file })),
     )
     const audioFiles = attachments.flatMap((item) =>
-      (item.audio ?? []).map((path) => ({ path, name: item.name })),
+      (item.audio ?? []).map((path) => ({ item, path })),
     )
     if (session.model === 'deepseek-v4-pro' && uploads.length)
       throw new Error(
         '当前模型只支持文字附件，请切换到 DeepSeek-V4.1-Flash。',
       )
+    for (const item of attachments) delete item.uploadError
 
     const sections: string[] = [prompt]
     if (textFiles.length) {
@@ -454,54 +455,65 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     }
 
     const blocks: ProviderContentBlock[] = []
-    for (const file of uploads) {
+    const newRefs: StoredFileRef[] = []
+    for (const { item, file } of uploads) {
       if (signal.aborted) throw new Error('已停止。')
       try {
-        const uploaded = await files.upload(
-          key,
-          file.path,
-          file.purpose,
-          signal,
-        )
-        blocks.push({ type: 'file', file_id: uploaded.id })
-        session.files ??= []
-        session.files.push({
-          id: uploaded.id,
-          name: file.name,
+        let fileId = file.fileId
+        let expiresAt = file.expiresAt ?? null
+        if (
+          !fileId ||
+          (expiresAt !== null && expiresAt - Date.now() < 60 * 60 * 1000)
+        ) {
+          const uploaded = await files.upload(
+            key,
+            file.path,
+            file.purpose,
+            signal,
+          )
+          fileId = uploaded.id
+          expiresAt = uploaded.expiresAt
+          file.fileId = fileId
+          file.expiresAt = expiresAt
+        }
+        blocks.push({ type: 'file', file_id: fileId })
+        newRefs.push({
+          id: fileId,
+          name: item.name,
           path: file.path,
           purpose: file.purpose,
-          expiresAt: uploaded.expiresAt,
+          expiresAt,
         })
       } catch (error) {
-        sections.push(
-          `[附件 ${file.name} 上传失败：${errorMessage(error, '请稍后重试')}]`,
-        )
+        const message = errorMessage(error, '请稍后重试')
+        item.uploadError = `上传失败：${message}`
+        throw new Error(`附件 ${item.name} 上传失败：${message}`)
       }
     }
 
     let transcriptChars = 0
-    for (const file of audioFiles) {
+    for (const { item, path } of audioFiles) {
       if (signal.aborted) throw new Error('已停止。')
       if (transcriptChars >= 12_000) break
       try {
-        const transcript = await files.transcribe(
-          key,
-          file.path,
-          signal,
-        )
+        const transcript = await files.transcribe(key, path, signal)
         const clipped = transcript.slice(0, 12_000 - transcriptChars)
         if (!clipped) continue
         sections.push(
-          `<transcript name="${escapeAttribute(file.name)}">\n${clipped}\n</transcript>`,
+          `<transcript name="${escapeAttribute(item.name)}">\n${clipped}\n</transcript>`,
         )
         transcriptChars += clipped.length
       } catch (error) {
-        sections.push(
-          `[音频 ${file.name} 转写失败：${errorMessage(error, '请稍后重试')}]`,
-        )
+        const message = errorMessage(error, '请稍后重试')
+        item.uploadError = `转写失败：${message}`
+        throw new Error(`音频 ${item.name} 转写失败：${message}`)
       }
     }
 
+    if (newRefs.length) {
+      session.files ??= []
+      session.files.push(...newRefs)
+    }
     const text = sections.join('\n\n').slice(0, 80_000)
     return {
       content: blocks.length
@@ -862,32 +874,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       busy = true
       controller = new AbortController()
       const signal = controller.signal
-      for (const file of files) {
-        if (!file.sourcePath) continue
-        rememberSource(session, {
-          id: file.id,
-          name: file.name,
-          path: file.sourcePath,
-          kind: 'attachment',
-        })
-      }
-      const userMessage: AgentMessageView = {
-        id: randomUUID(),
-        role: 'user',
-        parts: [{ type: 'text', text: value }],
-        ...(files.length
-          ? {
-              attachments: files.map(({ id, name, size, sourcePath }) => ({
-                id,
-                name,
-                size,
-                ...(sourcePath ? { canSave: true } : {}),
-              })),
-            }
-          : {}),
-      }
-      pushUi(session, userMessage)
-      emit()
       try {
         const built = await buildUserContent(
           session,
@@ -896,6 +882,33 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           files,
           signal,
         )
+        for (const file of files) {
+          if (!file.sourcePath) continue
+          rememberSource(session, {
+            id: file.id,
+            name: file.name,
+            path: file.sourcePath,
+            kind: 'attachment',
+          })
+        }
+        const userMessage: AgentMessageView = {
+          id: randomUUID(),
+          role: 'user',
+          parts: [{ type: 'text', text: value }],
+          ...(files.length
+            ? {
+                attachments: files.map(
+                  ({ id, name, size, sourcePath }) => ({
+                    id,
+                    name,
+                    size,
+                    ...(sourcePath ? { canSave: true } : {}),
+                  }),
+                ),
+              }
+            : {}),
+        }
+        pushUi(session, userMessage)
         pushHistory(session, { role: 'user', content: built.content })
         if (session.title === '新会话') session.title = sessionTitle(value)
         session.updatedAt = now()

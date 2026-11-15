@@ -123,6 +123,10 @@ let dragDepth = 0
 let dropWatchdog: ReturnType<typeof setTimeout> | undefined
 const copiedId = ref<string | null>(null)
 let copyTimer: ReturnType<typeof setTimeout> | undefined
+const pendingSend = ref(false)
+let pendingSendTimer: ReturnType<typeof setTimeout> | undefined
+let pendingSendBase = 0
+const retryingAttachmentId = ref<string | null>(null)
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
 const listInner = ref<HTMLElement>()
@@ -251,6 +255,7 @@ const canSend = computed(
     Boolean(draft.value.trim()) &&
     !busy.value &&
     !parsing.value &&
+    !pendingSend.value &&
     configured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
@@ -416,7 +421,37 @@ watch(
   () => scheduleFollow(),
   { deep: true },
 )
-watch(busy, () => scheduleFollow())
+watch(
+  () => agent.value?.messages.length,
+  () => {
+    if (!pendingSend.value) return
+    const messages = agent.value?.messages ?? []
+    if (
+      messages.length <= pendingSendBase ||
+      messages[messages.length - 1]?.role !== 'user'
+    )
+      return
+    pendingSend.value = false
+    if (pendingSendTimer) clearTimeout(pendingSendTimer)
+    pendingSendTimer = undefined
+    draft.value = ''
+    attachments.value = []
+    attachmentError.value = ''
+  },
+)
+watch(busy, (value) => {
+  scheduleFollow()
+  if (value || !pendingSend.value) return
+  const messages = agent.value?.messages ?? []
+  if (
+    messages.length > pendingSendBase &&
+    messages[messages.length - 1]?.role === 'user'
+  )
+    return
+  pendingSend.value = false
+  if (pendingSendTimer) clearTimeout(pendingSendTimer)
+  pendingSendTimer = undefined
+})
 watch(listInner, (element) => {
   messageObserver?.disconnect()
   messageObserver = undefined
@@ -488,6 +523,16 @@ async function saveSource(id: string): Promise<void> {
 function removeAttachment(id: string): void {
   attachments.value = attachments.value.filter((item) => item.id !== id)
   void window.mqmz!.releaseAgentAttachment(id)
+}
+
+async function retryAttachment(id: string): Promise<void> {
+  if (retryingAttachmentId.value) return
+  retryingAttachmentId.value = id
+  attachmentError.value = ''
+  const result = await window.mqmz?.retryAgentAttachment(id)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '重试上传失败。'
+  retryingAttachmentId.value = null
 }
 
 function cancelParsing(): void {
@@ -579,17 +624,30 @@ async function onDrop(event: DragEvent): Promise<void> {
 
 function send(): void {
   const prompt = draft.value.trim()
-  if (!prompt || busy.value || parsing.value || !configured.value) return
+  if (
+    !prompt ||
+    busy.value ||
+    parsing.value ||
+    pendingSend.value ||
+    retryingAttachmentId.value ||
+    !configured.value
+  )
+    return
   const attachmentIds = attachments.value.map((item) => item.id)
   modelMenuOpen.value = false
+  attachmentError.value = ''
+  pendingSend.value = true
+  pendingSendBase = agent.value?.messages.length ?? 0
+  if (pendingSendTimer) clearTimeout(pendingSendTimer)
+  pendingSendTimer = setTimeout(() => {
+    pendingSendTimer = undefined
+    if (pendingSend.value && !busy.value) pendingSend.value = false
+  }, 5000)
   emit('command', {
     type: 'agent-send',
     prompt,
     ...(attachmentIds.length ? { attachmentIds } : {}),
   })
-  draft.value = ''
-  attachments.value = []
-  attachmentError.value = ''
   following.value = true
   scrollHover.value = false
   void nextTick(() => scheduleFollow())
@@ -1018,6 +1076,7 @@ onUnmounted(() => {
   composerObserver?.disconnect()
   if (followFrame) cancelAnimationFrame(followFrame)
   if (copyTimer) clearTimeout(copyTimer)
+  if (pendingSendTimer) clearTimeout(pendingSendTimer)
 })
 
 const statusLabels: Record<string, string> = {
@@ -1940,14 +1999,41 @@ function statusLabel(status: string): string {
                   v-for="item in attachments"
                   :key="item.id"
                   class="agent-attachment"
+                  :class="{ 'is-error': item.uploadError }"
                 >
                   <FileTypeIcon :name="item.name" :size="16" />
                   <span
                     class="agent-attachment-name"
-                    :title="item.detail ? `${item.name} · ${item.detail}` : item.name"
+                    :title="
+                      item.uploadError
+                        ? `${item.name} · ${item.uploadError}`
+                        : item.detail
+                          ? `${item.name} · ${item.detail}`
+                          : item.name
+                    "
                   >
                     {{ item.name }}
                   </span>
+                  <button
+                    v-if="
+                      item.uploadError && item.needsModelUpload
+                    "
+                    type="button"
+                    class="agent-attachment-retry"
+                    :disabled="retryingAttachmentId === item.id"
+                    :aria-label="`重试上传 ${item.name}`"
+                    :title="item.uploadError"
+                    @click="retryAttachment(item.id)"
+                  >
+                    <RefreshCw
+                      :class="{
+                        'is-spinning': retryingAttachmentId === item.id,
+                      }"
+                      :size="11"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
                   <button
                     type="button"
                     class="agent-attachment-remove"
@@ -3640,6 +3726,39 @@ function statusLabel(status: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-attachment.is-error {
+  background: var(--color-danger-soft);
+}
+.agent-attachment.is-error .agent-attachment-name {
+  color: var(--color-danger);
+}
+.agent-attachment-retry {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-danger);
+}
+.agent-attachment-retry:hover {
+  background: var(--color-danger-soft);
+}
+.agent-attachment-retry:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.agent-attachment-retry:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-attachment-retry svg.is-spinning {
+  animation: agent-spin 0.9s linear infinite;
+}
 .agent-attachment-remove {
   display: grid;
   flex: none;
@@ -4547,7 +4666,8 @@ function statusLabel(status: string): string {
 @media (prefers-reduced-motion: reduce) {
   .agent-running,
   .agent-parse-spinner,
-  .agent-thinking-dots span {
+  .agent-thinking-dots span,
+  .agent-attachment-retry svg.is-spinning {
     animation: none;
   }
   .agent-session,

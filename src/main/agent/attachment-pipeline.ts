@@ -206,8 +206,17 @@ export function attachmentKindForName(
 export function agentAttachmentPick(
   attachment: PreparedAgentAttachment,
 ): AgentAttachmentPick {
-  const { id, name, size, kind, mode, needsModelUpload, detail, truncated } =
-    attachment
+  const {
+    id,
+    name,
+    size,
+    kind,
+    mode,
+    needsModelUpload,
+    detail,
+    uploadError,
+    truncated,
+  } = attachment
   return {
     id,
     name,
@@ -216,6 +225,7 @@ export function agentAttachmentPick(
     mode,
     needsModelUpload,
     ...(detail ? { detail } : {}),
+    ...(uploadError ? { uploadError } : {}),
     truncated,
   }
 }

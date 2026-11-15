@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
+import { existsSync } from 'node:fs'
 import {
   mkdir,
   mkdtemp,
@@ -9,7 +10,7 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { PDFDocument, StandardFonts } from 'pdf-lib'
+import { strToU8, zipSync } from 'fflate'
 import { waitForAppWindows } from './app-windows'
 
 let application: ElectronApplication
@@ -17,13 +18,33 @@ let agent: Page
 let notes = ''
 let image = ''
 let dropped = ''
-let slowPdf = ''
+let slowDocx = ''
 let saveDirectory = ''
+
+const soffice = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
 )
+
+function docx(): Uint8Array {
+  const paragraphs = Array.from(
+    { length: 300 },
+    (_, index) => `<w:p><w:r><w:t>Progress test paragraph ${index + 1}</w:t></w:r></w:p>`,
+  ).join('')
+  return zipSync({
+    '[Content_Types].xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    ),
+    '_rels/.rels': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+    ),
+    'word/document.xml': strToU8(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}</w:body></w:document>`,
+    ),
+  })
+}
 
 test.beforeAll(async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-attach-e2e-'))
@@ -37,19 +58,13 @@ test.beforeAll(async () => {
   await writeFile(notes, '# 附件\n本地文本内容。')
   await writeFile(image, png)
   await writeFile(dropped, '# 拖入\n拖入的附件内容。')
-  slowPdf = join(directory, 'slow.pdf')
-  const document = await PDFDocument.create()
-  const font = await document.embedFont(StandardFonts.Helvetica)
-  for (let index = 0; index < 900; index += 1) {
-    const page = document.addPage()
-    page.drawText(`Page ${index + 1} attachment parsing progress test`, {
-      x: 40,
-      y: 700,
-      font,
-      size: 10,
-    })
-  }
-  await writeFile(slowPdf, await document.save())
+  slowDocx = join(directory, 'slow.docx')
+  await writeFile(slowDocx, docx())
+  if (existsSync(soffice))
+    await writeFile(
+      join(data, 'mqmz.engines.json'),
+      JSON.stringify({ version: 1, localPaths: { libreoffice: soffice } }),
+    )
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
       (entry): entry is [string, string] => entry[1] !== undefined,
@@ -269,7 +284,89 @@ test('dragging files into the agent panel shows a hint and attaches them', async
     .evaluate((element) => element.remove())
 })
 
+test('failed uploads keep the draft and can be retried', async () => {
+  await application.evaluate(() => {
+    let uploads = 0
+    const state = globalThis as unknown as {
+      __mqmzUploadAttempts: () => number
+      __mqmzChatBody?: string
+    }
+    state.__mqmzUploadAttempts = () => uploads
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const url = String(input)
+      if (url.endsWith('/files')) {
+        uploads += 1
+        if (uploads === 1)
+          return new Response(
+            JSON.stringify({ error: { message: 'busy' } }),
+            {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        return new Response(
+          JSON.stringify({
+            id: 'file-api-retry',
+            expires_at: Math.floor(Date.now() / 1000) + 86_400,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (url.includes('/chat/completions')) {
+        state.__mqmzChatBody =
+          typeof init?.body === 'string' ? init.body : ''
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '收到' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      }
+      return new Response('{}', { status: 503 })
+    }
+  })
+  await agent.getByLabel('添加附件').click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await agent.getByLabel('给智能体发送指令').fill('看看这张图')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.locator('.agent-attachment.is-error')).toBeVisible()
+  await expect(
+    agent.getByRole('button', { name: '重试上传 photo.png' }),
+  ).toBeVisible()
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue(
+    '看看这张图',
+  )
+  await agent.getByRole('button', { name: '重试上传 photo.png' }).click()
+  await expect(agent.locator('.agent-attachment.is-error')).toHaveCount(0)
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.getByText('收到')).toBeVisible({ timeout: 15_000 })
+  expect(
+    await application.evaluate(
+      () =>
+        (globalThis as unknown as { __mqmzUploadAttempts: () => number })
+          .__mqmzUploadAttempts(),
+    ),
+  ).toBe(2)
+  expect(
+    await application.evaluate(
+      () =>
+        (globalThis as unknown as { __mqmzChatBody?: string })
+          .__mqmzChatBody ?? '',
+    ),
+  ).toContain('file-api-retry')
+})
+
 test('shows attachment parsing progress and can cancel a long parse', async () => {
+  test.skip(!existsSync(soffice), 'LibreOffice is not installed')
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
@@ -281,7 +378,7 @@ test('shows attachment parsing progress and can cancel a long parse', async () =
     input.hidden = true
     document.body.append(input)
   })
-  await agent.locator('#mqmz-agent-parse-input').setInputFiles(slowPdf)
+  await agent.locator('#mqmz-agent-parse-input').setInputFiles(slowDocx)
   await agent.evaluate(() => {
     const input =
       document.querySelector<HTMLInputElement>('#mqmz-agent-parse-input')!

@@ -62,6 +62,7 @@ import {
   releaseAgentAttachment,
   type PreparedAgentAttachment,
 } from './agent/attachment-pipeline'
+import { uploadAgentFile, deleteAgentFile } from './agent/files'
 import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
@@ -819,9 +820,40 @@ function clearAgentDrafts(): void {
   agentAttachmentController?.abort()
   if (!agentDraftAttachments.size) return
   for (const item of agentDraftAttachments.values())
-    void releaseAgentAttachment(item)
+    releaseAgentDraft(item)
   agentDraftAttachments.clear()
   broadcast()
+}
+
+async function uploadAgentDraft(
+  attachment: PreparedAgentAttachment,
+): Promise<void> {
+  if (!attachment.upload?.length) return
+  if (!aiKey) throw new Error('请先在设置中配置 DeepSeek API Key。')
+  for (const file of attachment.upload) {
+    if (
+      file.fileId &&
+      (file.expiresAt === null ||
+        file.expiresAt === undefined ||
+        file.expiresAt - Date.now() > 60 * 60 * 1000)
+    )
+      continue
+    const uploaded = await uploadAgentFile(
+      aiKey,
+      file.path,
+      file.purpose,
+    )
+    file.fileId = uploaded.id
+    file.expiresAt = uploaded.expiresAt
+  }
+}
+
+function releaseAgentDraft(attachment: PreparedAgentAttachment): void {
+  if (aiKey && attachment.upload?.length)
+    for (const file of attachment.upload)
+      if (file.fileId)
+        void deleteAgentFile(aiKey, file.fileId).catch(() => {})
+  void releaseAgentAttachment(attachment)
 }
 
 async function addAgentAttachmentPaths(
@@ -8574,7 +8606,7 @@ function setupIpc(): void {
     for (const [id, item] of agentDraftAttachments) {
       if (!item.needsModelUpload) continue
       agentDraftAttachments.delete(id)
-      void releaseAgentAttachment(item)
+      releaseAgentDraft(item)
       removed.push(id)
     }
     if (removed.length) {
@@ -8589,6 +8621,26 @@ function setupIpc(): void {
       throw new Error('仅智能体窗口可以取消附件解析。')
     agentAttachmentController?.abort()
   })
+  handle(channels.agentAttachmentRetry, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以重试上传附件。')
+    const id = z.string().uuid().parse(payload)
+    const item = agentDraftAttachments.get(id)
+    if (!item) throw new Error('附件记录不存在。')
+    delete item.uploadError
+    broadcast()
+    try {
+      await uploadAgentDraft(item)
+      broadcast()
+      return agentAttachmentPick(item)
+    } catch (error) {
+      item.uploadError =
+        error instanceof Error ? error.message : '上传失败。'
+      broadcast()
+      throw error
+    }
+  })
   handle(channels.agentAttachmentRemove, 'either', (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
@@ -8597,7 +8649,7 @@ function setupIpc(): void {
     const item = agentDraftAttachments.get(id)
     agentDraftAttachments.delete(id)
     if (item) {
-      void releaseAgentAttachment(item)
+      releaseAgentDraft(item)
       broadcast()
     }
   })
