@@ -3819,127 +3819,12 @@
       "license": "MIT"
     },
     {
-      "id": "builtin-seo-seo",
-      "dir": "seo/seo",
-      "category": "内容创作",
-      "defaultEnabled": true,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-agentic",
-      "dir": "seo/seo-agentic",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-agentic",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-audit",
-      "dir": "seo/seo-audit",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-audit",
-      "license": "MIT",
-      "requires": "claude-seo CLI"
-    },
-    {
-      "id": "builtin-seo-seo-backlinks",
-      "dir": "seo/seo-backlinks",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-backlinks",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-bing",
-      "dir": "seo/seo-bing",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-bing",
-      "license": "MIT",
-      "requires": "需要配置 BING_WEBMASTER_API_KEY、INDEXNOW_KEY"
-    },
-    {
-      "id": "builtin-seo-seo-cluster",
-      "dir": "seo/seo-cluster",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-cluster",
-      "license": "MIT"
-    },
-    {
       "id": "builtin-seo-seo-competitor-pages",
       "dir": "seo/seo-competitor-pages",
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-competitor-pages",
       "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-content",
-      "dir": "seo/seo-content",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-content",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-content-brief",
-      "dir": "seo/seo-content-brief",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-content-brief",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-dataforseo",
-      "dir": "seo/seo-dataforseo",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-dataforseo",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-drift",
-      "dir": "seo/seo-drift",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-drift",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-ecommerce",
-      "dir": "seo/seo-ecommerce",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-ecommerce",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-flow",
-      "dir": "seo/seo-flow",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-flow",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-geo",
-      "dir": "seo/seo-geo",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-geo",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-google",
-      "dir": "seo/seo-google",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-google",
-      "license": "MIT",
-      "requires": "需要配置 GOOGLE_API_KEY"
     },
     {
       "id": "builtin-seo-seo-hreflang",
@@ -3950,107 +3835,11 @@
       "license": "MIT"
     },
     {
-      "id": "builtin-seo-seo-image-gen",
-      "dir": "seo/seo-image-gen",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-image-gen",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-images",
-      "dir": "seo/seo-images",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-images",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-local",
-      "dir": "seo/seo-local",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-local",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-maps",
-      "dir": "seo/seo-maps",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-maps",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-page",
-      "dir": "seo/seo-page",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-page",
-      "license": "MIT"
-    },
-    {
       "id": "builtin-seo-seo-plan",
       "dir": "seo/seo-plan",
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-plan",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-posthog",
-      "dir": "seo/seo-posthog",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-posthog",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-programmatic",
-      "dir": "seo/seo-programmatic",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-programmatic",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-schema",
-      "dir": "seo/seo-schema",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-schema",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-shopify",
-      "dir": "seo/seo-shopify",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-shopify",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-sitemap",
-      "dir": "seo/seo-sitemap",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-sitemap",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-sxo",
-      "dir": "seo/seo-sxo",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-sxo",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-seo-seo-technical",
-      "dir": "seo/seo-technical",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-technical",
       "license": "MIT"
     },
     {

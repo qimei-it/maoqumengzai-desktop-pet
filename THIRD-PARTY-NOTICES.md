@@ -84,7 +84,7 @@ FFmpeg 使用 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9
 | anthropics/commerce-agents | Apache-2.0 | 16 | 商家与购物智能体参考技能 |
 | feichanggege/ecommerce-visual-copywriting-skill | MIT | 1 | 电商视觉文案与分镜 |
 | coreyhaines31/marketingskills | MIT | 51 | 营销、广告、内容与增长 |
-| AgriciDaniel/claude-seo | MIT | 29 | SEO 审计、内容与技术优化 |
+| AgriciDaniel/claude-seo | MIT | 3 | 仅保留不依赖插件 CLI 的技能 |
 | nexscope-ai/eCommerce-Skills | MIT | 161 | 多平台电商运营 |
 | aronhy/tiktok-agent-skills | MIT | 6 | TikTok 账号、广告与店铺运营 |
 | Longxiaohao/AIvideo | MIT | 2 | 视频提示词与电商视频工作流 |

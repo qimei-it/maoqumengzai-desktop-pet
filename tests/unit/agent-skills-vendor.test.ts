@@ -15,7 +15,7 @@ describe('vendored research skills', () => {
       builtinRoot,
     )
     const list = store.list()
-    expect(list.length).toBe(709)
+    expect(list.length).toBe(683)
     expect(new Set(list.map((item) => item.name)).size).toBe(list.length)
     expect(list.some((item) => item.requires)).toBe(true)
     expect(new Set(list.map((item) => item.id)).size).toBe(list.length)
@@ -33,7 +33,7 @@ describe('vendored research skills', () => {
       expect(skill.name.trim().length).toBeGreaterThan(0)
     }
     const enabled = list.filter((item) => item.enabled)
-    expect(enabled.length).toBe(36)
+    expect(enabled.length).toBe(35)
     expect(enabled.map((item) => item.name)).toEqual(
       expect.arrayContaining([
         'research-lookup',
@@ -50,7 +50,6 @@ describe('vendored research skills', () => {
         'baoyu-format-markdown',
         'ecommerce-visual-copywriting',
         'copywriting',
-        'seo',
         'marketing-campaigns',
         'ecommerce-business-plan',
         'tiktok-shop-operator',

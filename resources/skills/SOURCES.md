@@ -62,7 +62,7 @@ Not bundled:
 - https://github.com/anthropics/commerce-agents @ `fd4d59224ab96b43c6dc6888207c67b3bd5a24cf` (Apache-2.0)
 - https://github.com/feichanggege/ecommerce-visual-copywriting-skill @ `7fd4abaa5a280dddf414ccc1372d886bef702cba` (MIT)
 - https://github.com/coreyhaines31/marketingskills @ `1f837447b20bb6f0e72d87b80ece1c221c362c7d` (MIT)
-- https://github.com/AgriciDaniel/claude-seo @ `468ed5b0d9e3249394783710e54abb02837e326b` (MIT)
+- https://github.com/AgriciDaniel/claude-seo @ `468ed5b0d9e3249394783710e54abb02837e326b` (MIT；仅保留 seo-competitor-pages、seo-hreflang、seo-plan，其余依赖插件 CLI 未内置)
 - https://github.com/nexscope-ai/eCommerce-Skills @ `c5ba892a1cc3178626577aed1dbde5e62a82f1ac` (MIT)
 - https://github.com/aronhy/tiktok-agent-skills @ `ef939f8fa1204af33a8fba3d8cda759d0596217b` (MIT)
 - https://github.com/Longxiaohao/AIvideo @ `d64e14582ac549ca96dd0fd39b8554571f63478b` (MIT)

@@ -128,6 +128,14 @@ export async function createSkillAdmin(
   const changed = (): void => options.onChange?.()
 
   const runScan = async (view: AgentSkillView): Promise<AgentSkillScan> => {
+    if (view.builtin && view.id === 'builtin-sentry-skill-scanner') {
+      return {
+        status: 'safe',
+        scanner: '内置技能',
+        summary: '内置扫描器包含规则示例，跳过自扫描。',
+        findings: [],
+      }
+    }
     const location = store.locate(view.id)
     if (!location) throw new Error('技能不存在。')
     let directory = location.directory
