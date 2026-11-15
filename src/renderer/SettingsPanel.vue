@@ -213,6 +213,15 @@ watch(minimaxKey, (value) => {
   if (editingMiniMaxKey.value && value.trim() !== minimaxVerifiedKey.value)
     minimaxModelsOpen.value = false
 })
+watch(minimaxModelsVisible, (visible) => {
+  if (
+    visible &&
+    !minimaxModelCatalog.includes(
+      minimaxModelPreview.value as (typeof minimaxModelCatalog)[number],
+    )
+  )
+    minimaxModelPreview.value = minimaxModelCatalog[0]
+})
 function toggleModels(): void {
   if (modelsOpen.value) {
     modelsOpen.value = false
