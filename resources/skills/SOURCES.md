@@ -77,3 +77,10 @@ Not bundled:
 - `finsilabs/awesome-ecommerce-skills`, `xjli360/sealeap-amazon-skills`: large low-star collections, not bundled in this pass.
 - `nexscope-ai/Amazon-Skills`: overlaps the bundled eCommerce-Skills collection.
 - `dlazy-ai/ecommerce-skills`: removed earlier because most skills require the dlazy CLI.
+
+## Advertising and GEO skills from the Codex article (2026-11-15)
+
+- https://github.com/AgriciDaniel/claude-ads @ `fc3908e786c318776df89a3a098333da377364be` (MIT, 34 skills)
+- https://github.com/aaron-he-zhu/aaron-marketing-skills @ `7198d6794d449eccd91b759366157bf47d320367` (Apache-2.0, 16 SEO/GEO skills)
+
+The article also recommends ClawHub/Playbooks-only skills; those pages do not expose source repositories or licenses, so they are not vendored. Several concepts are already covered by marketingskills, claude-seo, nexscope, aronhy TikTok and the bundled humanizer.

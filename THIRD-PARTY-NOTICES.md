@@ -90,8 +90,10 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | aronhy/tiktok-agent-skills | MIT | 6 | TikTok 账号、广告与店铺运营 |
 | Longxiaohao/AIvideo | MIT | 2 | 视频提示词与电商视频工作流 |
 | topviewai/codex-topview-ai | MIT | 4 | 视频脚本、内容采集与发布 |
+| AgriciDaniel/claude-ads | MIT | 34 | 跨平台付费广告审计与优化 |
+| aaron-he-zhu/aaron-marketing-skills | Apache-2.0 | 16 | SEO/GEO 内容与技术优化 |
 
-Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。borghei/Claude-Skills 使用 Commons Clause；remotion-dev/skills、vivy-yi/xiaohongshu-skills、Shopify/agent-skills、liangdabiao/ecom-details-image 未找到许可证；noique/cross-border-ecommerce-skills 为 CC BY-NC；woocommerce/agent-skills 为 GPL-2.0；hypit-ai/hypit 为带商业分发限制的修改版 Apache，均未内置。
+Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。borghei/Claude-Skills 使用 Commons Clause；remotion-dev/skills、vivy-yi/xiaohongshu-skills、Shopify/agent-skills、liangdabiao/ecom-details-image 未找到许可证；noique/cross-border-ecommerce-skills 为 CC BY-NC；woocommerce/agent-skills 为 GPL-2.0；hypit-ai/hypit 为带商业分发限制的修改版 Apache，均未内置。文章中的 ClawHub/Playbooks 条目未公开源码仓库与许可证，未直接内置。
 
 ## Artwork
 

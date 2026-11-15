@@ -5312,6 +5312,406 @@
       "defaultEnabled": true,
       "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/video-script-writer",
       "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-amazon",
+      "dir": "ads/ads-amazon",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-amazon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-apple",
+      "dir": "ads/ads-apple",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-apple",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-attribution",
+      "dir": "ads/ads-attribution",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-attribution",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-audit",
+      "dir": "ads/ads-audit",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-audit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-budget",
+      "dir": "ads/ads-budget",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-budget",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-competitor",
+      "dir": "ads/ads-competitor",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-competitor",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-create",
+      "dir": "ads/ads-create",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-create",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-creative",
+      "dir": "ads/ads-creative",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-creative",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-dna",
+      "dir": "ads/ads-dna",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-dna",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-generate",
+      "dir": "ads/ads-generate",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-generate",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-google",
+      "dir": "ads/ads-google",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-google",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-landing",
+      "dir": "ads/ads-landing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-landing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-launch",
+      "dir": "ads/ads-launch",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-launch",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-linkedin",
+      "dir": "ads/ads-linkedin",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-linkedin",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-math",
+      "dir": "ads/ads-math",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-math",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-meta",
+      "dir": "ads/ads-meta",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-meta",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-microsoft",
+      "dir": "ads/ads-microsoft",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-microsoft",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-monitor",
+      "dir": "ads/ads-monitor",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-monitor",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-optimize",
+      "dir": "ads/ads-optimize",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-optimize",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-photoshoot",
+      "dir": "ads/ads-photoshoot",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-photoshoot",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-pinterest",
+      "dir": "ads/ads-pinterest",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-pinterest",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-plan",
+      "dir": "ads/ads-plan",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-reddit",
+      "dir": "ads/ads-reddit",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-reddit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-report",
+      "dir": "ads/ads-report",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-report",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-research",
+      "dir": "ads/ads-research",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-server-side-tracking",
+      "dir": "ads/ads-server-side-tracking",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-server-side-tracking",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-setup",
+      "dir": "ads/ads-setup",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-setup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-snapchat",
+      "dir": "ads/ads-snapchat",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-snapchat",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-test",
+      "dir": "ads/ads-test",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-test",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-tiktok",
+      "dir": "ads/ads-tiktok",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-tiktok",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-validate",
+      "dir": "ads/ads-validate",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-validate",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-x",
+      "dir": "ads/ads-x",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-x",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads-youtube",
+      "dir": "ads/ads-youtube",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-youtube",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ads-ads",
+      "dir": "ads/ads",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-evaluate-domain-authority-auditor",
+      "dir": "seogeo/seo-geo-evaluate-domain-authority-auditor",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/evaluate/domain-authority-auditor",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-evaluate-offsite-signal-analyzer",
+      "dir": "seogeo/seo-geo-evaluate-offsite-signal-analyzer",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/evaluate/offsite-signal-analyzer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-evaluate-performance-monitor",
+      "dir": "seogeo/seo-geo-evaluate-performance-monitor",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/evaluate/performance-monitor",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-evaluate-rank-tracker",
+      "dir": "seogeo/seo-geo-evaluate-rank-tracker",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/evaluate/rank-tracker",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-implement-content-writer",
+      "dir": "seogeo/seo-geo-implement-content-writer",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/content-writer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-implement-geo-content-optimizer",
+      "dir": "seogeo/seo-geo-implement-geo-content-optimizer",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/geo-content-optimizer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-implement-page-play-builder",
+      "dir": "seogeo/seo-geo-implement-page-play-builder",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/page-play-builder",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-implement-serp-markup-builder",
+      "dir": "seogeo/seo-geo-implement-serp-markup-builder",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/serp-markup-builder",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-survey-competitor-analysis",
+      "dir": "seogeo/seo-geo-survey-competitor-analysis",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/survey/competitor-analysis",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-survey-content-gap-analysis",
+      "dir": "seogeo/seo-geo-survey-content-gap-analysis",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/survey/content-gap-analysis",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-survey-keyword-research",
+      "dir": "seogeo/seo-geo-survey-keyword-research",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/survey/keyword-research",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-survey-serp-analysis",
+      "dir": "seogeo/seo-geo-survey-serp-analysis",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/survey/serp-analysis",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-tune-content-quality-auditor",
+      "dir": "seogeo/seo-geo-tune-content-quality-auditor",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/content-quality-auditor",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-tune-on-page-seo-checker",
+      "dir": "seogeo/seo-geo-tune-on-page-seo-checker",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/on-page-seo-checker",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-tune-site-structure-optimizer",
+      "dir": "seogeo/seo-geo-tune-site-structure-optimizer",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/site-structure-optimizer",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-seogeo-seo-geo-tune-technical-seo-checker",
+      "dir": "seogeo/seo-geo-tune-technical-seo-checker",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/technical-seo-checker",
+      "license": "Apache-2.0"
     }
   ]
 }
