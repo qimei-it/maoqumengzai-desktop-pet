@@ -29,7 +29,7 @@ export type FfmpegEngineState = {
   downloadBytes: number
   installedBytes: number
   source: string
-  origin: 'none' | 'download' | 'local'
+  origin: 'none' | 'download' | 'local' | 'bundled'
 }
 
 const version = '9.0.2'

@@ -41,20 +41,19 @@
 | 7zip-bin（7-Zip 二进制） | MIT 包；7-Zip 本体 LGPL + unRAR 限制 | https://github.com/develar/7zip-bin |
 | node-unrar-js | MIT；unRAR 源码许可 | https://github.com/YuJianrong/node-unrar.js |
 | MediaRemoteMini（macOS 正在播放读取） | BSD-3-Clause | https://github.com/kirtan-shah/nowplaying-cli |
-| FFmpeg（可选下载） | 见下方说明 | https://ffmpeg.org/ |
+| FFmpeg（随包内置） | 见下方说明 | https://ffmpeg.org/ |
 
 Lucide 许可原文：`resources/licenses/lucide-ISC.txt`。opencc-js 许可原文：`resources/licenses/opencc-js-MIT.txt`。sharp 许可原文：`resources/licenses/sharp-Apache-2.0.txt`。pdf-lib 许可原文：`resources/licenses/pdf-lib-MIT.md`。fflate 许可原文：`resources/licenses/fflate-MIT.txt`。pdf-to-img 许可原文：`resources/licenses/pdf-to-img-MIT.txt`；PDF.js 许可原文：`resources/licenses/pdfjs-Apache-2.0.txt`；@napi-rs/canvas 许可原文：`resources/licenses/napi-rs-canvas-MIT.txt`；bmp-js 许可原文：`resources/licenses/bmp-js-MIT.txt`；marked 许可原文：`resources/licenses/marked-MIT.md`；imapflow 许可原文：`resources/licenses/imapflow-MIT.txt`；mailparser 许可原文：`resources/licenses/mailparser-MIT.txt`；sanitize-html 许可原文：`resources/licenses/sanitize-html-MIT.txt`；heic-decode 许可原文：`resources/licenses/heic-decode-ISC.txt`；libheif-js 许可原文：`resources/licenses/libheif-js-LGPL-3.0.txt`。easyofd 许可原文：`resources/licenses/easyofd-Apache-2.0.txt`；7zip-min 许可原文：`resources/licenses/7zip-min-MIT.txt`；7zip-bin 许可原文：`resources/licenses/7zip-bin-LICENSE.txt`；node-unrar-js 许可原文：`resources/licenses/node-unrar-js-MIT.md`；MediaRemoteMini 许可原文：`resources/licenses/mediaremote-mini-BSD-3-Clause.txt`。easyofd 随附的 JSZip、X2JS、opentype.js 与 JB2 组件按各自上游许可使用。libvips 为动态链接的预编译运行时，许可与组件清单见 `@img/sharp-libvips-*` 包内 README。
 
 ## 可选本地引擎
 
-可选引擎不随安装包分发，由用户在设置中选择本机安装或手动下载；应用只保存路径或应用数据目录内的引擎文件，卸载时清除对应选择与临时文件，不删除系统安装。qpdf 作为内置引擎随安装包分发，源码与许可见 `resources/engines/qpdf/SOURCE.txt`。
+可选引擎不随安装包分发，由用户在设置中选择本机安装；应用只保存路径，卸载时清除对应选择，不删除系统安装。qpdf 与 FFmpeg 作为内置引擎随安装包分发，源码与许可见 `resources/engines/qpdf/SOURCE.txt`、`resources/engines/ffmpeg/SOURCE.txt`。
 
 | 组件 | 许可 | 来源 | 说明 |
 | --- | --- | --- | --- |
 | LibreOffice | MPL-2.0 | https://www.libreoffice.org/ | 用户选择本地 `soffice`；许可证原文：`resources/licenses/libreoffice-MPL-2.0.txt` |
-| FFmpeg | LGPL-3.0 | https://ffmpeg.org/ | AgentDVR LGPL v3 构建（FFmpeg 9.0.2）；许可证与源码说明：`resources/licenses/ffmpeg-LGPL-3.0.txt`、`resources/licenses/ffmpeg-SOURCE.txt` |
 
-FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64、Windows x64），安装前校验固定 SHA-256。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录安装，保持可替换性。上游源码与构建来源见 `resources/licenses/ffmpeg-SOURCE.txt`。
+FFmpeg 使用 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构建（FFmpeg 9.0.2，macOS arm64、Windows x64），随安装包分发，下载安装包时不需要再校验或下载引擎。该构建未启用 GPL、nonfree 或 libx264；macOS/Windows 使用系统硬件编码器，macOS 以动态库方式随引擎目录运行，保持可替换性。上游源码与构建来源见 `resources/engines/ffmpeg/SOURCE.txt`。
 
 ## Bundled skills
 
@@ -73,7 +72,7 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | zhenyangze/tiktok-skills | MIT（README 声明，无 LICENSE 文件） | 17 | TikTok 运营 |
 | liangdabiao/Amazon-Skills-Liang | MIT | 1 | amazon-listing-optimization |
 | coral870921-source/Ozon-Profit-Skills | MIT | 2 | Ozon Listing 与利润账本 |
-| liangdabiao/amazon-sorftime-research-MCP-skill | MIT（README 声明，无 LICENSE 文件） | 9 | Amazon 选品与关键词研究，依赖外部 MCP/Key |
+| liangdabiao/amazon-sorftime-research-MCP-skill | MIT（README 声明，无 LICENSE 文件） | 8 | Amazon 选品与关键词研究，依赖外部 MCP/Key |
 | gabberflast/academic-pptx-skill | MIT | 1 | 学术 PPT 制作 |
 | MiniMax-AI/skills | MIT | 17 | 开发、文档、音乐与多模态；部分依赖 MiniMax API |
 | nextlevelbuilder/ui-ux-pro-max-skill | MIT | 7 | UI/UX、设计系统、品牌与幻灯片 |
@@ -81,12 +80,12 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | heygen-com/hyperframes | Apache-2.0 | 9 | HTML 视频制作与渲染 |
 | jimliu/baoyu-skills | MIT | 21 | 内容创作、图片、Markdown 与发布 |
 | XBuilderLAB/cheat-on-content | MIT | 15 | 内容评分、预测与发布 |
-| garrytan/gstack | MIT | 67 | 工程、设计、QA 与发布工作流；仅内置 SKILL.md |
+| garrytan/gstack | MIT | 66 | 工程、设计、QA 与发布工作流；仅内置 SKILL.md |
 | anthropics/commerce-agents | Apache-2.0 | 16 | 商家与购物智能体参考技能 |
 | feichanggege/ecommerce-visual-copywriting-skill | MIT | 1 | 电商视觉文案与分镜 |
-| coreyhaines31/marketingskills | MIT | 53 | 营销、广告、内容与增长 |
+| coreyhaines31/marketingskills | MIT | 51 | 营销、广告、内容与增长 |
 | AgriciDaniel/claude-seo | MIT | 29 | SEO 审计、内容与技术优化 |
-| nexscope-ai/eCommerce-Skills | MIT | 162 | 多平台电商运营 |
+| nexscope-ai/eCommerce-Skills | MIT | 161 | 多平台电商运营 |
 | aronhy/tiktok-agent-skills | MIT | 6 | TikTok 账号、广告与店铺运营 |
 | Longxiaohao/AIvideo | MIT | 2 | 视频提示词与电商视频工作流 |
 | topviewai/codex-topview-ai | MIT | 4 | 视频脚本、内容采集与发布 |

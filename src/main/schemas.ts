@@ -470,7 +470,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('engine-install'),
-      id: z.literal('ffmpeg'),
+      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
     })
     .strict(),
   z
@@ -483,6 +483,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('engine-recheck'),
       id: z.literal('ffmpeg'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('engine-detect'),
+      id: z.union([z.literal('ffmpeg'), z.literal('libreoffice')]),
     })
     .strict(),
   z

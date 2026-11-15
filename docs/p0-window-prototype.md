@@ -109,7 +109,7 @@ Electron 下载器最初出现 `TypeError: fetch failed`，代理重试停滞；
 | 面板窗口控件 | macOS 使用 AppKit 原生交通灯（14,17 位置）、标题居中、固定尺寸面板绿色按钮系统置灰；Windows 右侧最小化/最大化/关闭；面板可拖动 | macOS 真机截图与属性断言通过；Windows 实机待验证 |
 | 应用图标 | 用户提供布偶猫主图；macOS Dock 与 Windows 任务栏使用同一主图按平台留白生成 icns/ico；开发模式 Dock 图标在切换 regular 后重新设置，已真机截图确认 | 通过；Windows 实机待验证 |
 | 文件类型图标 | 置物架、转换面板、智能问答按 TXT/PDF/图片/视频/Markdown/其他文档显示彩色图标；主题切换仍通过 | 通过；图标为本地 SVG 原件 |
-| 转换引擎管理 | 设置页显示内置引擎真实自检状态（可用/组件损坏）与来源、版本、许可；FFmpeg 支持安装、取消、重新检查、卸载和本地选择；LibreOffice 支持本地选择与卸载清理；qpdf 12.4.2 随包内置并参与启动自检；打包应用断网完成内置图片转换，FFmpeg 下载提示检查网络 | 通过（macOS arm64）；Windows x64 按用户要求暂缓 |
+| 转换引擎管理 | 设置页显示内置引擎真实自检状态（可用/组件损坏）与来源、版本、许可；FFmpeg 9.0.2 LGPL v3 随包内置，归入内置引擎并参与启动自检；LibreOffice 保留可选本地选择与卸载清理；qpdf 12.4.2 同样随包内置；打包应用断网完成内置图片转换 | 通过（macOS arm64）；Windows x64 按用户要求暂缓 |
 | 图片、PDF、Office、OFD 与音视频转换 | 真机完成 PNG → WEBP、批量 JPG+PNG → `convert_output/`、重复转换 `名字 (2)`；PNG → PDF、两个 PDF 合并（可调整顺序）与单页拆分、PDF → PNG/JPG/TXT；内置 qpdf 完成加密、错误密码与解除密码；HEIC/BMP/TIFF/GIF、CSV/TXT/MD/HTML、OFD、7Z/RAR、FLV → MP4/OGG；LibreOffice 完成 DOCX → PDF、DOC → DOCX 与复杂 XLSX → PDF（中文正常）；安装 LGPL FFmpeg 9.0.2 后完成 MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频；打包后的 .app 完成 OFD/7Z/RAR | 通过（macOS arm64）；Windows x64 按用户要求暂缓 |
 | 智能问答 | 拖入文件到第六扇区打开 400×520 面板；未配置 Key 时显示连接页，保存 Key 后本机加密存储、重启仍为已配置；本地 mock 验证请求体、401/402/5xx 错误映射；真实接口用无效 Key 返回 401 并在界面显示 | 部分通过；有效 Key 的真实问答待用户配置 |
 | 繁简转换 | 真机播放《黄昏》，歌词卡显示“过完整个夏天”；切到《紅蓮華》后保留“強くなれる理由を知った 僕を連れて進め”及原文汉字；时间戳与缓存键不变 | 通过；Apple Music 真机 |

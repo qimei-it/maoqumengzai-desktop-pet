@@ -1,10 +1,29 @@
-/** Extraction and runtime environment for the downloaded LGPL FFmpeg bundle. */
+/** Extraction and runtime environment for the bundled/downloaded LGPL FFmpeg. */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
+import { app } from 'electron'
 import { strFromU8, unzipSync } from 'fflate'
 import type { FfmpegBuild } from '../shared/ffmpeg'
+
+const platformKey = `${process.platform}-${process.arch}`
+
+/** FFmpeg shipped inside the app package, kept beside qpdf in Resources. */
+export function bundledFfmpegRoot(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'engines', 'ffmpeg', platformKey)
+    : join(app.getAppPath(), 'resources', 'engines', 'ffmpeg', platformKey)
+}
+
+export function bundledFfmpegPath(): string | null {
+  const root = bundledFfmpegRoot()
+  const binary =
+    process.platform === 'win32'
+      ? join(root, 'ffmpeg.exe')
+      : join(root, 'bin', 'ffmpeg')
+  return existsSync(binary) ? binary : null
+}
 
 function keepEntry(name: string, platform: string): boolean {
   if (name.endsWith('/')) return false

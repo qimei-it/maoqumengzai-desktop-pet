@@ -129,7 +129,7 @@ Windows x64、macOS arm64 各自构建独立安装包，使用 electron-builder 
 
 每个引擎制品必须有清单：ID、版本、来源、适用系统/架构、支持的转换方向、SHA-256、入口、附带运行时/资源、许可/源码材料、签名状态、压缩与安装后体积。校验失败、错架构或组件缺失时显示具体错误，不在后台偷偷下载修复。
 
-FFmpeg 的直连下载源是 GitHub Release；在大陆网络直连失败时，安装器依次尝试 `gh-proxy.com`、`ghproxy.net`、`ghfast.top` 三个公共 GitHub 代理，它们只转发同一制品，安装前仍以清单中的 SHA-256 校验。兰州大学 Jellyfin 镜像只有 GPL 构建，且 macOS 制品为未公证的便携包，不能替代当前 LGPL v3 制品。
+FFmpeg 作为内置引擎随安装包分发：macOS arm64 与 Windows x64 分别把 LGPL v3 9.0.2 制品放入 `extraResources/engines/ffmpeg`，安装后直接从只读资源目录运行，不依赖首次下载。历史在线安装器保留为开发环境或随包制品缺失时的兼容回退；直连 GitHub Release 失败时仍依次尝试 `gh-proxy.com`、`ghproxy.net`、`ghfast.top`，安装前以清单中的 SHA-256 校验。兰州大学 Jellyfin 镜像只有 GPL 构建，且 macOS 制品为未公证的便携包，不能替代当前 LGPL v3 制品。
 
 以下只核实候选的许可起点，**尚未取得和验证三平台制品，也未固定最终引擎组合**：
 

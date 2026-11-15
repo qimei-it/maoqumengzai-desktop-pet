@@ -1,0 +1,16 @@
+FFmpeg 9.0.2 - LGPL v3 build, bundled with the application
+
+Build source:
+https://github.com/ispysoftware/agentdvr-ffmpeg-build (tag v9.0.2)
+https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+
+Upstream source is available from https://ffmpeg.org/releases/.
+
+Bundled artifacts:
+- darwin-arm64: ffmpeg9.0.2-lgpl-macos-arm64-notarized.zip
+  SHA-256 9d38382b7ae47e7cc22ce6a4f09d020c8c9c65aaa20f25608b9b5c4d4fab3ac1
+- win32-x64: ffmpeg9.0.2-lgpl-windows-x64.zip
+  SHA-256 68dbe655beb35f3453bae31d3c7d0985e7ce62cb7414cdc88cb263df0829d1a5
+
+The build uses --enable-version3 and does not enable GPL or nonfree components.
+License texts are included in each platform directory.

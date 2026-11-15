@@ -67,6 +67,15 @@ export const builtinEngines: readonly BuiltinEngine[] = [
     source: '随应用分发',
   },
   {
+    id: 'ffmpeg',
+    name: 'FFmpeg',
+    version: '9.0.2',
+    role: '音视频转换',
+    formats: 'MP4、MOV、MKV、WebM、GIF、WebP、MP3、WAV、M4A、FLAC',
+    license: 'LGPL-3.0',
+    source: '随包内置 · AgentDVR FFmpeg 9.0.2',
+  },
+  {
     id: 'easyofd',
     name: 'EasyOFD',
     version: '1.2.1',
@@ -118,18 +127,6 @@ export const builtinEngines: readonly BuiltinEngine[] = [
 ]
 
 export const optionalEngines: readonly OptionalEngine[] = [
-  {
-    id: 'ffmpeg',
-    name: 'FFmpeg',
-    role: '音视频转换',
-    description: '转换视频与音频格式，把视频转成 GIF，或从视频中提取音轨。',
-    formats: 'MP4、MOV、MKV、WebM、GIF、WebP、MP3、WAV、M4A、FLAC',
-    license: 'LGPL-3.0',
-    source: 'AgentDVR FFmpeg 9.0.2 · LGPL v3',
-    distribution: 'download',
-    platforms: ['darwin-arm64', 'win32-x64'],
-    managed: true,
-  },
   {
     id: 'libreoffice',
     name: 'LibreOffice',

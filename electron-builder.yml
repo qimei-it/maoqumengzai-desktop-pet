@@ -45,6 +45,8 @@ extraResources:
     to: engines/qpdf/LICENSE.txt
   - from: resources/engines/qpdf/SOURCE.txt
     to: engines/qpdf/SOURCE.txt
+  - from: resources/engines/ffmpeg/SOURCE.txt
+    to: engines/ffmpeg/SOURCE.txt
 mac:
   icon: build/icon.icns
   extendInfo:
@@ -52,6 +54,8 @@ mac:
   extraResources:
     - from: resources/engines/qpdf/darwin-arm64
       to: engines/qpdf/darwin-arm64
+    - from: resources/engines/ffmpeg/darwin-arm64
+      to: engines/ffmpeg/darwin-arm64
   target:
     - target: dmg
       arch: [arm64]
@@ -61,6 +65,8 @@ win:
   extraResources:
     - from: resources/engines/qpdf/win32-x64
       to: engines/qpdf/win32-x64
+    - from: resources/engines/ffmpeg/win32-x64
+      to: engines/ffmpeg/win32-x64
   target:
     - target: nsis
       arch: [x64]

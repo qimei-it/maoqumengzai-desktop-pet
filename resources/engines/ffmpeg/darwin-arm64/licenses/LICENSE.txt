@@ -1,0 +1,16 @@
+FFmpeg 9.0.2 — lgpl variant — target macos-arm64
+Built for Agent DVR by iSpy Connect.
+
+Licence of this binary distribution: GNU Lesser General Public License v3 (see COPYING.LGPLv3)
+Software H264 encoding is not bundled on macOS — VideoToolbox is used.
+No GPL components are included in this build.
+
+Corresponding source code and the complete build scripts for these exact
+binaries are available at:
+  https://github.com/ispysoftware/agentdvr-ffmpeg-build
+FFmpeg source: https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+
+Bundled third-party components: zlib, bzip2, xz/liblzma, OpenSSL 3 (Apache 2.0),
+libogg, libvorbis, opus, libmp3lame (LGPL), libvpx (BSD), dav1d (BSD),
+VideoToolbox/AudioToolbox (Apple system frameworks). Full licence texts
+accompany this file.

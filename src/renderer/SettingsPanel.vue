@@ -157,6 +157,12 @@ function useLocalFfmpeg(): void {
 function useLocalLibreOffice(): void {
   emit('command', { type: 'engine-use-local', id: 'libreoffice' })
 }
+function installLibreOffice(): void {
+  emit('command', { type: 'engine-install', id: 'libreoffice' })
+}
+function detectLibreOffice(): void {
+  emit('command', { type: 'engine-detect', id: 'libreoffice' })
+}
 function removeEngine(id: 'ffmpeg' | 'libreoffice'): void {
   emit('command', { type: 'engine-remove', id })
 }
@@ -787,6 +793,22 @@ function onEscape(): void {
                   </template>
                   <template v-else-if="engine.id === 'libreoffice'">
                     <button
+                      v-if="!libreOfficeReady"
+                      type="button"
+                      class="settings-button primary"
+                      @click="installLibreOffice"
+                    >
+                      安装
+                    </button>
+                    <button
+                      v-else
+                      type="button"
+                      class="settings-button danger"
+                      @click="removeEngine('libreoffice')"
+                    >
+                      卸载
+                    </button>
+                    <button
                       type="button"
                       class="settings-button"
                       @click="useLocalLibreOffice"
@@ -794,13 +816,11 @@ function onEscape(): void {
                       使用本地程序…
                     </button>
                     <button
-                      v-if="libreOfficeReady"
                       type="button"
-                      class="settings-button danger"
-                      title="清除应用内选择，不删除系统程序"
-                      @click="removeEngine('libreoffice')"
+                      class="settings-button"
+                      @click="detectLibreOffice"
                     >
-                      卸载
+                      自动检测
                     </button>
                   </template>
 

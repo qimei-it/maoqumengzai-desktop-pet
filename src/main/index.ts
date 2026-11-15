@@ -36,8 +36,8 @@ import {
 } from 'node:fs/promises'
 import { existsSync, mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
-import { tmpdir } from 'node:os'
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -294,6 +294,7 @@ import {
 } from '../shared/settings'
 import { createArchive, extractArchive } from './archive-zip'
 import {
+  bundledFfmpegPath,
   extractFfmpegBundle,
   smokeTestFfmpeg,
 } from './ffmpeg-bundle'
@@ -398,7 +399,7 @@ const ffmpegRelease = ffmpegBuild(process.platform, process.arch)
 const engineRoot = join(dataRoot, 'engines')
 let enginePrefs: EnginePrefs = { version: 1, localPaths: {} }
 let ffmpegInstalled = false
-let ffmpegOrigin: 'none' | 'download' | 'local' = 'none'
+let ffmpegOrigin: 'none' | 'download' | 'local' | 'bundled' = 'none'
 let libreOfficeReady = false
 let libreOfficeVersion: string | undefined
 let libreOfficeError: string | undefined
@@ -3276,6 +3277,41 @@ async function chooseLocalFfmpeg(): Promise<void> {
   broadcast()
   showToast('已使用本地 FFmpeg')
 }
+
+async function detectLocalFfmpeg(): Promise<void> {
+  const candidates = new Set<string>()
+  if (process.platform === 'darwin') {
+    candidates.add('/opt/homebrew/bin/ffmpeg')
+    candidates.add('/usr/local/bin/ffmpeg')
+    candidates.add('/usr/bin/ffmpeg')
+  }
+  for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+    if (!directory) continue
+    candidates.add(
+      join(directory, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'),
+    )
+  }
+  for (const path of candidates) {
+    try {
+      const info = await stat(path)
+      if (!info.isFile() || info.size === 0) continue
+      await validateExecutable(path)
+      enginePrefs = {
+        ...enginePrefs,
+        localPaths: { ...enginePrefs.localPaths, ffmpeg: path },
+      }
+      await saveEnginePrefs(enginePrefsPath, enginePrefs)
+      ffmpegError = undefined
+      await refreshFfmpegState()
+      broadcast()
+      showToast('已检测到 FFmpeg')
+      return
+    } catch {
+      /* try the next standard location */
+    }
+  }
+  showToast('未检测到 FFmpeg，请使用本地程序选择')
+}
 function ffmpegBundleRoot(): string | null {
   if (!ffmpegRelease) return null
   return join(engineRoot, 'ffmpeg', ffmpegRelease.version)
@@ -3296,7 +3332,12 @@ function ffmpegState() {
       status: 'installed' as const,
       progress: 100,
       origin: ffmpegOrigin,
-      source: ffmpegOrigin === 'local' ? '本地程序' : base.source,
+      source:
+        ffmpegOrigin === 'local'
+          ? '本地程序'
+          : ffmpegOrigin === 'bundled'
+            ? '随包内置 · AgentDVR FFmpeg 9.0.2'
+            : base.source,
     }
   }
   if (ffmpegError)
@@ -3314,8 +3355,13 @@ async function refreshFfmpegState(): Promise<void> {
         return
       }
     } catch {
-      /* fall back to the downloaded copy */
+      /* fall back to the bundled copy */
     }
+  }
+  if (bundledFfmpegPath()) {
+    ffmpegInstalled = true
+    ffmpegOrigin = 'bundled'
+    return
   }
   const target = ffmpegTargetPath()
   if (!target) {
@@ -3417,6 +3463,136 @@ async function chooseLocalLibreOffice(): Promise<void> {
   await refreshLibreOfficeState()
   broadcast()
   showToast('已使用本地 LibreOffice')
+}
+
+/** Search standard install locations; never scans the whole disk. */
+async function libreOfficeCandidates(): Promise<string[]> {
+  const candidates = new Set<string>()
+  const applications = async (directory: string): Promise<void> => {
+    try {
+      for (const name of await readdir(directory)) {
+        if (!/^LibreOffice.*\.app$/i.test(name)) continue
+        candidates.add(join(directory, name, 'Contents', 'MacOS', 'soffice'))
+      }
+    } catch {
+      /* missing Applications folder is normal */
+    }
+  }
+  if (process.platform === 'darwin') {
+    await applications('/Applications')
+    await applications(join(homedir(), 'Applications'))
+  } else if (process.platform === 'win32') {
+    for (const base of [
+      process.env.ProgramFiles,
+      process.env['ProgramFiles(x86)'],
+      process.env.LOCALAPPDATA,
+    ]) {
+      if (base) candidates.add(join(base, 'LibreOffice', 'program', 'soffice.exe'))
+    }
+    candidates.add(
+      join(homedir(), 'AppData', 'Local', 'LibreOffice', 'program', 'soffice.exe'),
+    )
+  } else {
+    candidates.add('/usr/bin/soffice')
+    candidates.add('/usr/lib/libreoffice/program/soffice')
+    candidates.add('/opt/libreoffice/program/soffice')
+  }
+  for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+    if (!directory) continue
+    candidates.add(
+      join(directory, process.platform === 'win32' ? 'soffice.exe' : 'soffice'),
+    )
+  }
+  return [...candidates]
+}
+
+async function detectLocalLibreOffice(): Promise<void> {
+  for (const path of await libreOfficeCandidates()) {
+    try {
+      const info = await stat(path)
+      if (!info.isFile() || info.size === 0) continue
+      const version = await validateLibreOffice(path)
+      enginePrefs = {
+        ...enginePrefs,
+        localPaths: { ...enginePrefs.localPaths, libreoffice: path },
+      }
+      await saveEnginePrefs(enginePrefsPath, enginePrefs)
+      libreOfficeError = undefined
+      await refreshLibreOfficeState()
+      broadcast()
+      showToast(
+        version ? `已检测到 LibreOffice ${version}` : '已检测到 LibreOffice',
+      )
+      return
+    } catch {
+      /* try the next standard location */
+    }
+  }
+  showToast('未检测到 LibreOffice，请使用本地程序选择')
+}
+
+/** Opens the operating system's uninstall UI instead of touching the app. */
+async function openLibreOfficeUninstaller(): Promise<void> {
+  if (process.platform === 'darwin') {
+    await shell.openExternal(
+      'x-apple.systempreferences:com.apple.settings.Storage',
+    )
+    // macOS has no public deep link for Storage > Applications. Give the
+    // Storage pane a moment, then open the Applications sheet by its
+    // accessibility row. If Accessibility is not granted the Storage pane
+    // still opens and the user can click it manually.
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          'osascript',
+          [
+            '-e',
+            `tell application "System Events"
+  tell process "System Settings"
+    repeat 8 times
+      try
+        click button 1 of group 4 of group 3 of scroll area 1 of group 1 of group 3 of splitter group 1 of group 1 of window 1
+        return
+      on error
+        delay 0.3
+      end try
+    end repeat
+  end tell
+end tell`,
+          ],
+          { timeout: 6000 },
+          (error) => (error ? reject(error) : resolve()),
+        )
+      })
+    } catch {
+      /* Storage remains open if accessibility automation is unavailable. */
+    }
+    showToast('已打开“存储空间”，请选择应用程序卸载 LibreOffice')
+    return
+  }
+  const path = enginePrefs.localPaths.libreoffice
+  if (!path) {
+    showToast('未选择 LibreOffice，请先自动检测或使用本地程序')
+    return
+  }
+  if (process.platform === 'win32') {
+    const root = dirname(dirname(path))
+    const uninstaller = ['uninstall.exe', 'unins000.exe', 'setup.exe']
+      .map((name) => join(root, name))
+      .find((candidate) => existsSync(candidate))
+    if (uninstaller) {
+      shell.showItemInFolder(uninstaller)
+      showToast('已定位到 LibreOffice 卸载程序')
+      return
+    }
+    const error = await shell.openPath(root)
+    if (error) throw new Error('无法打开 LibreOffice 安装目录。')
+    showToast('已打开 LibreOffice 安装目录，请手动运行卸载程序')
+    return
+  }
+  shell.showItemInFolder(path)
+  showToast('已定位到 LibreOffice，请通过系统包管理器卸载')
 }
 
 function mailPanelState(): MailPanelState {
@@ -4773,6 +4949,7 @@ async function ffmpegExecutable(): Promise<string | null> {
   await refreshFfmpegState()
   if (!ffmpegInstalled) return null
   if (ffmpegOrigin === 'local') return enginePrefs.localPaths.ffmpeg ?? null
+  if (ffmpegOrigin === 'bundled') return bundledFfmpegPath()
   return ffmpegTargetPath()
 }
 const ffmpegConnectTimeoutMs = 12_000
@@ -9243,6 +9420,7 @@ function setupIpc(): void {
       'engine-install',
       'engine-cancel',
       'engine-recheck',
+      'engine-detect',
       'engine-use-local',
       'engine-remove',
       'engine-self-check',
@@ -9890,7 +10068,12 @@ function setupIpc(): void {
         break
       }
       case 'engine-install':
-        await installFfmpeg()
+        if (command.id === 'libreoffice') {
+          await shell.openExternal(
+            'https://www.libreoffice.org/download/download-libreoffice/',
+          )
+          showToast('已打开 LibreOffice 官方下载页，安装后请点自动检测')
+        } else await installFfmpeg()
         break
       case 'engine-cancel':
         cancelFfmpegInstall()
@@ -9898,12 +10081,17 @@ function setupIpc(): void {
       case 'engine-recheck':
         await recheckFfmpeg()
         break
+      case 'engine-detect':
+        if (command.id === 'libreoffice') await detectLocalLibreOffice()
+        else await detectLocalFfmpeg()
+        break
       case 'engine-use-local':
         if (command.id === 'libreoffice') await chooseLocalLibreOffice()
         else await chooseLocalFfmpeg()
         break
       case 'engine-remove':
-        await removeEngine(command.id)
+        if (command.id === 'libreoffice') await openLibreOfficeUninstaller()
+        else await removeEngine('ffmpeg')
         break
       case 'engine-self-check':
         builtinHealth = await checkBuiltinEngines(true)

@@ -21,10 +21,13 @@ async function packageVersion(name: string): Promise<string | undefined> {
 }
 
 describe('conversion engine manifest', () => {
-  it('ships qpdf as a bundled engine', () => {
+  it('ships qpdf and FFmpeg as bundled engines', () => {
     expect(builtinEngines.find((engine) => engine.id === 'qpdf')?.version).toBe(
       '12.4.2',
     )
+    expect(
+      builtinEngines.find((engine) => engine.id === 'ffmpeg')?.version,
+    ).toBe('9.0.2')
   })
 
   it('pins exact versions for npm engines', async () => {
@@ -85,11 +88,12 @@ describe('conversion engine manifest', () => {
     ]
     for (const name of packages)
       expect(builder, name).toContain(`node_modules/${name}/**`)
+    expect(builder).toContain('resources/engines/ffmpeg/darwin-arm64')
+    expect(builder).toContain('resources/engines/ffmpeg/win32-x64')
   })
 
-  it('lists all optional engines in the supported matrix', () => {
+  it('lists LibreOffice as the only optional engine', () => {
     expect(optionalEngines.map((engine) => engine.id)).toEqual([
-      'ffmpeg',
       'libreoffice',
     ])
     for (const engine of optionalEngines)

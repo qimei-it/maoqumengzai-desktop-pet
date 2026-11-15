@@ -5,7 +5,7 @@ https://github.com/ispysoftware/agentdvr-ffmpeg-build (tag v9.0.2)
 https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
 
 Upstream source is available from https://ffmpeg.org/releases/.
-This application downloads the build from:
+This application bundles the build in its installer.
 https://github.com/ispysoftware/agentdvr-ffmpeg-build/releases/tag/v9.0.2
 
 The build uses --enable-version3 and does not enable GPL or nonfree components.

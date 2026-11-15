@@ -309,18 +309,10 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     settings.locator(".settings-group-title").first(),
   ).toHaveText("内置引擎");
   const ffmpegCard = settings.locator(".engine-card", { hasText: "FFmpeg" });
-  await expect(ffmpegCard).toContainText("来源");
-  const installButton = ffmpegCard.getByRole("button", {
-    name: "安装",
-    exact: true,
-  });
-  await expect(installButton).toBeVisible();
-  await expect(installButton).toHaveCSS("height", "28px");
-  await expect(installButton).toHaveCSS("font-size", "12px");
-  await expect(installButton).toHaveCSS("font-weight", "600");
+  await expect(ffmpegCard).toContainText("可用");
   await expect(
-    ffmpegCard.getByRole("button", { name: "使用本地程序…", exact: true }),
-  ).toHaveCSS("height", "28px");
+    ffmpegCard.getByRole("button", { name: "安装", exact: true }),
+  ).toHaveCount(0);
   const recheckButton = settings.getByRole("button", {
     name: "重新检查",
     exact: true,
@@ -341,6 +333,11 @@ test("settings panel updates theme, scale, and bubbles", async () => {
       exact: true,
     }),
   ).toBeEnabled();
+  await expect(libreOfficeCard.locator(".engine-card-footer button")).toHaveText([
+    "安装",
+    "使用本地程序…",
+    "自动检测",
+  ]);
   await expect(
     settings.locator(".engine-card", { hasText: "qpdf" }),
   ).toContainText("可用");
@@ -2539,18 +2536,9 @@ test("dropping on 智能体 creates an ungrouped chat with the file attached", a
       return snapshot.ok ? snapshot.value.aiOpen : true;
     })
     .toBe(false);
-  const registered = await lab.evaluate(() => window.mqmz!.snapshot());
-  const file = registered.ok
-    ? registered.value.files.find((item) => item.name === "问答资料.txt")
-    : undefined;
-  if (file)
-    await lab.evaluate(
-      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
-      file.id,
-    );
 });
 
-test("格式转换缺少 FFmpeg 时打开设置而不是空面板", async () => {
+test("内置 FFmpeg 让音视频转换直接打开面板", async () => {
   await settings.evaluate(() =>
     window.mqmz!.command({ type: "settings-close" }),
   );
@@ -2563,23 +2551,21 @@ test("格式转换缺少 FFmpeg 时打开设置而不是空面板", async () => 
       if (!snapshot.ok) return null;
       return {
         settings: snapshot.value.settingsOpen,
-        section: snapshot.value.settingsSection,
         convert: snapshot.value.convertOpen,
-        toast: snapshot.value.toast ?? "",
       };
     })
-    .toMatchObject({
-      settings: true,
-      section: "conversion",
-      convert: false,
-      toast: "音视频转换需要先安装 FFmpeg",
-    });
-  await expect(
-    settings.getByRole("button", { name: "格式转换", exact: true }),
-  ).toHaveClass(/active/);
-  await expect(
-    settings.locator(".engine-card", { hasText: "FFmpeg" }),
-  ).toBeVisible();
+    .toMatchObject({ settings: false, convert: true });
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      if (!snapshot.ok) return null;
+      return {
+        origin: snapshot.value.engines.ffmpeg.origin,
+        status: snapshot.value.engines.ffmpeg.status,
+        builtin: snapshot.value.engines.builtin.ffmpeg?.status,
+      };
+    })
+    .toEqual({ origin: "bundled", status: "installed", builtin: "ready" });
   const registered = await lab.evaluate(() => window.mqmz!.snapshot());
   const file = registered.ok
     ? registered.value.files.find((item) => item.name === "转换视频.mp4")
@@ -2589,8 +2575,8 @@ test("格式转换缺少 FFmpeg 时打开设置而不是空面板", async () => 
       (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
       file.id,
     );
-  await settings.evaluate(() =>
-    window.mqmz!.command({ type: "settings-close" }),
+  await convert.evaluate(() =>
+    window.mqmz!.command({ type: "convert-close" }),
   );
 });
 
@@ -3077,7 +3063,7 @@ test("qpdf 可以加密并解除 PDF 密码", async () => {
   await convert.getByRole("button", { name: "完成", exact: true }).click();
 });
 
-test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
+test("设置显示内置引擎状态与可选引擎入口", async () => {
   test.skip(process.platform === "win32", "fake FFmpeg 脚本仅在 POSIX 下可用");
   const fake = join(directory, "settings-ffmpeg.sh");
   await writeFile(
@@ -3111,10 +3097,13 @@ test("设置显示内置引擎状态与可选引擎卸载入口", async () => {
     settings.locator(".engine-card", { hasText: "sharp" }),
   ).toContainText("可用");
   await expect(
+    settings.locator(".engine-card", { hasText: "FFmpeg" }),
+  ).toContainText("可用");
+  await expect(
     settings
       .locator(".engine-card", { hasText: "FFmpeg" })
       .getByRole("button", { name: "卸载", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     settings.locator(".engine-card", { hasText: "qpdf" }),
   ).toContainText("可用");
