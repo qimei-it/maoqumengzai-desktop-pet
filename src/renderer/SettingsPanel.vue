@@ -116,6 +116,15 @@ const minimaxTest = computed<AiTestState>(
 )
 const minimaxModels = computed(() => minimax.value?.models ?? [])
 const minimaxModelsError = computed(() => minimax.value?.modelsError)
+const minimaxVerifiedKey = ref('')
+const minimaxModelsVisible = computed(() => {
+  if (minimaxTest.value.status !== 'ok') return false
+  if (editingMiniMaxKey.value) {
+    const key = minimaxKey.value.trim()
+    return Boolean(key) && key === minimaxVerifiedKey.value
+  }
+  return minimaxConfigured.value
+})
 const minimaxLatencyClass = computed(() => {
   const latency = minimaxTest.value.latencyMs ?? 0
   if (latency <= 400) return 'is-fast'
@@ -191,6 +200,18 @@ watch(editingMiniMaxKey, (value) => {
 })
 watch(minimaxConfigured, (value) => {
   if (!value) minimaxModelsOpen.value = false
+})
+watch(
+  () => minimaxTest.value.status,
+  (status) => {
+    if (status === 'ok' && editingMiniMaxKey.value)
+      minimaxVerifiedKey.value = minimaxKey.value.trim()
+    if (status === 'error') minimaxVerifiedKey.value = ''
+  },
+)
+watch(minimaxKey, (value) => {
+  if (editingMiniMaxKey.value && value.trim() !== minimaxVerifiedKey.value)
+    minimaxModelsOpen.value = false
 })
 function toggleModels(): void {
   if (modelsOpen.value) {
@@ -1290,13 +1311,15 @@ function onEscape(): void {
                     "
                   >
                     <option value="" disabled>模型列表</option>
-                    <option
-                      v-for="model in minimaxModelCatalog"
-                      :key="model"
-                      :value="model"
-                    >
-                      {{ model }}
-                    </option>
+                    <template v-if="minimaxModelsVisible">
+                      <option
+                        v-for="model in minimaxModelCatalog"
+                        :key="model"
+                        :value="model"
+                      >
+                        {{ model }}
+                      </option>
+                    </template>
                   </SelectField>
                 </div>
                 <button
@@ -1341,6 +1364,7 @@ function onEscape(): void {
                   v-if="minimaxConfigured"
                   type="button"
                   class="settings-button"
+                  :disabled="minimaxTest.status !== 'ok'"
                   @click="toggleMiniMaxModels"
                 >
                   模型列表
@@ -1404,7 +1428,7 @@ function onEscape(): void {
               v-if="
                 !editingMiniMaxKey &&
                 minimaxModelsOpen &&
-                (minimaxModels.length || minimaxModelsError)
+                minimaxModelsVisible
               "
               class="settings-model-list"
             >
