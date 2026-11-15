@@ -20,7 +20,6 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
-  KeyRound,
   MessageCirclePlus,
   Minus,
   PenLine,
@@ -32,6 +31,7 @@ import {
   Send,
   Settings,
   Square,
+  SquareArrowOutUpRight,
   Trash2,
   Wrench,
   X,
@@ -53,7 +53,11 @@ import {
   deepseekModelLabels,
   type DeepSeekModel,
 } from '../shared/deepseek'
-import type { Command, Snapshot } from '../shared/protocol'
+import type {
+  AiTestState,
+  Command,
+  Snapshot,
+} from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
 import MarkdownView from './MarkdownView.vue'
 
@@ -78,6 +82,15 @@ type ConfirmState = {
 
 const agent = computed(() => props.state?.agent)
 const configured = computed(() => agent.value?.configured === true)
+const aiTest = computed<AiTestState>(
+  () => props.state?.ai.test ?? { status: 'idle' },
+)
+const aiTestLatencyClass = computed(() => {
+  const latency = aiTest.value.latencyMs ?? 0
+  if (latency <= 400) return 'is-fast'
+  if (latency <= 1200) return 'is-medium'
+  return 'is-slow'
+})
 const busy = computed(() => agent.value?.busy === true)
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
@@ -433,6 +446,11 @@ function saveKey(): void {
 }
 function getKey(): void {
   emit('command', { type: 'agent-keys' })
+}
+function testDraftKey(): void {
+  const apiKey = keyDraft.value.trim()
+  if (!apiKey || aiTest.value.status === 'testing') return
+  emit('command', { type: 'ai-test', apiKey })
 }
 
 function openMenu(
@@ -1050,16 +1068,54 @@ function statusLabel(status: string): string {
             <div class="agent-setup-actions">
               <button
                 type="button"
-                class="agent-button primary"
-                :disabled="!keyDraft.trim()"
-                @click="saveKey"
+                class="agent-text-button agent-get-key"
+                @click="getKey"
               >
-                保存
-              </button>
-              <button type="button" class="agent-text-button" @click="getKey">
-                <KeyRound :size="14" :stroke-width="2" aria-hidden="true" />
                 获取 API Key
+                <SquareArrowOutUpRight
+                  class="agent-external-icon"
+                  :size="14"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
               </button>
+              <div class="agent-setup-buttons">
+                <span
+                  v-if="aiTest.status === 'testing'"
+                  class="agent-latency"
+                  >测试中…</span
+                >
+                <span
+                  v-else-if="aiTest.status === 'ok'"
+                  class="agent-latency"
+                  :class="aiTestLatencyClass"
+                  >{{ aiTest.latencyMs }} ms</span
+                >
+                <span
+                  v-else-if="aiTest.status === 'error'"
+                  class="agent-latency is-slow"
+                  :title="aiTest.error"
+                  >测试失败</span
+                >
+                <button
+                  type="button"
+                  class="agent-button agent-test-key"
+                  :disabled="
+                    !keyDraft.trim() || aiTest.status === 'testing'
+                  "
+                  @click="testDraftKey"
+                >
+                  测试延迟
+                </button>
+                <button
+                  type="button"
+                  class="agent-button primary agent-save-key"
+                  :disabled="!keyDraft.trim()"
+                  @click="saveKey"
+                >
+                  保存
+                </button>
+              </div>
             </div>
             <p v-if="error || agent?.error" class="agent-error">
               {{ error || agent?.error }}
@@ -3102,10 +3158,48 @@ function statusLabel(status: string): string {
 .agent-setup-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: space-between;
+  gap: var(--space-3);
 }
-.agent-setup-actions .agent-button {
-  flex: 1;
+.agent-setup-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.agent-get-key {
+  flex: none;
+  gap: 6px;
+  padding: 0;
+  white-space: nowrap;
+}
+.agent-external-icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+.agent-test-key,
+.agent-save-key {
+  flex: none;
+  padding: 0 var(--space-3);
+}
+.agent-save-key {
+  min-width: 56px;
+}
+.agent-latency {
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.agent-latency.is-fast {
+  color: var(--color-success);
+}
+.agent-latency.is-medium {
+  color: var(--color-warning);
+}
+.agent-latency.is-slow {
+  color: var(--color-danger);
 }
 .agent-menu-layer,
 .agent-modal-layer {

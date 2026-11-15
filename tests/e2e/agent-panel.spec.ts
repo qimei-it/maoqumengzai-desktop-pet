@@ -51,8 +51,28 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   await expect(
     agent.getByRole('heading', { name: '连接 DeepSeek', exact: true }),
   ).toBeVisible()
-  await agent.getByLabel('DeepSeek API Key').fill('sk-agent-test')
-  await agent.getByRole('button', { name: '保存', exact: true }).click()
+  const keyInput = agent.getByLabel('DeepSeek API Key')
+  const getKeyButton = agent.getByRole('button', { name: '获取 API Key' })
+  const testButton = agent.getByRole('button', { name: '测试延迟' })
+  const saveButton = agent.getByRole('button', { name: '保存', exact: true })
+  await expect(getKeyButton).toBeVisible()
+  await expect(agent.locator('.agent-external-icon')).toBeVisible()
+  await expect(testButton).toBeDisabled()
+  await expect(saveButton).toBeDisabled()
+  const inputBox = await keyInput.boundingBox()
+  const getKeyBox = await getKeyButton.boundingBox()
+  const saveBox = await saveButton.boundingBox()
+  expect(inputBox && getKeyBox && saveBox).toBeTruthy()
+  if (inputBox && getKeyBox && saveBox) {
+    expect(Math.abs(getKeyBox.x - inputBox.x)).toBeLessThanOrEqual(2)
+    expect(
+      Math.abs(saveBox.x + saveBox.width - (inputBox.x + inputBox.width)),
+    ).toBeLessThanOrEqual(2)
+  }
+  await keyInput.fill('sk-agent-test')
+  await expect(testButton).toBeEnabled()
+  await expect(saveButton).toBeEnabled()
+  await saveButton.click()
   const input = agent.locator('.agent-input')
   await expect(input).toHaveAttribute(
     'placeholder',
