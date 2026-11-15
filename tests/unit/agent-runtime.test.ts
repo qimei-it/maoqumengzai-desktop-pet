@@ -727,6 +727,62 @@ describe('agent runtime', () => {
     expect(removed).toEqual(['file-b'])
   })
 
+  test('folds older turns into a compact summary and reports it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-summary-'))
+    const storePath = join(directory, 'agent.json')
+    const history = Array.from({ length: 70 }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      content: `第 ${index + 1} 轮：${'需要保留的历史上下文。'.repeat(500)}`,
+    }))
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 2,
+        projects: [],
+        sessions: [
+          {
+            id: 'long-session',
+            title: '长对话',
+            mode: 'build',
+            model: 'deepseek-flash',
+            reasoning: 'high',
+            workspace: null,
+            projectId: null,
+            pinned: false,
+            createdAt: 1,
+            updatedAt: 2,
+            ui: [],
+            history,
+            usage: { input: 0, output: 0 },
+          },
+        ],
+      }),
+    )
+    let captured: StreamOptions['messages'] = []
+    const runtime = createAgentRuntime({
+      services: makeServices(),
+      storePath,
+      getKey: () => 'test-key',
+      getSettings: () => ({ ...defaultSettings }),
+      getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
+      broadcast: () => {},
+      pickWorkspace: async () => directory,
+      stream: async (_key, options) => {
+        captured = options.messages
+        return { text: '好的', toolCalls: [] }
+      },
+    })
+    await runtime.load()
+    await runtime.send('继续')
+
+    const system = captured.find((message) => message.role === 'system')
+    expect(system?.content).toContain('本会话较早内容的摘要')
+    expect(captured.length).toBeLessThan(70)
+    expect(captured.at(-1)?.role).toBe('user')
+    expect(captured.at(-1)?.content).toBe('继续')
+    expect(runtime.state().contextCompacted).toBeGreaterThan(0)
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

@@ -117,6 +117,8 @@ export type AgentRuntime = {
 
 const maxSteps = 12
 const maxShellHistory = 60
+const maxHistoryChars = 96_000
+const maxSummaryChars = 6_000
 
 function now(): number {
   return Date.now()
@@ -185,6 +187,108 @@ function trimContent(
       ? { ...block, text: truncate(block.text, limit) }
       : block,
   )
+}
+
+type CompactedHistory = {
+  messages: ProviderMessage[]
+  summary: string
+  summarized: number
+}
+
+function providerSize(message: ProviderMessage): number {
+  if (message.role === 'user') {
+    if (typeof message.content === 'string') return message.content.length
+    return message.content.reduce(
+      (sum, block) => sum + (block.type === 'text' ? block.text.length : 0),
+      0,
+    )
+  }
+  if (message.role === 'assistant')
+    return (
+      (message.content?.length ?? 0) +
+      (message.tool_calls?.reduce(
+        (sum, call) => sum + call.function.arguments.length,
+        0,
+      ) ?? 0)
+    )
+  return message.content.length
+}
+
+function summaryLine(message: ProviderMessage): string | null {
+  if (message.role === 'user') {
+    const text =
+      typeof message.content === 'string'
+        ? message.content
+        : message.content
+            .map((block) =>
+              block.type === 'text' ? block.text : '[附件]',
+            )
+            .join(' ')
+    const value = text.replace(/\s+/g, ' ').trim()
+    return value ? `用户：${truncate(value, 500)}` : null
+  }
+  if (message.role === 'assistant') {
+    const value = (message.content ?? '').replace(/\s+/g, ' ').trim()
+    const calls = message.tool_calls?.length
+      ? `（调用 ${message.tool_calls
+          .map((call) => call.function.name)
+          .join('、')}）`
+      : ''
+    const line = `${value ? truncate(value, 400) : '已执行工具'}${calls}`
+    return `助手：${line}`
+  }
+  const value = message.content.replace(/\s+/g, ' ').trim()
+  return value ? `工具结果：${truncate(value, 200)}` : null
+}
+
+function summarizeOlder(messages: ProviderMessage[]): string {
+  const lines: string[] = []
+  let chars = 0
+  let omitted = 0
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const line = summaryLine(messages[index])
+    if (!line) continue
+    if (chars + line.length > maxSummaryChars) {
+      omitted += 1
+      continue
+    }
+    lines.unshift(line)
+    chars += line.length
+  }
+  if (!lines.length) return ''
+  if (omitted)
+    lines.unshift(`（更早的 ${omitted} 条消息未写入摘要）`)
+  return lines.join('\n')
+}
+
+/** Caps the request context and folds older turns into a compact summary. */
+function compactHistory(
+  history: ProviderMessage[],
+  model: DeepSeekModel,
+): CompactedHistory {
+  let chars = 0
+  let boundary = history.length
+  while (boundary > 0) {
+    const kept = history.length - boundary
+    if (kept >= maxShellHistory) break
+    const size = providerSize(history[boundary - 1])
+    if (kept > 0 && chars + size > maxHistoryChars) break
+    chars += size
+    boundary -= 1
+  }
+  const latestUser = history.findLastIndex((message) => message.role === 'user')
+  if (latestUser > 0 && boundary > latestUser) boundary = latestUser
+  if (boundary === 0)
+    return { messages: trimHistory(history, model), summary: '', summarized: 0 }
+  const older = history.slice(0, boundary)
+  const recent = history.slice(boundary)
+  let leadingTools = 0
+  while (recent[leadingTools]?.role === 'tool') leadingTools += 1
+  return {
+    messages: trimHistory(recent, model),
+    summary: summarizeOlder(older),
+    summarized: older.length + leadingTools,
+  }
 }
 
 /** Keeps recent context and never starts on an orphan tool result. */
@@ -687,6 +791,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
       let textPart: AgentTextPart | null = null
       let result: StreamResult | null = null
+      const context = compactHistory(session.history, session.model)
+      if (context.summarized) session.compacted = context.summarized
+      else delete session.compacted
       try {
         result = await stream(key, {
           model: session.model,
@@ -694,13 +801,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           messages: [
             {
               role: 'system',
-              content: systemPrompt(
-                session.mode,
-                session.workspace,
-                deps.getPetProfile(),
-              ),
+              content: [
+                systemPrompt(
+                  session.mode,
+                  session.workspace,
+                  deps.getPetProfile(),
+                ),
+                ...(context.summary
+                  ? [`\n\n本会话较早内容的摘要：\n${context.summary}`]
+                  : []),
+              ].join(''),
             },
-            ...trimHistory(session.history, session.model),
+            ...context.messages,
           ],
           tools:
             session.mode === 'plan' ? planDefinitions : buildDefinitions,
@@ -907,6 +1019,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         messages: session?.ui.slice(-80) ?? [],
         approval: pending?.info ?? null,
         usage: session?.usage ?? { input: 0, output: 0 },
+        ...(session?.compacted
+          ? { contextCompacted: session.compacted }
+          : {}),
         ...(errorText ? { error: errorText } : {}),
       }
     },

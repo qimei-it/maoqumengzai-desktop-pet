@@ -51,6 +51,8 @@ export type StoredSession = {
   files?: StoredFileRef[]
   sources?: StoredSource[]
   usage: AgentUsage
+  /** Number of older messages folded into the context summary. */
+  compacted?: number
 }
 
 export type AgentStore = {
@@ -170,6 +172,9 @@ function parseSession(value: unknown): StoredSession | null {
       input: typeof usage.input === 'number' ? usage.input : 0,
       output: typeof usage.output === 'number' ? usage.output : 0,
     },
+    ...(typeof value.compacted === 'number' && value.compacted > 0
+      ? { compacted: Math.min(value.compacted, maxHistoryEntries) }
+      : {}),
   }
 }
 

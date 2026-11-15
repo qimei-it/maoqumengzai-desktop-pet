@@ -9,6 +9,7 @@ import {
 } from 'vue'
 import {
   AlertTriangle,
+  Archive,
   ArrowDown,
   Check,
   ChevronDown,
@@ -1798,6 +1799,14 @@ function statusLabel(status: string): string {
                   今天我们要做点什么？我可以处理待办、文件和邮件哦～
                 </p>
               </div>
+              <div
+                v-if="agent?.contextCompacted"
+                class="agent-context-notice"
+                role="status"
+              >
+                <Archive :size="14" aria-hidden="true" />
+                <span>较早的 {{ agent.contextCompacted }} 条消息已压缩为摘要</span>
+              </div>
               <article
                 v-for="message in agent?.messages ?? []"
                 :key="message.id"
@@ -3092,6 +3101,17 @@ function statusLabel(status: string): string {
   width: calc(100% - 32px);
   min-height: 100%;
   margin: 0 auto;
+}
+.agent-context-notice {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-secondary);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
 }
 .agent-empty {
   max-width: 100%;

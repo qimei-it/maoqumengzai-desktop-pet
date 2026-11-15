@@ -28,7 +28,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 
 - `AgentSession { id, title, mode, model, workspace, ui, history, usage }`。
 - 保存在 `userData/mqmz.agent.json`，写入使用临时文件 + 原子重命名，权限 0600。
-- 单会话保留 200 条界面消息、200 条模型上下文；界面只传输最近 80 条。
+- 单会话保留 200 条界面消息、200 条模型上下文；界面只传输最近 80 条。发送前按 96k 字符预算保留最近上下文（最多 60 条，并始终保留本轮用户输入），更早的消息压缩成约 6k 字符的摘要附在系统提示后；发生压缩时在消息列表顶部显示“较早的 N 条消息已压缩为摘要”。
 - 首条用户消息生成会话标题；切换会话时取消正在执行的请求。
 
 ## 窗口行为
@@ -179,6 +179,6 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 输出与滚动用例：`tests/e2e/agent-output.spec.ts` 覆盖 Mermaid、图标复制到系统剪贴板、会话“保存为 Markdown”、生成文件下载、手动上滚暂停跟随、回到底部按钮，以及输出中三点波浪与悬停箭头。
 - 技能用例：`tests/unit/agent-skills.test.ts` 覆盖 SKILL.md/压缩包导入、资源保留、禁用持久化、重名目录和卸载；`tests/e2e/agent-skills.spec.ts` 覆盖入口、搜索、刷新、添加、两列卡片、详情开关、Finder 按钮、卸载和关闭。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
-- 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射、源文件丢失提示和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败中止、30 天过期重传、孤儿上传清理和会话删除时的云端文件清理。
+- 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射、源文件丢失提示和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败中止、30 天过期重传、孤儿上传清理、会话删除时的云端文件清理和长对话摘要压缩；`tests/e2e/agent-context.spec.ts` 验证压缩提示与系统提示中的摘要。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、项目迁移、shell 超时与截断。
 - 服务契约测试：`tests/unit/services-contract.test.ts` 覆盖结构化成功返回、校验错误、设置白名单、邮件收件人、剪贴板、番茄钟边界和文本/二进制读取。

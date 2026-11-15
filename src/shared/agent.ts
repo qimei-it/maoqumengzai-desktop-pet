@@ -186,6 +186,8 @@ export type AgentState = {
   messages: AgentMessageView[]
   approval: AgentApproval | null
   usage: AgentUsage
+  /** Older messages folded into the context summary for this session. */
+  contextCompacted?: number
   error?: string
 }
 
