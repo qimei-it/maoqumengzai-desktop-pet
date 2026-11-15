@@ -515,6 +515,49 @@ async function prepareImage(
   return { attachment }
 }
 
+async function videoFrames(
+  ffmpeg: string,
+  path: string,
+  directory: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const duration = await probeDuration(ffmpeg, path, signal)
+  const times =
+    duration && duration > 0
+      ? Array.from(
+          { length: 4 },
+          (_, index) => (duration * (index + 0.5)) / 4,
+        )
+      : [null]
+  const frames: string[] = []
+  for (const [index, time] of times.entries()) {
+    const output = join(
+      directory,
+      `frame-${String(index + 1).padStart(2, '0')}.jpg`,
+    )
+    await runFfmpeg(
+      ffmpeg,
+      [
+        ...(time === null ? [] : ['-ss', String(time)]),
+        '-i',
+        path,
+        '-an',
+        '-frames:v',
+        '1',
+        '-vf',
+        'scale=1280:-2',
+        '-q:v',
+        '4',
+        output,
+      ],
+      signal,
+    )
+    const info = await stat(output).catch(() => null)
+    if (info?.isFile() && info.size > 0) frames.push(output)
+  }
+  return frames
+}
+
 async function prepareMedia(
   path: string,
   size: number,
@@ -566,6 +609,34 @@ async function prepareMedia(
   })
   attachment.audio = chunks
   attachment.tempPaths.push(...tempPaths)
+  if (kind === 'video' && options.ffmpeg && isUploadModel(options)) {
+    options.onProgress?.('提取视频画面')
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-frames-'))
+    try {
+      const frames = await videoFrames(
+        options.ffmpeg,
+        path,
+        directory,
+        options.signal,
+      )
+      if (frames.length) {
+        attachment.mode = 'vision'
+        attachment.needsModelUpload = true
+        attachment.upload = frames.map((frame) => ({
+          path: frame,
+          purpose: 'user_data' as const,
+        }))
+        attachment.detail = `视频 · ${frames.length} 帧 + 语音转写`
+        attachment.tempPaths.push(directory)
+      } else await rm(directory, { recursive: true, force: true })
+    } catch (error) {
+      await rm(directory, { recursive: true, force: true })
+      if (options.signal?.aborted) {
+        await releaseAgentAttachment({ tempPaths })
+        throw error
+      }
+    }
+  }
   return { attachment }
 }
 

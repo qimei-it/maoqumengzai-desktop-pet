@@ -1,5 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readFile as readFileSync } from 'node:fs/promises'
 import {
@@ -9,7 +10,7 @@ import {
   readdir,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { strToU8, zipSync } from 'fflate'
 import { waitForAppWindows } from './app-windows'
@@ -20,10 +21,17 @@ let notes = ''
 let image = ''
 let dropped = ''
 let slowDocx = ''
+let clip = ''
 let ofd = ''
 let saveDirectory = ''
 
 const soffice = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
+const ffmpeg =
+  process.env.MQMZ_TEST_FFMPEG ??
+  join(
+    homedir(),
+    'Library/Application Support/mqmz-desktop/engines/ffmpeg/6.0/ffmpeg',
+  )
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -91,10 +99,37 @@ test.beforeAll(async () => {
     ofd = join(directory, 'sample.ofd')
     await writeFile(ofd, ofdSample(new Uint8Array(await readFileSync(fontPath))))
   }
-  if (existsSync(soffice))
+  if (existsSync(ffmpeg)) {
+    clip = join(directory, 'clip.mp4')
+    execFileSync(
+      ffmpeg,
+      [
+        '-y',
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=black:s=320x240:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=1',
+        '-shortest',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        clip,
+      ],
+      { stdio: 'ignore' },
+    )
+  }
+  const localPaths: Record<string, string> = {}
+  if (existsSync(soffice)) localPaths.libreoffice = soffice
+  if (clip) localPaths.ffmpeg = ffmpeg
+  if (Object.keys(localPaths).length)
     await writeFile(
       join(data, 'mqmz.engines.json'),
-      JSON.stringify({ version: 1, localPaths: { libreoffice: soffice } }),
+      JSON.stringify({ version: 1, localPaths }),
     )
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -303,6 +338,45 @@ test('renders a spec-compliant OFD attachment for vision parsing', async () => {
   )
   await agent.getByRole('button', { name: '移除附件 sample.ofd' }).click()
   await expect(agent.locator('.agent-attachment')).toHaveCount(0)
+})
+
+test('extracts video frames for Flash and only transcripts for Pro', async () => {
+  test.skip(!clip, 'FFmpeg is not installed')
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
+  )
+  await application.evaluate(({ dialog }, paths) => {
+    ;(globalThis as unknown as { __mqmzPick: string[] }).__mqmzPick = paths
+    dialog.showOpenDialog = async () =>
+      ({
+        canceled: false,
+        filePaths: (globalThis as unknown as { __mqmzPick: string[] })
+          .__mqmzPick,
+      })
+  }, [clip])
+  await agent.getByLabel('添加附件').click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.locator('.agent-attachment-name')).toHaveAttribute(
+    'title',
+    /视频 · [1-4] 帧 \+ 语音转写/,
+  )
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-v4-pro' }),
+  )
+  await expect(agent.locator('.agent-pro-hint')).toHaveCount(0)
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await agent.getByRole('button', { name: /移除附件 clip/ }).click()
+
+  await agent.getByLabel('添加附件').click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.locator('.agent-attachment-name')).toHaveAttribute(
+    'title',
+    /视频 · 语音转写/,
+  )
+  await agent.getByRole('button', { name: /移除附件 clip/ }).click()
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
+  )
 })
 
 test('keeps the draft when switching to the Pro model and can switch back', async () => {

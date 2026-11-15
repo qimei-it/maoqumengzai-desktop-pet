@@ -658,9 +658,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   ): Promise<{ content: ProviderUserContent; views: AgentAttachmentView[] }> {
     const views = attachments.map(({ id, name, size }) => ({ id, name, size }))
     const textFiles = attachments.filter((item) => item.text?.trim())
-    const uploads = attachments.flatMap((item) =>
-      (item.upload ?? []).map((file) => ({ item, file })),
-    )
+    const uploads = attachments
+      .flatMap((item) => (item.upload ?? []).map((file) => ({ item, file })))
+      .filter(
+        ({ item }) =>
+          !(
+            session.model === 'deepseek-v4-pro' && item.kind === 'video'
+          ),
+      )
     const audioFiles = attachments.flatMap((item) =>
       (item.audio ?? []).map((path) => ({ item, path })),
     )
@@ -1198,7 +1203,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const files = attachments.slice(0, 8)
       if (
         session.model === 'deepseek-v4-pro' &&
-        files.some((item) => (item.upload?.length ?? 0) > 0)
+        files.some(
+          (item) =>
+            item.kind !== 'video' && (item.upload?.length ?? 0) > 0,
+        )
       )
         throw new Error(
           '当前模型只支持文字附件，请切换到 DeepSeek-V4.1-Flash。',

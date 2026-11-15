@@ -201,7 +201,9 @@ const pendingFlashSend = ref(false)
 const proBlocked = computed(
   () =>
     model.value === 'deepseek-v4-pro' &&
-    attachments.value.some((item) => item.needsModelUpload),
+    attachments.value.some(
+      (item) => item.needsModelUpload && item.kind !== 'video',
+    ),
 )
 watch(model, (value) => {
   if (value !== 'deepseek-flash' || !pendingFlashSend.value) return

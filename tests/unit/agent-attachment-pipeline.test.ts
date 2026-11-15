@@ -203,8 +203,16 @@ describe('agent attachment pipeline', () => {
       expect('attachment' in result).toBe(true)
       if (!('attachment' in result)) return
       expect(result.attachment.kind).toBe('video')
-      expect(result.attachment.mode).toBe('audio')
-      expect(result.attachment.detail).toContain('视频 · 语音转写')
+      expect(result.attachment.mode).toBe('vision')
+      expect(result.attachment.needsModelUpload).toBe(true)
+      expect(result.attachment.detail).toContain('4 帧 + 语音转写')
+      expect(result.attachment.upload).toHaveLength(4)
+      for (const upload of result.attachment.upload ?? []) {
+        const frame = await readFile(upload.path)
+        expect(frame.subarray(0, 3)).toEqual(
+          Buffer.from([0xff, 0xd8, 0xff]),
+        )
+      }
       const chunk = result.attachment.audio?.[0]
       expect(chunk).toBeTruthy()
       if (!chunk) return
@@ -212,6 +220,19 @@ describe('agent attachment pipeline', () => {
       expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF')
       expect(bytes.readUInt32LE(24)).toBe(16_000)
       await releaseAgentAttachment(result.attachment)
+
+      const proResult = await prepareAgentAttachment(path, 30_000, {
+        model: 'deepseek-v4-pro',
+        soffice: null,
+        ffmpeg,
+      })
+      expect('attachment' in proResult).toBe(true)
+      if (!('attachment' in proResult)) return
+      expect(proResult.attachment.mode).toBe('audio')
+      expect(proResult.attachment.needsModelUpload).toBe(false)
+      expect(proResult.attachment.upload).toBeUndefined()
+      expect(proResult.attachment.detail).toContain('视频 · 语音转写')
+      await releaseAgentAttachment(proResult.attachment)
     },
     60_000,
   )

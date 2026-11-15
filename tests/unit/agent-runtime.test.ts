@@ -532,6 +532,43 @@ describe('agent runtime', () => {
     expect(attachment.uploadError).toContain('上传失败：网络错误')
   })
 
+  test('sends a video to Pro as transcript without uploading frames', async () => {
+    let captured: StreamOptions['messages'] = []
+    let uploads = 0
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        captured = options.messages
+        return { text: '看过了', toolCalls: [] }
+      },
+      files: {
+        upload: async () => {
+          uploads += 1
+          return { id: 'unused', expiresAt: null }
+        },
+        transcribe: async () => '视频里的语音内容',
+      },
+    })
+    runtime.setModel('deepseek-v4-pro')
+    await runtime.send('看看视频', [
+      {
+        id: 'attachment-video',
+        name: 'clip.mp4',
+        size: 1024,
+        kind: 'video',
+        mode: 'vision',
+        needsModelUpload: true,
+        truncated: false,
+        upload: [{ path: '/tmp/frame.jpg', purpose: 'user_data' }],
+        audio: ['/tmp/audio.wav'],
+      },
+    ])
+    expect(runtime.state().error).toBeUndefined()
+    expect(uploads).toBe(0)
+    const user = captured.find((message) => message.role === 'user')
+    expect(user?.content).toContain('视频里的语音内容')
+    expect(Array.isArray(user?.content)).toBe(false)
+  })
+
   test('refreshes an expired uploaded file when its source still exists', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-refresh-'))
     const source = join(directory, 'photo.png')
