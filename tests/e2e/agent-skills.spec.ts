@@ -94,6 +94,10 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   expect(searchBox!.width).toBeLessThanOrEqual(340)
   expect(searchBox!.width).toBeLessThan(toolbarBox!.width - 100)
   expect(searchBox!.x).toBeGreaterThan(toolbarBox!.x + 100)
+  const searchRadius = await agent
+    .locator('.agent-skills-search')
+    .evaluate((element) => getComputedStyle(element).borderRadius)
+  expect(Number.parseFloat(searchRadius)).toBeGreaterThan(100)
   const cards = agent.locator('.agent-skill-card')
   await expect(cards).toHaveCount(2)
   const boxes = await cards.evaluateAll((elements) =>
@@ -108,6 +112,9 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   await agent.getByLabel('搜索技能').fill('pet')
   await expect(cards).toHaveCount(1)
   await expect(cards.first()).toContainText('Pet Views')
+  await agent.getByRole('button', { name: '清空搜索' }).click()
+  await expect(agent.getByLabel('搜索技能')).toHaveValue('')
+  await expect(cards).toHaveCount(2)
   await agent.getByLabel('搜索技能').fill('reference image')
   await expect(cards).toHaveCount(1)
   await expect(cards.first()).toContainText('Pet Views')

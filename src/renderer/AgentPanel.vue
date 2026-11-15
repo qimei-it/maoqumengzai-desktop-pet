@@ -1470,10 +1470,25 @@ function statusLabel(status: string): string {
                 />
                 <input
                   v-model="skillQuery"
-                  type="search"
+                  type="text"
                   placeholder="搜索技能"
                   aria-label="搜索技能"
+                  autocomplete="off"
                 />
+                <button
+                  v-if="skillQuery"
+                  type="button"
+                  class="agent-skills-search-clear"
+                  aria-label="清空搜索"
+                  title="清空搜索"
+                  @click="skillQuery = ''"
+                >
+                  <X
+                    :size="12"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </button>
               </label>
               <button
                 type="button"
@@ -1536,7 +1551,7 @@ function statusLabel(status: string): string {
                 />
               </button>
             </div>
-            <p v-else-if="skills.length" class="agent-skills-empty">
+            <p v-else-if="skillQuery.trim()" class="agent-skills-empty">
               没有找到匹配的技能
             </p>
             <p v-else class="agent-skills-empty">
@@ -4078,7 +4093,7 @@ function statusLabel(status: string): string {
   margin-right: 0;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-muted);
 }
@@ -4097,6 +4112,27 @@ function statusLabel(status: string): string {
 }
 .agent-skills-search input::placeholder {
   color: var(--color-muted);
+}
+.agent-skills-search-clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-skills-search-clear:hover {
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+}
+.agent-skills-search-clear:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-skills-add {
   display: inline-flex;
