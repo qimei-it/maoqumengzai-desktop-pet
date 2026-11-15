@@ -33,7 +33,7 @@ describe('vendored research skills', () => {
       expect(skill.name.trim().length).toBeGreaterThan(0)
     }
     const enabled = list.filter((item) => item.enabled)
-    expect(enabled.length).toBe(35)
+    expect(enabled.length).toBe(33)
     expect(enabled.map((item) => item.name)).toEqual(
       expect.arrayContaining([
         'research-lookup',
@@ -45,7 +45,6 @@ describe('vendored research skills', () => {
         'web-search',
         'amazon-listing-optimization',
         'academic-pptx',
-        'ui-ux-pro-max',
         'impeccable',
         'baoyu-format-markdown',
         'ecommerce-visual-copywriting',

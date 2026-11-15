@@ -3335,6 +3335,7 @@ function statusLabel(status: string): string {
                     <button
                       type="button"
                       class="agent-approval-select"
+                      :class="{ 'is-full': approvalMode === 'full' }"
                       :disabled="busy"
                       :aria-expanded="approvalMenuOpen"
                       aria-haspopup="dialog"
@@ -3361,6 +3362,7 @@ function statusLabel(status: string): string {
                         :key="option"
                         type="button"
                         class="agent-approval-option"
+                        :class="{ 'is-danger': option === 'full' }"
                         role="menuitemradio"
                         :aria-checked="approvalMode === option"
                         :title="agentApprovalModeHints[option]"
@@ -3372,7 +3374,14 @@ function statusLabel(status: string): string {
                           :stroke-width="2"
                           aria-hidden="true"
                         />
-                        <span>{{ agentApprovalModeLabels[option] }}</span>
+                        <span class="agent-approval-copy">
+                          <span class="agent-approval-label">{{
+                            agentApprovalModeLabels[option]
+                          }}</span>
+                          <span class="agent-approval-hint">{{
+                            agentApprovalModeHints[option]
+                          }}</span>
+                        </span>
                         <Check
                           v-if="approvalMode === option"
                           class="agent-approval-check"
@@ -5399,7 +5408,7 @@ function statusLabel(status: string): string {
   z-index: 30;
   display: flex;
   flex-direction: column;
-  width: 176px;
+  width: 268px;
   padding: var(--space-1);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
@@ -5409,11 +5418,11 @@ function statusLabel(status: string): string {
 .agent-approval-option {
   display: flex;
   flex: none;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
   width: 100%;
-  min-height: 32px;
-  padding: 0 var(--space-2);
+  min-height: 52px;
+  padding: 8px var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -5427,11 +5436,38 @@ function statusLabel(status: string): string {
 }
 .agent-approval-option[aria-checked='true'] {
   background: var(--color-fill-secondary);
+}
+.agent-approval-option[aria-checked='true'] .agent-approval-label {
   font-weight: 600;
 }
 .agent-approval-option > svg:first-child {
   flex: none;
+  margin-top: 1px;
   color: var(--color-muted);
+}
+.agent-approval-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.agent-approval-label {
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+.agent-approval-hint {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.4;
+}
+.agent-approval-option.is-danger .agent-approval-label,
+.agent-approval-option.is-danger .agent-approval-hint,
+.agent-approval-option.is-danger > svg:first-child {
+  color: var(--color-danger);
+}
+.agent-approval-select.is-full {
+  color: var(--color-danger);
 }
 .agent-approval-check {
   flex: none;

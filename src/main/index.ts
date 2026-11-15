@@ -1058,6 +1058,7 @@ async function loadEnabledSkillPrompts(): Promise<AgentSkillPrompt[]> {
         name: detail.name,
         description: detail.description,
         category: detail.category,
+        ...(detail.requires ? { requires: detail.requires } : {}),
         content: detail.content.slice(0, 40_000),
       })
     } catch {
@@ -7372,6 +7373,12 @@ function pollMusic(): void {
       }
       readAudio((audio) => {
         const { muted, volume } = audio
+        const applePositionReliable =
+          typeof apple.position === 'number' &&
+          typeof apple.duration === 'number' &&
+          apple.duration > 0 &&
+          apple.position >= 0 &&
+          apple.position <= apple.duration + 1
         if (apple.state === 'playing') {
           musicSource = 'apple'
           applyMusic({
@@ -7386,7 +7393,7 @@ function pollMusic(): void {
             duration: apple.duration,
             position: apple.position,
             positionAt: sampledAt,
-            positionReliable: true,
+            positionReliable: applePositionReliable,
             album: apple.album,
             genre: apple.genre,
           })
@@ -7421,7 +7428,7 @@ function pollMusic(): void {
               duration: apple.duration,
               position: apple.position,
               positionAt: sampledAt,
-              positionReliable: true,
+              positionReliable: applePositionReliable,
               album: apple.album,
               genre: apple.genre,
             })

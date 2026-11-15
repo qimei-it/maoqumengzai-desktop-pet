@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   createAgentRuntime,
@@ -1664,5 +1664,30 @@ describe('agent runtime', () => {
     expect(runtime.state().approval).toBeNull()
     const result = seen[1].find((message) => message.role === 'tool')
     expect(result?.content).toContain('还没有绑定工作区')
+  })
+
+  test('full access runs shell from the home directory', async () => {
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'shell-home',
+                name: 'shell_run',
+                arguments: '{"command":"pwd"}',
+              },
+            ],
+          }
+        return { text: '完成', toolCalls: [] }
+      },
+    })
+    runtime.setApprovalMode('full')
+    await runtime.send('看看当前目录')
+    const result = seen[1].find((message) => message.role === 'tool')
+    expect(result?.content).toContain(homedir())
   })
 })

@@ -1168,11 +1168,18 @@ const syncedLyricLines = computed(() => {
 const lyricLocalClock = computed(
   () => state.value?.music.appName === "网易云音乐",
 );
-const lyricLines = computed(() =>
-  state.value?.music.positionReliable === false && !lyricLocalClock.value
-    ? []
-    : syncedLyricLines.value,
+const positionUsable = computed(
+  () => state.value?.music.positionReliable !== false || lyricLocalClock.value,
 );
+const lyricLines = computed(() =>
+  positionUsable.value ? syncedLyricLines.value : [],
+);
+const musicInfo = computed(() => {
+  const artist = state.value?.music.artist?.trim();
+  const album = state.value?.music.album?.trim();
+  if (artist && album) return `${artist} — ${album}`;
+  return artist || album || "暂无歌词";
+});
 const lyricElapsed = computed(() => {
   if (typeof state.value?.music.position !== "number") return null;
   return (
@@ -1228,12 +1235,9 @@ function rowStyle(
   };
 }
 const plainLines = computed(() => {
+  if (!positionUsable.value) return [];
   const plain = state.value?.lyrics?.plain ?? "";
-  const fallback =
-    state.value?.music.positionReliable === false
-      ? syncedLyricLines.value.map((line) => line.text).join("\n")
-      : "";
-  return (plain || fallback)
+  return plain
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
@@ -1246,12 +1250,14 @@ const barStyle = computed(
   () => state.value?.settings.musicBarStyle ?? "double",
 );
 const isTwoLineBar = computed(() => barStyle.value === "double");
-const hasLyrics = computed(() =>
-  Boolean(
-    state.value?.lyrics?.instrumental ||
-      state.value?.lyrics?.synced?.trim() ||
-      state.value?.lyrics?.plain?.trim(),
-  ),
+const hasLyrics = computed(
+  () =>
+    positionUsable.value &&
+    Boolean(
+      state.value?.lyrics?.instrumental ||
+        state.value?.lyrics?.synced?.trim() ||
+        state.value?.lyrics?.plain?.trim(),
+    ),
 );
 const playerName = computed(() => {
   const name = state.value?.music.appName;
@@ -1274,6 +1280,7 @@ const pillLyricLinesText = computed(() =>
   [pillLyric.value, pillLyricNext.value].filter(Boolean).join("\n"),
 );
 const pillSubline = computed(() => {
+  if (!positionUsable.value) return musicInfo.value;
   if (pillLyric.value) return pillLyric.value;
   if (hasLyrics.value) return "♪";
   // Do not flash the artist while lyrics for the current track are loading.
@@ -1840,7 +1847,10 @@ onUnmounted(() => {
   <AiQuotaBar v-else-if="quotaView" :state="state" />
 
   <main v-else-if="lyricsView" class="lyrics-surface">
-    <template v-if="state?.lyrics?.instrumental">
+    <template v-if="!positionUsable">
+      <span class="lyrics-state">{{ musicInfo }}</span>
+    </template>
+    <template v-else-if="state?.lyrics?.instrumental">
       <span class="lyrics-state">纯音乐</span>
     </template>
     <template v-else-if="currentLyric">

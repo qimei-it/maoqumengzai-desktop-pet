@@ -30,9 +30,9 @@ export const agentApprovalModeLabels: Record<AgentApprovalMode, string> = {
   full: '完全访问',
 }
 export const agentApprovalModeHints: Record<AgentApprovalMode, string> = {
-  ask: '写操作和命令逐次确认',
-  auto: '自动批准常规写操作，命令与高风险操作仍需确认',
-  full: '所有工具不再逐条确认',
+  ask: '编辑外部文件和使用互联网时始终询问',
+  auto: '仅对检测到的风险操作请求批准',
+  full: '可不受限制地访问互联网和你电脑上的任何文件',
 }
 
 export type AgentToolStatus =

@@ -157,11 +157,16 @@ test('approval modes gate routine and risky tools', async () => {
   await expect(approvalLabel).toContainText('请求批准')
 
   await approvalLabel.click()
-  await expect(agent.locator('.agent-approval-option')).toHaveText([
+  await expect(agent.locator('.agent-approval-label')).toHaveText([
     '请求批准',
     '自动审批',
     '完全访问',
   ])
+  await expect(
+    agent
+      .locator('.agent-approval-option')
+      .filter({ hasText: '完全访问' }),
+  ).toHaveClass(/is-danger/)
   await agent
     .locator('.agent-approval-option')
     .filter({ hasText: '自动审批' })

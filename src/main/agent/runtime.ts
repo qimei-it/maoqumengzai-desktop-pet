@@ -2,6 +2,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { realpath, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, isAbsolute } from 'node:path'
 import type {
   AgentApproval,
@@ -82,6 +83,7 @@ export type AgentSkillPrompt = {
   name: string
   description: string
   category?: string
+  requires?: string
   content: string
   files?: string[]
 }
@@ -386,6 +388,8 @@ function systemPrompt(
     '工具调用会直接改到真实应用状态；不要声称完成了没有调用工具的事情。',
     '工具失败时如实说明原因，不要编造结果。',
     '用户给出本地路径要求安装技能时，直接用 skill_install_local，不要先用 shell 查看目录。',
+    '任务明显需要某个未启用的技能时，先用 skill_list 搜索；找到后调用 skill_set_enabled 启用（会请求批准），不要直接放弃。',
+    '技能标注需要外部依赖时，先说明缺什么；用户批准后可以帮忙安装或配置，再启用技能。',
     '需要 shell 或工作区文件工具但还没有工作区时，先调用 workspace_set 申请绑定目录；不要直接运行 shell_run。',
     mode === 'plan'
       ? '当前是计划模式：只允许只读工具。需要修改时，说明打算怎么做，让用户切换到执行模式。'
@@ -411,7 +415,7 @@ function systemPrompt(
             ? []
             : skills.map(
                 (skill) =>
-                  `- ${skill.name}：${(skill.description || '无描述').slice(0, 160)}`,
+                  `- ${skill.name}${skill.requires ? `（需配置：${skill.requires}）` : ''}：${(skill.description || '无描述').slice(0, 160)}`,
               )),
         ]
       : []),
@@ -1382,7 +1386,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           : `工具 ${tool.name} 在当前模式下不可用。`,
       }
     }
-    if (tool.name === 'shell_run' && !session.workspace) {
+    const unrestricted =
+      session.approvalMode === 'full' && session.mode === 'build'
+    const effectiveWorkspace =
+      session.workspace ?? (unrestricted ? homedir() : null)
+    if (tool.name === 'shell_run' && !effectiveWorkspace) {
       return {
         allowed: false,
         ok: false,
@@ -1403,7 +1411,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     }
     try {
       const result = await tool.run(args, {
-        workspace: session.workspace,
+        workspace: effectiveWorkspace,
         signal,
         model: session.model,
         reasoning: session.reasoning,

@@ -1795,7 +1795,7 @@
       "id": "builtin-anthropic-xlsx",
       "dir": "anthropic/xlsx",
       "category": "文档办公",
-      "defaultEnabled": true,
+      "defaultEnabled": false,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/xlsx",
       "license": "Apache-2.0",
       "requires": "需要 Python openpyxl"
@@ -2277,7 +2277,7 @@
       "id": "builtin-uiux-ui-ux-pro-max",
       "dir": "uiux/ui-ux-pro-max",
       "category": "设计开发",
-      "defaultEnabled": true,
+      "defaultEnabled": false,
       "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/ui-ux-pro-max",
       "license": "MIT",
       "requires": "需要 Python 3 与技能脚本"
