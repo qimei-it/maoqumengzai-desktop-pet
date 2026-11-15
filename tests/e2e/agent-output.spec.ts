@@ -59,7 +59,12 @@ test.beforeAll(async () => {
             {
               id: 'u1',
               role: 'user',
-              parts: [{ type: 'text', text: '画一个流程图' }],
+              parts: [
+                {
+                  type: 'text',
+                  text: '画一个流程图，并用中文解释每个节点的含义。'.repeat(4),
+                },
+              ],
             },
             {
               id: 'a1',
@@ -141,6 +146,25 @@ test('agent renders Mermaid, copies output, exports the chat, and follows scroll
   await expect(agent.locator('.agent-mermaid svg')).toBeVisible({
     timeout: 30_000,
   })
+  await expect
+    .poll(async () => {
+      const box = await agent
+        .locator('.agent-messages-inner')
+        .boundingBox()
+      return box?.width ?? 0
+    })
+    .toBeGreaterThan(0)
+  const composerBox = await agent.locator('.agent-composer').boundingBox()
+  const innerBox = await agent.locator('.agent-messages-inner').boundingBox()
+  const userBox = await agent
+    .locator('.agent-message.user .agent-text')
+    .first()
+    .boundingBox()
+  expect(composerBox).toBeTruthy()
+  expect(innerBox).toBeTruthy()
+  expect(userBox).toBeTruthy()
+  expect(Math.abs(innerBox!.width - composerBox!.width)).toBeLessThanOrEqual(1)
+  expect(userBox!.width).toBeLessThanOrEqual(composerBox!.width * 0.55 + 1)
   const actions = agent.locator('.agent-message-actions button')
   await expect(actions).toHaveCount(1)
   await expect(actions).toHaveAttribute('aria-label', '复制')

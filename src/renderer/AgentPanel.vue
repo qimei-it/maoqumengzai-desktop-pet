@@ -116,6 +116,19 @@ let copyTimer: ReturnType<typeof setTimeout> | undefined
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
 const listInner = ref<HTMLElement>()
+const composer = ref<HTMLElement>()
+const contentWidth = ref(0)
+const contentLeft = ref(0)
+const contentStyle = computed(() =>
+  contentWidth.value > 0
+    ? {
+        width: `${contentWidth.value}px`,
+        marginLeft: `${contentLeft.value}px`,
+        marginRight: '0px',
+      }
+    : {},
+)
+let composerObserver: ResizeObserver | undefined
 const mac = /Mac/i.test(navigator.platform)
 const maximized = computed(() => props.state?.agentMaximized === true)
 
@@ -285,6 +298,19 @@ const showScrollButton = computed(
     !dropActive.value,
 )
 
+function syncContentWidth(): void {
+  const form = composer.value
+  const messages = list.value
+  if (!form || !messages) return
+  const formRect = form.getBoundingClientRect()
+  const listRect = messages.getBoundingClientRect()
+  const width = Math.round(formRect.width)
+  const left = Math.max(0, Math.round(formRect.left - listRect.left))
+  if (width === contentWidth.value && left === contentLeft.value) return
+  contentWidth.value = width
+  contentLeft.value = left
+}
+
 function nearBottom(): boolean {
   const element = list.value
   if (!element) return true
@@ -364,6 +390,19 @@ watch(listInner, (element) => {
   messageObserver.observe(element)
   scheduleFollow()
 })
+watch(
+  [composer, list],
+  ([form, messages]) => {
+    composerObserver?.disconnect()
+    composerObserver = undefined
+    if (!form) return
+    composerObserver = new ResizeObserver(() => syncContentWidth())
+    composerObserver.observe(form)
+    if (messages) composerObserver.observe(messages)
+    syncContentWidth()
+  },
+  { immediate: true },
+)
 
 async function addAttachments(): Promise<void> {
   if (busy.value || parsing.value) return
@@ -845,6 +884,7 @@ onUnmounted(() => {
   window.removeEventListener('mousedown', onDocumentMouseDown)
   clearDropWatchdog()
   messageObserver?.disconnect()
+  composerObserver?.disconnect()
   if (followFrame) cancelAnimationFrame(followFrame)
   if (copyTimer) clearTimeout(copyTimer)
 })
@@ -1340,7 +1380,7 @@ function statusLabel(status: string): string {
 
         <template v-else>
           <div ref="list" class="agent-messages" @scroll="onMessagesScroll">
-            <div ref="listInner" class="agent-messages-inner">
+            <div ref="listInner" class="agent-messages-inner" :style="contentStyle">
               <div
                 v-if="!(agent?.messages ?? []).length"
                 class="agent-empty"
@@ -1554,7 +1594,7 @@ function statusLabel(status: string): string {
                 aria-hidden="true"
               />
             </button>
-            <form class="agent-composer" @submit.prevent="send">
+            <form ref="composer" class="agent-composer" @submit.prevent="send">
               <div
                 v-if="attachments.length"
                 class="agent-attachments"
@@ -2604,7 +2644,8 @@ function statusLabel(status: string): string {
   flex: 1;
   min-height: 0;
   padding: var(--space-6) 0 var(--space-4);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   user-select: text;
 }
 .agent-messages-inner {
@@ -2674,7 +2715,7 @@ function statusLabel(status: string): string {
   white-space: pre-wrap;
 }
 .agent-message.user .agent-text {
-  max-width: 84%;
+  max-width: 55%;
   padding: 8px 12px;
   border-radius: var(--radius-card) var(--radius-card) var(--radius-xs)
     var(--radius-card);
