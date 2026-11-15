@@ -105,6 +105,21 @@ export type AgentSkillDetail = AgentSkillView & {
   content: string
 }
 
+export type AgentSkillScanFinding = {
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  category?: string
+  message: string
+  file?: string
+  line?: number
+}
+
+export type AgentSkillScan = {
+  status: 'safe' | 'warn' | 'blocked' | 'error'
+  scanner: string
+  summary: string
+  findings: AgentSkillScanFinding[]
+}
+
 export type AgentAttachmentPick = AgentAttachmentView & {
   kind: AgentAttachmentKind
   mode: AgentAttachmentMode

@@ -44,6 +44,7 @@ async function makeRuntime(
     files?: import('../../src/main/agent/runtime').AgentFilesClient
     loadSkills?: () => Promise<AgentSkillPrompt[]>
     readSkillFile?: (name: string, path: string) => Promise<string>
+    getSkillAdmin?: () => import('../../src/main/agent/skill-admin').SkillAdmin
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -62,6 +63,9 @@ async function makeRuntime(
     ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
     ...(override?.readSkillFile
       ? { readSkillFile: override.readSkillFile }
+      : {}),
+    ...(override?.getSkillAdmin
+      ? { getSkillAdmin: override.getSkillAdmin }
       : {}),
   })
   await runtime.load()
@@ -1408,5 +1412,85 @@ describe('agent runtime', () => {
     })
     project = runtime.state().projects[0]
     expect(project.name).toBe('another-project-folder')
+  })
+
+  test('manages skills through list and approval-gated tools', async () => {
+    const skill = {
+      id: 'demo',
+      name: '演示',
+      description: '演示用途',
+      category: '通用工具',
+      builtin: false,
+      enabled: false,
+    }
+    const toggles: string[] = []
+    const admin = {
+      list: () => [skill],
+      find: (target: string) => {
+        if (target === 'demo' || target === '演示') return skill
+        throw new Error('没有找到技能。')
+      },
+      scan: async () => ({
+        status: 'safe' as const,
+        scanner: 'test',
+        summary: '安全检查通过。',
+        findings: [],
+      }),
+      ensureCanEnable: async () => {},
+      setEnabled: async (target: string, enabled: boolean) => {
+        toggles.push(`${target}:${enabled}`)
+        return { ...skill, enabled }
+      },
+      installLocal: async () => ({ installed: [], scans: [] }),
+      installUrl: async () => ({ installed: [], scans: [] }),
+      remove: async () => true,
+    }
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      getSkillAdmin: () => admin,
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'list-1',
+                name: 'skill_list',
+                arguments: '{"scope":"user"}',
+              },
+            ],
+          }
+        if (seen.length === 2)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'toggle-1',
+                name: 'skill_set_enabled',
+                arguments: '{"target":"演示","enabled":true}',
+              },
+            ],
+          }
+        return { text: '已启用。', toolCalls: [] }
+      },
+    })
+    const running = runtime.send('帮我启用演示技能')
+    await waitFor(() => runtime.state().messages.some(
+      (message) =>
+        message.parts.some(
+          (part) => part.type === 'tool' && part.name === 'skill_list',
+        ),
+    ))
+    await waitFor(() => runtime.state().approval?.name === 'skill_set_enabled')
+    const listResult = seen[1].find((message) => message.role === 'tool')
+    expect(listResult?.content).toContain('demo')
+    expect(listResult?.content).toContain('演示')
+    const approval = runtime.state().approval!
+    expect(approval.title).toBe('启用技能 演示')
+    runtime.approve(approval.id)
+    await running
+    expect(toggles).toEqual(['演示:true'])
+    expect(seen[0].some((message) => message.role === 'system')).toBe(true)
   })
 })

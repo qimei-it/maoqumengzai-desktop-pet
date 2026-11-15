@@ -55,6 +55,8 @@ import {
   toolDefinition,
   type AgentTool,
 } from './tools'
+import { formatSkillScan } from './skill-scanner'
+import type { SkillAdmin } from './skill-admin'
 import type { Services } from '../services/contracts'
 
 export type AgentFilesClient = {
@@ -99,6 +101,8 @@ export type AgentRuntimeDeps = {
   readSkillFile?(name: string, path: string): Promise<string>
   /** Lists text files inside an enabled skill directory. */
   listSkillFiles?(name: string): Promise<string[]>
+  /** Skill administration used by the install/enable/uninstall tools. */
+  getSkillAdmin?(): SkillAdmin | undefined
   /** Directory for recoverable file-edit backups. */
   backupRoot?: string
 }
@@ -363,7 +367,7 @@ function systemPrompt(
 ): string {
   return [
     '你是“毛趣萌仔”桌面宠物里的个人助理智能体。默认使用中文，回答简洁直接。',
-    '你可以调用工具处理待办、置物架文件、邮件、音乐、设置、应用面板、联网搜索和 shell。',
+    '你可以调用工具处理待办、置物架文件、邮件、音乐、设置、应用面板、联网搜索、shell 与技能管理。',
     '工具调用会直接改到真实应用状态；不要声称完成了没有调用工具的事情。',
     '工具失败时如实说明原因，不要编造结果。',
     mode === 'plan'
@@ -581,11 +585,254 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return { ok: true, text: truncate(content, 30_000) }
     },
   }
+  const skillListTool: AgentTool = {
+    name: 'skill_list',
+    description:
+      '列出技能库：名称、类目、启用状态、是否内置。管理技能前先用它确认目标。',
+    parameters: {
+      type: 'object',
+      properties: {
+        scope: {
+          type: 'string',
+          enum: ['all', 'enabled', 'disabled', 'user', 'builtin'],
+          description: '筛选范围，默认 all',
+        },
+        category: { type: 'string', description: '按类目筛选' },
+        query: { type: 'string', description: '按名称或描述搜索' },
+      },
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) =>
+      `列出技能 ${String(args.category ?? args.query ?? args.scope ?? '')}`.trim().slice(0, 80),
+    async run(args) {
+      const admin = deps.getSkillAdmin?.()
+      if (!admin) return { ok: false, text: '技能库尚未就绪。' }
+      const scope = ['all', 'enabled', 'disabled', 'user', 'builtin'].includes(
+        String(args.scope ?? ''),
+      )
+        ? String(args.scope)
+        : 'all'
+      const category = String(args.category ?? '').trim().toLowerCase()
+      const query = String(args.query ?? '').trim().toLowerCase()
+      const all = admin.list()
+      const categoryCounts = new Map<string, { total: number; enabled: number }>()
+      for (const skill of all) {
+        const item = categoryCounts.get(skill.category) ?? {
+          total: 0,
+          enabled: 0,
+        }
+        item.total += 1
+        if (skill.enabled) item.enabled += 1
+        categoryCounts.set(skill.category, item)
+      }
+      const matches = all.filter((skill) => {
+        if (scope === 'enabled' && !skill.enabled) return false
+        if (scope === 'disabled' && skill.enabled) return false
+        if (scope === 'user' && skill.builtin) return false
+        if (scope === 'builtin' && !skill.builtin) return false
+        if (category && !skill.category.toLowerCase().includes(category))
+          return false
+        if (
+          query &&
+          !`${skill.id}\n${skill.name}\n${skill.description}`
+            .toLowerCase()
+            .includes(query)
+        )
+          return false
+        return true
+      })
+      matches.sort(
+        (left, right) =>
+          Number(left.builtin) - Number(right.builtin) ||
+          Number(right.enabled) - Number(left.enabled) ||
+          left.name.localeCompare(right.name, 'zh-CN'),
+      )
+      const lines = [
+        `共 ${all.length} 个技能：已启用 ${
+          all.filter((skill) => skill.enabled).length
+        }，用户添加 ${all.filter((skill) => !skill.builtin).length}。`,
+        [...categoryCounts.entries()]
+          .map(
+            ([name, item]) =>
+              `${name} ${item.total}（启用 ${item.enabled}）`,
+          )
+          .join('、'),
+        `本次筛选 ${matches.length} 个。`,
+      ]
+      const shown = matches.slice(0, 60)
+      if (shown.length)
+        lines.push(
+          ...shown.map(
+            (skill) =>
+              `- ${skill.id}｜${skill.name}（${skill.category}，${
+                skill.enabled ? '已启用' : '未启用'
+              }，${skill.builtin ? '内置' : '用户添加'}）：${(
+                skill.description || '无描述'
+              ).slice(0, 120)}`,
+          ),
+        )
+      if (matches.length > shown.length)
+        lines.push(`其余 ${matches.length - shown.length} 个未显示，请缩小范围。`)
+      return { ok: true, text: lines.join('\n') }
+    },
+  }
+  const skillScanTool: AgentTool = {
+    name: 'skill_scan',
+    description:
+      '用内置 skill-scanner 扫描一个技能，返回安全状态和风险项。安装或启用前可用它复查。',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: '技能名称或 ID' },
+      },
+      required: ['target'],
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) => `扫描技能 ${String(args.target ?? '')}`.slice(0, 80),
+    async run(args) {
+      const admin = deps.getSkillAdmin?.()
+      if (!admin) return { ok: false, text: '技能库尚未就绪。' }
+      const target = String(args.target ?? '').trim()
+      if (!target) return { ok: false, text: '缺少技能名称或 ID。' }
+      const scan = await admin.scan(target)
+      return { ok: scan.status !== 'blocked', text: formatSkillScan(scan) }
+    },
+  }
+  const skillToggleTool: AgentTool = {
+    name: 'skill_set_enabled',
+    description:
+      '启用或禁用一个技能。启用用户添加的技能前会自动安全检查，未通过的技能不能启用。',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: '技能名称或 ID' },
+        enabled: { type: 'boolean', description: 'true 为启用，false 为禁用' },
+      },
+      required: ['target', 'enabled'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) =>
+      `${args.enabled === false ? '禁用' : '启用'}技能 ${String(
+        args.target ?? '',
+      )}`.slice(0, 80),
+    async run(args) {
+      const admin = deps.getSkillAdmin?.()
+      if (!admin) return { ok: false, text: '技能库尚未就绪。' }
+      const target = String(args.target ?? '').trim()
+      if (!target) return { ok: false, text: '缺少技能名称或 ID。' }
+      if (typeof args.enabled !== 'boolean')
+        return { ok: false, text: '缺少 enabled 参数。' }
+      const skill = await admin.setEnabled(target, args.enabled)
+      return {
+        ok: true,
+        text: `${skill.enabled ? '已启用' : '已禁用'}技能“${skill.name}”。`,
+      }
+    },
+  }
+  const skillInstallTool = (
+    name: string,
+    source: 'local' | 'url',
+  ): AgentTool => ({
+    name,
+    description:
+      source === 'local'
+        ? '从本地目录、SKILL.md 或压缩包安装技能，安装后自动安全检查。'
+        : '从 https 链接安装技能，支持 SKILL.md、压缩包和 GitHub 仓库/tree 链接，安装后自动安全检查。',
+    parameters: {
+      type: 'object',
+      properties: {
+        [source === 'local' ? 'path' : 'url']: {
+          type: 'string',
+          description: source === 'local' ? '本地绝对路径' : 'https 链接',
+        },
+      },
+      required: [source === 'local' ? 'path' : 'url'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) =>
+      `${source === 'local' ? '从本地安装' : '从链接安装'}技能 ${String(
+        args[source === 'local' ? 'path' : 'url'] ?? '',
+      )}`.slice(0, 80),
+    async run(args) {
+      const admin = deps.getSkillAdmin?.()
+      if (!admin) return { ok: false, text: '技能库尚未就绪。' }
+      const value = String(args[source === 'local' ? 'path' : 'url'] ?? '').trim()
+      if (!value)
+        return {
+          ok: false,
+          text: source === 'local' ? '缺少本地路径。' : '缺少链接。',
+        }
+      const result =
+        source === 'local'
+          ? await admin.installLocal(value)
+          : await admin.installUrl(value)
+      if (!result.installed.length)
+        return { ok: false, text: '没有找到可安装的技能。' }
+      const lines = [`已安装 ${result.installed.length} 个技能。`]
+      for (const item of result.scans) {
+        const blocked =
+          item.scan.status === 'blocked'
+            ? '，安全检查未通过，已保持禁用'
+            : ''
+        lines.push(
+          `- ${item.skill.name}（${item.skill.id}${
+            item.skill.enabled ? '，已启用' : '，未启用'
+          }）${blocked}：${item.scan.summary}`,
+        )
+      }
+      return { ok: true, text: lines.join('\n') }
+    },
+  })
+  const skillInstallLocalTool = skillInstallTool(
+    'skill_install_local',
+    'local',
+  )
+  const skillInstallUrlTool = skillInstallTool('skill_install_url', 'url')
+  const skillRemoveTool: AgentTool = {
+    name: 'skill_remove',
+    description: '卸载用户添加的技能。内置技能不能卸载，只能禁用。',
+    parameters: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: '技能名称或 ID' },
+      },
+      required: ['target'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) => `卸载技能 ${String(args.target ?? '')}`.slice(0, 80),
+    async run(args) {
+      const admin = deps.getSkillAdmin?.()
+      if (!admin) return { ok: false, text: '技能库尚未就绪。' }
+      const target = String(args.target ?? '').trim()
+      if (!target) return { ok: false, text: '缺少技能名称或 ID。' }
+      const skill = admin.find(target)
+      if (skill.builtin)
+        return { ok: false, text: '内置技能不能卸载，可以改为禁用。' }
+      await admin.remove(skill.id)
+      return { ok: true, text: `已卸载技能“${skill.name}”。` }
+    },
+  }
   const toolList = [
     ...Object.values(tools),
     skillTool,
     skillSearchTool,
     skillReadTool,
+    skillListTool,
+    skillScanTool,
+    skillToggleTool,
+    skillInstallLocalTool,
+    skillInstallUrlTool,
+    skillRemoveTool,
   ]
   const subagentNames = new Set([
     'workspace_list',
@@ -716,6 +963,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
   }
   const allTools = [...toolList, subagentTool]
+  const toolMap = new Map(allTools.map((tool) => [tool.name, tool]))
   const buildDefinitions = allTools.map(toolDefinition)
   const planDefinitions = allTools
     .filter((tool) => tool.plan === 'allow')
@@ -1230,16 +1478,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
       for (const call of callEntries) {
         if (signal.aborted) return
-        const tool =
-          call.name === 'skill_load'
-            ? skillTool
-            : call.name === 'skill_search'
-              ? skillSearchTool
-              : call.name === 'skill_read'
-                ? skillReadTool
-                : call.name === 'subagent_run'
-                  ? subagentTool
-                  : tools[call.name]
+        const tool = toolMap.get(call.name)
         let args: Record<string, unknown> = {}
         let parseError: string | undefined
         try {

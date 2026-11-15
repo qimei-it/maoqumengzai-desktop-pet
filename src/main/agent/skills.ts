@@ -74,10 +74,16 @@ export type SkillStore = {
   read(id: string): Promise<AgentSkillDetail>
   files(id: string): Promise<string[]>
   readFile(id: string, path: string): Promise<string>
-  install(sourcePath: string): Promise<AgentSkillDetail[]>
+  install(sourcePath: string, options?: { maxSkills?: number }): Promise<AgentSkillDetail[]>
   setEnabled(id: string, enabled: boolean): Promise<AgentSkillView>
   remove(id: string): Promise<boolean>
   directory(id: string): string | null
+  /** Absolute location of a skill, used by the security scanner. */
+  locate(id: string): {
+    directory: string
+    file: string
+    isFile: boolean
+  } | null
 }
 
 function slug(value: string): string {
@@ -466,11 +472,16 @@ export async function createSkillStore(
 
   const install = async (
     sourcePath: string,
+    options: { maxSkills?: number } = {},
   ): Promise<AgentSkillDetail[]> => {
     const info = await stat(sourcePath).catch(() => null)
     if (info?.isDirectory()) {
       const roots = await findSkillRoots(sourcePath)
       if (!roots.length) throw new Error('目录里没有 SKILL.md。')
+      if (options.maxSkills && roots.length > options.maxSkills)
+        throw new Error(
+          `这个来源包含 ${roots.length} 个技能，一次最多安装 ${options.maxSkills} 个，请选择具体技能目录。`,
+        )
       const details: AgentSkillDetail[] = []
       for (const source of roots)
         details.push(
@@ -620,5 +631,14 @@ export async function createSkillStore(
     setEnabled,
     remove,
     directory: (id) => records.get(id)?.dir ?? null,
+    locate: (id) => {
+      const record = records.get(id)
+      if (!record) return null
+      return {
+        directory: record.dir,
+        file: record.file,
+        isFile: record.isFile,
+      }
+    },
   }
 }

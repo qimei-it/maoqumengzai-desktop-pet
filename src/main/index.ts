@@ -9,6 +9,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  net,
   Notification,
   powerMonitor,
   screen,
@@ -45,7 +46,6 @@ import type {
   AgentAttachmentPick,
   AgentMode,
   AgentPetProfile,
-  AgentSkillDetail,
   AgentSkillView,
 } from '../shared/agent'
 import {
@@ -56,6 +56,10 @@ import {
   createSkillStore,
   type SkillStore,
 } from './agent/skills'
+import {
+  createSkillAdmin,
+  type SkillAdmin,
+} from './agent/skill-admin'
 import {
   agentAttachmentLimit,
   agentAttachmentTotalChars,
@@ -621,7 +625,9 @@ const agentSkillsBuiltinRoot =
   (app.isPackaged
     ? join(process.resourcesPath, 'skills')
     : join(app.getAppPath(), 'resources', 'skills'))
+const agentSkillScansPath = join(dataRoot, 'mqmz.skill-scans.json')
 let agentSkillStore: SkillStore | undefined
+let agentSkillAdmin: SkillAdmin | undefined
 let agentSkills: AgentSkillView[] = []
 
 const services = createServices({
@@ -1084,6 +1090,7 @@ const agent = createAgentRuntime({
     if (!skill) throw new Error(`没有找到技能“${name}”。`)
     return store.readFile(skill.id, path)
   },
+  getSkillAdmin: () => agentSkillAdmin,
   backupRoot: join(dataRoot, 'agent-backups'),
   broadcast: () => broadcast(),
   pickWorkspace: async () => {
@@ -8952,6 +8959,10 @@ function setupIpc(): void {
     if (!agentSkillStore) throw new Error('技能库尚未就绪。')
     return agentSkillStore
   }
+  const skillAdmin = (): SkillAdmin => {
+    if (!agentSkillAdmin) throw new Error('技能库尚未就绪。')
+    return agentSkillAdmin
+  }
   handle(channels.agentSkillsRefresh, 'either', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
@@ -8987,15 +8998,28 @@ function setupIpc(): void {
       ],
     })
     if (result.canceled || !result.filePaths.length) return []
-    const details: AgentSkillDetail[] = []
-    for (const path of Array.from(new Set(result.filePaths)))
-      details.push(...(await skillStore().install(path)))
+    const installed: AgentSkillView[] = []
+    const blocked: string[] = []
+    for (const path of Array.from(new Set(result.filePaths))) {
+      const outcome = await skillAdmin().installLocal(path)
+      installed.push(...outcome.installed)
+      blocked.push(
+        ...outcome.scans
+          .filter((item) => item.scan.status === 'blocked')
+          .map((item) => item.skill.name),
+      )
+    }
     agentSkills = skillStore().list()
     broadcast()
+    const details = await Promise.all(
+      installed.map((skill) => skillStore().read(skill.id)),
+    )
     showToast(
-      details.length === 1
-        ? `已添加技能 ${details[0].name}`
-        : `已添加 ${details.length} 个技能`,
+      blocked.length
+        ? `已添加 ${installed.length} 个技能，${blocked.length} 个未通过安全检查`
+        : installed.length === 1
+          ? `已添加技能 ${installed[0].name}`
+          : `已添加 ${installed.length} 个技能`,
     )
     return details
   })
@@ -9018,6 +9042,7 @@ function setupIpc(): void {
       })
       .strict()
       .parse(payload)
+    if (input.enabled) await skillAdmin().ensureCanEnable(input.id)
     const skill = await skillStore().setEnabled(input.id, input.enabled)
     agentSkills = skillStore().list()
     broadcast()
@@ -9048,7 +9073,7 @@ function setupIpc(): void {
       cancelId: 0,
     })
     if (choice.response !== 1) return false
-    await skillStore().remove(id)
+    await skillAdmin().remove(id)
     agentSkills = skillStore().list()
     broadcast()
     showToast('已卸载技能')
@@ -11478,8 +11503,21 @@ else {
           agentSkillsBuiltinRoot,
         )
         agentSkills = agentSkillStore.list()
+        agentSkillAdmin = await createSkillAdmin({
+          store: agentSkillStore,
+          scansPath: agentSkillScansPath,
+          fetch: (input, init) => net.fetch(input as string, init),
+          scannerScript: join(
+            agentSkillsBuiltinRoot,
+            'sentry',
+            'skill-scanner',
+            'scripts',
+            'scan_skill.py',
+          ),
+        })
       } catch {
         agentSkillStore = undefined
+        agentSkillAdmin = undefined
         agentSkills = []
       }
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
