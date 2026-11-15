@@ -155,6 +155,16 @@ ServiceContext（index.ts 提供的现有主进程能力）
 
 设置 → 宠物档案已提供“新建桌宠”卡片与“绑定小程序”按钮，点击暂时只给出“即将开放”提示。
 
+## 技能
+
+- 侧边栏「新建对话」下方提供「技能」入口，使用 Lucide `Component` 图标。
+- 技能保存在 `userData/skills/`：每个技能一个目录，至少包含 `SKILL.md`；禁用状态保存在 `userData/mqmz.skills.json`，默认启用。
+- `SKILL.md` 支持 YAML frontmatter 的 `name`、`description`；缺失时用目录名和首段正文兜底，详情只展示去除 frontmatter 后的正文。
+- 技能页不显示「已安装」标题；顶部提供搜索、刷新和添加，列表两列展示图标、名称和描述，启用项显示勾选。
+- 添加支持 `.md`/`.markdown` 和 ZIP、7Z、RAR、TAR、GZ、TGZ、BZ2、XZ 包；压缩包内按最浅层 `SKILL.md` 识别技能目录，限制 50 MB 输入、1000 项、200 MB 解压体积，并复用归档安全校验。
+- 点击卡片打开详情面板：右上角是启用/禁用开关和「在 Finder 中打开」，右下角是「卸载」和「关闭」，不提供右上角 X。
+- 当前版本只管理技能库；把已启用技能注入对话上下文/工具调用的能力留到后续接入。
+
 ## 验证
 
 - 真实 DeepSeek（2026-11-13）：`deepseek-flash` 与 `deepseek-v4-pro` 均完成流式文本与 `tool_calls`，`stream_options` 与 `thinking: disabled` 可用。
@@ -165,6 +175,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 解析超时用例：`tests/e2e/agent-attachment-timeout.spec.ts` 通过 `MQMZ_AGENT_PARSE_TIMEOUT_MS=300` 和本地 LibreOffice DOCX 验证超时后不产生附件草稿。
 - 桌宠投递用例：`tests/e2e/prototype.spec.ts` 的“dropping on 智能体”验证直接路径投递、不进入置物架、新建未分组对话并挂载附件。
 - 输出与滚动用例：`tests/e2e/agent-output.spec.ts` 覆盖 Mermaid、图标复制到系统剪贴板、会话“保存为 Markdown”、生成文件下载、手动上滚暂停跟随、回到底部按钮，以及输出中三点波浪与悬停箭头。
+- 技能用例：`tests/unit/agent-skills.test.ts` 覆盖 SKILL.md/压缩包导入、资源保留、禁用持久化、重名目录和卸载；`tests/e2e/agent-skills.spec.ts` 覆盖入口、搜索、刷新、添加、两列卡片、详情开关、Finder 按钮、卸载和关闭。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
 - 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败降级和 30 天过期重传。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、项目迁移、shell 超时与截断。

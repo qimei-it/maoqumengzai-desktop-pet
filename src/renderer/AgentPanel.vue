@@ -13,6 +13,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Component,
   Copy,
   Download,
   Ellipsis,
@@ -28,6 +29,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
   Save,
   Search,
   Send,
@@ -48,6 +50,8 @@ import {
   type AgentProjectView,
   type AgentReasoning,
   type AgentSessionSummary,
+  type AgentSkillDetail,
+  type AgentSkillView,
   type AgentTextPart,
 } from '../shared/agent'
 import {
@@ -108,6 +112,11 @@ const progressLabel = computed(() => {
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
 const attachmentError = ref('')
+const skillsOpen = ref(false)
+const skillQuery = ref('')
+const skillBusy = ref(false)
+const skillError = ref('')
+const skillDetail = ref<AgentSkillDetail | null>(null)
 const dropActive = ref(false)
 let dragDepth = 0
 let dropWatchdog: ReturnType<typeof setTimeout> | undefined
@@ -134,6 +143,18 @@ const maximized = computed(() => props.state?.agentMaximized === true)
 
 const projects = computed(() => agent.value?.projects ?? [])
 const sessions = computed(() => agent.value?.sessions ?? [])
+const skills = computed<AgentSkillView[]>(
+  () => props.state?.agentSkills ?? [],
+)
+const filteredSkills = computed(() => {
+  const query = skillQuery.value.trim().toLowerCase()
+  if (!query) return skills.value
+  return skills.value.filter(
+    (skill) =>
+      skill.name.toLowerCase().includes(query) ||
+      skill.description.toLowerCase().includes(query),
+  )
+})
 const pinnedOpen = ref(true)
 const projectsOpen = ref(true)
 const ungroupedOpen = ref(true)
@@ -363,6 +384,8 @@ watch(
     following.value = true
     scrollHover.value = false
     lastScrollTop = 0
+    skillsOpen.value = false
+    skillDetail.value = null
     void nextTick(() => scheduleFollow())
     draft.value = ''
     attachmentError.value = ''
@@ -400,6 +423,7 @@ watch(
     composerObserver.observe(form)
     if (messages) composerObserver.observe(messages)
     syncContentWidth()
+    scheduleFollow()
   },
   { immediate: true },
 )
@@ -485,7 +509,7 @@ function armDropWatchdog(): void {
 }
 
 function onDragEnter(event: DragEvent): void {
-  if (!hasFileDrag(event) || parsing.value) return
+  if (skillsOpen.value || !hasFileDrag(event) || parsing.value) return
   event.preventDefault()
   dragDepth += 1
   dropActive.value = true
@@ -513,6 +537,7 @@ function onDragLeave(): void {
 
 async function onDrop(event: DragEvent): Promise<void> {
   const files = [...(event.dataTransfer?.files ?? [])]
+  if (skillsOpen.value) return
   if (!hasFileDrag(event) && !files.length) return
   event.preventDefault()
   clearDropWatchdog()
@@ -579,13 +604,86 @@ function onHeaderDoubleClick(event: MouseEvent): void {
 }
 
 function newSession(): void {
+  skillsOpen.value = false
+  skillDetail.value = null
   emit('command', { type: 'agent-session-new' })
 }
 function newChatIn(projectId: string): void {
+  skillsOpen.value = false
+  skillDetail.value = null
   emit('command', { type: 'agent-project-new', projectId })
 }
 function selectSession(id: string): void {
+  skillsOpen.value = false
+  skillDetail.value = null
   emit('command', { type: 'agent-session-select', id })
+}
+function openSkills(): void {
+  skillsOpen.value = true
+  skillDetail.value = null
+  skillError.value = ''
+  closeMenu()
+  modelMenuOpen.value = false
+  workspaceMenuOpen.value = false
+}
+async function refreshSkills(): Promise<void> {
+  if (skillBusy.value) return
+  skillBusy.value = true
+  skillError.value = ''
+  const result = await window.mqmz?.refreshAgentSkills()
+  if (!result?.ok) skillError.value = result?.error ?? '刷新技能失败。'
+  skillBusy.value = false
+}
+async function addSkill(): Promise<void> {
+  if (skillBusy.value) return
+  skillBusy.value = true
+  skillError.value = ''
+  const result = await window.mqmz?.addAgentSkill()
+  if (!result?.ok) skillError.value = result?.error ?? '添加技能失败。'
+  else if (result.value) skillDetail.value = result.value
+  skillBusy.value = false
+}
+async function openSkill(skill: AgentSkillView): Promise<void> {
+  skillError.value = ''
+  const result = await window.mqmz?.readAgentSkill(skill.id)
+  if (result?.ok) skillDetail.value = result.value
+  else skillError.value = result?.error ?? '读取技能失败。'
+}
+async function toggleSkill(): Promise<void> {
+  const detail = skillDetail.value
+  if (!detail || skillBusy.value) return
+  skillBusy.value = true
+  skillError.value = ''
+  const result = await window.mqmz?.setAgentSkillEnabled(
+    detail.id,
+    !detail.enabled,
+  )
+  if (result?.ok)
+    skillDetail.value = { ...detail, enabled: result.value.enabled }
+  else skillError.value = result?.error ?? '修改技能失败。'
+  skillBusy.value = false
+}
+async function revealSkill(): Promise<void> {
+  const detail = skillDetail.value
+  if (!detail) return
+  const result = await window.mqmz?.revealAgentSkill(detail.id)
+  if (!result?.ok)
+    skillError.value = result?.error ?? '打开技能目录失败。'
+}
+async function removeSkill(): Promise<void> {
+  const detail = skillDetail.value
+  if (!detail) return
+  skillError.value = ''
+  const result = await window.mqmz?.removeAgentSkill(detail.id)
+  if (!result?.ok) {
+    skillError.value = result?.error ?? '卸载技能失败。'
+    return
+  }
+  if (result.value) skillDetail.value = null
+}
+function closeSkillDetail(): void {
+  skillDetail.value = null
+  skillError.value = ''
 }
 function removeSession(id: string): void {
   confirm.value = { kind: 'session', id, title: '删除这个对话？' }
@@ -866,6 +964,8 @@ function onKeydown(event: KeyboardEvent): void {
   else if (workspaceMenuOpen.value) closeWorkspaceMenu()
   else if (menu.value) menu.value = null
   else if (dialog.value) dialog.value = null
+  else if (skillDetail.value) skillDetail.value = null
+  else if (skillsOpen.value) skillsOpen.value = false
 }
 function onDocumentMouseDown(event: MouseEvent): void {
   const target = event.target as Node
@@ -928,6 +1028,20 @@ function statusLabel(status: string): string {
               aria-hidden="true"
             />
             <span>新建对话</span>
+          </button>
+          <button
+            type="button"
+            class="agent-new-chat agent-skills-entry"
+            :class="{ active: skillsOpen }"
+            :aria-current="skillsOpen ? 'page' : undefined"
+            @click="openSkills"
+          >
+            <Component
+              :size="12"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+            <span>技能</span>
           </button>
         </div>
 
@@ -1241,7 +1355,7 @@ function statusLabel(status: string): string {
           @mousedown="onHeaderMouseDown"
           @dblclick="onHeaderDoubleClick"
         >
-          <h1 class="agent-title">{{ title }}</h1>
+          <h1 class="agent-title">{{ skillsOpen ? '技能' : title }}</h1>
           <div v-if="!mac" class="agent-window-controls">
             <button
               type="button"
@@ -1283,7 +1397,11 @@ function statusLabel(status: string): string {
             </button>
           </div>
         </header>
-        <div v-if="parsing" class="agent-parse-banner" role="status">
+        <div
+          v-if="!skillsOpen && parsing"
+          class="agent-parse-banner"
+          role="status"
+        >
           <LoaderCircle
             class="agent-parse-spinner"
             :size="14"
@@ -1299,14 +1417,186 @@ function statusLabel(status: string): string {
             取消
           </button>
         </div>
-        <div v-if="dropActive" class="agent-drop-hint" aria-hidden="true">
+        <div
+          v-if="!skillsOpen && dropActive"
+          class="agent-drop-hint"
+          aria-hidden="true"
+        >
           <div class="agent-drop-hint-inner">
             <Plus :size="16" :stroke-width="2" aria-hidden="true" />
             <span>{{ dropLabel }}</span>
           </div>
         </div>
 
-        <template v-if="!configured">
+        <template v-if="skillsOpen">
+          <div class="agent-skills-page">
+            <div class="agent-skills-toolbar">
+              <label class="agent-skills-search">
+                <Search
+                  :size="14"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                <input
+                  v-model="skillQuery"
+                  type="search"
+                  placeholder="搜索技能"
+                  aria-label="搜索技能"
+                />
+              </label>
+              <button
+                type="button"
+                class="agent-icon-button"
+                :disabled="skillBusy"
+                aria-label="刷新技能"
+                title="刷新技能"
+                @click="refreshSkills"
+              >
+                <RefreshCw
+                  :class="{ 'is-spinning': skillBusy }"
+                  :size="15"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+              <button
+                type="button"
+                class="agent-button primary agent-skills-add"
+                :disabled="skillBusy"
+                @click="addSkill"
+              >
+                <Plus
+                  :size="14"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                添加
+              </button>
+            </div>
+            <p v-if="skillError" class="agent-error">{{ skillError }}</p>
+            <div v-if="filteredSkills.length" class="agent-skills-grid">
+              <button
+                v-for="skill in filteredSkills"
+                :key="skill.id"
+                type="button"
+                class="agent-skill-card"
+                :class="{ disabled: !skill.enabled }"
+                @click="openSkill(skill)"
+              >
+                <span class="agent-skill-icon">
+                  <Component
+                    :size="17"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </span>
+                <span class="agent-skill-text">
+                  <span class="agent-skill-name">{{ skill.name }}</span>
+                  <span class="agent-skill-description">{{
+                    skill.description
+                  }}</span>
+                </span>
+                <Check
+                  v-if="skill.enabled"
+                  class="agent-skill-check"
+                  :size="14"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+            <p v-else-if="skills.length" class="agent-skills-empty">
+              没有匹配的技能
+            </p>
+            <p v-else class="agent-skills-empty">
+              还没有技能，点击“添加”导入技能包
+            </p>
+          </div>
+
+          <div
+            v-if="skillDetail"
+            class="agent-skill-detail-layer"
+          >
+            <div
+              class="agent-skill-detail"
+              role="dialog"
+              aria-modal="true"
+              :aria-label="`${skillDetail.name} 技能`"
+            >
+              <header class="agent-skill-detail-head">
+                <span class="agent-skill-icon is-large">
+                  <Component
+                    :size="20"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </span>
+                <div class="agent-skill-detail-title">
+                  <h2>
+                    {{ skillDetail.name }}
+                    <span>Skill</span>
+                  </h2>
+                  <p>{{ skillDetail.description }}</p>
+                </div>
+                <div class="agent-skill-detail-actions">
+                  <button
+                    type="button"
+                    class="agent-skill-switch"
+                    role="switch"
+                    :aria-checked="skillDetail.enabled"
+                    :aria-label="
+                      skillDetail.enabled ? '禁用技能' : '启用技能'
+                    "
+                    @click="toggleSkill"
+                  >
+                    <span />
+                  </button>
+                  <button
+                    type="button"
+                    class="agent-icon-button"
+                    aria-label="在 Finder 中打开"
+                    title="在 Finder 中打开"
+                    @click="revealSkill"
+                  >
+                    <FolderOpen
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+              </header>
+              <p v-if="skillError" class="agent-error">{{ skillError }}</p>
+              <div class="agent-skill-detail-content">
+                <MarkdownView
+                  v-if="skillDetail.content"
+                  :text="skillDetail.content"
+                />
+                <p v-else class="agent-skills-empty">
+                  这个技能没有说明。
+                </p>
+              </div>
+              <footer class="agent-skill-detail-foot">
+                <button
+                  type="button"
+                  class="agent-button danger"
+                  @click="removeSkill"
+                >
+                  卸载
+                </button>
+                <button
+                  type="button"
+                  class="agent-button"
+                  @click="closeSkillDetail"
+                >
+                  关闭
+                </button>
+              </footer>
+            </div>
+          </div>
+        </template>
+
+        <template v-else-if="!configured">
           <div class="agent-setup">
             <h2>连接 DeepSeek</h2>
             <input
@@ -2314,6 +2604,17 @@ function statusLabel(status: string): string {
 }
 .agent-new-chat:hover {
   background: var(--color-surface);
+}
+.agent-skills-entry {
+  margin-top: 2px;
+  font-weight: 500;
+}
+.agent-skills-entry.active {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-skills-entry.active svg {
+  color: var(--color-brand-ink);
 }
 .agent-section {
   margin-top: var(--space-4);
@@ -3583,6 +3884,12 @@ function statusLabel(status: string): string {
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }
+.agent-icon-button:disabled {
+  background: transparent;
+  color: var(--color-muted);
+  cursor: default;
+  opacity: 0.45;
+}
 .agent-icon-button:focus-visible,
 .agent-button:focus-visible,
 .agent-text-button:focus-visible {
@@ -3711,6 +4018,240 @@ function statusLabel(status: string): string {
 }
 .agent-latency.is-slow {
   color: var(--color-danger);
+}
+.agent-skills-page {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-6) var(--space-8) var(--space-5);
+  overflow: auto;
+}
+.agent-skills-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.agent-skills-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.agent-skills-search:focus-within {
+  border-color: var(--color-brand);
+}
+.agent-skills-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.agent-skills-search input::placeholder {
+  color: var(--color-muted);
+}
+.agent-skills-add {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.agent-skills-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.agent-skill-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 64px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+.agent-skill-card:hover {
+  border-color: var(--color-brand);
+}
+.agent-skill-card.disabled {
+  opacity: 0.55;
+}
+.agent-skill-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-control);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-skill-icon.is-large {
+  width: 40px;
+  height: 40px;
+}
+.agent-skill-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.agent-skill-name {
+  overflow: hidden;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-skill-description {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-skill-check {
+  flex: none;
+  color: var(--color-success);
+}
+.agent-skills-empty {
+  margin: var(--space-8) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  text-align: center;
+}
+.agent-icon-button svg.is-spinning {
+  animation: agent-spin 0.9s linear infinite;
+}
+.agent-skill-detail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--color-overlay);
+}
+.agent-skill-detail {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  padding: var(--space-6);
+  border-radius: var(--radius-stage);
+  background: var(--color-canvas);
+  box-shadow: var(--mqmz-panel-shadow);
+}
+.agent-skill-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.agent-skill-detail-title {
+  flex: 1;
+  min-width: 0;
+}
+.agent-skill-detail-title h2 {
+  margin: 0;
+  font-size: var(--font-size-section-lg);
+  font-weight: 650;
+  line-height: 1.35;
+}
+.agent-skill-detail-title h2 span {
+  margin-left: var(--space-1);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+.agent-skill-detail-title p {
+  margin: 4px 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.agent-skill-detail-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+.agent-skill-detail-content {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  overflow: auto;
+}
+.agent-skill-detail-content :deep(.agent-markdown) {
+  font-size: var(--font-size-label);
+}
+.agent-skill-detail-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.agent-skill-switch {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-fill-secondary);
+  transition:
+    background-color var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+.agent-skill-switch span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.agent-skill-switch[aria-checked='true'] {
+  border-color: transparent;
+  background: var(--color-brand-ink);
+}
+.agent-skill-switch[aria-checked='true'] span {
+  transform: translateX(17px);
+}
+.agent-skill-switch:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+}
+@keyframes agent-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .agent-menu-layer,
 .agent-modal-layer {

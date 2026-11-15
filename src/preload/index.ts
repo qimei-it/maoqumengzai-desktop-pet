@@ -78,6 +78,17 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.agentSaveSession, id),
   saveAgentSource: (id) =>
     ipcRenderer.invoke(channels.agentSaveSource, id),
+  refreshAgentSkills: () =>
+    ipcRenderer.invoke(channels.agentSkillsRefresh),
+  addAgentSkill: () => ipcRenderer.invoke(channels.agentSkillInstall),
+  readAgentSkill: (id) =>
+    ipcRenderer.invoke(channels.agentSkillRead, id),
+  setAgentSkillEnabled: (id, enabled) =>
+    ipcRenderer.invoke(channels.agentSkillToggle, { id, enabled }),
+  revealAgentSkill: (id) =>
+    ipcRenderer.invoke(channels.agentSkillReveal, id),
+  removeAgentSkill: (id) =>
+    ipcRenderer.invoke(channels.agentSkillRemove, id),
   openExternal: (url) => ipcRenderer.invoke(channels.openExternal, url),
   pickDirectory: (title?: string) =>
     ipcRenderer.invoke(channels.pickDirectory, title),

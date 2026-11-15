@@ -2,6 +2,8 @@ import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type {
   AgentMode,
   AgentReasoning,
+  AgentSkillDetail,
+  AgentSkillView,
   AgentState,
   AgentAttachmentPick,
 } from './agent'
@@ -22,7 +24,13 @@ import type {
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
-export type { AgentMode, AgentState, AgentAttachmentPick } from './agent'
+export type {
+  AgentMode,
+  AgentState,
+  AgentAttachmentPick,
+  AgentSkillDetail,
+  AgentSkillView,
+} from './agent'
 export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
 export type {
   MailAccount,
@@ -59,6 +67,12 @@ export const channels = {
   agentCopyOutput: 'mqmz:agent:copy-output',
   agentSaveSession: 'mqmz:agent:save-session',
   agentSaveSource: 'mqmz:agent:save-source',
+  agentSkillsRefresh: 'mqmz:agent:skills-refresh',
+  agentSkillInstall: 'mqmz:agent:skill-install',
+  agentSkillRead: 'mqmz:agent:skill-read',
+  agentSkillToggle: 'mqmz:agent:skill-toggle',
+  agentSkillReveal: 'mqmz:agent:skill-reveal',
+  agentSkillRemove: 'mqmz:agent:skill-remove',
   openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
   toastFit: 'mqmz:toast:fit',
@@ -455,6 +469,7 @@ export type Snapshot = {
   agent: AgentState
   agentDraftAttachments: AgentAttachmentPick[]
   agentAttachmentProgress?: AgentAttachmentProgress
+  agentSkills: AgentSkillView[]
   agentMaximized: boolean
   aiQuota: AiQuotaState
   convertOpen: boolean
@@ -824,6 +839,15 @@ export interface PrototypeApi {
   copyAgentOutput(text: string): Promise<Result<void>>
   saveAgentSession(id: string): Promise<Result<string>>
   saveAgentSource(id: string): Promise<Result<string>>
+  refreshAgentSkills(): Promise<Result<AgentSkillView[]>>
+  addAgentSkill(): Promise<Result<AgentSkillDetail | null>>
+  readAgentSkill(id: string): Promise<Result<AgentSkillDetail>>
+  setAgentSkillEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<Result<AgentSkillView>>
+  revealAgentSkill(id: string): Promise<Result<void>>
+  removeAgentSkill(id: string): Promise<Result<boolean>>
   openExternal(url: string): Promise<Result<void>>
   pickDirectory(title?: string): Promise<Result<string | null>>
   toastFit(width: number, height: number): void

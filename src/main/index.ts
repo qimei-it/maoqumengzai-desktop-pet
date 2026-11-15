@@ -44,8 +44,13 @@ import type {
   AgentAttachmentPick,
   AgentMode,
   AgentPetProfile,
+  AgentSkillView,
 } from '../shared/agent'
 import { createAgentRuntime } from './agent/runtime'
+import {
+  createSkillStore,
+  type SkillStore,
+} from './agent/skills'
 import {
   agentAttachmentLimit,
   agentAttachmentTotalChars,
@@ -598,6 +603,10 @@ const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 const agentPath = join(dataRoot, 'mqmz.agent.json')
 const agentWindowPath = join(dataRoot, 'mqmz.agent-window.json')
+const agentSkillsRoot = join(dataRoot, 'skills')
+const agentSkillsIndexPath = join(dataRoot, 'mqmz.skills.json')
+let agentSkillStore: SkillStore | undefined
+let agentSkills: AgentSkillView[] = []
 
 const services = createServices({
   shelfFiles: () =>
@@ -1057,6 +1066,7 @@ function snapshot(): Snapshot {
     ...(agentAttachmentProgress
       ? { agentAttachmentProgress }
       : {}),
+    agentSkills,
     agentMaximized: !!askWindow && !askWindow.isDestroyed() && askWindow.isMaximized(),
     aiQuota,
     convertOpen: windowVisible(convertWindow),
@@ -8638,6 +8648,106 @@ function setupIpc(): void {
     showToast(`已保存 ${basename(saved)}`)
     return saved
   })
+  const skillStore = (): SkillStore => {
+    if (!agentSkillStore) throw new Error('技能库尚未就绪。')
+    return agentSkillStore
+  }
+  handle(channels.agentSkillsRefresh, 'either', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以刷新技能。')
+    agentSkills = await skillStore().refresh()
+    broadcast()
+    return agentSkills
+  })
+  handle(channels.agentSkillInstall, 'either', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以添加技能。')
+    if (!askWindow) return null
+    const result = await dialog.showOpenDialog(askWindow, {
+      title: '添加技能',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: '技能包',
+          extensions: [
+            'zip',
+            '7z',
+            'rar',
+            'tar',
+            'gz',
+            'tgz',
+            'bz2',
+            'xz',
+            'md',
+            'markdown',
+          ],
+        },
+      ],
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    const detail = await skillStore().install(result.filePaths[0])
+    agentSkills = skillStore().list()
+    broadcast()
+    showToast(`已添加技能 ${detail.name}`)
+    return detail
+  })
+  handle(channels.agentSkillRead, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以读取技能。')
+    return skillStore().read(
+      z.string().min(1).max(200).parse(payload),
+    )
+  })
+  handle(channels.agentSkillToggle, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以修改技能。')
+    const input = z
+      .object({
+        id: z.string().min(1).max(200),
+        enabled: z.boolean(),
+      })
+      .strict()
+      .parse(payload)
+    const skill = await skillStore().setEnabled(input.id, input.enabled)
+    agentSkills = skillStore().list()
+    broadcast()
+    return skill
+  })
+  handle(channels.agentSkillReveal, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以打开技能目录。')
+    const id = z.string().min(1).max(200).parse(payload)
+    const directory = skillStore().directory(id)
+    if (!directory) throw new Error('技能目录不可用。')
+    const error = await shell.openPath(directory)
+    if (error) throw new Error('无法打开技能目录。')
+  })
+  handle(channels.agentSkillRemove, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以卸载技能。')
+    const id = z.string().min(1).max(200).parse(payload)
+    const choice = await dialog.showMessageBox(askWindow, {
+      type: 'warning',
+      title: '卸载技能',
+      message: '确定卸载这个技能？',
+      detail: '技能目录会从本机删除。',
+      buttons: ['取消', '卸载'],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (choice.response !== 1) return false
+    await skillStore().remove(id)
+    agentSkills = skillStore().list()
+    broadcast()
+    showToast('已卸载技能')
+    return true
+  })
   handle(channels.mailAttachments, 'either', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window !== mailComposeWindow)
@@ -11015,6 +11125,16 @@ else {
       }
       clipboardData = await loadClipboardFile(clipboardPath)
       await agent.load()
+      try {
+        agentSkillStore = await createSkillStore(
+          agentSkillsRoot,
+          agentSkillsIndexPath,
+        )
+        agentSkills = agentSkillStore.list()
+      } catch {
+        agentSkillStore = undefined
+        agentSkills = []
+      }
       enginePrefs = await loadEnginePrefs(enginePrefsPath)
       await refreshLibreOfficeState()
       builtinHealth = await checkBuiltinEngines(true)

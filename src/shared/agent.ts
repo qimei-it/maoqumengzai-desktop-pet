@@ -86,6 +86,17 @@ export type AgentAttachmentView = {
   canSave?: boolean
 }
 
+export type AgentSkillView = {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+}
+
+export type AgentSkillDetail = AgentSkillView & {
+  content: string
+}
+
 export type AgentAttachmentPick = AgentAttachmentView & {
   kind: AgentAttachmentKind
   mode: AgentAttachmentMode
