@@ -550,6 +550,8 @@ export type Command =
   | { type: 'agent-close' }
   | { type: 'agent-send'; prompt: string; attachmentIds?: string[] }
   | { type: 'agent-retry' }
+  | { type: 'agent-message-regenerate' }
+  | { type: 'agent-message-edit'; id: string; prompt: string }
   | { type: 'agent-cancel' }
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-deny'; id: string }

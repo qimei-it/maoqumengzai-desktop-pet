@@ -33,6 +33,7 @@ import {
   PinOff,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Send,
@@ -176,6 +177,9 @@ const menu = ref<MenuState | null>(null)
 const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
 const sessionQuery = ref('')
+const editingMessage = ref<{ id: string } | null>(null)
+const editDraft = ref('')
+const editInput = ref<HTMLTextAreaElement>()
 const sessionSearchInput = ref<HTMLInputElement>()
 const skillSearchInput = ref<HTMLInputElement>()
 const composerInput = ref<HTMLTextAreaElement>()
@@ -289,6 +293,13 @@ const pinnedSessions = computed(() =>
 const archivedSessions = computed(() =>
   sortSessions(sessions.value.filter((session) => session.archived)),
 )
+const lastAssistantId = computed(() => {
+  const messages = agent.value?.messages ?? []
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'assistant') return messages[index].id
+  }
+  return null
+})
 const sessionQueryText = computed(() => sessionQuery.value.trim().toLowerCase())
 const matchedSessions = computed(() => {
   const query = sessionQueryText.value
@@ -529,6 +540,31 @@ function assistantText(message: AgentMessageView): string {
     .trim()
 }
 
+function startEdit(message: AgentMessageView): void {
+  if (busy.value) return
+  editingMessage.value = { id: message.id }
+  editDraft.value = assistantText(message)
+  void nextTick(() => editInput.value?.focus())
+}
+function submitEdit(): void {
+  if (!editingMessage.value || !editDraft.value.trim()) return
+  emit('command', {
+    type: 'agent-message-edit',
+    id: editingMessage.value.id,
+    prompt: editDraft.value.trim(),
+  })
+  editingMessage.value = null
+  following.value = true
+  scrollHover.value = false
+  void nextTick(() => scheduleFollow())
+}
+function regenerateLast(): void {
+  if (busy.value) return
+  emit('command', { type: 'agent-message-regenerate' })
+  following.value = true
+  scrollHover.value = false
+  void nextTick(() => scheduleFollow())
+}
 async function copyOutput(message: AgentMessageView): Promise<void> {
   const text = assistantText(message)
   if (!text) return
@@ -1167,7 +1203,8 @@ function onKeydown(event: KeyboardEvent): void {
     }
   }
   if (event.key !== 'Escape') return
-  if (confirm.value) confirm.value = null
+  if (editingMessage.value) editingMessage.value = null
+  else if (confirm.value) confirm.value = null
   else if (modelMenuOpen.value) modelMenuOpen.value = false
   else if (workspaceMenuOpen.value) closeWorkspaceMenu()
   else if (menu.value) menu.value = null
@@ -2158,28 +2195,64 @@ function statusLabel(status: string): string {
                 </template>
                 <div
                   v-if="
-                    message.role === 'assistant' &&
+                    (message.role === 'assistant' ||
+                      message.role === 'user') &&
                     assistantText(message)
                   "
                   class="agent-message-actions"
                 >
+                  <template v-if="message.role === 'assistant'">
+                    <button
+                      type="button"
+                      class="agent-message-action"
+                      :aria-label="
+                        copiedId === message.id ? '已复制' : '复制'
+                      "
+                      :title="copiedId === message.id ? '已复制' : '复制'"
+                      @click="copyOutput(message)"
+                    >
+                      <Check
+                        v-if="copiedId === message.id"
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <Copy
+                        v-else
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button
+                      v-if="
+                        message.id === lastAssistantId &&
+                        !busy &&
+                        !agent?.retryLabel
+                      "
+                      type="button"
+                      class="agent-message-action"
+                      aria-label="重新生成"
+                      title="重新生成"
+                      @click="regenerateLast"
+                    >
+                      <RotateCcw
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </template>
                   <button
+                    v-else
                     type="button"
                     class="agent-message-action"
-                    :aria-label="
-                      copiedId === message.id ? '已复制' : '复制'
-                    "
-                    :title="copiedId === message.id ? '已复制' : '复制'"
-                    @click="copyOutput(message)"
+                    :disabled="busy"
+                    aria-label="编辑并重发"
+                    title="编辑并重发"
+                    @click="startEdit(message)"
                   >
-                    <Check
-                      v-if="copiedId === message.id"
-                      :size="14"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                    <Copy
-                      v-else
+                    <PenLine
                       :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -2945,6 +3018,50 @@ function statusLabel(status: string): string {
             </button>
           </footer>
         </template>
+      </div>
+    </div>
+
+    <div
+      v-if="editingMessage"
+      class="agent-modal-layer"
+      @mousedown.self="editingMessage = null"
+    >
+      <div
+        class="agent-modal agent-edit-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="编辑消息"
+      >
+        <header class="agent-modal-head">
+          <h2>编辑消息</h2>
+        </header>
+        <textarea
+          ref="editInput"
+          v-model="editDraft"
+          class="agent-edit-input"
+          rows="6"
+          aria-label="消息内容"
+          @keydown.enter.meta.prevent="submitEdit"
+          @keydown.enter.ctrl.prevent="submitEdit"
+        ></textarea>
+        <footer class="agent-modal-foot">
+          <span class="agent-modal-spacer" />
+          <button
+            type="button"
+            class="agent-button"
+            @click="editingMessage = null"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="agent-button primary"
+            :disabled="!editDraft.trim()"
+            @click="submitEdit"
+          >
+            保存并发送
+          </button>
+        </footer>
       </div>
     </div>
 
@@ -4999,6 +5116,23 @@ function statusLabel(status: string): string {
   font: inherit;
   font-size: var(--font-size-body);
   outline: none;
+}
+.agent-edit-input {
+  width: 100%;
+  min-height: 132px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  outline: none;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-body);
+  line-height: 1.55;
+  resize: vertical;
+}
+.agent-edit-input:focus {
+  border-color: var(--color-brand);
 }
 .agent-modal-label {
   margin: var(--space-5) 0 var(--space-2);

@@ -920,6 +920,72 @@ describe('agent runtime', () => {
     expect(state.usage).toEqual({ input: 0, output: 0 })
   })
 
+  test('regenerates the last turn without duplicating the prompt', async () => {
+    let attempts = 0
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        attempts += 1
+        const text = attempts === 1 ? '第一次回答' : '第二次回答'
+        options.onText?.(text)
+        return { text, toolCalls: [] }
+      },
+    })
+    await runtime.send('你好')
+    expect(
+      runtime.state().messages.filter((item) => item.role === 'user'),
+    ).toHaveLength(1)
+    await runtime.regenerate()
+    const state = runtime.state()
+    expect(
+      state.messages.filter((item) => item.role === 'user'),
+    ).toHaveLength(1)
+    expect(
+      state.messages.at(-1)?.parts.some(
+        (part) => part.type === 'text' && part.text === '第二次回答',
+      ),
+    ).toBe(true)
+    expect(attempts).toBe(2)
+  })
+
+  test('edits an earlier user message and drops later turns', async () => {
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        const text = `回答 ${seen.length}`
+        options.onText?.(text)
+        return { text, toolCalls: [] }
+      },
+    })
+    await runtime.send('第一问')
+    const firstUser = runtime
+      .state()
+      .messages.find((message) => message.role === 'user')!
+    await runtime.send('第二问')
+    await runtime.editMessage(firstUser.id, '修改后的问题')
+    const state = runtime.state()
+    expect(
+      state.messages
+        .filter((message) => message.role === 'user')
+        .map((message) =>
+          message.parts
+            .map((part) => (part.type === 'text' ? part.text : ''))
+            .join(''),
+        ),
+    ).toEqual(['修改后的问题'])
+    const lastRequest = seen.at(-1)!
+    expect(
+      lastRequest.filter((message) => message.role === 'user'),
+    ).toHaveLength(1)
+    expect(
+      lastRequest.some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.content === '回答 1',
+      ),
+    ).toBe(false)
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

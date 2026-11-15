@@ -89,6 +89,10 @@ export type AgentRuntime = {
   send(prompt: string, attachments?: AgentAttachmentInput[]): Promise<void>
   /** Continues the last turn after an error, stop or tool-step limit. */
   retry(): Promise<void>
+  /** Re-runs the last turn from its user message. */
+  regenerate(): Promise<void>
+  /** Replaces a user message and resends it, dropping later turns. */
+  editMessage(id: string, prompt: string): Promise<void>
   cancel(): void
   approve(id: string): void
   deny(id: string): void
@@ -1188,6 +1192,52 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           session.ui.pop()
       }
       await runLoopTurn(session, key)
+    },
+    async regenerate() {
+      if (busy) throw new Error('正在执行，请稍候。')
+      const key = deps.getKey()
+      if (!key) throw new Error('请先配置 DeepSeek API Key。')
+      const session = ensureSession()
+      const historyIndex = session.history.findLastIndex(
+        (message) => message.role === 'user',
+      )
+      const uiIndex = session.ui.findLastIndex(
+        (message) => message.role === 'user',
+      )
+      if (historyIndex < 0 || uiIndex < 0)
+        throw new Error('没有可以重新生成的内容。')
+      if (session.ui.at(-1)?.role === 'user')
+        throw new Error('上一轮尚未完成，请先重试。')
+      session.history = session.history.slice(0, historyIndex + 1)
+      session.ui = session.ui.slice(0, uiIndex + 1)
+      await runLoopTurn(session, key)
+    },
+    async editMessage(id: string, prompt: string) {
+      const value = prompt.trim()
+      if (!value) return
+      if (busy) throw new Error('正在执行，请稍候。')
+      const session = ensureSession()
+      const uiIndex = session.ui.findIndex(
+        (message) => message.id === id && message.role === 'user',
+      )
+      if (uiIndex < 0) throw new Error('找不到要编辑的消息。')
+      const usersAfter = session.ui
+        .slice(uiIndex + 1)
+        .filter((message) => message.role === 'user').length
+      let remaining = usersAfter + 1
+      let historyIndex = -1
+      for (let index = session.history.length - 1; index >= 0; index -= 1) {
+        if (session.history[index].role !== 'user') continue
+        remaining -= 1
+        if (remaining === 0) {
+          historyIndex = index
+          break
+        }
+      }
+      if (historyIndex < 0) throw new Error('无法重新发送这条消息。')
+      session.history = session.history.slice(0, historyIndex)
+      session.ui = session.ui.slice(0, uiIndex)
+      await this.send(value)
     },
     cancel() {
       if (!busy && !pending) return

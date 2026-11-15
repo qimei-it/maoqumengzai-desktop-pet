@@ -9047,6 +9047,8 @@ function setupIpc(): void {
       'agent-close',
       'agent-send',
       'agent-retry',
+      'agent-message-regenerate',
+      'agent-message-edit',
       'agent-cancel',
       'agent-approve',
       'agent-deny',
@@ -9219,6 +9221,20 @@ function setupIpc(): void {
         void agent.retry().catch((error) => {
           showToast(error instanceof Error ? error.message : '重试失败。')
         })
+        break
+      case 'agent-message-regenerate':
+        void agent.regenerate().catch((error) => {
+          showToast(error instanceof Error ? error.message : '重新生成失败。')
+        })
+        break
+      case 'agent-message-edit':
+        void agent
+          .editMessage(command.id, command.prompt)
+          .catch((error) => {
+            showToast(
+              error instanceof Error ? error.message : '重新发送失败。',
+            )
+          })
         break
       case 'agent-send': {
         const ids = command.attachmentIds ?? []

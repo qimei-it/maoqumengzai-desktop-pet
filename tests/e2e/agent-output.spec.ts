@@ -165,9 +165,11 @@ test('agent renders Mermaid, copies output, exports the chat, and follows scroll
   expect(userBox).toBeTruthy()
   expect(Math.abs(innerBox!.width - composerBox!.width)).toBeLessThanOrEqual(1)
   expect(userBox!.width).toBeLessThanOrEqual(composerBox!.width * 0.55 + 1)
-  const actions = agent.locator('.agent-message-actions button')
-  await expect(actions).toHaveCount(1)
-  await expect(actions).toHaveAttribute('aria-label', '复制')
+  const actions = agent
+    .locator('.agent-message.assistant .agent-message-actions')
+    .last()
+    .getByRole('button', { name: '复制' })
+  await expect(actions).toBeVisible()
   await actions.click()
   const clipboardText = await application.evaluate(
     ({ clipboard }) => clipboard.readText(),

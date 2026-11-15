@@ -829,6 +829,14 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('agent-retry') }).strict(),
+  z.object({ type: z.literal('agent-message-regenerate') }).strict(),
+  z
+    .object({
+      type: z.literal('agent-message-edit'),
+      id: z.string().uuid(),
+      prompt: z.string().trim().min(1).max(8000),
+    })
+    .strict(),
   z.object({ type: z.literal('agent-cancel') }).strict(),
   z
     .object({ type: z.literal('agent-approve'), id: z.string().uuid() })
