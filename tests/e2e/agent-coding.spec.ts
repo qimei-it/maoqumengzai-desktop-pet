@@ -97,8 +97,21 @@ test('edits a workspace file after approval and keeps a backup', async () => {
     ) => {
       if (!String(input).includes('/chat/completions'))
         return new Response('{}', { status: 503 })
-      calls += 1
       const body = typeof init?.body === 'string' ? init.body : ''
+      if (body.includes('会话标题生成器'))
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '编辑工作区文件' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      calls += 1
       void body
       if (calls === 1)
         return new Response(
@@ -153,9 +166,26 @@ test('edits a workspace file after approval and keeps a backup', async () => {
 test('blocks paths outside the workspace', async () => {
   await application.evaluate(() => {
     let calls = 0
-    globalThis.fetch = async (input: string | URL | Request) => {
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       if (!String(input).includes('/chat/completions'))
         return new Response('{}', { status: 503 })
+      const body = typeof init?.body === 'string' ? init.body : ''
+      if (body.includes('会话标题生成器'))
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '越界读取测试' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
       calls += 1
       if (calls === 1)
         return new Response(

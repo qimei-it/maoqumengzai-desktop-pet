@@ -53,6 +53,7 @@ import {
   agentToolPolicies,
   agentToolPolicyLabels,
   agentReasoningLevels,
+  maxAgentNameChars,
   type AgentAttachmentPick,
   type AgentMessageView,
   type AgentMode,
@@ -466,6 +467,17 @@ const renameSession = computed(() => {
   if (state?.kind !== 'rename-session') return undefined
   return sessions.value.find((item) => item.id === state.id)
 })
+const dialogNameLength = computed(
+  () => Array.from(draftName.value.trim()).length,
+)
+const dialogNameOverLimit = computed(
+  () => dialogNameLength.value > maxAgentNameChars,
+)
+const dialogNameLimitHint = computed(() =>
+  dialog.value?.kind === 'rename-session'
+    ? `标题最多 ${maxAgentNameChars} 个字符`
+    : `项目名称最多 ${maxAgentNameChars} 个字符`,
+)
 const moveSession = computed(() => {
   const state = dialog.value
   if (state?.kind !== 'move-session') return undefined
@@ -1429,6 +1441,10 @@ async function pickFolder(): Promise<void> {
   if (result.value) draftWorkspace.value = result.value
 }
 async function createProject(): Promise<void> {
+  if (dialogNameOverLimit.value) {
+    dialogError.value = dialogNameLimitHint.value
+    return
+  }
   const name = draftName.value.trim()
   const path = draftWorkspace.value.trim()
   if (!path) return
@@ -1450,6 +1466,10 @@ async function createProject(): Promise<void> {
 }
 async function saveProject(): Promise<void> {
   if (dialog.value?.kind !== 'edit-project') return
+  if (dialogNameOverLimit.value) {
+    dialogError.value = dialogNameLimitHint.value
+    return
+  }
   const project = editProject.value
   if (!project) return
   const name = draftName.value.trim()
@@ -1538,6 +1558,10 @@ async function saveSessionFromMenu(
 }
 async function saveRename(): Promise<void> {
   if (dialog.value?.kind !== 'rename-session') return
+  if (dialogNameOverLimit.value) {
+    dialogError.value = dialogNameLimitHint.value
+    return
+  }
   const name = draftName.value.trim()
   if (!name) return
   const saved = await runDialogCommand({
@@ -3705,6 +3729,11 @@ function statusLabel(status: string): string {
                     : saveRename()
               "
             />
+            <span
+              class="agent-field-count"
+              :class="{ 'is-over': dialogNameOverLimit }"
+              >{{ dialogNameLength }}/{{ maxAgentNameChars }}</span
+            >
           </label>
 
           <template v-if="dialog.kind !== 'rename-session'">
@@ -3724,8 +3753,11 @@ function statusLabel(status: string): string {
             </div>
           </template>
 
-          <p v-if="dialogError" class="agent-error agent-dialog-error">
-            {{ dialogError }}
+          <p
+            v-if="dialogNameOverLimit || dialogError"
+            class="agent-error agent-dialog-error"
+          >
+            {{ dialogNameOverLimit ? dialogNameLimitHint : dialogError }}
           </p>
 
           <footer class="agent-modal-foot">
@@ -3749,7 +3781,7 @@ function statusLabel(status: string): string {
               v-if="dialog.kind === 'rename-session'"
               type="button"
               class="agent-button primary"
-              :disabled="!draftName.trim()"
+              :disabled="!draftName.trim() || dialogNameOverLimit"
               @click="saveRename"
             >
               保存
@@ -3758,7 +3790,7 @@ function statusLabel(status: string): string {
               v-else
               type="button"
               class="agent-button primary"
-              :disabled="!draftWorkspace.trim()"
+              :disabled="!draftWorkspace.trim() || dialogNameOverLimit"
               @click="
                 dialog.kind === 'create-project'
                   ? createProject()
@@ -6110,6 +6142,15 @@ function statusLabel(status: string): string {
   font: inherit;
   font-size: var(--font-size-body);
   outline: none;
+}
+.agent-field-count {
+  flex: none;
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+.agent-field-count.is-over {
+  color: var(--color-danger);
 }
 .agent-edit-input {
   width: 100%;

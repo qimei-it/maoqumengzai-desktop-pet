@@ -19,6 +19,9 @@ export const agentReasoningLabels: Record<AgentReasoning, string> = {
   max: '最高',
 }
 
+/** Conversation titles and project names share this character limit. */
+export const maxAgentNameChars = 16
+
 export type AgentToolStatus =
   | 'running'
   | 'awaiting'

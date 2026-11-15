@@ -67,9 +67,21 @@ test('injects enabled skills and loads one during the conversation', async () =>
     ) => {
       if (!String(input).includes('/chat/completions'))
         return new Response('{}', { status: 503 })
-      state.__mqmzSkillBodies.push(
-        typeof init?.body === 'string' ? init.body : '',
-      )
+      const body = typeof init?.body === 'string' ? init.body : ''
+      if (body.includes('会话标题生成器'))
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '技能对话测试' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      state.__mqmzSkillBodies.push(body)
       calls += 1
       if (calls === 1)
         return new Response(

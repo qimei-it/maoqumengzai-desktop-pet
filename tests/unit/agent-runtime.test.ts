@@ -41,6 +41,7 @@ async function makeRuntime(
   calls: string[] = [],
   override?: {
     stream?: typeof import('../../src/main/agent/provider').streamChat
+    titleStream?: typeof import('../../src/main/agent/provider').streamChat
     files?: import('../../src/main/agent/runtime').AgentFilesClient
     loadSkills?: () => Promise<AgentSkillPrompt[]>
     readSkillFile?: (name: string, path: string) => Promise<string>
@@ -58,6 +59,7 @@ async function makeRuntime(
     getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
     broadcast: () => {},
     stream: override?.stream ?? script.stream,
+    ...(override?.titleStream ? { titleStream: override.titleStream } : {}),
     ...(override?.files ? { files: override.files } : {}),
     ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
     ...(override?.readSkillFile
@@ -1384,28 +1386,68 @@ describe('agent runtime', () => {
     ).toBeNull()
   })
 
+  test('generates a cleaned conversation title', async () => {
+    const { runtime } = await makeRuntime([{ text: '完成', toolCalls: [] }], [], {
+      titleStream: async () => ({
+        text: '标题：日报，整理。',
+        toolCalls: [],
+      }),
+    })
+    await runtime.send('帮我整理今天的日报')
+    await waitFor(
+      () => runtime.state().sessions[0]?.title === '日报整理',
+    )
+    expect(runtime.state().sessions[0]?.title).toBe('日报整理')
+  })
+
+  test('falls back to a punctuation-free title within the limit', async () => {
+    const { runtime } = await makeRuntime([{ text: '好', toolCalls: [] }])
+    await runtime.send('你好，世界！这是很长的一段话需要截断到十六个字符以内')
+    const title = runtime.state().sessions[0]?.title ?? ''
+    expect(title.startsWith('你好世界')).toBe(true)
+    expect(Array.from(title).length).toBeLessThanOrEqual(16)
+    expect(/[\p{P}]/u.test(title)).toBe(false)
+  })
+
+  test('limits session and project names to 16 characters', async () => {
+    const { runtime } = await makeRuntime([], [])
+    runtime.newSession()
+    const id = runtime.state().sessionId!
+    expect(() => runtime.renameSession(id, '一'.repeat(17))).toThrow(
+      '标题最多 16 个字符',
+    )
+    runtime.renameSession(id, `${'一'.repeat(15)}，`)
+    expect(runtime.state().sessions[0]?.title).toBe(`${'一'.repeat(15)}，`)
+
+    expect(() =>
+      runtime.createProject('项'.repeat(17), '/tmp/mqmz-long-project'),
+    ).toThrow('项目名称最多 16 个字符')
+    runtime.createProject('项'.repeat(16), '/tmp/mqmz-long-project')
+    expect(runtime.state().projects[0]?.name).toBe('项'.repeat(16))
+  })
+
   test('defaults project names to the folder name', async () => {
     const { runtime } = await makeRuntime([], [])
     runtime.createProject('', '/tmp/mqmz-project-default')
     let project = runtime.state().projects[0]
-    expect(project.name).toBe('mqmz-project-default')
+    expect(project.name).toBe('mqmz-project-def')
 
     runtime.updateProject(project.id, { name: '' })
     project = runtime.state().projects[0]
-    expect(project.name).toBe('mqmz-project-default')
+    expect(project.name).toBe('mqmz-project-def')
 
     runtime.updateProject(project.id, {
       name: '',
       workspace: '/tmp/another-project-folder',
     })
     project = runtime.state().projects[0]
-    expect(project.name).toBe('another-project-folder')
+    expect(project.name).toBe('another-project-')
 
     runtime.updateProject(project.id, {
       workspace: '/tmp/third-project-folder',
     })
     project = runtime.state().projects[0]
-    expect(project.name).toBe('another-project-folder')
+    expect(project.name).toBe('another-project-')
   })
 
   test('manages skills through list and approval-gated tools', async () => {

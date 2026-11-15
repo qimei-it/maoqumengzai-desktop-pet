@@ -19,6 +19,7 @@ import type {
   AgentToolPart,
   AgentToolPolicy,
 } from '../../shared/agent'
+import { maxAgentNameChars } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
 import type { DeepSeekModel } from '../../shared/deepseek'
 import type { SettingsState } from '../../shared/settings'
@@ -48,6 +49,7 @@ import {
   type AgentFilePurpose,
 } from './files'
 import { readWebPage } from './web'
+import { cleanSessionTitle, generateSessionTitle, nameLength } from './title'
 import {
   createTools,
   permissionFor,
@@ -92,6 +94,8 @@ export type AgentRuntimeDeps = {
   broadcast(): void
   /** Injectable for tests; production uses the real streaming client. */
   stream?: typeof streamChat
+  /** Title generation client; omitted in tests to keep scripted streams intact. */
+  titleStream?: typeof streamChat
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
@@ -183,8 +187,7 @@ function newSession(
 }
 
 function sessionTitle(prompt: string): string {
-  const value = prompt.replace(/\s+/g, ' ').trim()
-  return value.length > 22 ? `${value.slice(0, 22)}…` : value || '新会话'
+  return cleanSessionTitle(prompt) || '新会话'
 }
 
 function truncate(value: string, limit: number): string {
@@ -404,8 +407,13 @@ function systemPrompt(
 
 function projectNameValue(name: string, workspace: string): string {
   const value = name.trim()
-  if (value) return value.slice(0, 40)
-  return (basename(workspace) || '项目').slice(0, 40)
+  if (value) {
+    if (nameLength(value) > maxAgentNameChars)
+      throw new Error(`项目名称最多 ${maxAgentNameChars} 个字符。`)
+    return value
+  }
+  const fallback = basename(workspace) || '项目'
+  return Array.from(fallback).slice(0, maxAgentNameChars).join('')
 }
 
 function escapeAttribute(value: string): string {
@@ -1001,6 +1009,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     .map(toolDefinition)
   let sessions: StoredSession[] = []
   let projects: StoredProject[] = []
+  const titleTasks = new Set<Promise<void>>()
   let activeId: string | null = null
   let busy = false
   let controller: AbortController | null = null
@@ -1080,6 +1089,36 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       for (const item of evicted) releaseSessionFiles(item)
     }
     return session
+  }
+
+  /** Fills in a generated title unless the user renamed the session meanwhile. */
+  function scheduleTitle(
+    session: StoredSession,
+    fallback: string,
+    prompt: string,
+    key: string,
+    signal: AbortSignal,
+  ): void {
+    const titleStream = deps.titleStream
+    if (!titleStream) return
+    const task: Promise<void> = generateSessionTitle({
+      stream: titleStream,
+      key,
+      prompt,
+      signal,
+    })
+      .then((title) => {
+        if (!title || session.title !== fallback) return
+        if (!sessions.includes(session)) return
+        session.title = title
+        persist()
+        emit()
+      })
+      .catch(() => {})
+      .finally(() => {
+        titleTasks.delete(task)
+      })
+    titleTasks.add(task)
   }
 
   function emit(): void {
@@ -1773,7 +1812,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         }
         pushUi(session, userMessage)
         pushHistory(session, { role: 'user', content: built.content })
-        if (session.title === '新会话') session.title = sessionTitle(value)
+        if (session.title === '新会话') {
+          const fallback = sessionTitle(value)
+          session.title = fallback
+          scheduleTitle(session, fallback, value, key, signal)
+        }
         session.updatedAt = now()
         emit()
         await loop(session, key, signal)
@@ -1995,8 +2038,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     renameSession(id: string, title: string) {
       const session = sessions.find((item) => item.id === id)
       if (!session) return
-      const value = title.trim().slice(0, 60)
+      const value = title.trim()
       if (!value) throw new Error('缺少对话名称。')
+      if (nameLength(value) > maxAgentNameChars)
+        throw new Error(`标题最多 ${maxAgentNameChars} 个字符。`)
       session.title = value
       persist()
       emit()
@@ -2182,6 +2227,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       }
     },
     async flush() {
+      if (titleTasks.size) await Promise.allSettled([...titleTasks])
       await saveAgentStore(deps.storePath, { sessions, projects })
     },
   }

@@ -161,7 +161,10 @@ test('projects group sessions and support session actions', async () => {
     window.mqmz!.command({ type: 'agent-open' }),
   )
   const workspace = process.cwd()
-  const name = workspace.split('/').filter(Boolean).pop()!
+  const name = '项目'.repeat(8)
+  const fallbackName = (
+    workspace.split('/').filter(Boolean).pop() ?? '项目'
+  ).slice(0, 16)
   await agent.getByLabel('添加项目').click()
   const projectDialog = agent.locator('.agent-modal')
   await expect(
@@ -517,7 +520,7 @@ test('projects group sessions and support session actions', async () => {
           )?.name ?? '')
         : ''
     })
-    .toBe(name)
+    .toBe(fallbackName)
 })
 
 test('agent window resizes, maximizes, and remembers bounds', async () => {

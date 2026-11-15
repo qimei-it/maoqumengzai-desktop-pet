@@ -52,6 +52,7 @@ import {
   createAgentRuntime,
   type AgentSkillPrompt,
 } from './agent/runtime'
+import { streamChat } from './agent/provider'
 import {
   createSkillStore,
   type SkillStore,
@@ -1071,6 +1072,7 @@ const agent = createAgentRuntime({
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
+  titleStream: streamChat,
   listSkillFiles: async (name) => {
     const store = agentSkillStore
     if (!store) return []

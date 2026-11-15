@@ -857,7 +857,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('agent-project-create'),
-      name: z.string().trim().max(40),
+      name: z.string().trim().max(200),
       workspace: z.string().trim().min(1).max(4096),
     })
     .strict(),
@@ -865,7 +865,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-project-update'),
       id: z.string().uuid(),
-      name: z.string().trim().max(40).optional(),
+      name: z.string().trim().max(200).optional(),
       workspace: z.string().trim().min(1).max(4096).optional(),
     })
     .strict(),
@@ -899,7 +899,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-session-rename'),
       id: z.string().uuid(),
-      title: z.string().trim().min(1).max(60),
+      title: z.string().trim().min(1).max(200),
     })
     .strict(),
   z
