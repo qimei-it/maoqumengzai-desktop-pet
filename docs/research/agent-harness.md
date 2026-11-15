@@ -129,8 +129,13 @@ ServiceContext（index.ts 提供的现有主进程能力）
 | `break_snooze` | 延后久坐/护眼提醒 | deny | allow |
 | `shell_run` | 执行命令 | deny | ask（每条） |
 | `ui_open` | 打开功能面板 | allow | allow |
+| `skill_load` | 读取已启用技能说明 | allow | allow |
+| `web_search` | 联网搜索并返回来源链接 | allow | allow |
+| `read_url` | 读取公开网页正文 | allow | allow |
 
-审批卡展示工具标题与参数；拒绝后把拒绝结果写回模型上下文，避免反复重试同一操作。
+审批卡展示工具标题与参数；拒绝后把拒绝结果写回模型上下文，避免反复重试同一操作。审批卡支持「同类允许」，本会话内同一工具不再逐次确认。
+
+联网工具：`web_search` 通过 DeepSeek 搜索接口返回标题、摘要、日期与链接，`read_url` 只读取 http/https 公网页面，拒绝本机、内网和带账号信息的地址，正文上限 20k 字符；两者都要求模型用 Markdown 链接标注来源。
 
 ## Shell
 

@@ -17,6 +17,18 @@ import type {
 } from '../services/contracts'
 import { runShell } from '../services/shell'
 
+export type WebSearchResult = {
+  title: string
+  url: string
+  summary: string
+  date?: string | null
+}
+
+export type WebTools = {
+  search(query: string, count: number): Promise<WebSearchResult[]>
+  read(url: string): Promise<{ url: string; title: string; text: string }>
+}
+
 export type ToolResult = {
   ok: boolean
   text: string
@@ -208,7 +220,10 @@ function formatShell(
   }
 }
 
-export function createTools(services: Services): Record<string, AgentTool> {
+export function createTools(
+  services: Services,
+  web?: WebTools,
+): Record<string, AgentTool> {
   const tools: AgentTool[] = [
     {
       name: 'shelf_list',
@@ -1424,6 +1439,77 @@ export function createTools(services: Services): Record<string, AgentTool> {
         return { ok: true, text: `已打开面板：${panel}` }
       },
     },
+    ...(web
+      ? [
+          {
+            name: 'web_search',
+            description:
+              '联网搜索公开网页。回答时用 Markdown 链接引用搜到的来源。',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: '搜索关键词' },
+                count: {
+                  type: 'number',
+                  description: '返回结果数量，1-8，默认 5',
+                },
+              },
+              required: ['query'],
+              additionalProperties: false,
+            },
+            plan: 'allow' as const,
+            build: 'allow' as const,
+            title: (args: Record<string, unknown>) =>
+              `搜索 ${String(args.query ?? '')}`.slice(0, 80),
+            async run(args: Record<string, unknown>) {
+              const query = text(args.query, 'query', 128)
+              const count = numberArg(args.count, 1, 8) ?? 5
+              const results = await web.search(query, count)
+              if (!results.length)
+                return {
+                  ok: true,
+                  text: `没有找到与“${query}”相关的结果。`,
+                }
+              return {
+                ok: true,
+                text: results
+                  .map(
+                    (result, index) =>
+                      `${index + 1}. [${result.title}](${result.url})\n${result.summary}${
+                        result.date ? `（${result.date}）` : ''
+                      }`,
+                  )
+                  .join('\n\n'),
+              }
+            },
+          },
+          {
+            name: 'read_url',
+            description:
+              '读取一个公开网页的正文。回答时用 Markdown 链接标注来源。',
+            parameters: {
+              type: 'object',
+              properties: {
+                url: { type: 'string', description: 'http 或 https 网页地址' },
+              },
+              required: ['url'],
+              additionalProperties: false,
+            },
+            plan: 'allow' as const,
+            build: 'allow' as const,
+            title: (args: Record<string, unknown>) =>
+              `读取网页 ${String(args.url ?? '')}`.slice(0, 80),
+            async run(args: Record<string, unknown>) {
+              const url = text(args.url, 'url', 2048)
+              const page = await web.read(url)
+              return {
+                ok: true,
+                text: `标题：${page.title}\n来源：${page.url}\n\n${page.text}`,
+              }
+            },
+          },
+        ]
+      : []),
   ]
 
   return Object.fromEntries(tools.map((tool) => [tool.name, tool]))

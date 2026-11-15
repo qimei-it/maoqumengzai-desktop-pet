@@ -101,6 +101,48 @@ describe('agent tool registry', () => {
     ).rejects.toThrow('需要 find')
   })
 
+  test('searches the web and reads a page with citations', async () => {
+    const calls: string[] = []
+    const tools = createTools(makeServices(), {
+      search: async (query, count) => {
+        calls.push(`search:${query}:${count}`)
+        return [
+          {
+            title: 'DeepSeek 文档',
+            url: 'https://example.com/doc',
+            summary: '模型说明',
+            date: '2026-01-01',
+          },
+        ]
+      },
+      read: async (url) => {
+        calls.push(`read:${url}`)
+        return { url, title: '示例页', text: '正文内容' }
+      },
+    })
+    const search = await tools.web_search.run(
+      { query: 'DeepSeek', count: 3 },
+      ctx,
+    )
+    expect(search.text).toContain(
+      '[DeepSeek 文档](https://example.com/doc)',
+    )
+    expect(search.text).toContain('模型说明')
+    expect(search.text).toContain('2026-01-01')
+    const page = await tools.read_url.run(
+      { url: 'https://example.com/doc' },
+      ctx,
+    )
+    expect(page.text).toContain('标题：示例页')
+    expect(page.text).toContain('正文内容')
+    expect(calls).toEqual([
+      'search:DeepSeek:3',
+      'read:https://example.com/doc',
+    ])
+    expect(permissionFor(tools.web_search, 'plan')).toBe('allow')
+    expect(permissionFor(tools.read_url, 'build')).toBe('allow')
+  })
+
   test('read and write tools reach the shared services', async () => {
     const calls: string[] = []
     const tools = createTools(makeServices(calls))

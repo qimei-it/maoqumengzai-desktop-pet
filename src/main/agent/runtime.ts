@@ -18,6 +18,7 @@ import type {
   AgentTextPart,
   AgentToolPart,
 } from '../../shared/agent'
+import { searchWeb } from '../../shared/deepseek'
 import type { DeepSeekModel } from '../../shared/deepseek'
 import type { SettingsState } from '../../shared/settings'
 import {
@@ -45,6 +46,7 @@ import {
   uploadAgentFile,
   type AgentFilePurpose,
 } from './files'
+import { readWebPage } from './web'
 import {
   createTools,
   permissionFor,
@@ -351,7 +353,7 @@ function systemPrompt(
 ): string {
   return [
     '你是“毛趣萌仔”桌面宠物里的个人助理智能体。默认使用中文，回答简洁直接。',
-    '你可以调用工具处理待办、置物架文件、邮件、音乐、设置、应用面板和 shell。',
+    '你可以调用工具处理待办、置物架文件、邮件、音乐、设置、应用面板、联网搜索和 shell。',
     '工具调用会直接改到真实应用状态；不要声称完成了没有调用工具的事情。',
     '工具失败时如实说明原因，不要编造结果。',
     mode === 'plan'
@@ -454,7 +456,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       transcribeAgentAudio(apiKey, path, { signal }),
     remove: (apiKey, id) => deleteAgentFile(apiKey, id),
   }
-  const tools = createTools(deps.services)
+  const tools = createTools(deps.services, {
+    search: (query, count) => {
+      const key = deps.getKey()
+      if (!key) throw new Error('请先在设置中配置 DeepSeek API Key。')
+      return searchWeb(key, query, { count })
+    },
+    read: (url) => readWebPage(url),
+  })
   const skillTool: AgentTool = {
     name: 'skill_load',
     description:
