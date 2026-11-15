@@ -607,7 +607,7 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
   expect(maximizedLayout.side.x).toBeCloseTo(7, 0)
   expect(maximizedLayout.side.y).toBeCloseTo(7, 0)
   expect(maximizedLayout.newChat.x).toBeCloseTo(11, 0)
-  expect(maximizedLayout.newChat.y).toBeCloseTo(39, 0)
+  expect(maximizedLayout.newChat.y).toBeCloseTo(77, 0)
   expect(maximizedLayout.head.x).toBeCloseTo(255, 0)
   expect(maximizedLayout.head.y).toBeCloseTo(7, 0)
 
@@ -698,6 +698,7 @@ test('composer grows to 75% of the conversation pane', async () => {
       return window.getBounds()
     })
 
+  await expect(agent.locator('.agent-main')).toBeVisible()
   const original = await readBounds()
   expect(await ratio()).toBeGreaterThan(0.9)
   const initialWidths = await widths()

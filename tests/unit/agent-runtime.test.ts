@@ -1426,6 +1426,87 @@ describe('agent runtime', () => {
     expect(runtime.state().projects[0]?.name).toBe('项'.repeat(16))
   })
 
+  test('auto approval skips routine writes but keeps risky tools gated', async () => {
+    const calls: string[] = []
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-approval-'))
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], calls, {
+        stream: async (_key, options) => {
+          seen.push(options.messages)
+          const result = [
+            {
+              text: '',
+              toolCalls: [
+                {
+                  id: 'todo-auto',
+                  name: 'todo_create',
+                  arguments: '{"text":"自动审批待办"}',
+                },
+              ],
+            },
+            { text: '已创建。', toolCalls: [] },
+            {
+              text: '',
+              toolCalls: [
+                {
+                  id: 'ws-auto',
+                  name: 'workspace_set',
+                  arguments: JSON.stringify({ path: directory }),
+                },
+              ],
+            },
+            { text: '已绑定。', toolCalls: [] },
+          ][seen.length - 1]
+          return result ?? { text: '完成', toolCalls: [] }
+        },
+      },
+    )
+    runtime.setApprovalMode('auto')
+    await runtime.send('建个待办')
+    expect(calls).toContain('addTodo:自动审批待办')
+    expect(runtime.state().approval).toBeNull()
+
+    const running = runtime.send('绑定工作区')
+    await waitFor(() => runtime.state().approval?.name === 'workspace_set')
+    runtime.approve(runtime.state().approval!.id)
+    await running
+    expect(runtime.state().workspace).toBe(await realpath(directory))
+  })
+
+  test('full access skips approvals but plan mode still blocks writes', async () => {
+    const calls: string[] = []
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'todo-full',
+                name: 'todo_create',
+                arguments: '{"text":"完全访问待办"}',
+              },
+            ],
+          }
+        return { text: '完成', toolCalls: [] }
+      },
+    })
+    runtime.setMode('plan')
+    runtime.setApprovalMode('full')
+    await runtime.send('建个待办')
+    expect(runtime.state().approval).toBeNull()
+    expect(calls).not.toContain('addTodo:完全访问待办')
+    expect(runtime.state().messages.some((message) =>
+      message.parts.some(
+        (part) =>
+          part.type === 'tool' &&
+          part.output?.includes('当前模式下不可用'),
+      ),
+    )).toBe(true)
+  })
+
   test('defaults project names to the folder name', async () => {
     const { runtime } = await makeRuntime([], [])
     runtime.createProject('', '/tmp/mqmz-project-default')

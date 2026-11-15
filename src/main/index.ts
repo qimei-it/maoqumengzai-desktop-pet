@@ -43,6 +43,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
 import type {
+  AgentApprovalMode,
   AgentAttachmentPick,
   AgentMode,
   AgentPetProfile,
@@ -9324,6 +9325,7 @@ function setupIpc(): void {
       'agent-session-archive',
       'agent-session-clear',
       'agent-mode',
+      'agent-approval-mode',
       'agent-model',
       'agent-reasoning',
       'agent-workspace',
@@ -9604,6 +9606,9 @@ function setupIpc(): void {
         break
       case 'agent-mode':
         agent.setMode(command.mode as AgentMode)
+        break
+      case 'agent-approval-mode':
+        agent.setApprovalMode(command.mode as AgentApprovalMode)
         break
       case 'agent-model':
         agent.setModel(command.model)

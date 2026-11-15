@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile, rename, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
+  AgentApprovalMode,
   AgentMessageView,
   AgentMode,
   AgentReasoning,
@@ -40,6 +41,7 @@ export type StoredSession = {
   id: string
   title: string
   mode: AgentMode
+  approvalMode?: AgentApprovalMode
   model: DeepSeekModel
   reasoning: AgentReasoning
   workspace: string | null
@@ -141,6 +143,10 @@ function parseSession(value: unknown): StoredSession | null {
     id: value.id,
     title: value.title.slice(0, 60),
     mode: value.mode as AgentMode,
+    approvalMode:
+      value.approvalMode === 'auto' || value.approvalMode === 'full'
+        ? value.approvalMode
+        : 'ask',
     model: value.model as DeepSeekModel,
     reasoning:
       value.reasoning === 'off' ||

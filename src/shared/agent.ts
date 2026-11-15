@@ -22,6 +22,19 @@ export const agentReasoningLabels: Record<AgentReasoning, string> = {
 /** Conversation titles and project names share this character limit. */
 export const maxAgentNameChars = 16
 
+export const agentApprovalModes = ['ask', 'auto', 'full'] as const
+export type AgentApprovalMode = (typeof agentApprovalModes)[number]
+export const agentApprovalModeLabels: Record<AgentApprovalMode, string> = {
+  ask: '请求批准',
+  auto: '自动审批',
+  full: '完全访问',
+}
+export const agentApprovalModeHints: Record<AgentApprovalMode, string> = {
+  ask: '写操作和命令逐次确认',
+  auto: '自动批准常规写操作，命令与高风险操作仍需确认',
+  full: '所有工具不再逐条确认',
+}
+
 export type AgentToolStatus =
   | 'running'
   | 'awaiting'
@@ -216,6 +229,7 @@ export type AgentState = {
   projects: AgentProjectView[]
   sessionId: string | null
   mode: AgentMode
+  approvalMode: AgentApprovalMode
   model: DeepSeekModel
   reasoning: AgentReasoning
   workspace: string | null
@@ -236,6 +250,7 @@ export const agentEmptyState: AgentState = {
   projects: [],
   sessionId: null,
   mode: 'build',
+  approvalMode: 'ask',
   model: 'deepseek-flash',
   reasoning: 'high',
   workspace: null,

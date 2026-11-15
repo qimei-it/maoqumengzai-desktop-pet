@@ -1,5 +1,6 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
 import type {
+  AgentApprovalMode,
   AgentMode,
   AgentReasoning,
   AgentSkillDetail,
@@ -25,6 +26,7 @@ import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type {
+  AgentApprovalMode,
   AgentMode,
   AgentState,
   AgentAttachmentPick,
@@ -596,6 +598,7 @@ export type Command =
   | { type: 'agent-session-archive'; id: string; archived: boolean }
   | { type: 'agent-session-clear'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }
+  | { type: 'agent-approval-mode'; mode: AgentApprovalMode }
   | { type: 'agent-model'; model: DeepSeekModel }
   | { type: 'agent-reasoning'; reasoning: AgentReasoning }
   | { type: 'agent-workspace'; projectId: string | null }
@@ -686,9 +689,10 @@ export type Command =
   | { type: 'clipboard-config'; patch: Partial<ClipboardConfig> }
   | { type: 'shelf-scan' }
   | { type: 'shelf-clear-invalid' }
-  | { type: 'engine-install'; id: 'ffmpeg' }
+  | { type: 'engine-install'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-cancel'; id: 'ffmpeg' }
   | { type: 'engine-recheck'; id: 'ffmpeg' }
+  | { type: 'engine-detect'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-use-local'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-remove'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-self-check' }

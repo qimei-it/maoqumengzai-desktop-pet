@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { agentModes, agentReasoningLevels } from '../shared/agent'
+import {
+  agentApprovalModes,
+  agentModes,
+  agentReasoningLevels,
+} from '../shared/agent'
 import {
   archiveFormats,
   todoListColors,
@@ -948,6 +952,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-model'),
       model: z.enum(deepseekModelIds),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-approval-mode'),
+      mode: z.enum(agentApprovalModes),
     })
     .strict(),
   z

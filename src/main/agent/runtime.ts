@@ -5,6 +5,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute } from 'node:path'
 import type {
   AgentApproval,
+  AgentApprovalMode,
   AgentArtifactKind,
   AgentArtifactView,
   AgentAttachmentInput,
@@ -142,6 +143,7 @@ export type AgentRuntime = {
   select(id: string): void
   remove(id: string): void
   setMode(mode: AgentMode): void
+  setApprovalMode(mode: AgentApprovalMode): void
   setModel(model: DeepSeekModel): void
   setReasoning(reasoning: AgentReasoning): void
   setWorkspace(projectId: string | null): void
@@ -154,6 +156,16 @@ export type AgentRuntime = {
 
 const maxSteps = 12
 const maxShellHistory = 60
+/** Kept behind the approval card even in 自动审批; 完全访问 skips all of them. */
+const alwaysConfirmTools = new Set([
+  'shell_run',
+  'workspace_set',
+  'skill_install_local',
+  'skill_install_url',
+  'skill_remove',
+  'mail_send',
+  'mail_delete',
+])
 const maxHistoryChars = 96_000
 const maxSummaryChars = 6_000
 
@@ -171,6 +183,7 @@ function newSession(
     id: randomUUID(),
     title: '新会话',
     mode: 'build',
+    approvalMode: 'ask',
     model,
     reasoning: 'high',
     workspace,
@@ -1345,6 +1358,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       permission = 'allow'
     else if (permission === 'ask' && project?.toolPolicy === 'deny')
       permission = 'deny'
+    if (
+      permission === 'ask' &&
+      (session.approvalMode === 'full' ||
+        (session.approvalMode === 'auto' &&
+          !alwaysConfirmTools.has(tool.name)))
+    )
+      permission = 'allow'
     if (permission === 'deny') {
       return {
         allowed: false,
@@ -1741,6 +1761,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           })),
         sessionId: session?.id ?? null,
         mode: session?.mode ?? 'build',
+        approvalMode: session?.approvalMode ?? 'ask',
         model: session?.model ?? deps.getSettings().aiModel,
         reasoning: session?.reasoning ?? 'high',
         workspace: session?.workspace ?? null,
@@ -2120,6 +2141,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const session = ensureSession()
       if (session.mode === mode) return
       session.mode = mode
+      session.updatedAt = now()
+      persist()
+      emit()
+    },
+    setApprovalMode(mode: AgentApprovalMode) {
+      const session = ensureSession()
+      if (session.approvalMode === mode) return
+      session.approvalMode = mode
       session.updatedAt = now()
       persist()
       emit()

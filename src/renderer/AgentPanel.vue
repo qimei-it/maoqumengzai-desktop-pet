@@ -40,6 +40,9 @@ import {
   Send,
   Settings,
   Shield,
+  ShieldCheck,
+  ShieldExclamationPoint,
+  ShieldQuestionMark,
   Square,
   SquareArrowOutUpRight,
   Trash2,
@@ -52,8 +55,12 @@ import {
   agentReasoningLabels,
   agentToolPolicies,
   agentToolPolicyLabels,
+  agentApprovalModeHints,
+  agentApprovalModeLabels,
+  agentApprovalModes,
   agentReasoningLevels,
   maxAgentNameChars,
+  type AgentApprovalMode,
   type AgentAttachmentPick,
   type AgentMessageView,
   type AgentMode,
@@ -303,6 +310,9 @@ const dialogInput = ref<HTMLInputElement>()
 const dialogError = ref('')
 
 const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
+const approvalMode = computed<AgentApprovalMode>(
+  () => agent.value?.approvalMode ?? 'ask',
+)
 const model = computed<DeepSeekModel>(
   () => agent.value?.model ?? 'deepseek-flash',
 )
@@ -358,6 +368,13 @@ const reasoning = computed<AgentReasoning>(
   () => agent.value?.reasoning ?? 'high',
 )
 const modelMenuOpen = ref(false)
+const approvalMenuOpen = ref(false)
+const approvalPicker = ref<HTMLElement>()
+const approvalIcons = {
+  ask: ShieldQuestionMark,
+  auto: ShieldCheck,
+  full: ShieldExclamationPoint,
+}
 const modelPicker = ref<HTMLElement>()
 const workspaceMenuOpen = ref(false)
 const workspaceSearch = ref('')
@@ -1162,6 +1179,7 @@ function openSkills(): void {
   closeMenu()
   modelMenuOpen.value = false
   workspaceMenuOpen.value = false
+  approvalMenuOpen.value = false
   void indexSkillContent()
 }
 async function indexSkillContent(
@@ -1291,6 +1309,17 @@ function setMode(value: AgentMode): void {
   if (mode.value === value) return
   emit('command', { type: 'agent-mode', mode: value })
 }
+function toggleApprovalMenu(): void {
+  if (busy.value) return
+  modelMenuOpen.value = false
+  workspaceMenuOpen.value = false
+  approvalMenuOpen.value = !approvalMenuOpen.value
+}
+function selectApprovalMode(value: AgentApprovalMode): void {
+  approvalMenuOpen.value = false
+  if (approvalMode.value === value) return
+  emit('command', { type: 'agent-approval-mode', mode: value })
+}
 function setModel(value: DeepSeekModel): void {
   modelMenuOpen.value = false
   if (model.value === value) return
@@ -1314,6 +1343,7 @@ function setReasoning(value: AgentReasoning): void {
 function toggleWorkspaceMenu(): void {
   if (busy.value) return
   modelMenuOpen.value = false
+  approvalMenuOpen.value = false
   workspaceMenuOpen.value = !workspaceMenuOpen.value
   if (!workspaceMenuOpen.value) return
   workspaceSearch.value = ''
@@ -1625,6 +1655,7 @@ function onKeydown(event: KeyboardEvent): void {
   if (editingMessage.value) editingMessage.value = null
   else if (confirm.value) confirm.value = null
   else if (modelMenuOpen.value) modelMenuOpen.value = false
+  else if (approvalMenuOpen.value) approvalMenuOpen.value = false
   else if (workspaceMenuOpen.value) closeWorkspaceMenu()
   else if (menu.value) menu.value = null
   else if (dialog.value) dialog.value = null
@@ -1636,6 +1667,8 @@ function onDocumentMouseDown(event: MouseEvent): void {
   const target = event.target as Node
   if (modelMenuOpen.value && !modelPicker.value?.contains(target))
     modelMenuOpen.value = false
+  if (approvalMenuOpen.value && !approvalPicker.value?.contains(target))
+    approvalMenuOpen.value = false
   if (workspaceMenuOpen.value && !workspacePicker.value?.contains(target))
     closeWorkspaceMenu()
 }
@@ -3266,6 +3299,58 @@ function statusLabel(status: string): string {
                           aria-hidden="true"
                         />
                         不在项目中工作
+                      </button>
+                    </div>
+                  </div>
+                  <div ref="approvalPicker" class="agent-approval-picker">
+                    <button
+                      type="button"
+                      class="agent-approval-select"
+                      :disabled="busy"
+                      :aria-expanded="approvalMenuOpen"
+                      aria-haspopup="dialog"
+                      aria-label="批准模式"
+                      :title="agentApprovalModeHints[approvalMode]"
+                      @click="toggleApprovalMenu"
+                    >
+                      <component
+                        :is="approvalIcons[approvalMode]"
+                        :size="13"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span>{{ agentApprovalModeLabels[approvalMode] }}</span>
+                    </button>
+                    <div
+                      v-if="approvalMenuOpen"
+                      class="agent-approval-menu"
+                      role="dialog"
+                      aria-label="批准模式"
+                    >
+                      <button
+                        v-for="option in agentApprovalModes"
+                        :key="option"
+                        type="button"
+                        class="agent-approval-option"
+                        role="menuitemradio"
+                        :aria-checked="approvalMode === option"
+                        :title="agentApprovalModeHints[option]"
+                        @click="selectApprovalMode(option)"
+                      >
+                        <component
+                          :is="approvalIcons[option]"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span>{{ agentApprovalModeLabels[option] }}</span>
+                        <Check
+                          v-if="approvalMode === option"
+                          class="agent-approval-check"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
                       </button>
                     </div>
                   </div>
@@ -5226,6 +5311,93 @@ function statusLabel(status: string): string {
   color: var(--color-danger);
 }
 .agent-attachment-remove:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-approval-picker {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+.agent-approval-select {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-approval-select:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-approval-select:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-approval-select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.agent-approval-select svg {
+  flex: none;
+}
+.agent-approval-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 176px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+.agent-approval-option {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-approval-option:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-approval-option[aria-checked='true'] {
+  background: var(--color-fill-secondary);
+  font-weight: 600;
+}
+.agent-approval-option > svg:first-child {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-approval-check {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-brand-ink);
+}
+.agent-approval-option:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: -1px;
 }
