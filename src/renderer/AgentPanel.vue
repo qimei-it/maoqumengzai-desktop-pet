@@ -5649,9 +5649,13 @@ function statusLabel(status: string): string {
   outline-offset: 1px;
 }
 .agent-skills-more {
+  display: inline-flex;
   align-self: flex-start;
-  min-height: 28px;
-  padding: 0 var(--space-3);
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  min-height: 30px;
+  padding: 0 var(--space-8);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
