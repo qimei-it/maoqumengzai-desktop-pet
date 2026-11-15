@@ -136,10 +136,24 @@ ServiceContext（index.ts 提供的现有主进程能力）
 | `skill_load` | 读取已启用技能说明 | allow | allow |
 | `web_search` | 联网搜索并返回来源链接 | allow | allow |
 | `read_url` | 读取公开网页正文 | allow | allow |
+| `workspace_list` | 列出项目工作区文件 | allow | allow |
+| `workspace_read` | 读取工作区文本文件 | allow | allow |
+| `workspace_search` | 搜索工作区文本 | allow | allow |
+| `workspace_write` | 创建或覆盖工作区文件 | deny | ask |
+| `workspace_replace` | 精确替换文件内容 | deny | ask |
+| `workspace_delete` | 删除工作区文件 | deny | ask |
+| `subagent_run` | 派只读子 Agent 调查 | allow | allow |
 
 审批卡展示工具标题与参数；拒绝后把拒绝结果写回模型上下文，避免反复重试同一操作。审批卡支持「同类允许」，本会话内同一工具不再逐次确认。
 
 联网工具：`web_search` 通过 DeepSeek 搜索接口返回标题、摘要、日期与链接，`read_url` 只读取 http/https 公网页面，拒绝本机、内网和带账号信息的地址，正文上限 20k 字符；两者都要求模型用 Markdown 链接标注来源。
+
+## 文件编辑与子 Agent
+
+- 文件工具只在当前会话工作区内工作；只接受相对路径，绝对路径、`..`、指向工作区外的符号链接一律拒绝，`.git` 与 `node_modules` 不允许写入。
+- `workspace_read` 单文件上限 512 KB，二进制文件拒绝读取；`workspace_list` 最多 300 项、深度 1–3；`workspace_search` 跳过符号链接、`.git`、`node_modules`，默认最多 50 条匹配。
+- `workspace_write` / `workspace_replace` / `workspace_delete` 进入审批或项目工具权限；写入使用同目录临时文件 + 原子替换，覆盖或删除前把原文件复制到 `userData/agent-backups`，不直接丢弃。
+- `subagent_run` 派出只读子 Agent，最多 4 步，只开放工作区读取/搜索与联网读取工具，不允许写文件或递归派生子 Agent；工具卡实时显示步骤，停止按钮会取消子 Agent，最终返回结论和关键文件位置。
 
 ## Shell
 

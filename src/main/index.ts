@@ -1059,6 +1059,7 @@ const agent = createAgentRuntime({
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
+  backupRoot: join(dataRoot, 'agent-backups'),
   broadcast: () => broadcast(),
   pickWorkspace: async () => {
     const owner = askWindow && askWindow.isVisible() ? askWindow : pet

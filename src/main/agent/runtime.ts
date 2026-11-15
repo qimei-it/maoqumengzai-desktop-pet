@@ -93,6 +93,8 @@ export type AgentRuntimeDeps = {
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
   loadSkills?(): Promise<AgentSkillPrompt[]>
+  /** Directory for recoverable file-edit backups. */
+  backupRoot?: string
 }
 
 export type AgentRuntime = {
@@ -499,8 +501,137 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
   }
   const toolList = [...Object.values(tools), skillTool]
-  const buildDefinitions = toolList.map(toolDefinition)
-  const planDefinitions = toolList
+  const subagentNames = new Set([
+    'workspace_list',
+    'workspace_read',
+    'workspace_search',
+    'shelf_list',
+    'file_read',
+    'web_search',
+    'read_url',
+  ])
+  const subagentTools = toolList.filter((tool) =>
+    subagentNames.has(tool.name),
+  )
+  const subagentMap = Object.fromEntries(
+    subagentTools.map((tool) => [tool.name, tool]),
+  )
+  const subagentDefinitions = subagentTools.map(toolDefinition)
+  const subagentTool: AgentTool = {
+    name: 'subagent_run',
+    description:
+      '派一个只读子 Agent 调查代码或资料，返回结论和关键文件位置。子 Agent 不会修改文件。',
+    parameters: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: '交给子 Agent 的调查任务' },
+      },
+      required: ['task'],
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) =>
+      `子 Agent：${String(args.task ?? '')}`.slice(0, 80),
+    async run(args, ctx) {
+      const task = String(args.task ?? '').trim().slice(0, 1_000)
+      if (!task) return { ok: false, text: '缺少子 Agent 任务。' }
+      const key = deps.getKey()
+      if (!key) return { ok: false, text: '请先配置 DeepSeek API Key。' }
+      const messages: ProviderMessage[] = [
+        {
+          role: 'system',
+          content: [
+            '你是主智能体派出的只读子 Agent。',
+            '只做调查、定位和总结，不修改任何文件。',
+            `工作区：${ctx.workspace ?? '未选择'}`,
+            '优先使用 workspace_list / workspace_read / workspace_search；需要外部资料时使用 web_search / read_url。',
+            '最多 4 步，最后用简洁中文给出结论、关键文件路径和行号。',
+          ].join('\n'),
+        },
+        { role: 'user', content: task },
+      ]
+      let summary = ''
+      for (let step = 0; step < 4; step += 1) {
+        if (ctx.signal.aborted) throw new Error('已停止。')
+        ctx.onProgress?.(`第 ${step + 1} 步：分析任务`)
+        const result = await stream(key, {
+          model: ctx.model ?? deps.getSettings().aiModel,
+          reasoning: ctx.reasoning ?? 'low',
+          messages,
+          tools: subagentDefinitions,
+          signal: ctx.signal,
+        })
+        if (result.text.trim()) summary = result.text.trim()
+        if (!result.toolCalls.length) break
+        const calls = result.toolCalls.map((call) => ({
+          id: call.id || `sub_${randomUUID()}`,
+          name: call.name,
+          arguments: call.arguments,
+        }))
+        messages.push({
+          role: 'assistant',
+          content: result.text.trim() ? result.text : null,
+          ...(result.reasoning
+            ? { reasoning_content: result.reasoning }
+            : {}),
+          tool_calls: calls.map((call) => ({
+            id: call.id,
+            type: 'function',
+            function: {
+              name: call.name,
+              arguments: call.arguments,
+            },
+          })),
+        })
+        for (const call of calls) {
+          if (ctx.signal.aborted) throw new Error('已停止。')
+          const tool = subagentMap[call.name]
+          if (!tool) {
+            messages.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: `子 Agent 不能使用工具 ${call.name}。`,
+            })
+            continue
+          }
+          let parsed: Record<string, unknown> = {}
+          try {
+            const value = JSON.parse(call.arguments || '{}') as unknown
+            if (value && typeof value === 'object' && !Array.isArray(value))
+              parsed = value as Record<string, unknown>
+          } catch {
+            messages.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: '工具参数不是有效的 JSON。',
+            })
+            continue
+          }
+          ctx.onProgress?.(`第 ${step + 1} 步：${tool.name}`)
+          const outcome = await tool.run(parsed, {
+            ...ctx,
+            onProgress: (text) =>
+              ctx.onProgress?.(`第 ${step + 1} 步：${text}`),
+          })
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: truncate(outcome.text, 4_000),
+          })
+        }
+      }
+      return {
+        ok: true,
+        text: summary
+          ? truncate(summary, 8_000)
+          : '子 Agent 没有返回结论。',
+      }
+    },
+  }
+  const allTools = [...toolList, subagentTool]
+  const buildDefinitions = allTools.map(toolDefinition)
+  const planDefinitions = allTools
     .filter((tool) => tool.plan === 'allow')
     .map(toolDefinition)
   let sessions: StoredSession[] = []
@@ -795,6 +926,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     args: Record<string, unknown>,
     argsText: string,
     signal: AbortSignal,
+    onProgress?: (output: string) => void,
   ): Promise<{
     allowed: boolean
     text: string
@@ -847,6 +979,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const result = await tool.run(args, {
         workspace: session.workspace,
         signal,
+        model: session.model,
+        reasoning: session.reasoning,
+        ...(deps.backupRoot ? { backupRoot: deps.backupRoot } : {}),
+        ...(onProgress ? { onProgress } : {}),
       })
       return {
         allowed: true,
@@ -1009,7 +1145,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       for (const call of callEntries) {
         if (signal.aborted) return
         const tool =
-          call.name === 'skill_load' ? skillTool : tools[call.name]
+          call.name === 'skill_load'
+            ? skillTool
+            : call.name === 'subagent_run'
+              ? subagentTool
+              : tools[call.name]
         let args: Record<string, unknown> = {}
         let parseError: string | undefined
         try {
@@ -1063,6 +1203,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           args,
           call.arguments || '{}',
           signal,
+          (progress) => {
+            if (signal.aborted) return
+            if (part.status === 'awaiting') part.status = 'running'
+            part.output = truncate(progress, 6_000)
+            emit()
+          },
         )
         if (!outcome.allowed) {
           part.status = 'denied'

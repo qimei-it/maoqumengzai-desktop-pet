@@ -7,7 +7,29 @@ import type { AgentMode } from '../../shared/agent'
 import { archiveFormats, todoRepeats } from '../../shared/protocol'
 import type { ArchiveFormat, ConvertAction, TodoRepeat } from '../../shared/protocol'
 import type { RenameConfig } from '../../shared/rename'
-import { basename } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from 'node:path'
 import type { ProviderToolDefinition } from './provider'
 import type {
   PanelTarget,
@@ -38,6 +60,12 @@ export type ToolResult = {
 export type ToolContext = {
   workspace: string | null
   signal: AbortSignal
+  model?: 'deepseek-flash' | 'deepseek-v4-pro'
+  reasoning?: 'off' | 'low' | 'high' | 'max'
+  /** Recoverable backup directory for file writes. */
+  backupRoot?: string
+  /** Streams progress for long-running tools such as sub-agents. */
+  onProgress?: (output: string) => void
 }
 
 export type AgentTool = {
@@ -218,6 +246,147 @@ function formatShell(
     ok: !output.timedOut && output.exitCode === 0,
     text: parts.join('\n'),
   }
+}
+
+const workspaceReadBytes = 512 * 1024
+const workspaceWriteBytes = 512 * 1024
+const workspaceSkipDirectories = new Set([
+  'node_modules',
+  '.git',
+  '.mqmz-backups',
+])
+
+function workspaceRoot(ctx: ToolContext): string {
+  if (!ctx.workspace) throw new Error('请先为对话选择项目工作区。')
+  return ctx.workspace
+}
+
+function workspaceRelative(
+  root: string,
+  value: unknown,
+  allowRoot = false,
+): { path: string; relative: string } {
+  if (typeof value !== 'string') throw new Error('缺少文件路径。')
+  const clean = value.trim()
+  if (!clean) throw new Error('缺少文件路径。')
+  if (isAbsolute(clean)) throw new Error('请使用工作区内的相对路径。')
+  const path = resolve(root, clean)
+  const rel = relative(resolve(root), path)
+  if (rel.startsWith('..') || isAbsolute(rel))
+    throw new Error('路径超出工作区。')
+  if (!rel && !allowRoot) throw new Error('请指定工作区内的文件。')
+  return { path, relative: rel.split('\\').join('/') }
+}
+
+function workspaceBlocked(rel: string): boolean {
+  return rel
+    .split('/')
+    .filter(Boolean)
+    .some((part) => part === '.git' || part === 'node_modules')
+}
+
+async function workspaceRealRoot(root: string): Promise<string> {
+  return realpath(root).catch(() => root)
+}
+
+async function assertWorkspacePath(
+  root: string,
+  path: string,
+): Promise<string> {
+  const realRoot = await workspaceRealRoot(root)
+  const exists = await lstat(path).catch(() => null)
+  const candidate = exists
+    ? await realpath(path).catch(() => null)
+    : await realpath(dirname(path)).catch(() => null)
+  if (!candidate) throw new Error('文件或目录不存在。')
+  const rel = relative(realRoot, candidate)
+  if (rel.startsWith('..') || isAbsolute(rel))
+    throw new Error('路径超出工作区。')
+  return realRoot
+}
+
+async function readWorkspaceText(
+  path: string,
+  limit = workspaceReadBytes,
+): Promise<{ text: string; truncated: boolean; size: number }> {
+  const info = await stat(path).catch(() => null)
+  if (!info?.isFile()) throw new Error('文件不存在或不是普通文件。')
+  const buffer = await readFile(path)
+  const slice = buffer.subarray(0, limit)
+  if (slice.includes(0)) throw new Error('这是二进制文件，无法按文本读取。')
+  return {
+    text: slice.toString('utf8'),
+    truncated: buffer.length > limit,
+    size: buffer.length,
+  }
+}
+
+async function backupWorkspaceFile(
+  path: string,
+  ctx: ToolContext,
+): Promise<string | null> {
+  const info = await lstat(path).catch(() => null)
+  if (!info?.isFile()) return null
+  const root =
+    ctx.backupRoot ?? join(tmpdir(), 'mqmz-agent-backups')
+  await mkdir(root, { recursive: true })
+  const target = join(
+    root,
+    `${Date.now()}-${randomUUID().slice(0, 8)}-${basename(path)}`,
+  )
+  await copyFile(path, target)
+  return target
+}
+
+async function writeWorkspaceText(
+  path: string,
+  content: string,
+): Promise<void> {
+  const temp = join(
+    dirname(path),
+    `.${basename(path)}.${randomUUID().slice(0, 8)}.tmp`,
+  )
+  await writeFile(temp, content, 'utf8')
+  try {
+    await rename(temp, path)
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {})
+    throw error
+  }
+}
+
+async function walkWorkspace(
+  root: string,
+  start: string,
+  limit: number,
+): Promise<Array<{ path: string; relative: string; size: number }>> {
+  const files: Array<{ path: string; relative: string; size: number }> = []
+  const stack = [start]
+  while (stack.length && files.length < limit) {
+    const directory = stack.pop()!
+    const entries = await readdir(directory, { withFileTypes: true }).catch(
+      () => [],
+    )
+    for (const entry of entries.sort((left, right) =>
+      left.name.localeCompare(right.name),
+    )) {
+      if (entry.isSymbolicLink()) continue
+      const path = join(directory, entry.name)
+      const rel = relative(root, path).split('\\').join('/')
+      if (entry.isDirectory()) {
+        if (workspaceSkipDirectories.has(entry.name)) continue
+        stack.push(path)
+        continue
+      }
+      if (!entry.isFile()) continue
+      if (workspaceSkipDirectories.has(entry.name)) continue
+      const info = await stat(path).catch(() => null)
+      if (!info) continue
+      files.push({ path, relative: rel, size: info.size })
+      if (files.length >= limit) break
+    }
+  }
+  return files
 }
 
 export function createTools(
@@ -1437,6 +1606,284 @@ export function createTools(
           throw new Error('缺少面板名称。')
         await call(services.panel.open(panel as PanelTarget))
         return { ok: true, text: `已打开面板：${panel}` }
+      },
+    },
+    {
+      name: 'workspace_list',
+      description:
+        '列出当前项目工作区里的文件和目录。编辑前先用它确认路径。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '相对工作区的目录，默认根目录' },
+          depth: { type: 'number', description: '目录深度，1-3，默认 2' },
+        },
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `查看工作区 ${String(args.path ?? '')}`.trim(),
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const target = workspaceRelative(
+          root,
+          typeof args.path === 'string' ? args.path : '.',
+          true,
+        )
+        await assertWorkspacePath(root, target.path)
+        const info = await stat(target.path).catch(() => null)
+        if (!info?.isDirectory()) throw new Error('目录不存在。')
+        const depth = numberArg(args.depth, 1, 3) ?? 2
+        const lines: string[] = []
+        const walk = async (directory: string, level: number) => {
+          const entries = await readdir(directory, {
+            withFileTypes: true,
+          }).catch(() => [])
+          for (const entry of entries.sort((left, right) =>
+            left.name.localeCompare(right.name),
+          )) {
+            if (lines.length >= 300) return
+            if (entry.isSymbolicLink()) continue
+            if (workspaceSkipDirectories.has(entry.name)) continue
+            const rel = relative(root, join(directory, entry.name))
+              .split('\\')
+              .join('/')
+            lines.push(entry.isDirectory() ? `${rel}/` : rel)
+            if (entry.isDirectory() && level < depth)
+              await walk(join(directory, entry.name), level + 1)
+          }
+        }
+        await walk(target.path, 1)
+        if (!lines.length) return { ok: true, text: '目录是空的。' }
+        return {
+          ok: true,
+          text: `${lines.join('\n')}${
+            lines.length >= 300 ? '\n（已截断）' : ''
+          }`,
+        }
+      },
+    },
+    {
+      name: 'workspace_read',
+      description:
+        '读取当前项目工作区内的文本文件。修改前先读取原文以确认内容。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '相对工作区的文件路径' },
+        },
+        required: ['path'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `读取 ${String(args.path ?? '')}`,
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const target = workspaceRelative(root, args.path)
+        if (workspaceBlocked(target.relative))
+          throw new Error('不能读取这个目录。')
+        await assertWorkspacePath(root, target.path)
+        const existing = await lstat(target.path).catch(() => null)
+        if (existing?.isSymbolicLink())
+          throw new Error('不能通过符号链接写入文件。')
+        const file = await readWorkspaceText(target.path)
+        return {
+          ok: true,
+          text: `${file.text}${
+            file.truncated
+              ? '\n（文件超过 512 KB，已截断）'
+              : ''
+          }`,
+        }
+      },
+    },
+    {
+      name: 'workspace_search',
+      description:
+        '在当前项目工作区里搜索文本，返回文件、行号和匹配内容。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '要搜索的文字' },
+          path: { type: 'string', description: '可选的相对目录或文件' },
+          limit: { type: 'number', description: '最多返回多少条，默认 50' },
+        },
+        required: ['query'],
+        additionalProperties: false,
+      },
+      plan: 'allow',
+      build: 'allow',
+      title: (args) => `搜索 ${String(args.query ?? '')}`.slice(0, 80),
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const query = text(args.query, 'query', 200)
+        const limit = numberArg(args.limit, 1, 100) ?? 50
+        const start = workspaceRelative(
+          root,
+          typeof args.path === 'string' ? args.path : '.',
+          true,
+        )
+        await assertWorkspacePath(root, start.path)
+        const info = await stat(start.path).catch(() => null)
+        if (!info) throw new Error('搜索路径不存在。')
+        const files = info.isFile()
+          ? [
+              {
+                path: start.path,
+                relative: start.relative,
+                size: info.size,
+              },
+            ]
+          : await walkWorkspace(root, start.path, 500)
+        const needle = query.toLowerCase()
+        const matches: string[] = []
+        for (const file of files) {
+          if (matches.length >= limit) break
+          if (file.size > workspaceReadBytes) continue
+          const content = await readFile(file.path, 'utf8').catch(
+            () => null,
+          )
+          if (!content || content.includes('\u0000')) continue
+          const lines = content.split(/\r?\n/)
+          for (const [index, line] of lines.entries()) {
+            if (!line.toLowerCase().includes(needle)) continue
+            matches.push(
+              `${file.relative}:${index + 1}: ${line.trim().slice(0, 200)}`,
+            )
+            if (matches.length >= limit) break
+          }
+        }
+        if (!matches.length)
+          return { ok: true, text: `没有找到“${query}”。` }
+        return { ok: true, text: matches.join('\n') }
+      },
+    },
+    {
+      name: 'workspace_write',
+      description:
+        '在工作区内创建或整体覆盖一个文本文件。覆盖前会保留可恢复副本，写盘前需要用户确认。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '相对工作区的文件路径' },
+          content: { type: 'string', description: '完整文件内容' },
+        },
+        required: ['path', 'content'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `写入 ${String(args.path ?? '')}`,
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const target = workspaceRelative(root, args.path)
+        if (workspaceBlocked(target.relative))
+          throw new Error('不能写入这个目录。')
+        if (typeof args.content !== 'string')
+          throw new Error('缺少文件内容。')
+        if (Buffer.byteLength(args.content, 'utf8') > workspaceWriteBytes)
+          throw new Error('文件超过 512 KB，无法写入。')
+        await mkdir(dirname(target.path), { recursive: true })
+        await assertWorkspacePath(root, target.path)
+        const existing = await lstat(target.path).catch(() => null)
+        if (existing?.isSymbolicLink())
+          throw new Error('不能通过符号链接写入文件。')
+        const backup = await backupWorkspaceFile(target.path, ctx)
+        await writeWorkspaceText(target.path, args.content)
+        return {
+          ok: true,
+          text: `已写入 ${target.relative}（${args.content.length} 字符）${
+            backup ? '，原文件已保留可恢复副本' : ''
+          }。`,
+        }
+      },
+    },
+    {
+      name: 'workspace_replace',
+      description:
+        '把文件中的一段精确文本替换为新文本。默认要求只匹配一次；写盘前需要用户确认并保留备份。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '相对工作区的文件路径' },
+          find: { type: 'string', description: '要查找的原文' },
+          replace: { type: 'string', description: '替换后的文本' },
+          all: { type: 'boolean', description: '是否替换全部匹配' },
+        },
+        required: ['path', 'find', 'replace'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `修改 ${String(args.path ?? '')}`,
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const target = workspaceRelative(root, args.path)
+        if (workspaceBlocked(target.relative))
+          throw new Error('不能修改这个目录。')
+        const find = text(args.find, 'find', 10_000)
+        if (typeof args.replace !== 'string')
+          throw new Error('缺少替换文本。')
+        await assertWorkspacePath(root, target.path)
+        const file = await readWorkspaceText(target.path)
+        if (file.truncated)
+          throw new Error('文件超过 512 KB，无法安全替换。')
+        const count = file.text.split(find).length - 1
+        if (!count) throw new Error('没有找到要替换的文本。')
+        const all = args.all === true
+        if (!all && count > 1)
+          throw new Error(
+            `原文匹配了 ${count} 次，请提供更长片段或设置 all。`,
+          )
+        const next = all
+          ? file.text.split(find).join(args.replace)
+          : file.text.replace(find, args.replace)
+        if (Buffer.byteLength(next, 'utf8') > workspaceWriteBytes)
+          throw new Error('修改后文件超过 512 KB。')
+        const backup = await backupWorkspaceFile(target.path, ctx)
+        await writeWorkspaceText(target.path, next)
+        return {
+          ok: true,
+          text: `已修改 ${target.relative}，替换 ${all ? count : 1} 处${
+            backup ? '，原文件已保留可恢复副本' : ''
+          }。`,
+        }
+      },
+    },
+    {
+      name: 'workspace_delete',
+      description:
+        '删除工作区内的一个文件。删除前会保留可恢复副本，并需要用户确认。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '相对工作区的文件路径' },
+        },
+        required: ['path'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `删除 ${String(args.path ?? '')}`,
+      async run(args, ctx) {
+        const root = workspaceRoot(ctx)
+        const target = workspaceRelative(root, args.path)
+        if (workspaceBlocked(target.relative))
+          throw new Error('不能删除这个目录。')
+        await assertWorkspacePath(root, target.path)
+        const info = await lstat(target.path).catch(() => null)
+        if (info?.isSymbolicLink())
+          throw new Error('不能删除符号链接。')
+        if (!info?.isFile()) throw new Error('只能删除普通文件。')
+        const backup = await backupWorkspaceFile(target.path, ctx)
+        await unlink(target.path)
+        return {
+          ok: true,
+          text: `已删除 ${target.relative}${
+            backup ? '，已保留可恢复副本' : ''
+          }。`,
+        }
       },
     },
     ...(web

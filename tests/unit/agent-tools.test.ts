@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -99,6 +106,90 @@ describe('agent tool registry', () => {
         ctx,
       ),
     ).rejects.toThrow('需要 find')
+  })
+
+  test('reads, searches and edits files inside the workspace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mqmz-workspace-'))
+    const backupRoot = await mkdtemp(join(tmpdir(), 'mqmz-backups-'))
+    await mkdir(join(root, 'src'), { recursive: true })
+    await writeFile(join(root, 'src', 'app.ts'), 'const value = 1\n')
+    const tools = createTools(makeServices())
+    const workspaceCtx = { ...ctx, workspace: root, backupRoot }
+
+    const list = await tools.workspace_list.run({}, workspaceCtx)
+    expect(list.text).toContain('src/')
+    expect(list.text).toContain('src/app.ts')
+
+    const read = await tools.workspace_read.run(
+      { path: 'src/app.ts' },
+      workspaceCtx,
+    )
+    expect(read.text).toBe('const value = 1\n')
+
+    const search = await tools.workspace_search.run(
+      { query: 'value' },
+      workspaceCtx,
+    )
+    expect(search.text).toContain('src/app.ts:1: const value = 1')
+
+    const replaced = await tools.workspace_replace.run(
+      {
+        path: 'src/app.ts',
+        find: 'const value = 1',
+        replace: 'const value = 2',
+      },
+      workspaceCtx,
+    )
+    expect(replaced.ok).toBe(true)
+    expect(await readFile(join(root, 'src', 'app.ts'), 'utf8')).toBe(
+      'const value = 2\n',
+    )
+    expect(await readdir(backupRoot)).not.toHaveLength(0)
+
+    const written = await tools.workspace_write.run(
+      { path: 'src/new.ts', content: 'export {}\n' },
+      workspaceCtx,
+    )
+    expect(written.ok).toBe(true)
+    expect(await readFile(join(root, 'src', 'new.ts'), 'utf8')).toBe(
+      'export {}\n',
+    )
+
+    const deleted = await tools.workspace_delete.run(
+      { path: 'src/new.ts' },
+      workspaceCtx,
+    )
+    expect(deleted.ok).toBe(true)
+    await expect(
+      readFile(join(root, 'src', 'new.ts'), 'utf8'),
+    ).rejects.toThrow()
+  })
+
+  test('rejects workspace escapes and links outside the workspace', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mqmz-workspace-safe-'))
+    const outside = await mkdtemp(join(tmpdir(), 'mqmz-outside-'))
+    await writeFile(join(outside, 'secret.txt'), 'secret')
+    await symlink(join(outside, 'secret.txt'), join(root, 'link.txt'))
+    const tools = createTools(makeServices())
+    const workspaceCtx = { ...ctx, workspace: root }
+    await expect(
+      tools.workspace_read.run({ path: '../secret.txt' }, workspaceCtx),
+    ).rejects.toThrow('路径超出工作区')
+    await expect(
+      tools.workspace_read.run(
+        { path: join(outside, 'secret.txt') },
+        workspaceCtx,
+      ),
+    ).rejects.toThrow('请使用工作区内的相对路径')
+    await expect(
+      tools.workspace_read.run({ path: 'link.txt' }, workspaceCtx),
+    ).rejects.toThrow('路径超出工作区')
+    await expect(
+      tools.workspace_write.run(
+        { path: '.git/config', content: 'x' },
+        workspaceCtx,
+      ),
+    ).rejects.toThrow('不能写入这个目录')
   })
 
   test('searches the web and reads a page with citations', async () => {

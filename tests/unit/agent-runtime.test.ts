@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -1202,6 +1202,83 @@ describe('agent runtime', () => {
       (part) => part.type === 'tool' && part.name === 'todo_create',
     )
     expect(denied?.type === 'tool' ? denied.status : '').toBe('denied')
+  })
+
+  test('runs a read-only sub-agent and reports its conclusion', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'mqmz-subagent-'))
+    await mkdir(join(workspace, 'src'), { recursive: true })
+    await writeFile(
+      join(workspace, 'src', 'app.ts'),
+      '// TODO: rename this\nconst value = 1\n',
+    )
+    let parentCalls = 0
+    let childCalls = 0
+    const childTools: string[][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        const system = options.messages[0]
+        const isChild =
+          system?.role === 'system' &&
+          String(system.content).includes('只读子 Agent')
+        if (!isChild) {
+          parentCalls += 1
+          if (parentCalls === 1)
+            return {
+              text: '',
+              toolCalls: [
+                {
+                  id: 'sub-1',
+                  name: 'subagent_run',
+                  arguments: JSON.stringify({ task: '查找 TODO' }),
+                },
+              ],
+            }
+          options.onText?.('子 Agent 已找到。')
+          return { text: '子 Agent 已找到。', toolCalls: [] }
+        }
+        childTools.push(
+          (options.tools ?? []).map((tool) => tool.function.name),
+        )
+        childCalls += 1
+        if (childCalls === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'child-1',
+                name: 'workspace_search',
+                arguments: JSON.stringify({ query: 'TODO' }),
+              },
+            ],
+          }
+        return { text: '找到 1 处 TODO。', toolCalls: [] }
+      },
+    })
+    runtime.createProject('代码项目', workspace)
+    const project = runtime
+      .state()
+      .projects.find((item) => item.name === '代码项目')!
+    runtime.newSessionIn(project.id)
+    await runtime.send('调查一下代码')
+
+    const part = toolParts(runtime).find(
+      (item) => item.type === 'tool' && item.name === 'subagent_run',
+    )
+    expect(part).toMatchObject({ type: 'tool', status: 'done' })
+    expect(part?.type === 'tool' ? part.output : '').toContain(
+      '找到 1 处 TODO',
+    )
+    expect(childTools[0]).toContain('workspace_search')
+    expect(childTools[0]).not.toContain('workspace_write')
+    expect(
+      runtime
+        .state()
+        .messages.at(-1)
+        ?.parts.some(
+          (item) =>
+            item.type === 'text' && item.text.includes('子 Agent 已找到'),
+        ),
+    ).toBe(true)
   })
 
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
