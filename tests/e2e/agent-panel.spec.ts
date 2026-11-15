@@ -732,7 +732,7 @@ test('composer grows to 75% of the conversation pane', async () => {
   await agent.waitForTimeout(400)
 })
 
-test('pet profile section exposes create and bind entries', async () => {
+test('pet profile section exposes the create entry', async () => {
   await settings.evaluate(() =>
     window.mqmz!.command({ type: 'settings-open' }),
   )
@@ -744,7 +744,7 @@ test('pet profile section exposes create and bind entries', async () => {
   ).toBeVisible()
   await expect(
     settings.getByRole('button', { name: '绑定小程序', exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
   await expect
     .poll(async () => {

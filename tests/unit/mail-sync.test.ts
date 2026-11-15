@@ -47,6 +47,7 @@ vi.mock('imapflow', () => ({
     messageFlagsAdd = mocks.flagsAdd
     messageFlagsRemove = mocks.flagsRemove
     logout = mocks.logout
+    on = vi.fn()
   },
 }))
 
