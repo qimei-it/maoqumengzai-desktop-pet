@@ -2431,7 +2431,7 @@ function statusLabel(status: string): string {
                     @click="revealSkill"
                   >
                     <FolderOpen
-                      :size="16"
+                      :size="22"
                       :stroke-width="2"
                       aria-hidden="true"
                     />
@@ -5962,9 +5962,9 @@ function statusLabel(status: string): string {
 .agent-skill-switch {
   position: relative;
   flex: none;
-  width: 42px;
-  height: 25px;
-  min-height: 25px;
+  width: 38px;
+  height: 22px;
+  min-height: 22px;
   padding: 0;
   border: 1px solid var(--color-line);
   border-radius: 999px;
@@ -5977,8 +5977,8 @@ function statusLabel(status: string): string {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 19px;
-  height: 19px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
   background: var(--color-surface);
   box-shadow: var(--shadow-control);
@@ -5989,7 +5989,7 @@ function statusLabel(status: string): string {
   background: var(--color-brand-ink);
 }
 .agent-skill-switch[aria-checked='true'] span {
-  transform: translateX(17px);
+  transform: translateX(18px);
 }
 .agent-skill-switch:focus-visible {
   outline: var(--mqmz-focus-ring);
