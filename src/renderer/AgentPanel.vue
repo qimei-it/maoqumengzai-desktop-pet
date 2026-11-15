@@ -10,6 +10,7 @@ import {
 import {
   AlertTriangle,
   Archive,
+  ArchiveRestore,
   ArrowDown,
   Check,
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   Copy,
   Download,
   Ellipsis,
+  Eraser,
   Folder,
   FolderClosed,
   FolderInput,
@@ -82,7 +84,7 @@ type DialogState =
   | { kind: 'move-session'; id: string }
 
 type ConfirmState = {
-  kind: 'session' | 'project'
+  kind: 'session' | 'project' | 'clear-session'
   id: string
   title: string
 }
@@ -173,6 +175,11 @@ const expanded = ref<Record<string, boolean>>({})
 const menu = ref<MenuState | null>(null)
 const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
+const sessionQuery = ref('')
+const sessionSearchInput = ref<HTMLInputElement>()
+const skillSearchInput = ref<HTMLInputElement>()
+const composerInput = ref<HTMLTextAreaElement>()
+const archivedOpen = ref(false)
 const draftName = ref('')
 const draftWorkspace = ref('')
 const dialogInput = ref<HTMLInputElement>()
@@ -267,13 +274,31 @@ const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
 const ungrouped = computed(() =>
   sortSessions(
     sessions.value.filter(
-      (session) => !session.projectId && !session.pinned,
+      (session) =>
+        !session.projectId && !session.pinned && !session.archived,
     ),
   ),
 )
 const pinnedSessions = computed(() =>
-  sortSessions(sessions.value.filter((session) => session.pinned)),
+  sortSessions(
+    sessions.value.filter(
+      (session) => session.pinned && !session.archived,
+    ),
+  ),
 )
+const archivedSessions = computed(() =>
+  sortSessions(sessions.value.filter((session) => session.archived)),
+)
+const sessionQueryText = computed(() => sessionQuery.value.trim().toLowerCase())
+const matchedSessions = computed(() => {
+  const query = sessionQueryText.value
+  if (!query) return []
+  return sortSessions(
+    sessions.value.filter((session) =>
+      session.title.toLowerCase().includes(query),
+    ),
+  )
+})
 
 const menuProject = computed(() =>
   menu.value?.kind === 'project'
@@ -313,7 +338,9 @@ function projectSessions(projectId: string): AgentSessionSummary[] {
   return sortSessions(
     sessions.value.filter(
       (session) =>
-        session.projectId === projectId && !session.pinned,
+        session.projectId === projectId &&
+        !session.pinned &&
+        !session.archived,
     ),
   )
 }
@@ -688,6 +715,7 @@ function onHeaderDoubleClick(event: MouseEvent): void {
 }
 
 function newSession(): void {
+  sessionQuery.value = ''
   skillsOpen.value = false
   skillDetail.value = null
   emit('command', { type: 'agent-session-new' })
@@ -788,6 +816,30 @@ function closeSkillDetail(): void {
   skillDetail.value = null
   skillError.value = ''
 }
+function archiveFromMenu(session: AgentSessionSummary): void {
+  closeMenu()
+  emit('command', {
+    type: 'agent-session-archive',
+    id: session.id,
+    archived: true,
+  })
+}
+function unarchiveFromMenu(session: AgentSessionSummary): void {
+  closeMenu()
+  emit('command', {
+    type: 'agent-session-archive',
+    id: session.id,
+    archived: false,
+  })
+}
+function clearFromMenu(session: AgentSessionSummary): void {
+  closeMenu()
+  confirm.value = {
+    kind: 'clear-session',
+    id: session.id,
+    title: '清空这个对话？',
+  }
+}
 function removeSession(id: string): void {
   confirm.value = { kind: 'session', id, title: '删除这个对话？' }
 }
@@ -801,6 +853,10 @@ function confirmRemove(): void {
   confirm.value = null
   if (pending.kind === 'session') {
     emit('command', { type: 'agent-session-delete', id: pending.id })
+    return
+  }
+  if (pending.kind === 'clear-session') {
+    emit('command', { type: 'agent-session-clear', id: pending.id })
     return
   }
   emit('command', { type: 'agent-project-delete', id: pending.id })
@@ -1070,7 +1126,46 @@ async function moveTo(projectId: string | null): Promise<void> {
   if (moved) closeDialog()
 }
 
+function focusComposer(): void {
+  skillsOpen.value = false
+  skillDetail.value = null
+  void nextTick(() => composerInput.value?.focus())
+}
+function focusSearch(): void {
+  if (skillsOpen.value) {
+    void nextTick(() => skillSearchInput.value?.focus())
+    return
+  }
+  void nextTick(() => {
+    sessionSearchInput.value?.focus()
+    sessionSearchInput.value?.select()
+  })
+}
 function onKeydown(event: KeyboardEvent): void {
+  const modifier = mac ? event.metaKey : event.ctrlKey
+  if (modifier && !event.altKey && !event.shiftKey) {
+    const key = event.key.toLowerCase()
+    if (key === 'n') {
+      event.preventDefault()
+      newSession()
+      return
+    }
+    if (key === 'k') {
+      event.preventDefault()
+      focusComposer()
+      return
+    }
+    if (key === 'f') {
+      event.preventDefault()
+      focusSearch()
+      return
+    }
+    if (key === '.') {
+      event.preventDefault()
+      stop()
+      return
+    }
+  }
   if (event.key !== 'Escape') return
   if (confirm.value) confirm.value = null
   else if (modelMenuOpen.value) modelMenuOpen.value = false
@@ -1079,6 +1174,7 @@ function onKeydown(event: KeyboardEvent): void {
   else if (dialog.value) dialog.value = null
   else if (skillDetail.value) skillDetail.value = null
   else if (skillsOpen.value) skillsOpen.value = false
+  else if (busy.value) stop()
 }
 function onDocumentMouseDown(event: MouseEvent): void {
   const target = event.target as Node
@@ -1158,10 +1254,84 @@ function statusLabel(status: string): string {
             />
             <span>技能</span>
           </button>
+          <label class="agent-session-search">
+            <Search :size="14" :stroke-width="2" aria-hidden="true" />
+            <input
+              ref="sessionSearchInput"
+              v-model="sessionQuery"
+              type="text"
+              placeholder="搜索对话"
+              aria-label="搜索对话"
+              autocomplete="off"
+            />
+            <button
+              v-if="sessionQuery"
+              type="button"
+              class="agent-session-search-clear"
+              aria-label="清空搜索"
+              title="清空搜索"
+              @click="sessionQuery = ''"
+            >
+              <X :size="12" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </label>
         </div>
 
         <div class="agent-side-scroll">
-          <section v-if="pinnedSessions.length" class="agent-section">
+          <section v-if="sessionQueryText" class="agent-section">
+            <div class="agent-section-head">
+              <span class="agent-section-title">搜索结果</span>
+            </div>
+            <div
+              v-for="session in matchedSessions"
+              :key="session.id"
+              class="agent-session"
+              :class="{ active: session.id === agent?.sessionId }"
+              role="button"
+              tabindex="0"
+              :aria-current="session.id === agent?.sessionId"
+              @click="selectSession(session.id)"
+              @keydown.enter.prevent="selectSession(session.id)"
+            >
+              <Archive
+                v-if="session.archived"
+                class="agent-archive-mark"
+                :size="11"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <Pin
+                v-else-if="session.pinned"
+                class="agent-pin"
+                :size="11"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <span class="agent-session-text">{{ session.title }}</span>
+              <button
+                type="button"
+                class="agent-row-button session-menu"
+                aria-label="对话菜单"
+                title="对话菜单"
+                @click.stop="openMenu('session', session.id, $event)"
+              >
+                <Ellipsis
+                  :size="15"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+            <p v-if="!matchedSessions.length" class="agent-side-empty">
+              没有找到匹配的对话
+            </p>
+          </section>
+
+
+          <section
+            v-if="!sessionQueryText && pinnedSessions.length"
+            class="agent-section"
+          >
             <div class="agent-section-head">
               <button
                 type="button"
@@ -1230,7 +1400,7 @@ function statusLabel(status: string): string {
             </div>
           </section>
 
-          <section class="agent-section">
+          <section v-if="!sessionQueryText" class="agent-section">
             <div class="agent-section-head">
               <button
                 type="button"
@@ -1386,7 +1556,7 @@ function statusLabel(status: string): string {
             </div>
           </section>
 
-          <section class="agent-section">
+          <section v-if="!sessionQueryText" class="agent-section">
             <div class="agent-section-head">
               <button
                 type="button"
@@ -1447,6 +1617,68 @@ function statusLabel(status: string): string {
               <p v-if="!ungrouped.length" class="agent-side-empty">
                 暂无对话
               </p>
+            </div>
+          </section>
+
+          <section
+            v-if="!sessionQueryText && archivedSessions.length"
+            class="agent-section"
+          >
+            <div class="agent-section-head">
+              <button
+                type="button"
+                class="agent-section-title"
+                :aria-expanded="archivedOpen"
+                @click="archivedOpen = !archivedOpen"
+              >
+                <span>已归档</span>
+                <ChevronDown
+                  v-if="archivedOpen"
+                  :size="12"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                <ChevronRight
+                  v-else
+                  :size="12"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+            <div v-if="archivedOpen">
+              <div
+                v-for="session in archivedSessions"
+                :key="session.id"
+                class="agent-session"
+                :class="{ active: session.id === agent?.sessionId }"
+                role="button"
+                tabindex="0"
+                :aria-current="session.id === agent?.sessionId"
+                @click="selectSession(session.id)"
+                @keydown.enter.prevent="selectSession(session.id)"
+              >
+                <Archive
+                  class="agent-archive-mark"
+                  :size="11"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                <span class="agent-session-text">{{ session.title }}</span>
+                <button
+                  type="button"
+                  class="agent-row-button session-menu"
+                  aria-label="对话菜单"
+                  title="对话菜单"
+                  @click.stop="openMenu('session', session.id, $event)"
+                >
+                  <Ellipsis
+                    :size="15"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -1553,6 +1785,7 @@ function statusLabel(status: string): string {
                   aria-hidden="true"
                 />
                 <input
+                  ref="skillSearchInput"
                   v-model="skillQuery"
                   type="text"
                   placeholder="搜索技能"
@@ -2092,6 +2325,7 @@ function statusLabel(status: string): string {
                 </span>
               </div>
               <textarea
+                ref="composerInput"
                 v-model="draft"
                 class="agent-input"
                 rows="1"
@@ -2489,6 +2723,40 @@ function statusLabel(status: string): string {
           </button>
           <button
             type="button"
+            class="agent-menu-item"
+            role="menuitem"
+            :disabled="busy && menuSession.id === agent?.sessionId"
+            @click="clearFromMenu(menuSession)"
+          >
+            <Eraser :size="14" :stroke-width="2" aria-hidden="true" />
+            清空对话
+          </button>
+          <button
+            v-if="!menuSession.archived"
+            type="button"
+            class="agent-menu-item"
+            role="menuitem"
+            @click="archiveFromMenu(menuSession)"
+          >
+            <Archive :size="14" :stroke-width="2" aria-hidden="true" />
+            归档
+          </button>
+          <button
+            v-else
+            type="button"
+            class="agent-menu-item"
+            role="menuitem"
+            @click="unarchiveFromMenu(menuSession)"
+          >
+            <ArchiveRestore
+              :size="14"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+            取消归档
+          </button>
+          <button
+            type="button"
             class="agent-menu-item danger"
             role="menuitem"
             @click="deleteSessionFromMenu(menuSession)"
@@ -2695,6 +2963,12 @@ function statusLabel(status: string): string {
         <p v-if="confirm.kind === 'project'" class="agent-confirm-note">
           项目下的对话会移动到未分组。
         </p>
+        <p
+          v-if="confirm.kind === 'clear-session'"
+          class="agent-confirm-note"
+        >
+          消息和附件记录会被清空，对话会保留。
+        </p>
         <footer class="agent-modal-foot">
           <span class="agent-modal-spacer" />
           <button
@@ -2805,6 +3079,60 @@ function statusLabel(status: string): string {
 .agent-skills-entry.active {
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
+}
+.agent-session-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 32px;
+  margin-top: 6px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.agent-session-search:focus-within {
+  border-color: var(--color-brand);
+}
+.agent-session-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.agent-session-search input::placeholder {
+  color: var(--color-muted);
+}
+.agent-session-search-clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-session-search-clear:hover {
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+}
+.agent-session-search-clear:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-archive-mark {
+  flex: none;
+  color: var(--color-muted);
 }
 .agent-skills-entry.active svg {
   color: var(--color-brand-ink);

@@ -103,6 +103,8 @@ export type AgentRuntime = {
   setProjectPinned(id: string, pinned: boolean): void
   renameSession(id: string, title: string): void
   setSessionPinned(id: string, pinned: boolean): void
+  setSessionArchived(id: string, archived: boolean): void
+  clearSession(id: string): void
   moveSession(id: string, projectId: string | null): void
   select(id: string): void
   remove(id: string): void
@@ -1055,6 +1057,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           workspace: item.workspace,
           projectId: item.projectId,
           pinned: item.pinned,
+          archived: item.archived === true,
           updatedAt: item.updatedAt,
         })),
         projects: [...projects]
@@ -1305,6 +1308,37 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const session = sessions.find((item) => item.id === id)
       if (!session) return
       session.pinned = pinned
+      persist()
+      emit()
+    },
+    setSessionArchived(id: string, archived: boolean) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return
+      if (archived) session.archived = true
+      else delete session.archived
+      if (archived && activeId === id) {
+        const next = sessions.find((item) => !item.archived)
+        activeId = next?.id ?? null
+      }
+      session.updatedAt = now()
+      errorText = undefined
+      persist()
+      emit()
+    },
+    clearSession(id: string) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return
+      if (busy && activeId === id) this.cancel()
+      releaseSessionFiles(session)
+      session.ui = []
+      session.history = []
+      session.files = []
+      session.sources = []
+      session.title = '新会话'
+      session.usage = { input: 0, output: 0 }
+      delete session.compacted
+      session.updatedAt = now()
+      errorText = undefined
       persist()
       emit()
     },

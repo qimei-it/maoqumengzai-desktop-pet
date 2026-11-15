@@ -884,6 +884,42 @@ describe('agent runtime', () => {
     ).toBe(true)
   })
 
+  test('archives a session and leaves the active conversation', async () => {
+    const { runtime } = await makeRuntime([])
+    const first = runtime.state().sessionId
+    expect(first).toBeTruthy()
+    runtime.newSession()
+    const second = runtime.state().sessionId
+    expect(second).toBeTruthy()
+    expect(second).not.toBe(first)
+    runtime.setSessionArchived(second!, true)
+    let state = runtime.state()
+    expect(state.sessions.find((item) => item.id === second)).toMatchObject({
+      archived: true,
+    })
+    expect(state.sessionId).toBe(first)
+    runtime.setSessionArchived(second!, false)
+    state = runtime.state()
+    expect(state.sessions.find((item) => item.id === second)?.archived).toBe(
+      false,
+    )
+  })
+
+  test('clears a conversation while keeping the session entry', async () => {
+    const { runtime } = await makeRuntime([])
+    await runtime.send('你好')
+    expect(runtime.state().messages.length).toBeGreaterThan(0)
+    const id = runtime.state().sessionId!
+    runtime.clearSession(id)
+    const state = runtime.state()
+    expect(state.sessionId).toBe(id)
+    expect(state.messages).toEqual([])
+    expect(state.sessions.find((item) => item.id === id)?.title).toBe(
+      '新会话',
+    )
+    expect(state.usage).toEqual({ input: 0, output: 0 })
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

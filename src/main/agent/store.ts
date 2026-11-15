@@ -44,6 +44,7 @@ export type StoredSession = {
   workspace: string | null
   projectId: string | null
   pinned: boolean
+  archived?: boolean
   createdAt: number
   updatedAt: number
   ui: AgentMessageView[]
@@ -79,6 +80,7 @@ function parseProject(value: unknown): StoredProject | null {
     name: value.name.slice(0, 40),
     workspace: value.workspace,
     pinned: value.pinned === true,
+    ...(value.archived === true ? { archived: true } : {}),
     createdAt:
       typeof value.createdAt === 'number' ? value.createdAt : Date.now(),
   }

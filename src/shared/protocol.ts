@@ -578,6 +578,8 @@ export type Command =
     }
   | { type: 'agent-session-select'; id: string }
   | { type: 'agent-session-delete'; id: string }
+  | { type: 'agent-session-archive'; id: string; archived: boolean }
+  | { type: 'agent-session-clear'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }
   | { type: 'agent-model'; model: DeepSeekModel }
   | { type: 'agent-reasoning'; reasoning: AgentReasoning }

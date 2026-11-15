@@ -9062,6 +9062,8 @@ function setupIpc(): void {
       'agent-session-move',
       'agent-session-select',
       'agent-session-delete',
+      'agent-session-archive',
+      'agent-session-clear',
       'agent-mode',
       'agent-model',
       'agent-reasoning',
@@ -9312,6 +9314,14 @@ function setupIpc(): void {
       case 'agent-session-delete':
         if (command.id === agent.state().sessionId) clearAgentDrafts()
         agent.remove(command.id)
+        break
+      case 'agent-session-archive':
+        if (command.id === agent.state().sessionId) clearAgentDrafts()
+        agent.setSessionArchived(command.id, command.archived)
+        break
+      case 'agent-session-clear':
+        if (command.id === agent.state().sessionId) clearAgentDrafts()
+        agent.clearSession(command.id)
         break
       case 'agent-mode':
         agent.setMode(command.mode as AgentMode)

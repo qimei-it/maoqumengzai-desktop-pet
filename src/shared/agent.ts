@@ -141,6 +141,7 @@ export type AgentSessionSummary = {
   workspace: string | null
   projectId: string | null
   pinned: boolean
+  archived: boolean
   updatedAt: number
 }
 

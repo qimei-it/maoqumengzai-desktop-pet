@@ -912,6 +912,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('agent-session-archive'),
+      id: z.string().uuid(),
+      archived: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({ type: z.literal('agent-session-clear'), id: z.string().uuid() })
+    .strict(),
+  z
+    .object({
       type: z.literal('agent-mode'),
       mode: z.enum(agentModes),
     })
