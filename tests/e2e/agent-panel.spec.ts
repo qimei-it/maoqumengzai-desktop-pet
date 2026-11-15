@@ -72,6 +72,18 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   await keyInput.fill('sk-agent-test')
   await expect(testButton).toBeEnabled()
   await expect(saveButton).toBeEnabled()
+  await application.evaluate(() => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({ data: [{ id: 'deepseek-flash' }] }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
+  })
+  await testButton.click()
+  await expect(agent.locator('.agent-latency')).toContainText('ms')
   await saveButton.click()
   const input = agent.locator('.agent-input')
   await expect(input).toHaveAttribute(
