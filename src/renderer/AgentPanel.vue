@@ -166,16 +166,17 @@ const skills = computed<AgentSkillView[]>(
 const filteredSkills = computed(() => {
   const query = skillQuery.value.trim().toLowerCase()
   if (!query) return skills.value
-  return skills.value.filter((skill) => {
-    const searchable = [
-      skill.name,
-      skill.description,
-      skillSearchIndex.value[skill.id] ?? '',
-    ]
-      .join('\n')
-      .toLowerCase()
-    return searchable.includes(query)
-  })
+  const direct = skills.value.filter((skill) =>
+    `${skill.name}\n${skill.description}`.toLowerCase().includes(query),
+  )
+  if (direct.length) return direct
+  return skills.value
+    .filter((skill) =>
+      (skillSearchIndex.value[skill.id] ?? '')
+        .toLowerCase()
+        .includes(query),
+    )
+    .slice(0, 30)
 })
 const skillCategoryOrder = [
   '通用工具',
@@ -188,6 +189,10 @@ const skillPreviewLimit = 12
 type SkillCategoryFilter = 'all' | 'enabled' | 'disabled'
 const skillCategoryFilters = ref<Record<string, SkillCategoryFilter>>({})
 const expandedSkillCategories = ref<Record<string, boolean>>({})
+watch(skillQuery, () => {
+  skillCategoryFilters.value = {}
+  expandedSkillCategories.value = {}
+})
 function setSkillCategoryFilter(
   category: string,
   filter: SkillCategoryFilter,

@@ -8,8 +8,12 @@ import { waitForAppWindows } from './app-windows'
 let application: ElectronApplication
 let agent: Page
 
-function skill(name: string, description: string): string {
-  return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`
+function skill(
+  name: string,
+  description: string,
+  body = `# ${name}`,
+): string {
+  return `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`
 }
 
 test.beforeAll(async () => {
@@ -22,7 +26,11 @@ test.beforeAll(async () => {
   await mkdir(join(builtin, 'doc', 'gamma'), { recursive: true })
   await writeFile(
     join(builtin, 'paper', 'alpha', 'SKILL.md'),
-    skill('Paper Alpha', 'Default enabled paper skill.'),
+    skill(
+      'Paper Alpha',
+      'Default enabled paper skill.',
+      '# Paper Alpha\n\nMentions Doc Gamma and watermelon in the body.',
+    ),
   )
   await mkdir(join(builtin, 'paper', 'alpha', 'references'), {
     recursive: true,
@@ -174,4 +182,25 @@ test('groups built-in skills by category and keeps them read-only', async () => 
       }),
     ]),
   )
+})
+
+test('prefers name and description matches over body text', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  await agent.getByRole('button', { name: '技能', exact: true }).click()
+  const search = agent.getByLabel('搜索技能')
+  await search.fill('Doc Gamma')
+  await expect(agent.locator('.agent-skill-card')).toHaveCount(1)
+  await expect(agent.locator('.agent-skill-card')).toContainText('Doc Gamma')
+  await expect(agent.locator('.agent-skill-card')).not.toContainText(
+    'Paper Alpha',
+  )
+
+  await search.fill('watermelon')
+  await expect(agent.locator('.agent-skill-card')).toHaveCount(1)
+  await expect(agent.locator('.agent-skill-card')).toContainText(
+    'Paper Alpha',
+  )
+  await search.fill('')
 })
