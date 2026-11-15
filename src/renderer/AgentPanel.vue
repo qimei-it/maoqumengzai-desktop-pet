@@ -656,6 +656,12 @@ function send(): void {
 function stop(): void {
   emit('command', { type: 'agent-cancel' })
 }
+function retryTurn(): void {
+  emit('command', { type: 'agent-retry' })
+  following.value = true
+  scrollHover.value = false
+  void nextTick(() => scheduleFollow())
+}
 function windowAction(action: 'minimize' | 'maximize' | 'close'): void {
   emit('command', { type: 'panel-control', action })
 }
@@ -1931,6 +1937,19 @@ function statusLabel(status: string): string {
                 </div>
               </article>
               <p v-if="busy" class="agent-running">正在执行…</p>
+              <div
+                v-else-if="agent?.retryLabel"
+                class="agent-retry-row"
+              >
+                <button
+                  type="button"
+                  class="agent-retry-action"
+                  @click="retryTurn"
+                >
+                  <RefreshCw :size="14" :stroke-width="2" aria-hidden="true" />
+                  {{ agent.retryLabel }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3357,6 +3376,33 @@ function statusLabel(status: string): string {
   color: var(--color-muted);
   font-size: var(--font-size-label);
   animation: agent-pulse 1.2s ease-in-out infinite;
+}
+.agent-retry-row {
+  display: flex;
+  justify-content: flex-start;
+}
+.agent-retry-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+.agent-retry-action:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-retry-action:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-approval {
   flex: none;

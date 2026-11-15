@@ -783,6 +783,107 @@ describe('agent runtime', () => {
     expect(runtime.state().contextCompacted).toBeGreaterThan(0)
   })
 
+  test('keeps assistant replies in the conversation history', async () => {
+    const seen: StreamOptions['messages'][] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        return { text: '第一次回答', toolCalls: [] }
+      },
+    })
+    await runtime.send('第一问')
+    await runtime.send('第二问')
+    expect(
+      seen[1].some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.content === '第一次回答',
+      ),
+    ).toBe(true)
+  })
+
+  test('retries a failed turn without duplicating the prompt', async () => {
+    let attempts = 0
+    let captured: StreamOptions['messages'] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        attempts += 1
+        if (attempts === 1) throw new Error('网络中断')
+        captured = options.messages
+        options.onText?.('好啦')
+        return { text: '好啦', toolCalls: [] }
+      },
+    })
+    await runtime.send('继续做')
+    let state = runtime.state()
+    expect(state.error).toContain('网络中断')
+    expect(state.retryLabel).toBe('重试')
+    expect(state.messages.filter((item) => item.role === 'user')).toHaveLength(
+      1,
+    )
+    await runtime.retry()
+    state = runtime.state()
+    expect(state.error).toBeUndefined()
+    expect(state.retryLabel).toBeUndefined()
+    expect(state.messages.filter((item) => item.role === 'user')).toHaveLength(
+      1,
+    )
+    expect(
+      captured.filter((message) => message.role === 'user'),
+    ).toHaveLength(1)
+    expect(
+      state.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.parts.some(
+            (part) => part.type === 'text' && part.text === '好啦',
+          ),
+      ),
+    ).toBe(true)
+  })
+
+  test('continues after the user stops a turn', async () => {
+    let attempts = 0
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        attempts += 1
+        if (attempts > 1) {
+          options.onText?.('完成了')
+          return { text: '完成了', toolCalls: [] }
+        }
+        return new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            options.onText?.('完成了')
+            resolve({ text: '完成了', toolCalls: [] })
+          }, 30)
+          options.signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(new Error('aborted'))
+          })
+        })
+      },
+    })
+    const sending = runtime.send('做点事')
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    runtime.cancel()
+    await sending
+    let state = runtime.state()
+    expect(state.error).toBeUndefined()
+    expect(state.retryLabel).toBe('继续')
+    await runtime.retry()
+    state = runtime.state()
+    expect(state.retryLabel).toBeUndefined()
+    expect(
+      state.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.parts.some(
+            (part) => part.type === 'text' && part.text === '完成了',
+          ),
+      ),
+    ).toBe(true)
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

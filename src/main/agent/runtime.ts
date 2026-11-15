@@ -87,6 +87,8 @@ export type AgentRuntime = {
   load(): Promise<void>
   state(): AgentState
   send(prompt: string, attachments?: AgentAttachmentInput[]): Promise<void>
+  /** Continues the last turn after an error, stop or tool-step limit. */
+  retry(): Promise<void>
   cancel(): void
   approve(id: string): void
   deny(id: string): void
@@ -850,12 +852,20 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
       const calls = result.toolCalls
       if (!calls.length) {
-        if (!textPart && !result.text.trim()) {
+        const text = result.text.trim()
+        if (!textPart && !text) {
           assistant.parts.push({
             type: 'text',
             text: '模型没有返回内容，请换个说法再试。',
           })
         }
+        pushHistory(session, {
+          role: 'assistant',
+          content: text || '模型没有返回内容，请换个说法再试。',
+          ...(result.reasoning
+            ? { reasoning_content: result.reasoning }
+            : {}),
+        })
         persist()
         return
       }
@@ -974,6 +984,54 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     persist()
   }
 
+  function retryLabelFor(session: StoredSession | undefined): '重试' | '继续' | undefined {
+    if (busy || !session?.history.length) return undefined
+    const last = session.history[session.history.length - 1]
+    if (last.role !== 'user' && last.role !== 'tool') return undefined
+    if (errorText) return '重试'
+    const tail = session.ui[session.ui.length - 1]
+    if (tail?.role !== 'assistant') return undefined
+    const text = tail.parts
+      .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      .join('')
+      .trim()
+    if (text === '已停止。' || text.includes('已达到单轮工具调用上限'))
+      return '继续'
+    return undefined
+  }
+
+  async function runLoopTurn(session: StoredSession, key: string): Promise<void> {
+    errorText = undefined
+    busy = true
+    controller = new AbortController()
+    const signal = controller.signal
+    try {
+      await loop(session, key, signal)
+    } catch (error) {
+      if (!signal.aborted) {
+        errorText = errorMessage(error, '执行失败，请稍后重试。')
+        session.ui.push({
+          id: randomUUID(),
+          role: 'assistant',
+          parts: [{ type: 'text', text: errorText }],
+        })
+      }
+    } finally {
+      busy = false
+      controller = null
+      if (pending) settleApproval(false)
+      if (signal.aborted && session.ui.at(-1)?.role === 'user')
+        session.ui.push({
+          id: randomUUID(),
+          role: 'assistant',
+          parts: [{ type: 'text', text: '已停止。' }],
+        })
+      session.updatedAt = now()
+      persist()
+      emit()
+    }
+  }
+
   return {
     async load() {
       if (loaded) return
@@ -986,6 +1044,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     state(): AgentState {
       const session = activeSession()
+      const retryLabel = retryLabelFor(session)
       return {
         configured: Boolean(deps.getKey()),
         busy,
@@ -1022,6 +1081,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(session?.compacted
           ? { contextCompacted: session.compacted }
           : {}),
+        ...(retryLabel ? { retryLabel } : {}),
         ...(errorText ? { error: errorText } : {}),
       }
     },
@@ -1107,6 +1167,24 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         persist()
         emit()
       }
+    },
+    async retry() {
+      if (busy) throw new Error('正在执行，请稍候。')
+      const key = deps.getKey()
+      if (!key) throw new Error('请先配置 DeepSeek API Key。')
+      const session = ensureSession()
+      if (!session.history.length)
+        throw new Error('没有可以继续的内容。')
+      const tail = session.ui[session.ui.length - 1]
+      if (tail?.role === 'assistant' && tail.parts.length === 1) {
+        const part = tail.parts[0]
+        if (
+          part.type === 'text' &&
+          (part.text === '已停止。' || part.text === errorText)
+        )
+          session.ui.pop()
+      }
+      await runLoopTurn(session, key)
     },
     cancel() {
       if (!busy && !pending) return

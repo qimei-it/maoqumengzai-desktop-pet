@@ -188,6 +188,8 @@ export type AgentState = {
   usage: AgentUsage
   /** Older messages folded into the context summary for this session. */
   contextCompacted?: number
+  /** Offers a retry or continue action for the last turn. */
+  retryLabel?: '重试' | '继续'
   error?: string
 }
 

@@ -129,3 +129,52 @@ test('compacts a long conversation and shows the context notice', async () => {
   expect(body).toContain('本会话较早内容的摘要')
   expect(body).toContain('继续')
 })
+
+test('retries a failed reply without resending the prompt', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  await application.evaluate(() => {
+    let attempts = 0
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      _init?: RequestInit,
+    ) => {
+      if (!String(input).includes('/chat/completions'))
+        return new Response('{}', { status: 503 })
+      attempts += 1
+      if (attempts === 1)
+        return new Response(
+          JSON.stringify({ error: { message: 'busy' } }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } },
+        )
+      return new Response(
+        [
+          `data: ${JSON.stringify({ choices: [{ delta: { content: '再来一次' } }] })}`,
+          '',
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+          '',
+          'data: [DONE]',
+          '',
+          '',
+        ].join('\n'),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    }
+  })
+  const usersBefore = await agent.locator('.agent-message.user').count()
+  await agent.getByLabel('给智能体发送指令').fill('再来一次检查')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.locator('.agent-error')).toContainText(
+    'DeepSeek 服务暂时不可用',
+    { timeout: 15_000 },
+  )
+  const retry = agent.getByRole('button', { name: '重试', exact: true })
+  await expect(retry).toBeVisible()
+  await retry.click()
+  await expect(agent.getByText('再来一次')).toBeVisible({ timeout: 15_000 })
+  await expect(retry).toHaveCount(0)
+  expect(await agent.locator('.agent-message.user').count()).toBe(
+    usersBefore + 1,
+  )
+})

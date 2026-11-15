@@ -549,6 +549,7 @@ export type Command =
   | { type: 'agent-open' }
   | { type: 'agent-close' }
   | { type: 'agent-send'; prompt: string; attachmentIds?: string[] }
+  | { type: 'agent-retry' }
   | { type: 'agent-cancel' }
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-deny'; id: string }

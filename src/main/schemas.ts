@@ -828,6 +828,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       attachmentIds: z.array(z.string().uuid()).max(8).optional(),
     })
     .strict(),
+  z.object({ type: z.literal('agent-retry') }).strict(),
   z.object({ type: z.literal('agent-cancel') }).strict(),
   z
     .object({ type: z.literal('agent-approve'), id: z.string().uuid() })

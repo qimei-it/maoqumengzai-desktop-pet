@@ -9036,6 +9036,7 @@ function setupIpc(): void {
       'agent-open',
       'agent-close',
       'agent-send',
+      'agent-retry',
       'agent-cancel',
       'agent-approve',
       'agent-deny',
@@ -9201,6 +9202,11 @@ function setupIpc(): void {
         break
       case 'agent-close':
         closeAsk()
+        break
+      case 'agent-retry':
+        void agent.retry().catch((error) => {
+          showToast(error instanceof Error ? error.message : '重试失败。')
+        })
         break
       case 'agent-send': {
         const ids = command.attachmentIds ?? []
