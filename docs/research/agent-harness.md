@@ -197,8 +197,8 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 添加支持 `.md`/`.markdown` 和 ZIP、7Z、RAR、TAR、GZ、TGZ、BZ2、XZ 包；也可以多选技能目录，目录内会递归识别多个 `SKILL.md` 并逐个导入（忽略嵌套在已识别技能目录里的子技能）。压缩包内按最浅层 `SKILL.md` 识别技能目录，限制 50 MB 输入、1000 项、200 MB 解压体积，并复用归档安全校验。
 - 点击卡片打开详情面板：右上角是启用/禁用开关和「在 Finder 中打开」，右下角是「卸载」和「关闭」，不提供右上角 X。
 - 已启用技能以“名称 + 描述”注入系统提示（超过 60 个时改为提示使用 `skill_search`），并提供 `skill_load` 按需读取 `SKILL.md` 正文与目录文件列表（单次最多 24k 字符）；`skill_read` 可读取技能目录内的参考文件或脚本，`skill_search` 按名称、描述和正文检索。禁用技能不会进入提示。
-- 内置技能来自固定 commit 的开源仓库，清单见 `resources/skills/manifest.json` 与 `SOURCES.md`：k-dense-ai/scientific-agent-skills（MIT，177 个）、Yuan1z0825/nature-skills（Apache-2.0，24 个）、blader/humanizer（MIT，1 个）、anthropics/skills（Apache-2.0，18 个）、getsentry/skills（Apache-2.0，1 个）、vercel-labs/skills（MIT，1 个）、yejinlei/web-search-skill（MIT，1 个）、citrolabs/ego-lite（MIT，1 个），默认启用 21 个。只内置文本与代码文件，二进制模板、图片、字体和媒体不随包分发。
-- 内置技能不能卸载，只能启用/禁用；用户导入技能仍可卸载。Supervisor-Skills 与 academic-research-skills-codex 因 CC BY-NC 许可暂未内置，paper-qa 不含 `SKILL.md` 未作为技能内置。dlazy-ai/ecommerce-skills 曾评估，因 22 个技能依赖外部 dlazy CLI 和额度，已从内置清单移除。
+- 内置技能来自固定 commit 的开源仓库，清单见 `resources/skills/manifest.json` 与 `SOURCES.md`：k-dense-ai/scientific-agent-skills（MIT，177 个）、Yuan1z0825/nature-skills（Apache-2.0，24 个）、blader/humanizer（MIT，1 个）、anthropics/skills（Apache-2.0，18 个）、getsentry/skills（Apache-2.0，1 个）、vercel-labs/skills（MIT，1 个）、yejinlei/web-search-skill（MIT，1 个）、citrolabs/ego-lite（MIT，1 个）、zhenyangze/tiktok-skills（README 声明 MIT，17 个）、liangdabiao/Amazon-Skills-Liang（MIT，1 个）、coral870921-source/Ozon-Profit-Skills（MIT，2 个）、liangdabiao/amazon-sorftime-research-MCP-skill（README 声明 MIT，9 个），默认启用 22 个。只内置文本与代码文件，二进制模板、图片、字体和媒体不随包分发。
+- 内置技能不能卸载，只能启用/禁用；用户导入技能仍可卸载。Supervisor-Skills 与 academic-research-skills-codex 因 CC BY-NC 许可暂未内置，paper-qa 不含 `SKILL.md` 未作为技能内置。dlazy-ai/ecommerce-skills 曾评估，因 22 个技能依赖外部 dlazy CLI 和额度，已从内置清单移除。`infometa/workbuddyskills` 的 ozon-1688-uploader 与 `liangdabiao/amazon-listing-alexa-optimizer` 未找到许可证授权，暂未内置。
 
 ## 验证
 
@@ -210,7 +210,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 解析超时用例：`tests/e2e/agent-attachment-timeout.spec.ts` 通过 `MQMZ_AGENT_PARSE_TIMEOUT_MS=300` 和本地 LibreOffice DOCX 验证超时后不产生附件草稿。
 - 桌宠投递用例：`tests/e2e/prototype.spec.ts` 的“dropping on 智能体”验证直接路径投递、不进入置物架、新建未分组对话并挂载附件。
 - 输出与滚动用例：`tests/e2e/agent-output.spec.ts` 覆盖 Mermaid、图标复制到系统剪贴板、会话“保存为 Markdown”、生成文件下载、手动上滚暂停跟随、回到底部按钮，以及输出中三点波浪与悬停箭头。
-- 技能用例：`tests/unit/agent-skills.test.ts` 覆盖 SKILL.md/压缩包导入、资源保留、禁用持久化、重名目录、内置技能默认启用/手动启用、只读卸载保护与技能文件读取；`tests/unit/agent-skills-vendor.test.ts` 校验真实内置清单 224 项与 21 个默认启用；`tests/e2e/agent-skills.spec.ts` 覆盖用户技能页，`tests/e2e/agent-skills-builtin.spec.ts` 覆盖类目分组、启用筛选、12 项上限、自适应列数、内置标识与只读卸载。
+- 技能用例：`tests/unit/agent-skills.test.ts` 覆盖 SKILL.md/压缩包导入、资源保留、禁用持久化、重名目录、内置技能默认启用/手动启用、只读卸载保护与技能文件读取；`tests/unit/agent-skills-vendor.test.ts` 校验真实内置清单 253 项与 22 个默认启用；`tests/e2e/agent-skills.spec.ts` 覆盖用户技能页，`tests/e2e/agent-skills-builtin.spec.ts` 覆盖类目分组、启用筛选、12 项上限、自适应列数、内置标识与只读卸载。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
 - 附件真实样例验收（macOS arm64，2026-11-15）：300 页文本 PDF 本地抽取并在字符预算处截断；用 qpdf 256 位加密的单页 PDF 返回“PDF 已加密，暂不支持读取”；400 个 Markdown 文件的 ZIP 在字符预算处停止读取且不超预算；本机 FFmpeg 生成的 1 秒 MP4 成功提取 16 kHz 单声道 WAV；按 OFD 1.0 结构生成并嵌入 Arial 字体的单页 OFD 在真实 Electron 窗口中渲染为 1 页视觉解析附件。厂商发票/行程单等真实 OFD 样例仍需用户提供后补验。
 - 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射、源文件丢失提示和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败中止、30 天过期重传、孤儿上传清理、会话删除时的云端文件清理和长对话摘要压缩；`tests/e2e/agent-context.spec.ts` 验证压缩提示、系统提示中的摘要以及失败回复的重试。

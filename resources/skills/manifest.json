@@ -1792,6 +1792,238 @@
       "defaultEnabled": false,
       "source": "https://github.com/citrolabs/ego-lite/tree/bacaece43900e8ca68eea3b6f1663835ea38df9e/skills/ego-browser",
       "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-account-growth",
+      "dir": "tiktok/tiktok-account-growth",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-account-growth",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-ads-campaign",
+      "dir": "tiktok/tiktok-ads-campaign",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-ads-campaign",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-competitor-monitor",
+      "dir": "tiktok/tiktok-competitor-monitor",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-competitor-monitor",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-compliance",
+      "dir": "tiktok/tiktok-compliance",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-compliance",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-content-creation",
+      "dir": "tiktok/tiktok-content-creation",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-content-creation",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-customer-service",
+      "dir": "tiktok/tiktok-customer-service",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-customer-service",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-data-analytics",
+      "dir": "tiktok/tiktok-data-analytics",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-data-analytics",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-influencer-marketing",
+      "dir": "tiktok/tiktok-influencer-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-influencer-marketing",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-live-streaming",
+      "dir": "tiktok/tiktok-live-streaming",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-live-streaming",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-logistics",
+      "dir": "tiktok/tiktok-logistics",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-logistics",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-pricing-strategy",
+      "dir": "tiktok/tiktok-pricing-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-pricing-strategy",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-product-selection",
+      "dir": "tiktok/tiktok-product-selection",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-product-selection",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-revenue-tracking",
+      "dir": "tiktok/tiktok-revenue-tracking",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-revenue-tracking",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-shop-management",
+      "dir": "tiktok/tiktok-shop-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-shop-management",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-shop-setup",
+      "dir": "tiktok/tiktok-shop-setup",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-shop-setup",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-short-video",
+      "dir": "tiktok/tiktok-short-video",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-short-video",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-tiktok-tiktok-video-scripts",
+      "dir": "tiktok/tiktok-video-scripts",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/zhenyangze/tiktok-skills/tree/fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4/skills/tiktok-video-scripts",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-amazon-listing-amazon-listing-optimization",
+      "dir": "amazon-listing/amazon-listing-optimization",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/liangdabiao/Amazon-Skills-Liang/tree/3dde6a7535b7140a621e13b3bfd1e838a2c082a2/skills/amazon-listing-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ozon-ozon-listing",
+      "dir": "ozon/ozon-listing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/coral870921-source/Ozon-Profit-Skills/tree/4f883a1facf47496c2e7b8907fd8d11f8110100c/ozon-listing.md",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ozon-ozon-profit",
+      "dir": "ozon/ozon-profit",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/coral870921-source/Ozon-Profit-Skills/tree/4f883a1facf47496c2e7b8907fd8d11f8110100c/ozon-profit.md",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-sorftime-amazon-analyse",
+      "dir": "sorftime/amazon-analyse",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/amazon-analyse",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-amazon-listing-builder",
+      "dir": "sorftime/amazon-listing-builder",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/amazon-listing-builder",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-category-selection",
+      "dir": "sorftime/category-selection",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/category-selection",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-keyword-research",
+      "dir": "sorftime/keyword-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/keyword-research",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-product-research",
+      "dir": "sorftime/product-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/product-research",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-review-analysis",
+      "dir": "sorftime/review-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/review-analysis",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-sellersprite-amazon-research",
+      "dir": "sorftime/sellersprite-amazon-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/sellersprite-amazon-research",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-sif-amazon-research",
+      "dir": "sorftime/sif-amazon-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/sif-amazon-research",
+      "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-sorftime-xiyou-insight",
+      "dir": "sorftime/xiyou-insight",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/xiyou-insight",
+      "license": "MIT (README)"
     }
   ]
 }

@@ -30,3 +30,12 @@ Anthropic skills are Apache-2.0; the shared license is at `licenses/anthropic-Ap
 
 - `https://github.com/dlazy-ai/ecommerce-skills` was evaluated but removed because 22 of its 26 skills require the external `dlazy` CLI and credits.
 - The HuaAngel and Zhihu pages are recommendation lists that point to third-party/ClawHub skills without source repositories or licenses.
+
+## Amazon, TikTok and Ozon skills (2026-11-15)
+
+- https://github.com/zhenyangze/tiktok-skills @ `fd67ce5e0a0b3ea6855cf203ae3e0e1542466fc4` (MIT declared in README; no LICENSE file)
+- https://github.com/liangdabiao/Amazon-Skills-Liang @ `3dde6a7535b7140a621e13b3bfd1e838a2c082a2` (MIT, `skills/LICENSE`)
+- https://github.com/coral870921-source/Ozon-Profit-Skills @ `4f883a1facf47496c2e7b8907fd8d11f8110100c` (MIT)
+- https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill @ `cfdf288f868e2ed23bb1bbe73c37e4581bf88b87` (MIT declared in README; no LICENSE file)
+
+Not bundled because no license grant was found: `infometa/workbuddyskills` (ozon-1688-uploader) and `liangdabiao/amazon-listing-alexa-optimizer`.

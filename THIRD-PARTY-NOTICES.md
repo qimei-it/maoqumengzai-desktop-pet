@@ -70,6 +70,10 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | vercel-labs/skills | MIT | 1 | find-skills |
 | yejinlei/web-search-skill | MIT | 1 | web-search |
 | citrolabs/ego-lite | MIT | 1 | ego-browser |
+| zhenyangze/tiktok-skills | MIT（README 声明，无 LICENSE 文件） | 17 | TikTok 运营 |
+| liangdabiao/Amazon-Skills-Liang | MIT | 1 | amazon-listing-optimization |
+| coral870921-source/Ozon-Profit-Skills | MIT | 2 | Ozon Listing 与利润账本 |
+| liangdabiao/amazon-sorftime-research-MCP-skill | MIT（README 声明，无 LICENSE 文件） | 9 | Amazon 选品与关键词研究，依赖外部 MCP/Key |
 
 Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。
 
