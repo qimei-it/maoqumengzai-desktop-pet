@@ -81,6 +81,57 @@ function textDocx(): Uint8Array {
   })
 }
 
+
+function scannedPdf(): Promise<Buffer> {
+  return (async () => {
+    const document = await PDFDocument.create()
+    const page = document.addPage()
+    page.drawRectangle({
+      x: 40,
+      y: 40,
+      width: 200,
+      height: 120,
+      borderWidth: 2,
+    })
+    return Buffer.from(await document.save())
+  })()
+}
+
+async function epubSample(image: Buffer): Promise<Uint8Array> {
+  return zipSync({
+    'META-INF/container.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
+    ),
+    'OEBPS/content.opf': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0"><manifest><item id="c1" href="chapter.xhtml" media-type="application/xhtml+xml"/><item id="i1" href="image.png" media-type="image/png"/></manifest><spine><itemref idref="c1"/></spine></package>',
+    ),
+    'OEBPS/chapter.xhtml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><body><h1>章节</h1><p>EPUB 正文内容。</p><img src="image.png"/></body></html>',
+    ),
+    'OEBPS/image.png': new Uint8Array(image),
+  })
+}
+
+function xlsxSample(): Uint8Array {
+  return zipSync({
+    '[Content_Types].xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+    ),
+    '_rels/.rels': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+    ),
+    'xl/workbook.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    ),
+    'xl/_rels/workbook.xml.rels': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    ),
+    'xl/worksheets/sheet1.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>名称</t></is></c><c r="B1" t="inlineStr"><is><t>数量</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>苹果</t></is></c><c r="B2"><v>12</v></c></row></sheetData></worksheet>',
+    ),
+  })
+}
+
 const soffice = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
 const ffmpeg =
   process.env.MQMZ_TEST_FFMPEG ??
@@ -90,6 +141,88 @@ const ffmpeg =
   )
 
 describe('agent attachment pipeline', () => {
+  test('formats CSV as a Markdown table', async () => {
+    const root = await directory()
+    const path = join(root, 'table.csv')
+    await writeFile(
+      path,
+      'name,note\n"Alice, A.",hello|world\nBob,"line1, line2"',
+    )
+    const result = await prepareAgentAttachment(path, 30_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.detail).toContain('CSV · 3 行 · 表格')
+    expect(result.attachment.text).toContain('| name | note |')
+    expect(result.attachment.text).toContain('Alice, A.')
+    expect(result.attachment.text).toContain('hello\\|world')
+    expect(result.attachment.text).toContain('| Bob | line1, line2 |')
+  })
+
+  test('reads nested archives one level deep', async () => {
+    const root = await directory()
+    const path = join(root, 'bundle.zip')
+    const inner = zipSync({
+      'inside.md': strToU8('# 内层\n内层文字'),
+    })
+    await writeFile(
+      path,
+      zipSync({
+        'readme.md': strToU8('外层文字'),
+        'inner.zip': inner,
+      }),
+    )
+    const result = await prepareAgentAttachment(path, 30_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.text).toContain('外层文字')
+    expect(result.attachment.text).toContain('内层文字')
+    expect(result.attachment.text).toContain('bundle.zip/inner.zip/inside.md')
+    expect(result.attachment.detail).toContain('2 个文件')
+    await releaseAgentAttachment(result.attachment)
+  })
+
+  test('uploads EPUB illustrations for Flash vision parsing', async () => {
+    const root = await directory()
+    const raw = Buffer.alloc(300 * 300 * 3)
+    for (let index = 0; index < raw.length; index += 1)
+      raw[index] = Math.floor(Math.random() * 256)
+    const image = await sharp(raw, {
+      raw: { width: 300, height: 300, channels: 3 },
+    })
+      .png()
+      .toBuffer()
+    const path = join(root, 'book.epub')
+    await writeFile(path, await epubSample(image))
+    const result = await prepareAgentAttachment(path, 30_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.text).toContain('EPUB 正文内容')
+    expect(result.attachment.mode).toBe('vision')
+    expect(result.attachment.detail).toContain('EPUB · 文本 + 1 图')
+    expect(result.attachment.upload).toHaveLength(1)
+    await releaseAgentAttachment(result.attachment)
+
+    const proResult = await prepareAgentAttachment(path, 30_000, pro)
+    expect('attachment' in proResult).toBe(true)
+    if (!('attachment' in proResult)) return
+    expect(proResult.attachment.mode).toBe('text')
+    expect(proResult.attachment.upload).toBeUndefined()
+    expect(proResult.attachment.detail).toBe('EPUB · 本地文本')
+  })
+
+  test('uses rich layout recognition for a scanned PDF', async () => {
+    const root = await directory()
+    const path = join(root, 'scan.pdf')
+    await writeFile(path, await scannedPdf())
+    const result = await prepareAgentAttachment(path, 30_000, flash)
+    expect('attachment' in result).toBe(true)
+    if (!('attachment' in result)) return
+    expect(result.attachment.detail).toContain('富版面解析')
+    expect(result.attachment.upload).toEqual([
+      { path, purpose: 'rich_layout_recognition' },
+    ])
+  })
+
   test('reads plain text locally', async () => {
     const root = await directory()
     const path = join(root, 'notes.md')
@@ -288,7 +421,9 @@ describe('agent attachment pipeline', () => {
     if ('attachment' in uploaded) {
       expect(uploaded.attachment.mode).toBe('document')
       expect(uploaded.attachment.needsModelUpload).toBe(true)
-      expect(uploaded.attachment.upload?.[0].purpose).toBe('text_recognition')
+      expect(uploaded.attachment.upload?.[0].purpose).toBe(
+        'rich_layout_recognition',
+      )
     }
 
     const blocked = await prepareAgentAttachment(path, 30_000, pro)
@@ -396,6 +531,26 @@ describe('agent attachment pipeline', () => {
       expect(bytes.readUInt32LE(24)).toBe(16_000)
       expect((await stat(chunk)).size).toBeLessThan(8 * 1024 * 1024)
       await releaseAgentAttachment(result.attachment)
+    },
+    60_000,
+  )
+
+  test.skipIf(!existsSync(soffice))(
+    'formats an XLSX first sheet as a Markdown table',
+    async () => {
+      const root = await directory()
+      const path = join(root, 'sheet.xlsx')
+      await writeFile(path, xlsxSample())
+      const result = await prepareAgentAttachment(path, 30_000, {
+        model: 'deepseek-flash',
+        soffice,
+        ffmpeg: null,
+      })
+      expect('attachment' in result).toBe(true)
+      if (!('attachment' in result)) return
+      expect(result.attachment.detail).toContain('XLSX · 表格')
+      expect(result.attachment.text).toContain('| 名称 | 数量 |')
+      expect(result.attachment.text).toContain('| 苹果 | 12 |')
     },
     60_000,
   )

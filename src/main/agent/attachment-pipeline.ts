@@ -37,7 +37,7 @@ import type {
 import type { DeepSeekModel } from '../../shared/deepseek'
 import { fileExtension } from '../../shared/file-kinds'
 import { extractArchive } from '../archive-zip'
-import { officePdfBuffer } from '../convert-office'
+import { officeCsvBuffer, officePdfBuffer } from '../convert-office'
 import { ffmpegEnv } from '../ffmpeg-bundle'
 
 export const agentAttachmentBinaryBytes = 20 * 1024 * 1024
@@ -319,6 +319,96 @@ export async function prepareAgentAttachment(
   }
 }
 
+type TableData = {
+  markdown: string
+  rows: number
+  columns: number
+  truncated: boolean
+}
+
+function parseTable(text: string, delimiter: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+    if (quoted) {
+      if (character === '"') {
+        if (text[index + 1] === '"') {
+          field += '"'
+          index += 1
+        } else quoted = false
+      } else field += character
+      continue
+    }
+    if (character === '"') {
+      quoted = true
+      continue
+    }
+    if (character === delimiter) {
+      row.push(field)
+      field = ''
+      continue
+    }
+    if (character === '\n') {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+      continue
+    }
+    if (character !== '\r') field += character
+  }
+  if (field || row.length) {
+    row.push(field)
+    rows.push(row)
+  }
+  return rows.filter((cells) => cells.some((cell) => cell.trim()))
+}
+
+function tableMarkdown(
+  text: string,
+  delimiter: string,
+  limit: number,
+): TableData | null {
+  const rows = parseTable(text, delimiter)
+  if (!rows.length) return null
+  const columns = Math.min(
+    20,
+    Math.max(...rows.map((cells) => cells.length)),
+  )
+  const clean = (value: string | undefined): string =>
+    (value ?? '')
+      .replace(/\|/g, '\\|')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 200)
+  const lines = [
+    `| ${Array.from({ length: columns }, (_, index) => clean(rows[0][index]) || ' ').join(' | ')} |`,
+    `| ${Array.from({ length: columns }, () => '---').join(' | ')} |`,
+  ]
+  let used = lines.join('\n').length
+  let read = 0
+  let truncated = rows.length > 500 || Math.max(...rows.map((cells) => cells.length)) > columns
+  for (const cells of rows.slice(1, 500)) {
+    const line = `| ${Array.from({ length: columns }, (_, index) => clean(cells[index])).join(' | ')} |`
+    if (used + line.length + 1 > limit) {
+      truncated = true
+      break
+    }
+    lines.push(line)
+    used += line.length + 1
+    read += 1
+  }
+  return {
+    markdown: lines.join('\n').slice(0, limit),
+    rows: read + 1,
+    columns,
+    truncated,
+  }
+}
+
 async function prepareText(
   path: string,
   size: number,
@@ -332,6 +422,22 @@ async function prepareText(
   if (options.signal?.aborted) throw new Error('附件解析已取消')
   if (!raw?.trim()) return skipped('没有可读取的文字')
   const limit = remainingText(remaining)
+  const extension = fileExtension(path)
+  if (extension === 'csv' || extension === 'tsv') {
+    const table = tableMarkdown(
+      raw,
+      extension === 'tsv' ? '\t' : ',',
+      limit,
+    )
+    if (table) {
+      const attachment = baseAttachment(path, size, 'text', 'text', {
+        detail: `${extension.toUpperCase()} · ${table.rows} 行 · 表格`,
+        truncated: table.truncated,
+      })
+      attachment.text = table.markdown
+      return { attachment }
+    }
+  }
   const text = raw.slice(0, limit)
   const attachment = baseAttachment(path, size, 'text', 'text', {
     detail: '本地文本',
@@ -369,14 +475,22 @@ async function preparePdf(
         : '本轮附件文字已达上限，PDF 需要 Flash 上传解析',
     )
   options.onProgress?.('准备上传解析')
+  const scanned = extracted.pages > 0
   const attachment = baseAttachment(path, size, 'pdf', 'document', {
     needsModelUpload: true,
     detail:
       extracted.pages > 0
-        ? `PDF · ${extracted.pages} 页 · 上传解析`
+        ? `PDF · ${extracted.pages} 页 · ${
+            scanned ? '富版面解析' : '上传解析'
+          }`
         : 'PDF · 上传解析',
   })
-  attachment.upload = [{ path, purpose: 'text_recognition' }]
+  attachment.upload = [
+    {
+      path,
+      purpose: scanned ? 'rich_layout_recognition' : 'text_recognition',
+    },
+  ]
   return { attachment }
 }
 
@@ -391,7 +505,30 @@ async function prepareOffice(
   const limit = remainingText(remaining)
   const extension = fileExtension(path).toUpperCase()
   if (options.soffice && limit > 0) {
-    options.onProgress?.('转换文档')
+    options.onProgress?.(
+      kind === 'spreadsheet' ? '读取表格' : '转换文档',
+    )
+    if (kind === 'spreadsheet') {
+      let table: TableData | null = null
+      try {
+        const csv = await officeCsvBuffer(
+          options.soffice,
+          path,
+          options.signal,
+        )
+        table = tableMarkdown(csv.toString('utf8'), ',', limit)
+      } catch (error) {
+        if (options.signal?.aborted) throw error
+      }
+      if (table) {
+        const attachment = baseAttachment(path, size, kind, 'text', {
+          detail: `${extension} · 表格 · ${table.rows} 行`,
+          truncated: table.truncated,
+        })
+        attachment.text = table.markdown
+        return { attachment }
+      }
+    }
     let bytes: Buffer | null = null
     try {
       bytes = await officePdfBuffer(options.soffice, path, options.signal)
@@ -640,6 +777,41 @@ async function prepareMedia(
   return { attachment }
 }
 
+const ebookImageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif'])
+
+async function epubImageFiles(
+  path: string,
+  directory: string,
+): Promise<string[]> {
+  const buffer = await readFile(path)
+  let expanded = 0
+  const entries = unzipSync(new Uint8Array(buffer), {
+    filter: (file) => {
+      if (file.name.endsWith('/')) return false
+      if (!ebookImageExtensions.has(fileExtension(file.name))) return false
+      const size = file.originalSize ?? 0
+      expanded += size
+      return (
+        size >= 20 * 1024 &&
+        size <= 4 * 1024 * 1024 &&
+        expanded <= 40 * 1024 * 1024
+      )
+    },
+  })
+  const files: string[] = []
+  for (const [name, bytes] of Object.entries(entries)) {
+    if (files.length >= 4) break
+    if (!bytes?.length) continue
+    const output = join(
+      directory,
+      `image-${files.length + 1}.${fileExtension(name) || 'jpg'}`,
+    )
+    await writeFile(output, bytes)
+    files.push(output)
+  }
+  return files
+}
+
 async function prepareEbook(
   path: string,
   size: number,
@@ -661,6 +833,22 @@ async function prepareEbook(
           truncated: text.length >= limit,
         })
         attachment.text = text
+        if (isUploadModel(options)) {
+          const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-epub-'))
+          const images = await epubImageFiles(path, directory).catch(
+            () => [],
+          )
+          if (images.length) {
+            attachment.mode = 'vision'
+            attachment.needsModelUpload = true
+            attachment.upload = images.map((image) => ({
+              path: image,
+              purpose: 'user_data' as const,
+            }))
+            attachment.detail = `EPUB · 文本 + ${images.length} 图`
+            attachment.tempPaths.push(directory)
+          } else await rm(directory, { recursive: true, force: true })
+        }
         return { attachment }
       }
       return skipped('EPUB 没有可读取的文字')
@@ -677,6 +865,88 @@ async function prepareEbook(
   })
   attachment.upload = [{ path, purpose: 'user_data' }]
   return { attachment }
+}
+
+type ArchiveBudget = {
+  used: number
+  budget: number
+  read: number
+  seen: number
+  nested: number
+}
+
+async function collectArchiveFolder(
+  folder: string,
+  prefix: string,
+  name: string,
+  depth: number,
+  budget: ArchiveBudget,
+  options: AttachmentEngineOptions,
+  root: string,
+): Promise<string[]> {
+  const sections: string[] = []
+  const entries = await walkFiles(folder)
+  for (const entry of entries) {
+    if (options.signal?.aborted) throw new Error('附件解析已取消')
+    if (budget.used >= budget.budget) break
+    budget.seen += 1
+    if (entry.relative.startsWith('__MACOSX/')) continue
+    if (entry.relative.split('/').some((part) => part.startsWith('.')))
+      continue
+    const relative = prefix
+      ? `${prefix}/${entry.relative}`
+      : entry.relative
+    const extension = fileExtension(entry.path)
+    if (
+      depth < 2 &&
+      budget.nested < 10 &&
+      archiveExtensions.has(extension) &&
+      entry.size <= agentAttachmentArchiveBytes
+    ) {
+      const nestedRoot = await mkdtemp(join(root, 'nested-'))
+      const copy = join(nestedRoot, basename(entry.path))
+      try {
+        await copyFile(entry.path, copy)
+        options.onProgress?.('解压嵌套压缩包')
+        const { folder: inner } = await extractArchive(copy, {
+          inputBytes: agentAttachmentArchiveBytes,
+          entries: agentAttachmentArchiveEntries,
+          expandedBytes: agentAttachmentArchiveExpandedBytes,
+        })
+        budget.nested += 1
+        sections.push(
+          ...(await collectArchiveFolder(
+            inner,
+            relative,
+            name,
+            depth + 1,
+            budget,
+            options,
+            root,
+          )),
+        )
+      } catch (error) {
+        if (options.signal?.aborted) throw error
+      }
+      continue
+    }
+    const header = `<attachment name="${escapeAttribute(
+      `${name}/${relative}`,
+    )}">\n`
+    const footer = '\n</attachment>'
+    const overhead = header.length + footer.length + 2
+    if (budget.used + overhead >= budget.budget) break
+    const limit = budget.budget - budget.used - overhead
+    const text = await innerText(entry.path, limit, options).catch(
+      () => null,
+    )
+    if (!text?.trim()) continue
+    const clipped = text.slice(0, limit)
+    sections.push(`${header}${clipped}${footer}`)
+    budget.used += overhead + clipped.length
+    budget.read += 1
+  }
+  return sections
 }
 
 async function prepareArchive(
@@ -698,42 +968,34 @@ async function prepareArchive(
       expandedBytes: agentAttachmentArchiveExpandedBytes,
     })
     if (options.signal?.aborted) throw new Error('附件解析已取消')
-    const entries = await walkFiles(folder)
-    if (!entries.length) return skipped('压缩包是空的')
-    options.onProgress?.('读取压缩包内容')
-    const budget = remainingText(remaining)
-    const sections: string[] = []
-    let used = 0
-    let read = 0
-    for (const entry of entries) {
-      if (options.signal?.aborted) throw new Error('附件解析已取消')
-      if (used >= budget) break
-      if (entry.relative.startsWith('__MACOSX/')) continue
-      if (entry.relative.split('/').some((part) => part.startsWith('.')))
-        continue
-      const header = `<attachment name="${escapeAttribute(`${basename(path)}/${entry.relative}`)}">\n`
-      const footer = '\n</attachment>'
-      const overhead = header.length + footer.length + 2
-      if (used + overhead >= budget) break
-      const limit = budget - used - overhead
-      const text = await innerText(entry.path, limit, options).catch(
-        () => null,
-      )
-      if (!text?.trim()) continue
-      const clipped = text.slice(0, limit)
-      sections.push(`${header}${clipped}${footer}`)
-      used += overhead + clipped.length
-      read += 1
+    const budget: ArchiveBudget = {
+      used: 0,
+      budget: remainingText(remaining),
+      read: 0,
+      seen: 0,
+      nested: 0,
     }
+    options.onProgress?.('读取压缩包内容')
+    const sections = await collectArchiveFolder(
+      folder,
+      '',
+      basename(path),
+      0,
+      budget,
+      options,
+      root,
+    )
     if (!sections.length) return skipped('压缩包里没有可读取的文字')
+    const truncated =
+      budget.used >= budget.budget || budget.seen > budget.read
     const attachment = baseAttachment(path, size, 'archive', 'text', {
-      detail: `压缩包 · ${read} 个文件 · 本地文本`,
-      truncated: read < entries.length,
+      detail: `压缩包 · ${budget.read} 个文件 · 本地文本`,
+      truncated,
     })
     attachment.text = [
       '以下是压缩包内读取到的文件内容：',
       ...sections,
-      ...(read < entries.length ? ['（其余文件未展开）'] : []),
+      ...(truncated ? ['（其余文件未展开）'] : []),
     ].join('\n\n')
     attachment.tempPaths.push(root)
     return { attachment }

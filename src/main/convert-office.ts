@@ -114,10 +114,19 @@ export async function officePdfBuffer(
   return officeBytes(soffice, sourcePath, 'pdf', signal)
 }
 
+/** Converts the first sheet of a spreadsheet to CSV. */
+export async function officeCsvBuffer(
+  soffice: string,
+  sourcePath: string,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  return officeBytes(soffice, sourcePath, 'csv', signal)
+}
+
 async function officeBytes(
   soffice: string,
   sourcePath: string,
-  target: 'pdf' | 'docx' | 'xlsx' | 'pptx',
+  target: 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'csv',
   signal?: AbortSignal,
 ): Promise<Buffer> {
   if (signal?.aborted) throw abortError()
