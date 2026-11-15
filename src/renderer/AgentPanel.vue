@@ -668,6 +668,10 @@ function retryTurn(): void {
 function windowAction(action: 'minimize' | 'maximize' | 'close'): void {
   emit('command', { type: 'panel-control', action })
 }
+function onFrameDoubleClick(event: MouseEvent): void {
+  if (event.target !== event.currentTarget) return
+  emit('command', { type: 'panel-control', action: 'toggle-default' })
+}
 /** Snapshot the state before the native drag region may zoom the window. */
 let headerPressMaximized = false
 function onHeaderMouseDown(): void {
@@ -1115,6 +1119,7 @@ function statusLabel(status: string): string {
   <main
     class="agent-shell"
     :class="{ 'is-mac': mac, 'is-maximized': maximized }"
+    @dblclick="onFrameDoubleClick"
   >
     <section
       class="agent-surface"

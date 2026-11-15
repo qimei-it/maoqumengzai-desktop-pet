@@ -1470,15 +1470,25 @@ function fitAgentWindowToDisplays(): void {
     askWindow.setBounds(next)
 }
 
+function agentDefaultBounds(display: Electron.Display): Rect {
+  const area = display.workArea
+  const width = Math.min(920, area.width - 24)
+  const height = Math.min(640, area.height - 24)
+  return fitToDisplays(
+    {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + Math.round((area.height - height) / 2),
+      width,
+      height,
+    },
+    [area],
+  )
+}
 function positionAsk(): void {
   if (!askWindow || askWindow.isDestroyed()) return
-  const b = pet.getBounds()
-  const a = screen.getDisplayMatching(b).workArea
-  const width = Math.min(920, a.width - 24)
-  const height = Math.min(640, a.height - 24)
-  const x = a.x + Math.round((a.width - width) / 2)
-  const y = a.y + Math.round((a.height - height) / 2)
-  askWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+  askWindow.setBounds(
+    agentDefaultBounds(screen.getDisplayMatching(pet.getBounds())),
+  )
 }
 function openAgentPanel(): void {
   if (askWindow && !askWindow.isDestroyed()) {

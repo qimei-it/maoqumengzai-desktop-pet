@@ -808,7 +808,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('panel-control'),
-      action: z.enum(['minimize', 'maximize', 'close']),
+      action: z.enum(['minimize', 'maximize', 'close', 'toggle-default']),
     })
     .strict(),
   z.object({ type: z.literal('volume-popup'), show: z.boolean() }).strict(),

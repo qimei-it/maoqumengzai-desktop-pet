@@ -801,7 +801,7 @@ export type Command =
   | { type: 'todo-group-remove'; id: string }
   | {
       type: 'panel-control'
-      action: 'minimize' | 'maximize' | 'close'
+      action: 'minimize' | 'maximize' | 'close' | 'toggle-default'
     }
   | { type: 'volume-popup'; show: boolean }
   | { type: 'volume'; value: number }
