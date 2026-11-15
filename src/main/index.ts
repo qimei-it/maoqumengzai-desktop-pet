@@ -66,7 +66,12 @@ import {
   releaseAgentAttachment,
   type PreparedAgentAttachment,
 } from './agent/attachment-pipeline'
-import { uploadAgentFile, deleteAgentFile } from './agent/files'
+import {
+  uploadAgentFile,
+  deleteAgentFile,
+  transcribeAgentAudio,
+} from './agent/files'
+import { speak, stopSpeaking } from './agent/tts'
 import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
@@ -8774,6 +8779,39 @@ function setupIpc(): void {
     if (!info?.isFile()) throw new Error('源文件已不在。')
     const error = await shell.openPath(source.path)
     if (error) throw new Error(error)
+  })
+  handle(channels.agentSpeech, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以朗读。')
+    const text = z.string().trim().min(1).max(4_000).parse(payload)
+    await speak(text).done
+    return null
+  })
+  handle(channels.agentSpeechStop, 'either', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以停止朗读。')
+    stopSpeaking()
+    return null
+  })
+  handle(channels.agentVoiceTranscribe, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以转写语音。')
+    if (!aiKey) throw new Error('请先在设置中配置 DeepSeek API Key。')
+    const data = z.instanceof(Uint8Array).parse(payload)
+    if (!data.byteLength) throw new Error('录音内容为空。')
+    if (data.byteLength > 8 * 1024 * 1024)
+      throw new Error('录音过长，请控制在 1 分钟内。')
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-voice-'))
+    const path = join(directory, 'voice.wav')
+    try {
+      await writeFile(path, data)
+      return await transcribeAgentAudio(aiKey, path)
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => {})
+    }
   })
   handle(channels.agentDiagramExport, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)

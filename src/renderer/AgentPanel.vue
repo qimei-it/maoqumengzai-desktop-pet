@@ -27,6 +27,7 @@ import {
   FolderPlus,
   LoaderCircle,
   MessageCirclePlus,
+  Mic,
   Minus,
   PenLine,
   Pin,
@@ -41,6 +42,7 @@ import {
   Square,
   SquareArrowOutUpRight,
   Trash2,
+  Volume2,
   Wrench,
   X,
 } from '@lucide/vue'
@@ -180,6 +182,20 @@ const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
 const sessionQuery = ref('')
 const expandedTools = ref<Record<string, boolean>>({})
+const speakingId = ref<string | null>(null)
+const recording = ref(false)
+const transcribing = ref(false)
+let voiceRecorder:
+  | {
+      context: AudioContext
+      stream: MediaStream
+      source: MediaStreamAudioSourceNode
+      processor: ScriptProcessorNode
+      mute: GainNode
+      chunks: Float32Array[]
+      timer?: ReturnType<typeof setTimeout>
+    }
+  | undefined
 const expandedReasoning = ref<Record<string, boolean>>({})
 const editingMessage = ref<{ id: string } | null>(null)
 const editDraft = ref('')
@@ -756,6 +772,172 @@ async function onDrop(event: DragEvent): Promise<void> {
   ]
 }
 
+async function toggleSpeak(message: AgentMessageView): Promise<void> {
+  if (speakingId.value === message.id) {
+    speakingId.value = null
+    await window.mqmz?.stopAgentSpeech()
+    return
+  }
+  const text = assistantText(message)
+  if (!text) return
+  speakingId.value = message.id
+  const result = await window.mqmz?.speakAgentText(text)
+  if (speakingId.value === message.id) speakingId.value = null
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '朗读失败。'
+}
+
+function resampleVoice(
+  input: Float32Array,
+  from: number,
+  to: number,
+): Float32Array {
+  if (from === to) return input
+  const ratio = from / to
+  const length = Math.max(1, Math.round(input.length / ratio))
+  const output = new Float32Array(length)
+  for (let index = 0; index < length; index += 1) {
+    const position = index * ratio
+    const floor = Math.floor(position)
+    const fraction = position - floor
+    output[index] =
+      (input[floor] ?? 0) * (1 - fraction) +
+      (input[floor + 1] ?? 0) * fraction
+  }
+  return output
+}
+
+function encodeVoiceWav(
+  samples: Float32Array,
+  sampleRate: number,
+): Uint8Array {
+  const buffer = new ArrayBuffer(44 + samples.length * 2)
+  const view = new DataView(buffer)
+  const write = (offset: number, value: string): void => {
+    for (let index = 0; index < value.length; index += 1)
+      view.setUint8(offset + index, value.charCodeAt(index))
+  }
+  write(0, 'RIFF')
+  view.setUint32(4, 36 + samples.length * 2, true)
+  write(8, 'WAVE')
+  write(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  write(36, 'data')
+  view.setUint32(40, samples.length * 2, true)
+  for (let index = 0; index < samples.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, samples[index]))
+    view.setInt16(44 + index * 2, Math.round(sample * 0x7fff), true)
+  }
+  return new Uint8Array(buffer)
+}
+
+function releaseVoiceRecorder(): void {
+  const current = voiceRecorder
+  if (!current) return
+  voiceRecorder = undefined
+  if (current.timer) clearTimeout(current.timer)
+  current.source.disconnect()
+  current.processor.disconnect()
+  current.mute.disconnect()
+  current.stream.getTracks().forEach((track) => track.stop())
+  void current.context.close().catch(() => {})
+}
+
+async function finishRecording(): Promise<void> {
+  const current = voiceRecorder
+  if (!current || !recording.value) return
+  recording.value = false
+  if (current.timer) clearTimeout(current.timer)
+  current.source.disconnect()
+  current.processor.disconnect()
+  current.mute.disconnect()
+  current.stream.getTracks().forEach((track) => track.stop())
+  const sampleRate = current.context.sampleRate
+  await current.context.close().catch(() => {})
+  voiceRecorder = undefined
+  const total = current.chunks.reduce(
+    (sum, chunk) => sum + chunk.length,
+    0,
+  )
+  if (total < sampleRate * 0.3) {
+    attachmentError.value = '录音太短，请再说一次。'
+    return
+  }
+  const merged = new Float32Array(total)
+  let offset = 0
+  for (const chunk of current.chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  const wav = encodeVoiceWav(
+    resampleVoice(merged, sampleRate, 16_000),
+    16_000,
+  )
+  transcribing.value = true
+  const result = await window.mqmz?.transcribeAgentVoice(wav)
+  transcribing.value = false
+  if (!result?.ok) {
+    attachmentError.value = result?.error ?? '语音转写失败。'
+    return
+  }
+  const text = result.value.trim()
+  if (!text) {
+    attachmentError.value = '没有识别到语音内容。'
+    return
+  }
+  draft.value = draft.value.trim()
+    ? `${draft.value.trimEnd()} ${text}`
+    : text
+  void nextTick(() => composerInput.value?.focus())
+}
+
+async function toggleRecording(): Promise<void> {
+  if (recording.value) {
+    await finishRecording()
+    return
+  }
+  if (busy.value || parsing.value || transcribing.value) return
+  attachmentError.value = ''
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    })
+    const context = new AudioContext()
+    const source = context.createMediaStreamSource(stream)
+    const processor = context.createScriptProcessor(4096, 1, 1)
+    const chunks: Float32Array[] = []
+    processor.onaudioprocess = (event) => {
+      const data = new Float32Array(
+        event.inputBuffer.getChannelData(0),
+      )
+      event.outputBuffer.getChannelData(0).fill(0)
+      if (recording.value) chunks.push(data)
+    }
+    const mute = context.createGain()
+    mute.gain.value = 0
+    source.connect(processor)
+    processor.connect(mute)
+    mute.connect(context.destination)
+    voiceRecorder = { context, stream, source, processor, mute, chunks }
+    recording.value = true
+    voiceRecorder.timer = setTimeout(() => {
+      if (recording.value) void finishRecording()
+    }, 120_000)
+  } catch {
+    attachmentError.value = '无法访问麦克风，请检查系统权限。'
+  }
+}
+
 async function onPaste(event: ClipboardEvent): Promise<void> {
   if (busy.value || parsing.value) return
   const hasImage = [...(event.clipboardData?.items ?? [])].some((item) =>
@@ -1319,6 +1501,9 @@ onMounted(() => {
   void nextTick(() => scheduleFollow())
 })
 onUnmounted(() => {
+  releaseVoiceRecorder()
+  recording.value = false
+  void window.mqmz?.stopAgentSpeech()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousedown', onDocumentMouseDown)
   clearDropWatchdog()
@@ -2441,6 +2626,31 @@ function statusLabel(status: string): string {
                 >
                   <template v-if="message.role === 'assistant'">
                     <button
+                      v-if="!busy"
+                      type="button"
+                      class="agent-message-action"
+                      :aria-label="
+                        speakingId === message.id ? '停止朗读' : '朗读'
+                      "
+                      :title="
+                        speakingId === message.id ? '停止朗读' : '朗读'
+                      "
+                      @click="toggleSpeak(message)"
+                    >
+                      <Square
+                        v-if="speakingId === message.id"
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <Volume2
+                        v-else
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button
                       type="button"
                       class="agent-message-action"
                       :aria-label="
@@ -2670,6 +2880,49 @@ function statusLabel(status: string): string {
                     @click="addAttachments"
                   >
                     <Plus
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    class="agent-attach agent-mic"
+                    :class="{ 'is-recording': recording }"
+                    :disabled="
+                      busy || parsing || transcribing
+                    "
+                    :aria-label="
+                      recording
+                        ? '停止录音'
+                        : transcribing
+                          ? '正在转写'
+                          : '语音输入'
+                    "
+                    :title="
+                      recording
+                        ? '停止录音'
+                        : transcribing
+                          ? '正在转写'
+                          : '语音输入'
+                    "
+                    @click="toggleRecording"
+                  >
+                    <LoaderCircle
+                      v-if="transcribing"
+                      class="is-spinning"
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                    <Square
+                      v-else-if="recording"
+                      :size="11"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                    <Mic
+                      v-else
                       :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -4405,6 +4658,14 @@ function statusLabel(status: string): string {
   gap: 0;
   min-width: 0;
 }
+.agent-mic.is-recording {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  animation: agent-pulse 1.2s ease-in-out infinite;
+}
+.agent-mic svg.is-spinning {
+  animation: agent-spin 0.9s linear infinite;
+}
 .agent-attach {
   display: grid;
   flex: none;
@@ -5627,7 +5888,9 @@ function statusLabel(status: string): string {
   .agent-running,
   .agent-parse-spinner,
   .agent-thinking-dots span,
-  .agent-attachment-retry svg.is-spinning {
+  .agent-attachment-retry svg.is-spinning,
+  .agent-mic,
+  .agent-mic svg.is-spinning {
     animation: none;
   }
   .agent-session,

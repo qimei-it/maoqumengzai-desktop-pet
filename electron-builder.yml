@@ -45,6 +45,8 @@ extraResources:
     to: engines/qpdf/SOURCE.txt
 mac:
   icon: build/icon.icns
+  extendInfo:
+    NSMicrophoneUsageDescription: 毛趣萌仔需要使用麦克风把语音转成文字。
   extraResources:
     - from: resources/engines/qpdf/darwin-arm64
       to: engines/qpdf/darwin-arm64
