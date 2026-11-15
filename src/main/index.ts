@@ -1697,7 +1697,7 @@ async function configureMiniMax(
   if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
   await saveProviderKey('minimax', key)
   minimaxKey = key
-  minimaxTest = { status: 'idle' }
+  minimaxTest = test ? { status: 'testing' } : { status: 'idle' }
   minimaxTestToken += 1
   minimaxModels = undefined
   minimaxModelsError = undefined
@@ -11921,6 +11921,7 @@ else {
       applyDockIcon()
       aiKey = await loadStoredKey()
       minimaxKey = await loadProviderKey('minimax')
+      if (minimaxKey) void testMiniMax()
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,
