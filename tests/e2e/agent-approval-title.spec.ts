@@ -195,3 +195,17 @@ test('approval modes gate routine and risky tools', async () => {
   })
   expect(denied).toBe(true)
 })
+
+test('shows agent failures as a panel toast instead of inline text', async () => {
+  await application.evaluate(() => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'invalid key' } }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      })
+  })
+  await agent.getByLabel('给智能体发送指令').fill('触发错误')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.locator('.agent-toast')).toContainText('API Key 无效')
+  await expect(agent.locator('.agent-composer .agent-error')).toHaveCount(0)
+})

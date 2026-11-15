@@ -106,6 +106,20 @@ type ConfirmState = {
 }
 
 const agent = computed(() => props.state?.agent)
+const panelToast = ref('')
+let panelToastTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => agent.value?.error,
+  (message) => {
+    if (!message) return
+    panelToast.value = message
+    if (panelToastTimer) clearTimeout(panelToastTimer)
+    panelToastTimer = setTimeout(() => {
+      panelToast.value = ''
+      panelToastTimer = undefined
+    }, 4000)
+  },
+)
 const configured = computed(() => agent.value?.configured === true)
 const aiTest = computed<AiTestState>(
   () => props.state?.ai.test ?? { status: 'idle' },
@@ -1689,6 +1703,7 @@ onUnmounted(() => {
   if (followFrame) cancelAnimationFrame(followFrame)
   if (copyTimer) clearTimeout(copyTimer)
   if (pendingSendTimer) clearTimeout(pendingSendTimer)
+  if (panelToastTimer) clearTimeout(panelToastTimer)
 })
 
 const statusLabels: Record<string, string> = {
@@ -2615,10 +2630,10 @@ function statusLabel(status: string): string {
               </div>
             </div>
             <p
-              v-if="error || agent?.error || attachmentError"
+              v-if="error || attachmentError"
               class="agent-error"
             >
-              {{ error || agent?.error || attachmentError }}
+              {{ error || attachmentError }}
             </p>
           </div>
         </template>
@@ -3523,16 +3538,27 @@ function statusLabel(status: string): string {
                 </button>
               </div>
               <p
-                v-else-if="attachmentError || error || agent?.error"
+                v-else-if="attachmentError || error"
                 class="agent-error"
               >
-                {{ attachmentError || error || agent?.error }}
+                {{ attachmentError || error }}
               </p>
             </div>
           </div>
         </template>
       </section>
     </section>
+
+    <Transition name="agent-toast">
+      <div
+        v-if="panelToast"
+        class="agent-toast"
+        role="status"
+        @click="panelToast = ''"
+      >
+        {{ panelToast }}
+      </div>
+    </Transition>
 
     <div
       v-if="menu"
@@ -3997,6 +4023,7 @@ function statusLabel(status: string): string {
   --agent-frame-split: calc(
     var(--agent-shell-inset) + var(--agent-side-width)
   );
+  position: relative;
   height: 100vh;
   padding: var(--agent-shell-inset);
   background: transparent;
@@ -5666,6 +5693,31 @@ function statusLabel(status: string): string {
   line-height: 1.5;
   text-align: right;
   overflow-wrap: anywhere;
+}
+.agent-toast {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  z-index: 60;
+  max-width: min(560px, calc(100% - 64px));
+  padding: 8px 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  box-shadow: var(--shadow-overlay);
+  font-size: var(--font-size-label);
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+}
+.agent-toast-enter-active,
+.agent-toast-leave-active {
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.agent-toast-enter-from,
+.agent-toast-leave-to {
+  opacity: 0;
 }
 .agent-window-controls {
   display: flex;
