@@ -1204,7 +1204,7 @@ function onEscape(): void {
                   :disabled="aiTest.status === 'testing'"
                   @click="testSavedKey"
                 >
-                  测试延迟
+                  延迟测试
                 </button>
                 <button
                   v-if="configured"
@@ -1376,7 +1376,7 @@ function onEscape(): void {
                   :disabled="minimaxTest.status === 'testing'"
                   @click="testSavedMiniMaxKey"
                 >
-                  测试延迟
+                  延迟测试
                 </button>
                 <button
                   v-if="minimaxConfigured"
