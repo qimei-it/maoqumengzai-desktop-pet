@@ -183,6 +183,7 @@ function toggleMiniMaxModels(): void {
     minimaxModelsOpen.value = false
     return
   }
+  modelsOpen.value = false
   minimaxModelsOpen.value = true
 }
 watch(
@@ -211,20 +212,25 @@ watch(minimaxKey, (value) => {
   if (editingMiniMaxKey.value && value.trim() !== minimaxVerifiedKey.value)
     minimaxModelsOpen.value = false
 })
-watch(minimaxModelsVisible, (visible) => {
-  if (
-    visible &&
-    !minimaxModelCatalog.includes(
-      minimaxModelPreview.value as (typeof minimaxModelCatalog)[number],
+watch(
+  minimaxModelsVisible,
+  (visible) => {
+    if (
+      visible &&
+      !minimaxModelCatalog.includes(
+        minimaxModelPreview.value as (typeof minimaxModelCatalog)[number],
+      )
     )
-  )
-    minimaxModelPreview.value = minimaxModelCatalog[0]
-})
+      minimaxModelPreview.value = minimaxModelCatalog[0]
+  },
+  { immediate: true },
+)
 function toggleModels(): void {
   if (modelsOpen.value) {
     modelsOpen.value = false
     return
   }
+  minimaxModelsOpen.value = false
   modelsOpen.value = true
   const draft = editingKey.value ? apiKey.value.trim() : ''
   emit('command', {
@@ -1309,7 +1315,12 @@ function onEscape(): void {
                     @keydown.enter="saveMiniMaxKey"
                   />
                   <SelectField
-                    :model-value="minimaxModelPreview"
+                    :model-value="
+                      minimaxModelsVisible
+                        ? minimaxModelPreview ||
+                          minimaxModelCatalog[0]
+                        : ''
+                    "
                     aria-label="MiniMax 可用模型"
                     title="测试后显示当前 Key 可用模型"
                     wide
@@ -1440,7 +1451,9 @@ function onEscape(): void {
               class="settings-model-list"
             >
               <SelectField
-                :model-value="minimaxModelPreview"
+                :model-value="
+                  minimaxModelPreview || minimaxModelCatalog[0]
+                "
                 aria-label="MiniMax 可用模型"
                 title="仅查看，不会切换当前模型"
                 min-width="240px"
