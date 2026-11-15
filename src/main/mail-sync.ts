@@ -49,7 +49,7 @@ function providerClient(
 ): ImapFlow {
   const server = mailImapServer(provider, email)
   const proxy = provider === 'gmail' ? mailProxyUrl() : undefined
-  return new ImapFlow({
+  const client = new ImapFlow({
     host: server.host,
     port: server.port,
     secure: true,
@@ -59,6 +59,10 @@ function providerClient(
     ...(proxy ? { proxy } : {}),
     ...(provider === '163' ? { clientInfo: mailClientInfo } : {}),
   })
+  // Mail servers drop idle sockets asynchronously; an unhandled ImapFlow
+  // 'error' event would escape as an uncaught main-process exception.
+  client.on('error', () => {})
+  return client
 }
 
 /**
