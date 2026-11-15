@@ -1808,14 +1808,22 @@ async function refreshAiQuota(): Promise<void> {
     void refreshAiQuota()
   }
 }
+function aiQuotaRefreshIntervalMs(): number {
+  /** Test hook for the periodic-refresh Electron integration test. */
+  if (!app.isPackaged) {
+    const override = Number(process.env.MQMZ_QUOTA_REFRESH_MS)
+    if (Number.isFinite(override) && override >= 250)
+      return Math.floor(override)
+  }
+  return Math.max(1, settings.aiQuotaRefreshMinutes) * 60_000
+}
 function scheduleAiQuotaRefresh(): void {
   if (aiQuotaTimer) clearInterval(aiQuotaTimer)
   aiQuotaTimer = undefined
   if (!settings.aiQuotaEnabled) return
-  const minutes = Math.max(1, settings.aiQuotaRefreshMinutes)
   aiQuotaTimer = setInterval(() => {
     void refreshAiQuota()
-  }, minutes * 60_000)
+  }, aiQuotaRefreshIntervalMs())
 }
 async function chooseOpenAiAuthFile(): Promise<void> {
   const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
@@ -11575,6 +11583,10 @@ async function createWindows(): Promise<void> {
     lastSchedulerWall = 0
     lastSchedulerMono = 0
     focusTick('resume')
+    if (settings.aiQuotaEnabled) {
+      scheduleAiQuotaRefresh()
+      void refreshAiQuota()
+    }
     addEvent('系统唤醒，已恢复交互。')
   })
   lastSchedulerWall = Date.now()

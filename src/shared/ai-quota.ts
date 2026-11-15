@@ -201,6 +201,52 @@ export function formatQuotaPercent(value: number | undefined): string {
   return `${Math.round(clampPercent(value))}%`
 }
 
+export function formatQuotaClock(updatedAt: number | undefined): string {
+  if (updatedAt === undefined || !Number.isFinite(updatedAt)) return '—'
+  return new Date(updatedAt).toLocaleTimeString('zh-CN', {
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+/** Coarse relative age for the quota tooltip; exact clock time stays next to it. */
+export function formatQuotaFreshness(
+  updatedAt: number | undefined,
+  now = Date.now(),
+): string {
+  if (updatedAt === undefined || !Number.isFinite(updatedAt)) return '尚未更新'
+  const seconds = Math.max(0, Math.floor((now - updatedAt) / 1000))
+  if (seconds < 10) return '刚刚'
+  if (seconds < 60) return `${seconds} 秒前`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes} 分钟前`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+  return `${Math.floor(hours / 24)} 天前`
+}
+
+/**
+ * A snapshot is outdated once it misses more than one and a half refresh
+ * cycles, or after a failed request. The floor covers very short test cycles.
+ */
+export function isQuotaProviderOutdated(
+  provider:
+    | Pick<AiQuotaProviderState, 'configured' | 'status' | 'updatedAt'>
+    | undefined,
+  now: number,
+  refreshMinutes: number,
+): boolean {
+  if (!provider?.configured) return false
+  if (provider.status === 'stale' || provider.status === 'error') return true
+  if (provider.updatedAt === undefined || !Number.isFinite(provider.updatedAt))
+    return false
+  const age = Math.max(0, now - provider.updatedAt)
+  const cycle = Math.max(1, refreshMinutes) * 60_000
+  return age > Math.max(60_000, cycle * 1.5)
+}
+
 export function ringMetrics(
   remaining: number | undefined,
   radius: number,
@@ -216,19 +262,64 @@ export function ringMetrics(
 /** Segments are omitted entirely when a provider is not configured. */
 export const quotaBarHeight = 60
 
+/** The DeepSeek balance sits a fixed distance from the pill's right border. */
+const quotaBalanceInset = 16
+/** Widths mirror AiQuotaBar.vue; keep the two in sync. */
+const quotaPillBorders = 2
+const quotaPillPaddingLeft = 10
+const quotaSinglePaddingLeft = 6
+const quotaOpenAiWidth = 100
+const quotaDividerWidth = 17
+const quotaDeepSeekIconWidth = 20
+const quotaDeepSeekGap = 8
+/** 17px monospace advance per ASCII character plus CJK fallback width. */
+const quotaMonoAdvance = 10.3
+const quotaWideAdvance = 17
+/** Keeps the pill steady while the balance is missing or very short. */
+const quotaBalanceMinAdvanceCount = 6
+
+function quotaBalanceTextWidth(text: string): number {
+  let width = 0
+  for (const char of text)
+    width += /[\u3400-\u9fff]/.test(char)
+      ? quotaWideAdvance
+      : quotaMonoAdvance
+  return width
+}
+
 export function quotaBarWidth(state: AiQuotaState): number {
   const openai = state.openai.configured
   const deepseek = state.deepseek.configured
-  const deepseekDigits = state.deepseek.balance
-    ? String(Math.max(0, Math.floor(state.deepseek.balance.total))).length
-    : 2
-  const deepseekExtra = deepseek
-    ? Math.min(30, Math.max(0, deepseekDigits - 2) * 10)
-    : 0
-  const single = 120 + (openai ? 0 : deepseekExtra)
-  if (openai && deepseek) return (120 + deepseekExtra) * 2
+  const balance = state.deepseek.balance
+    ? formatQuotaMoney(state.deepseek.balance)
+    : '—'
+  const balanceWidth = Math.max(
+    quotaBalanceMinAdvanceCount * quotaMonoAdvance,
+    quotaBalanceTextWidth(balance),
+  )
+  const deepseekContent =
+    quotaDeepSeekIconWidth + quotaDeepSeekGap + balanceWidth
+  const deepseekSegment = Math.ceil(
+    quotaPillBorders +
+      quotaPillPaddingLeft +
+      deepseekContent +
+      quotaBalanceInset,
+  )
+  const dualWidth = Math.ceil(
+    deepseekSegment + quotaOpenAiWidth + quotaDividerWidth,
+  )
+  const singleDeepSeek = Math.max(
+    120,
+    Math.ceil(
+      quotaPillBorders +
+        quotaSinglePaddingLeft +
+        deepseekContent +
+        quotaBalanceInset,
+    ),
+  )
+  if (openai && deepseek) return dualWidth
   if (openai) return 120
-  if (deepseek) return single
+  if (deepseek) return singleDeepSeek
   return 0
 }
 

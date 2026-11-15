@@ -160,11 +160,31 @@ test("shows both providers, then shrinks and hides as configuration changes", as
   await expect(quota.locator(".quota-surface")).toContainText("75%");
   await expect(quota.locator(".quota-surface")).toContainText("40%");
   await expect(quota.locator(".quota-surface")).toContainText("¥28.60");
-  const sides = await quota.evaluate(() => [
-    document.querySelector(".quota-openai")!.getBoundingClientRect().width,
-    document.querySelector(".quota-deepseek")!.getBoundingClientRect().width,
-  ]);
-  expect(Math.abs(sides[0] - sides[1])).toBeLessThanOrEqual(0.5);
+  const layout = await quota.evaluate(() => {
+    const surface = document
+      .querySelector(".quota-surface")!
+      .getBoundingClientRect();
+    const openai = document
+      .querySelector(".quota-openai")!
+      .getBoundingClientRect();
+    const deepseek = document
+      .querySelector(".quota-deepseek")!
+      .getBoundingClientRect();
+    const balance = document
+      .querySelector(".quota-balance")!
+      .getBoundingClientRect();
+    return {
+      surfaceRight: surface.right,
+      openaiWidth: openai.width,
+      deepseekWidth: deepseek.width,
+      balanceRight: balance.right,
+    };
+  });
+  expect(layout.openaiWidth).toBe(100);
+  expect(layout.deepseekWidth).toBeCloseTo(90, 1);
+  const rightInset = layout.surfaceRight - layout.balanceRight;
+  expect(rightInset).toBeGreaterThanOrEqual(16);
+  expect(rightInset).toBeLessThanOrEqual(18);
   await expect(pet.locator(".marker-caption")).toHaveClass(/hidden/);
   const both = await application.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find((item) =>
@@ -173,7 +193,7 @@ test("shows both providers, then shrinks and hides as configuration changes", as
     return { visible: window.isVisible(), ...window.getBounds() };
   });
   expect(both.visible).toBe(true);
-  expect(both.width).toBe(240);
+  expect(both.width).toBe(235);
   expect(both.height).toBe(60);
   expect(requests).toContain("/openai");
   expect(requests).toContain("/deepseek");

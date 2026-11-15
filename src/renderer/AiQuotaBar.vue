@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { Snapshot } from '../shared/protocol'
-import type { AiQuotaWindow } from '../shared/ai-quota'
+import type {
+  AiQuotaProviderState,
+  AiQuotaWindow,
+} from '../shared/ai-quota'
 import {
+  formatQuotaClock,
+  formatQuotaFreshness,
   formatQuotaMoney,
   formatQuotaPercent,
+  isQuotaProviderOutdated,
 } from '../shared/ai-quota'
 import DeepSeekMark from './DeepSeekMark.vue'
 import OpenAiMark from './OpenAiMark.vue'
@@ -16,6 +22,21 @@ const openai = computed(() => quota.value?.openai)
 const deepseek = computed(() => quota.value?.deepseek)
 const showOpenAi = computed(() => Boolean(openai.value?.configured))
 const showDeepSeek = computed(() => Boolean(deepseek.value?.configured))
+const refreshMinutes = computed(
+  () => props.state?.settings.aiQuotaRefreshMinutes ?? 5,
+)
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | undefined
+
+onMounted(() => {
+  ticker = setInterval(() => {
+    now.value = Date.now()
+  }, 15_000)
+})
+onUnmounted(() => {
+  if (ticker) clearInterval(ticker)
+  ticker = undefined
+})
 
 function windowValue(
   windows: AiQuotaWindow[] | undefined,
@@ -32,6 +53,35 @@ const deepSeekBalance = computed(() => {
   return balance ? formatQuotaMoney(balance) : '—'
 })
 
+function providerTip(
+  label: string,
+  provider: AiQuotaProviderState | undefined,
+): string {
+  if (!provider?.configured) return `${label}：未配置`
+  const updated = provider.updatedAt
+    ? `更新于 ${formatQuotaClock(provider.updatedAt)}（${formatQuotaFreshness(provider.updatedAt, now.value)}）`
+    : '尚未更新'
+  const lines = [`${label}：${updated}`]
+  if (provider.error) lines.push(`读取失败：${provider.error}`)
+  return lines.join('\n')
+}
+const openAiTip = computed(() => providerTip('OpenAI 额度', openai.value))
+const deepSeekTip = computed(() => providerTip('DeepSeek 余额', deepseek.value))
+const openAiOutdated = computed(() =>
+  isQuotaProviderOutdated(
+    openai.value,
+    now.value,
+    refreshMinutes.value,
+  ),
+)
+const deepSeekOutdated = computed(() =>
+  isQuotaProviderOutdated(
+    deepseek.value,
+    now.value,
+    refreshMinutes.value,
+  ),
+)
+
 </script>
 
 <template>
@@ -40,13 +90,19 @@ const deepSeekBalance = computed(() => {
     :class="{
       single: showOpenAi !== showDeepSeek,
       dual: showOpenAi && showDeepSeek,
+      'has-deepseek': showDeepSeek,
     }"
     aria-label="AI 额度"
   >
     <section
       v-if="showOpenAi"
       class="quota-segment quota-openai"
-      :class="{ stale: openai?.status === 'stale' || openai?.status === 'error' }"
+      :class="{
+        stale: openai?.status === 'stale' || openai?.status === 'error',
+        'is-outdated': openAiOutdated,
+        'is-error': openai?.status === 'error',
+      }"
+      :title="openAiTip"
     >
       <span class="quota-ring-wrap">
         <QuotaRings
@@ -78,7 +134,10 @@ const deepSeekBalance = computed(() => {
       class="quota-segment quota-deepseek"
       :class="{
         stale: deepseek?.status === 'stale' || deepseek?.status === 'error',
+        'is-outdated': deepSeekOutdated,
+        'is-error': deepseek?.status === 'error',
       }"
+      :title="deepSeekTip"
     >
       <DeepSeekMark :size="15" />
       <span class="quota-balance">{{ deepSeekBalance }}</span>
@@ -93,7 +152,7 @@ const deepSeekBalance = computed(() => {
   justify-content: flex-start;
   width: 100vw;
   height: 100vh;
-  padding: 6px 10px;
+  padding: 6px var(--space-5);
   border: 1px solid var(--color-line);
   border-radius: 999px;
   background: var(--color-surface);
@@ -103,25 +162,42 @@ const deepSeekBalance = computed(() => {
   user-select: none;
 }
 .quota-surface.single {
-  padding-left: 6px;
-  padding-right: 6px;
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
   justify-content: flex-start;
 }
+.quota-surface.has-deepseek {
+  padding-right: var(--space-8);
+}
 .quota-segment {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   height: 46px;
 }
-.quota-surface.dual .quota-segment {
-  flex: 1 1 0;
+.quota-segment.is-outdated::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-warning);
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+.quota-segment.is-outdated.is-error::after {
+  background: var(--color-danger);
 }
 .quota-surface.dual .quota-openai {
+  flex: 0 0 100px;
   justify-content: flex-start;
 }
-.quota-surface.dual .quota-deepseek {
-  justify-content: flex-start;
+.quota-deepseek {
+  flex: 1 1 auto;
+  justify-content: flex-end;
 }
 .quota-ring-wrap {
   position: relative;
@@ -138,7 +214,7 @@ const deepSeekBalance = computed(() => {
   color: var(--color-provider-openai);
   transform: translate(-50%, -50%);
 }
-.quota-segment.stale {
+.quota-segment.stale > * {
   opacity: 0.62;
 }
 .quota-copy {
@@ -155,6 +231,7 @@ const deepSeekBalance = computed(() => {
   column-gap: 4px;
   row-gap: 2px;
   color: var(--color-ink);
+  font-family: var(--mqmz-font-mono);
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
@@ -165,6 +242,7 @@ const deepSeekBalance = computed(() => {
 }
 .quota-balance {
   color: var(--color-provider-deepseek);
+  font-family: var(--mqmz-font-mono);
   font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;

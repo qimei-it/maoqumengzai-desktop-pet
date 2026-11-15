@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes } from '@lucide/vue'
-import { formatOpenAiAccountStatus } from '../shared/ai-quota'
+import {
+  formatOpenAiAccountStatus,
+  formatQuotaClock,
+  formatQuotaFreshness,
+} from '../shared/ai-quota'
+import type { AiQuotaProviderState } from '../shared/ai-quota'
 import type {
   AiTestState,
   Command,
@@ -96,6 +101,43 @@ const aiQuota = computed(() => props.state?.aiQuota)
 const openAiAccountStatus = computed(() =>
   formatOpenAiAccountStatus(aiQuota.value?.openai),
 )
+const quotaStatus = computed(() => {
+  if (!settings.value.aiQuotaEnabled)
+    return { label: '已关闭', tone: 'muted', title: '额度监控未开启。' }
+  const state = aiQuota.value
+  const items: Array<{ label: string; provider: AiQuotaProviderState }> = []
+  if (state?.openai.configured)
+    items.push({ label: 'OpenAI 额度', provider: state.openai })
+  if (state?.deepseek.configured)
+    items.push({ label: 'DeepSeek 余额', provider: state.deepseek })
+  if (!items.length)
+    return { label: '未配置', tone: 'muted', title: '尚未配置额度来源。' }
+  const title = items
+    .map(({ label, provider }) => {
+      const updated = provider.updatedAt
+        ? `更新于 ${formatQuotaClock(provider.updatedAt)}（${formatQuotaFreshness(provider.updatedAt)}）`
+        : '尚未更新'
+      const error = provider.error ? `\n读取失败：${provider.error}` : ''
+      return `${label}：${updated}${error}`
+    })
+    .join('\n')
+  if (state?.loading) return { label: '刷新中…', tone: 'muted', title }
+  const failed = items.filter(
+    ({ provider }) =>
+      provider.status === 'stale' || provider.status === 'error',
+  )
+  if (failed.length === items.length)
+    return { label: '刷新失败', tone: 'error', title }
+  if (failed.length) return { label: '部分刷新失败', tone: 'error', title }
+  const newest = Math.max(
+    ...items.map(({ provider }) => provider.updatedAt ?? 0),
+  )
+  return {
+    label: newest ? `${formatQuotaClock(newest)} 更新` : '尚未刷新',
+    tone: 'ready',
+    title,
+  }
+})
 const aiTest = computed<AiTestState>(
   () => props.state?.ai.test ?? { status: 'idle' },
 )
@@ -1093,14 +1135,22 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">立即刷新</span>
-              <button
-                type="button"
-                class="settings-button"
-                @click="emit('command', { type: 'ai-quota-refresh' })"
-              >
-                刷新
-              </button>
+              <span class="settings-label">额度状态</span>
+              <span class="settings-inline">
+                <span
+                  class="settings-quota-state"
+                  :class="`is-${quotaStatus.tone}`"
+                  :title="quotaStatus.title"
+                  >{{ quotaStatus.label }}</span
+                >
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="emit('command', { type: 'ai-quota-refresh' })"
+                >
+                  刷新
+                </button>
+              </span>
             </div>
             <div class="settings-row">
               <span class="settings-label">附件保存目录</span>
@@ -1486,6 +1536,18 @@ function onEscape(): void {
   color: var(--color-warning);
 }
 .ai-latency.is-slow {
+  color: var(--color-danger);
+}
+.settings-quota-state {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-quota-state.is-error {
   color: var(--color-danger);
 }
 .settings-value {

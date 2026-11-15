@@ -8,6 +8,9 @@
   --mqmz-panel-shadow: var(--shadow-stage);
   --mqmz-action-background: var(--color-brand-ink);
   --mqmz-focus-ring: 2px solid var(--color-focus);
+  /* Desktop-only: numeric readouts keep stable digit widths across platforms. */
+  --mqmz-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
 }
 .button-glass,
 .button-soft {

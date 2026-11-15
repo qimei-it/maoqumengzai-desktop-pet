@@ -2,13 +2,17 @@ import { describe, expect, test } from 'vitest'
 import {
   emptyAiQuotaState,
   formatOpenAiAccountStatus,
+  formatQuotaClock,
+  formatQuotaFreshness,
   formatQuotaMoney,
   formatQuotaPercent,
+  isQuotaProviderOutdated,
   parseDeepSeekBalance,
   parseOpenAiUsage,
   quotaBarWidth,
   ringMetrics,
 } from '../../src/shared/ai-quota'
+import type { AiQuotaProviderState } from '../../src/shared/ai-quota'
 
 describe('OpenAI account status', () => {
   test('capitalizes the subscription plan and marks logged-out accounts', () => {
@@ -110,6 +114,61 @@ describe('DeepSeek balance parsing', () => {
   })
 })
 
+describe('quota freshness', () => {
+  test('describes snapshot age in coarse steps', () => {
+    const now = 1_000_000
+    expect(formatQuotaFreshness(undefined, now)).toBe('尚未更新')
+    expect(formatQuotaFreshness(now - 3_000, now)).toBe('刚刚')
+    expect(formatQuotaFreshness(now - 12_000, now)).toBe('12 秒前')
+    expect(formatQuotaFreshness(now - 65_000, now)).toBe('1 分钟前')
+    expect(formatQuotaFreshness(now - 2 * 3_600_000, now)).toBe('2 小时前')
+    expect(formatQuotaFreshness(now - 2 * 86_400_000, now)).toBe('2 天前')
+    expect(formatQuotaFreshness(now + 5_000, now)).toBe('刚刚')
+  })
+
+  test('formats the snapshot clock', () => {
+    expect(formatQuotaClock(undefined)).toBe('—')
+    expect(
+      formatQuotaClock(new Date(2026, 0, 2, 3, 4, 5).getTime()),
+    ).toBe('03:04:05')
+  })
+
+  test('marks failed and overdue snapshots', () => {
+    const now = 1_000_000
+    const provider = (
+      overrides: Partial<
+        Pick<AiQuotaProviderState, 'configured' | 'status' | 'updatedAt'>
+      > = {},
+    ) => ({
+      configured: true,
+      status: 'ready' as const,
+      updatedAt: now - 60_000,
+      ...overrides,
+    })
+    expect(isQuotaProviderOutdated(undefined, now, 5)).toBe(false)
+    expect(
+      isQuotaProviderOutdated(provider({ configured: false }), now, 5),
+    ).toBe(false)
+    expect(isQuotaProviderOutdated(provider(), now, 5)).toBe(false)
+    expect(
+      isQuotaProviderOutdated(provider({ updatedAt: now - 8 * 60_000 }), now, 5),
+    ).toBe(true)
+    expect(
+      isQuotaProviderOutdated(provider({ status: 'stale' }), now, 5),
+    ).toBe(true)
+    expect(
+      isQuotaProviderOutdated(provider({ status: 'error' }), now, 5),
+    ).toBe(true)
+    expect(
+      isQuotaProviderOutdated(
+        provider({ updatedAt: now - 20 * 60_000 }),
+        now,
+        30,
+      ),
+    ).toBe(false)
+  })
+})
+
 describe('quota presentation helpers', () => {
   test('formats large balances and percentages', () => {
     expect(
@@ -134,7 +193,7 @@ describe('quota presentation helpers', () => {
     state.openai.configured = true
     expect(quotaBarWidth(state)).toBe(120)
     state.deepseek.configured = true
-    expect(quotaBarWidth(state)).toBe(240)
+    expect(quotaBarWidth(state)).toBe(235)
     state.deepseek.balance = {
       currency: 'CNY',
       total: 123.45,
@@ -142,6 +201,6 @@ describe('quota presentation helpers', () => {
       toppedUp: 123.45,
       available: true,
     }
-    expect(quotaBarWidth(state)).toBe(260)
+    expect(quotaBarWidth(state)).toBe(246)
   })
 })

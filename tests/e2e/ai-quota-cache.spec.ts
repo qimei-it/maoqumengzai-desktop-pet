@@ -198,8 +198,41 @@ test("restores the last successful values after restart while offline", async ()
       })),
     )
   ).find((item) => item.title.includes("AI 额度"))!.page;
-  await expect(page.locator(".quota-surface")).toContainText("1w 40%");
+  await expect(page.locator(".quota-surface")).toContainText(/1w\s*40%/);
   await expect(page.locator(".quota-surface")).toContainText("¥41.36");
+  await expect(page.locator(".quota-deepseek")).toHaveClass(/is-outdated/);
+  await expect(page.locator(".quota-deepseek")).toHaveAttribute(
+    "title",
+    /读取失败/,
+  );
+
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: "settings-section", section: "ai" }),
+  );
+  await expect
+    .poll(async () => {
+      for (const view of application!.windows()) {
+        if ((await view.title()).includes("设置")) return true;
+      }
+      return false;
+    })
+    .toBe(true);
+  const settingsPage = (
+    await Promise.all(
+      application.windows().map(async (view) => ({
+        view,
+        title: await view.title(),
+      })),
+    )
+  ).find((item) => item.title.includes("设置"))!.view;
+  await expect(settingsPage.locator(".settings-quota-state")).toHaveText(
+    "刷新失败",
+  );
+  await expect(settingsPage.locator(".settings-quota-state")).toHaveAttribute(
+    "title",
+    /无法连接 DeepSeek/,
+  );
 });
 
 test.afterAll(async () => {
