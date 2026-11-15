@@ -115,6 +115,7 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(agent.locator('.agent-skills-page')).toBeVisible()
   const heads = agent.locator('.agent-skill-group-head h3')
   await expect(heads).toHaveText([
+    '用户 Skill',
     '通用工具',
     '论文科研',
     '文档办公',
@@ -125,17 +126,18 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   ])
   const groups = agent.locator('.agent-skill-group')
   await expect(groups.nth(0)).toContainText('暂无技能')
-  await expect(groups.nth(1)).toContainText('Paper Alpha')
-  await expect(groups.nth(1)).toContainText('Paper Beta')
-  await expect(groups.nth(2)).toContainText('Doc Gamma')
-  await expect(groups.nth(3)).toContainText('暂无技能')
+  await expect(groups.nth(1)).toContainText('暂无技能')
+  await expect(groups.nth(2)).toContainText('Paper Alpha')
+  await expect(groups.nth(2)).toContainText('Paper Beta')
+  await expect(groups.nth(3)).toContainText('Doc Gamma')
   await expect(groups.nth(4)).toContainText('暂无技能')
   await expect(groups.nth(5)).toContainText('暂无技能')
   await expect(groups.nth(6)).toContainText('暂无技能')
+  await expect(groups.nth(7)).toContainText('暂无技能')
   await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
   await expect(agent.locator('.agent-skill-check')).toHaveCount(2)
 
-  const paperGroup = groups.nth(1)
+  const paperGroup = groups.nth(2)
   await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
     '论文科研2（已启用 1）',
   )

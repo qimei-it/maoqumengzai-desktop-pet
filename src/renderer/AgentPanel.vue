@@ -179,6 +179,7 @@ const filteredSkills = computed(() => {
     .slice(0, 30)
 })
 const skillCategoryOrder = [
+  '用户 Skill',
   '通用工具',
   '论文科研',
   '文档办公',
@@ -206,12 +207,12 @@ function setSkillCategoryFilter(
 }
 const skillGroups = computed(() => {
   const groups = new Map<string, AgentSkillView[]>()
-  for (const category of [...skillCategoryOrder, '我的技能'])
+  for (const category of skillCategoryOrder)
     groups.set(category, [])
   for (const skill of filteredSkills.value) {
     const category =
       skill.category.trim() ||
-      (skill.builtin ? '其他' : '我的技能')
+      (skill.builtin ? '其他' : '用户 Skill')
     if (!groups.has(category)) groups.set(category, [])
     groups.get(category)!.push(skill)
   }
