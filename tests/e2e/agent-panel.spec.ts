@@ -162,6 +162,18 @@ test('projects group sessions and support session actions', async () => {
   )
   const workspace = process.cwd()
   const name = workspace.split('/').filter(Boolean).pop()!
+  await agent.getByLabel('添加项目').click()
+  const projectDialog = agent.locator('.agent-modal')
+  await expect(
+    projectDialog.getByRole('heading', { name: '创建项目', exact: true }),
+  ).toBeVisible()
+  await expect(
+    projectDialog.locator('.agent-modal-head .agent-icon-button'),
+  ).toHaveCount(0)
+  await expect(
+    projectDialog.getByRole('button', { name: '取消', exact: true }),
+  ).toBeVisible()
+  await projectDialog.getByRole('button', { name: '取消', exact: true }).click()
   await agent.evaluate(
     ({ name, workspace }) =>
       window.mqmz!.command({

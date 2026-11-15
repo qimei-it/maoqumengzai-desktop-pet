@@ -2343,6 +2343,10 @@ function statusLabel(status: string): string {
             }}
           </h2>
           <button
+            v-if="
+              dialog.kind === 'rename-session' ||
+              dialog.kind === 'move-session'
+            "
             type="button"
             class="agent-icon-button"
             aria-label="关闭"
