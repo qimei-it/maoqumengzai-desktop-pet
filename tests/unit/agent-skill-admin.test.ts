@@ -75,6 +75,18 @@ describe('skill admin', () => {
     expect(base).toBeTruthy()
   })
 
+  test('enables a warned skill after install', async () => {
+    const { sourceRoot, store, scansPath } = await setup()
+    const admin = await createSkillAdmin({
+      store,
+      scansPath,
+      scanDirectory: async () => scan('warn'),
+    })
+    const result = await admin.installLocal(await writeSkill(sourceRoot, 'warned'))
+    expect(result.scans[0].scan.status).toBe('warn')
+    expect(result.installed[0].enabled).toBe(true)
+  })
+
   test('keeps a blocked skill disabled until a rescan passes', async () => {
     const { sourceRoot, store, scansPath } = await setup()
     let next: AgentSkillScan['status'] = 'blocked'

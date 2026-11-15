@@ -204,7 +204,7 @@ export async function createSkillAdmin(
       const view = viewOf(detail.id)
       const result = await runScan(view)
       recordScan(view, result)
-      if (result.status === 'blocked') await store.setEnabled(view.id, false)
+      await store.setEnabled(view.id, result.status !== 'blocked')
       results.push({ skill: viewOf(view.id), scan: result })
     }
     await persist()
