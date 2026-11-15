@@ -57,6 +57,7 @@ import {
   type AgentSkillDetail,
   type AgentSkillView,
   type AgentTextPart,
+  type AgentToolPart,
 } from '../shared/agent'
 import {
   deepseekModelIds,
@@ -177,6 +178,7 @@ const menu = ref<MenuState | null>(null)
 const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
 const sessionQuery = ref('')
+const expandedTools = ref<Record<string, boolean>>({})
 const editingMessage = ref<{ id: string } | null>(null)
 const editDraft = ref('')
 const editInput = ref<HTMLTextAreaElement>()
@@ -581,6 +583,37 @@ async function copyOutput(message: AgentMessageView): Promise<void> {
   }, 1200)
 }
 
+function isToolExpanded(id: string): boolean {
+  return expandedTools.value[id] === true
+}
+function toggleTool(id: string): void {
+  expandedTools.value = {
+    ...expandedTools.value,
+    [id]: !expandedTools.value[id],
+  }
+}
+async function copyToolOutput(part: AgentToolPart): Promise<void> {
+  const text = part.output?.trim()
+  if (!text) return
+  const result = await window.mqmz?.copyAgentOutput(text)
+  if (!result?.ok) {
+    attachmentError.value = result?.error ?? '复制失败。'
+    return
+  }
+  copiedId.value = part.id
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => {
+    copyTimer = undefined
+    copiedId.value = null
+  }, 1200)
+}
+
+async function openSource(id: string): Promise<void> {
+  const result = await window.mqmz?.openAgentSource(id)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '打开文件失败。'
+}
+
 async function saveSource(id: string): Promise<void> {
   const result = await window.mqmz?.saveAgentSource(id)
   if (!result?.ok)
@@ -950,6 +983,9 @@ function approve(id: string): void {
 }
 function deny(id: string): void {
   emit('command', { type: 'agent-deny', id })
+}
+function approveSame(id: string): void {
+  emit('command', { type: 'agent-approve-same', id })
 }
 function saveKey(): void {
   const apiKey = keyDraft.value.trim()
@@ -2156,40 +2192,136 @@ function statusLabel(status: string): string {
                     :data-status="part.status"
                   >
                     <div class="agent-tool-head">
-                      <Wrench
-                        :size="13"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                      <span class="agent-tool-title">{{ part.title }}</span>
-                      <span class="agent-tool-status">{{
-                        statusLabel(part.status)
-                      }}</span>
-                    </div>
-                    <pre v-if="part.output" class="agent-tool-output">{{
-                      part.output
-                    }}</pre>
-                    <div
-                      v-if="part.artifacts?.length"
-                      class="agent-artifacts"
-                    >
                       <button
-                        v-for="artifact in part.artifacts"
-                        :key="artifact.id"
+                        v-if="part.output"
                         type="button"
-                        class="agent-artifact"
-                        :aria-label="`保存 ${artifact.name}`"
-                        :title="`保存 ${artifact.name}`"
-                        @click="saveSource(artifact.id)"
+                        class="agent-tool-toggle"
+                        :aria-expanded="isToolExpanded(part.id)"
+                        :aria-label="
+                          isToolExpanded(part.id)
+                            ? '收起输出'
+                            : '展开完整输出'
+                        "
+                        :title="
+                          isToolExpanded(part.id)
+                            ? '收起输出'
+                            : '展开完整输出'
+                        "
+                        @click="toggleTool(part.id)"
                       >
-                        <FileTypeIcon :name="artifact.name" :size="14" />
-                        <span>{{ artifact.name }}</span>
-                        <Download
+                        <ChevronDown
+                          v-if="isToolExpanded(part.id)"
                           :size="12"
                           :stroke-width="2"
                           aria-hidden="true"
                         />
+                        <ChevronRight
+                          v-else
+                          :size="12"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <Wrench
+                          :size="13"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span class="agent-tool-title">{{
+                          part.title
+                        }}</span>
                       </button>
+                      <span v-else class="agent-tool-static">
+                        <Wrench
+                          :size="13"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span class="agent-tool-title">{{
+                          part.title
+                        }}</span>
+                      </span>
+                      <span class="agent-tool-status">{{
+                        statusLabel(part.status)
+                      }}</span>
+                      <button
+                        v-if="part.output"
+                        type="button"
+                        class="agent-tool-action"
+                        :aria-label="
+                          copiedId === part.id
+                            ? '已复制输出'
+                            : '复制输出'
+                        "
+                        :title="
+                          copiedId === part.id
+                            ? '已复制输出'
+                            : '复制输出'
+                        "
+                        @click="copyToolOutput(part)"
+                      >
+                        <Check
+                          v-if="copiedId === part.id"
+                          :size="13"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <Copy
+                          v-else
+                          :size="13"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
+                    <pre
+                      v-if="part.output"
+                      class="agent-tool-output"
+                      :class="{
+                        'is-collapsed': !isToolExpanded(part.id),
+                      }"
+                      >{{ part.output }}</pre
+                    >
+                    <div
+                      v-if="part.artifacts?.length"
+                      class="agent-artifacts"
+                    >
+                      <span
+                        v-for="artifact in part.artifacts"
+                        :key="artifact.id"
+                        class="agent-artifact-group"
+                      >
+                        <button
+                          type="button"
+                          class="agent-artifact"
+                          :aria-label="`保存 ${artifact.name}`"
+                          :title="`保存 ${artifact.name}`"
+                          @click="saveSource(artifact.id)"
+                        >
+                          <FileTypeIcon
+                            :name="artifact.name"
+                            :size="14"
+                          />
+                          <span>{{ artifact.name }}</span>
+                          <Download
+                            :size="12"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          class="agent-artifact-open"
+                          :aria-label="`打开 ${artifact.name}`"
+                          :title="`打开 ${artifact.name}`"
+                          @click="openSource(artifact.id)"
+                        >
+                          <SquareArrowOutUpRight
+                            :size="12"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </span>
                     </div>
                   </div>
                 </template>
@@ -2300,6 +2432,14 @@ function statusLabel(status: string): string {
                 @click="deny(agent.approval.id)"
               >
                 拒绝
+              </button>
+              <button
+                type="button"
+                class="agent-button"
+                :title="`本会话不再确认 ${agent.approval.name}`"
+                @click="approveSame(agent.approval.id)"
+              >
+                同类允许
               </button>
               <button
                 type="button"
@@ -3768,6 +3908,52 @@ function statusLabel(status: string): string {
   padding: 7px 10px;
   color: var(--color-muted);
 }
+.agent-tool-toggle,
+.agent-tool-static {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  text-align: left;
+}
+.agent-tool-toggle:hover {
+  color: var(--color-brand-ink);
+}
+.agent-tool-toggle:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-tool-toggle svg,
+.agent-tool-static svg {
+  flex: none;
+}
+.agent-tool-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-tool-action:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-tool-action:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-tool-title {
   flex: 1;
   overflow: hidden;
@@ -3806,12 +3992,42 @@ function statusLabel(status: string): string {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+.agent-tool-output.is-collapsed {
+  max-height: 3.4em;
+  overflow: hidden;
+}
 .agent-artifacts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   padding: 8px 10px;
   border-top: 1px solid var(--color-line);
+}
+.agent-artifact-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.agent-artifact-open {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+}
+.agent-artifact-open:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+.agent-artifact-open:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-artifact {
   display: inline-flex;

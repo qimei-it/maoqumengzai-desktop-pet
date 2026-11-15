@@ -51,6 +51,8 @@ export type StoredSession = {
   history: ProviderMessage[]
   files?: StoredFileRef[]
   sources?: StoredSource[]
+  /** Tools approved for the rest of this session. */
+  allowedTools?: string[]
   usage: AgentUsage
   /** Number of older messages folded into the context summary. */
   compacted?: number
@@ -164,6 +166,11 @@ function parseSession(value: unknown): StoredSession | null {
           .filter((ref): ref is StoredFileRef => Boolean(ref))
           .slice(-200)
       : [],
+    allowedTools: Array.isArray(value.allowedTools)
+      ? value.allowedTools
+          .filter((name): name is string => typeof name === 'string')
+          .slice(-20)
+      : undefined,
     sources: Array.isArray(value.sources)
       ? value.sources
           .map(parseSource)

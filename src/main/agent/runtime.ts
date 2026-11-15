@@ -95,6 +95,7 @@ export type AgentRuntime = {
   editMessage(id: string, prompt: string): Promise<void>
   cancel(): void
   approve(id: string): void
+  approveSame(id: string): void
   deny(id: string): void
   newSession(): void
   newSessionIn(projectId: string): void
@@ -750,7 +751,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
       emit()
     }
-    if (permission === 'ask') {
+    if (
+      permission === 'ask' &&
+      !(session.allowedTools ?? []).includes(tool.name)
+    ) {
       const allowed = await requestApproval(tool, args, argsText)
       if (!allowed)
         return {
@@ -1247,6 +1251,19 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     approve(id: string) {
       if (pending?.info.id !== id) return
+      settleApproval(true)
+    },
+    approveSame(id: string) {
+      if (pending?.info.id !== id) return
+      const session = activeSession()
+      if (session) {
+        const name = pending.info.name
+        session.allowedTools = [
+          ...(session.allowedTools ?? []).filter((item) => item !== name),
+          name,
+        ].slice(-20)
+        persist()
+      }
       settleApproval(true)
     },
     deny(id: string) {

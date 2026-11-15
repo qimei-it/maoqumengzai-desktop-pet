@@ -107,6 +107,41 @@ describe('agent runtime', () => {
     expect(text).toContain('已经建好了')
   })
 
+  test('allows the same tool for the rest of the session', async () => {
+    const calls: string[] = []
+    const copyArguments = JSON.stringify({ fileId: shelfFileId })
+    const { runtime } = await makeRuntime(
+      [
+        {
+          text: '',
+          toolCalls: [
+            { id: 'call-1', name: 'file_save_copy', arguments: copyArguments },
+          ],
+        },
+        { text: '完成', toolCalls: [] },
+        {
+          text: '',
+          toolCalls: [
+            { id: 'call-2', name: 'file_save_copy', arguments: copyArguments },
+          ],
+        },
+        { text: '完成', toolCalls: [] },
+      ],
+      calls,
+    )
+    const first = runtime.send('另存一份')
+    await waitFor(() => runtime.state().approval !== null)
+    runtime.approveSame(runtime.state().approval!.id)
+    await first
+    expect(runtime.state().approval).toBeNull()
+
+    const second = runtime.send('再另存一份')
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(runtime.state().approval).toBeNull()
+    await second
+    expect(calls.filter((call) => call === 'shelf:saveCopy')).toHaveLength(2)
+  })
+
   test('denial skips the service and reports it to the model', async () => {
     const calls: string[] = []
     const { runtime } = await makeRuntime(

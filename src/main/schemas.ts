@@ -842,6 +842,9 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({ type: z.literal('agent-approve'), id: z.string().uuid() })
     .strict(),
   z
+    .object({ type: z.literal('agent-approve-same'), id: z.string().uuid() })
+    .strict(),
+  z
     .object({ type: z.literal('agent-deny'), id: z.string().uuid() })
     .strict(),
   z.object({ type: z.literal('agent-session-new') }).strict(),

@@ -68,6 +68,7 @@ export const channels = {
   agentCopyOutput: 'mqmz:agent:copy-output',
   agentSaveSession: 'mqmz:agent:save-session',
   agentSaveSource: 'mqmz:agent:save-source',
+  agentSourceOpen: 'mqmz:agent:source-open',
   agentSkillsRefresh: 'mqmz:agent:skills-refresh',
   agentSkillInstall: 'mqmz:agent:skill-install',
   agentSkillRead: 'mqmz:agent:skill-read',
@@ -554,6 +555,7 @@ export type Command =
   | { type: 'agent-message-edit'; id: string; prompt: string }
   | { type: 'agent-cancel' }
   | { type: 'agent-approve'; id: string }
+  | { type: 'agent-approve-same'; id: string }
   | { type: 'agent-deny'; id: string }
   | { type: 'agent-session-new' }
   | { type: 'agent-project-new'; projectId: string }
@@ -848,6 +850,7 @@ export interface PrototypeApi {
   copyAgentOutput(text: string): Promise<Result<void>>
   saveAgentSession(id: string): Promise<Result<string>>
   saveAgentSource(id: string): Promise<Result<string>>
+  openAgentSource(id: string): Promise<Result<void>>
   refreshAgentSkills(): Promise<Result<AgentSkillView[]>>
   addAgentSkill(): Promise<Result<AgentSkillDetail[]>>
   readAgentSkill(id: string): Promise<Result<AgentSkillDetail>>

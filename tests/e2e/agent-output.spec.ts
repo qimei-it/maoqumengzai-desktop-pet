@@ -177,6 +177,36 @@ test('agent renders Mermaid, copies output, exports the chat, and follows scroll
   expect(clipboardText).toContain('```mermaid')
   expect(clipboardText).toContain('这是一段普通文本。')
 
+  const tool = agent.locator('.agent-tool').first()
+  const output = tool.locator('.agent-tool-output')
+  await expect(output).toHaveClass(/is-collapsed/)
+  await tool.getByRole('button', { name: '展开完整输出' }).click()
+  await expect(output).not.toHaveClass(/is-collapsed/)
+  await tool.getByRole('button', { name: '复制输出' }).click()
+  expect(
+    await application.evaluate(({ clipboard }) => clipboard.readText()),
+  ).toBe('已生成 转换结果.pdf')
+
+  await application.evaluate(({ shell }) => {
+    const state = globalThis as unknown as { __mqmzOpened: string[] }
+    state.__mqmzOpened = []
+    shell.openPath = async (path) => {
+      state.__mqmzOpened.push(path)
+      return ''
+    }
+  })
+  await tool.getByRole('button', { name: '打开 转换结果.pdf' }).click()
+  await expect
+    .poll(() =>
+      application.evaluate(
+        () =>
+          (
+            globalThis as unknown as { __mqmzOpened: string[] }
+          ).__mqmzOpened.length,
+      ),
+    )
+    .toBe(1)
+
   await agent.evaluate(
     (directory) =>
       window.mqmz!.command({

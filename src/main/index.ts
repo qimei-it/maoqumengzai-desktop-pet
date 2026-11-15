@@ -8689,6 +8689,18 @@ function setupIpc(): void {
     showToast(`已保存 ${basename(saved)}`)
     return saved
   })
+  handle(channels.agentSourceOpen, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以打开文件。')
+    const id = z.string().uuid().parse(payload)
+    const source = agent.source(id)
+    if (!source) throw new Error('文件记录不存在。')
+    const info = await lstat(source.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('源文件已不在。')
+    const error = await shell.openPath(source.path)
+    if (error) throw new Error(error)
+  })
   handle(channels.agentSaveSource, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
@@ -9051,6 +9063,7 @@ function setupIpc(): void {
       'agent-message-edit',
       'agent-cancel',
       'agent-approve',
+      'agent-approve-same',
       'agent-deny',
       'agent-session-new',
       'agent-project-new',
@@ -9267,6 +9280,9 @@ function setupIpc(): void {
         break
       case 'agent-approve':
         agent.approve(command.id)
+        break
+      case 'agent-approve-same':
+        agent.approveSame(command.id)
         break
       case 'agent-deny':
         agent.deny(command.id)
