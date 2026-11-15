@@ -1458,24 +1458,6 @@ function onEscape(): void {
               </SelectField>
             </div>
             <div class="settings-row">
-              <span class="settings-label settings-provider-label">阿里云百炼</span>
-              <span class="settings-inline">
-                <span class="settings-value">未接入</span>
-                <button type="button" class="settings-button" disabled>
-                  添加
-                </button>
-              </span>
-            </div>
-            <div class="settings-row">
-              <span class="settings-label settings-provider-label">火山方舟</span>
-              <span class="settings-inline">
-                <span class="settings-value">未接入</span>
-                <button type="button" class="settings-button" disabled>
-                  添加
-                </button>
-              </span>
-            </div>
-            <div class="settings-row">
               <span class="settings-label">附件保存目录</span>
               <span class="settings-inline settings-path-inline">
                 <span
