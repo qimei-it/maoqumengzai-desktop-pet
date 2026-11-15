@@ -1,6 +1,6 @@
 # 格式转换后续 TO-DO
 
-状态：2026-11-13。当前首版转换矩阵已完成图片、PDF、Office、文档、音视频、OFD、ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ/RAR 解压，以及 ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ 打包。RAR 创建不纳入产品范围，继续支持 RAR 解压。扫描版 PDF OCR 与 PDF → 可编辑 DOCX/PPTX 移至下一版；以下方向暂缓。
+状态：2026-11-15。当前首版转换矩阵已完成图片、PDF、Office、文档、音视频、OFD、ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ/RAR 解压，以及 ZIP/7Z/TAR/TGZ/GZ/BZ2/XZ 打包。RAR 创建不纳入产品范围，继续支持 RAR 解压。扫描版 PDF OCR、PDF → 可编辑 DOCX/PPTX、更多图片输出格式（AVIF/TIFF/GIF）移至下一版；以下方向暂缓。
 
 ## 1. 扫描版 PDF OCR
 
@@ -25,12 +25,11 @@
 
 - 目标：在 Windows 10/11 x64 上验证全部转换方向；macOS Intel 已取消支持。
 - 需要补：真实安装包、PDF 渲染原生依赖、LibreOffice、7-Zip/UnRAR、FFmpeg、HEIC/OFD 样例。
-- 当前状态：macOS arm64 已完成主要样例；按用户要求暂缓 Windows x64 与 macOS 13 低版本实测，先完成 macOS 当前环境。
+- 当前状态：macOS arm64 已完成主要样例；Windows x64 纳入首版验收，macOS 13 低版本实测保留。
 
 ## 5. 其他未纳入首版的方向
 
 以下方向明确不纳入产品范围：PDF 结构编辑与版面重排（页面重排、删除/插入/旋转/裁剪、压缩重写、修复、附件/元数据/表单等结构级操作）。
 
 - 7Z 密码包、分卷包、RAR 密码包。
-- HEIC/AVIF 输出、OCR 后的表格重建。
 - WPS/ET、HWP/HWPX、CAD、三维、地理信息、字体、医疗科研和专业广播格式。
