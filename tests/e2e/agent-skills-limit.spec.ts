@@ -79,8 +79,11 @@ test('limits each category to 12 cards and adapts the column count', async () =>
   )
   await agent.getByRole('button', { name: '技能', exact: true }).click()
   await expect(agent.locator('.agent-skills-page')).toBeVisible()
-  await expect(agent.locator('.agent-skills-count')).toContainText(
-    '技能 14（已启用 3）',
+  const paperGroup = agent
+    .locator('.agent-skill-group')
+    .filter({ hasText: '论文科研' })
+  await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
+    '论文科研14（已启用 3）',
   )
   await expect(agent.locator('.agent-skill-card')).toHaveCount(12)
   await expect(
@@ -111,8 +114,10 @@ test('limits each category to 12 cards and adapts the column count', async () =>
     })
     .toBe(true)
 
-  await agent.getByRole('tab', { name: '已启用 3' }).click()
+  await paperGroup.getByRole('tab', { name: '已启用 3' }).click()
   await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
-  await agent.getByRole('tab', { name: '全部' }).click()
+  await paperGroup.getByRole('tab', { name: '未启用 11' }).click()
+  await expect(agent.locator('.agent-skill-card')).toHaveCount(11)
+  await paperGroup.getByRole('tab', { name: '全部' }).click()
   await expect(agent.locator('.agent-skill-card')).toHaveCount(14)
 })

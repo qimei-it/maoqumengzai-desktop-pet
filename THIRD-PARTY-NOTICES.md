@@ -70,6 +70,7 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | vercel-labs/skills | MIT | 1 | find-skills |
 | yejinlei/web-search-skill | MIT | 1 | web-search |
 | citrolabs/ego-lite | MIT | 1 | ego-browser |
+| dlazy-ai/ecommerce-skills | MIT | 26 | 24 个电商运营 + 2 个创意工具；依赖 dlazy CLI 的技能默认关闭 |
 
 Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。
 

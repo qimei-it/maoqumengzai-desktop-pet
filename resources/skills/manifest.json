@@ -1628,7 +1628,7 @@
     {
       "id": "builtin-anthropic-algorithmic-art",
       "dir": "anthropic/algorithmic-art",
-      "category": "通用工具",
+      "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/algorithmic-art",
       "license": "Apache-2.0"
@@ -1644,7 +1644,7 @@
     {
       "id": "builtin-anthropic-canvas-design",
       "dir": "anthropic/canvas-design",
-      "category": "文档办公",
+      "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/canvas-design",
       "license": "Apache-2.0"
@@ -1724,7 +1724,7 @@
     {
       "id": "builtin-anthropic-slack-gif-creator",
       "dir": "anthropic/slack-gif-creator",
-      "category": "通用工具",
+      "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/slack-gif-creator",
       "license": "Apache-2.0"
@@ -1791,6 +1791,214 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/citrolabs/ego-lite/tree/bacaece43900e8ca68eea3b6f1663835ea38df9e/skills/ego-browser",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-batch-image",
+      "dir": "dlazy/batch-image",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/batch-image",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-brand-kit",
+      "dir": "dlazy/brand-kit",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/brand-kit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-clothing-detail",
+      "dir": "dlazy/clothing-detail",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/clothing-detail",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-clothing-extraction",
+      "dir": "dlazy/clothing-extraction",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/clothing-extraction",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-clothing-grass-planting",
+      "dir": "dlazy/clothing-grass-planting",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/clothing-grass-planting",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-creative-scene",
+      "dir": "dlazy/creative-scene",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/creative-scene",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-cross-border-localize",
+      "dir": "dlazy/cross-border-localize",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/cross-border-localize",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-detect-task",
+      "dir": "dlazy/detect-task",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/detect-task",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-fabric-on-body",
+      "dir": "dlazy/fabric-on-body",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/fabric-on-body",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-fission-pattern",
+      "dir": "dlazy/fission-pattern",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/fission-pattern",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-flat-lay",
+      "dir": "dlazy/flat-lay",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/flat-lay",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-image-fusion",
+      "dir": "dlazy/image-fusion",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/image-fusion",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-item-change-background",
+      "dir": "dlazy/item-change-background",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/item-change-background",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-item-detail",
+      "dir": "dlazy/item-detail",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/item-detail",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-item-repair",
+      "dir": "dlazy/item-repair",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/item-repair",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-item-selling-point",
+      "dir": "dlazy/item-selling-point",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/item-selling-point",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-listing-optimizer",
+      "dir": "dlazy/listing-optimizer",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/listing-optimizer",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-main-image-video",
+      "dir": "dlazy/main-image-video",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/main-image-video",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-material-enhancement",
+      "dir": "dlazy/material-enhancement",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/material-enhancement",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-one-shot",
+      "dir": "dlazy/one-shot",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/one-shot",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-platform-compliance",
+      "dir": "dlazy/platform-compliance",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/platform-compliance",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-product-video-ad",
+      "dir": "dlazy/product-video-ad",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/product-video-ad",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-remove-watermark",
+      "dir": "dlazy/remove-watermark",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/remove-watermark",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-to-3d",
+      "dir": "dlazy/to-3d",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/to-3d",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-ugc-testimonial",
+      "dir": "dlazy/ugc-testimonial",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/ugc-testimonial",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-dlazy-wear-everything",
+      "dir": "dlazy/wear-everything",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/dlazy-ai/ecommerce-skills/tree/d695bdf7f87d2fa95e895ed88adf7dd013a709be/skills/wear-everything",
       "license": "MIT"
     }
   ]

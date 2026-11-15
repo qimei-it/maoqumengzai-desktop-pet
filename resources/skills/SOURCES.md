@@ -25,3 +25,9 @@ Only text and code files up to 512 KB (SKILL.md up to 2 MB) are copied; binary t
 - https://github.com/citrolabs/ego-lite @ `bacaece43900e8ca68eea3b6f1663835ea38df9e` (MIT)
 
 The Anthropic document skills include Apache-2.0 `LICENSE.txt` inside each skill; only text and code files are vendored.
+
+## E-commerce and creative skills (2026-11-15)
+
+- https://github.com/dlazy-ai/ecommerce-skills @ `d695bdf7f87d2fa95e895ed88adf7dd013a709be` (MIT)
+
+Skills that need the `dlazy` CLI/credits are bundled as instructions only and are disabled by default. The HuaAngel and Zhihu pages are recommendation lists that point to third-party/ClawHub skills without source repositories or licenses; they are not vendored.

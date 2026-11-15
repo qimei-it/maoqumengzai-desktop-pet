@@ -365,9 +365,8 @@ export async function createSkillStore(
       if (!builtinRoot) continue
       const directory = builtinDirectory(builtinRoot, entry.dir)
       if (!directory) continue
-      const file = join(directory, 'SKILL.md')
-      const info = await stat(file).catch(() => null)
-      if (!info?.isFile()) continue
+      const file = await findSkillFile(directory)
+      if (!file) continue
       const parsed = await readSkillFile(file, entry.dir)
       next.set(entry.id, {
         id: entry.id,

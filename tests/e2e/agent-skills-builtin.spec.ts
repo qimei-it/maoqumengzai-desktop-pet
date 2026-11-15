@@ -110,6 +110,7 @@ test('groups built-in skills by category and keeps them read-only', async () => 
     '通用工具',
     '论文科研',
     '文档办公',
+    '创意工具',
     '电商运营',
   ])
   const groups = agent.locator('.agent-skill-group')
@@ -118,16 +119,22 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(groups.nth(1)).toContainText('Paper Beta')
   await expect(groups.nth(2)).toContainText('Doc Gamma')
   await expect(groups.nth(3)).toContainText('暂无技能')
+  await expect(groups.nth(4)).toContainText('暂无技能')
   await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
   await expect(agent.locator('.agent-skill-check')).toHaveCount(2)
-  await expect(agent.locator('.agent-skills-count')).toContainText(
-    '技能 3（已启用 2）',
+
+  const paperGroup = groups.nth(1)
+  await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
+    '论文科研2（已启用 1）',
   )
-  const enabledTab = agent.getByRole('tab', { name: '已启用 2' })
-  await enabledTab.click()
-  await expect(agent.locator('.agent-skill-card')).toHaveCount(2)
-  await agent.getByRole('tab', { name: '全部' }).click()
-  await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
+  await paperGroup.getByRole('tab', { name: '已启用 1' }).click()
+  await expect(paperGroup.locator('.agent-skill-card')).toHaveCount(1)
+  await expect(paperGroup).toContainText('Paper Alpha')
+  await paperGroup.getByRole('tab', { name: '未启用 1' }).click()
+  await expect(paperGroup.locator('.agent-skill-card')).toHaveCount(1)
+  await expect(paperGroup).toContainText('Paper Beta')
+  await paperGroup.getByRole('tab', { name: '全部' }).click()
+  await expect(paperGroup.locator('.agent-skill-card')).toHaveCount(2)
 
   const beta = groups
     .nth(1)
@@ -144,8 +151,8 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
   await detail.getByRole('button', { name: '关闭' }).click()
   await expect(agent.locator('.agent-skill-check')).toHaveCount(3)
-  await expect(agent.locator('.agent-skills-count')).toContainText(
-    '技能 3（已启用 3）',
+  await expect(paperGroup.locator('.agent-skill-group-title')).toContainText(
+    '论文科研2（已启用 2）',
   )
 
   const snapshot = await agent.evaluate(async () => {
