@@ -1112,7 +1112,7 @@ function onEscape(): void {
                 'settings-row-editing': editingKey,
               }"
             >
-              <span class="settings-label">DeepSeek</span>
+              <span class="settings-label settings-provider-label">DeepSeek</span>
               <template v-if="editingKey">
                 <div class="settings-key-fields">
                   <input
@@ -1271,7 +1271,7 @@ function onEscape(): void {
                 'settings-row-editing': editingMiniMaxKey,
               }"
             >
-              <span class="settings-label">MiniMax</span>
+              <span class="settings-label settings-provider-label">MiniMax</span>
               <template v-if="editingMiniMaxKey">
                 <div class="settings-key-fields">
                   <input
@@ -1434,7 +1434,7 @@ function onEscape(): void {
               <p v-else class="settings-error">{{ minimaxModelsError }}</p>
             </div>
             <div class="settings-row">
-              <span class="settings-label">阿里云百炼</span>
+              <span class="settings-label settings-provider-label">阿里云百炼</span>
               <span class="settings-inline">
                 <span class="settings-value">未接入</span>
                 <button type="button" class="settings-button" disabled>
@@ -1443,7 +1443,7 @@ function onEscape(): void {
               </span>
             </div>
             <div class="settings-row">
-              <span class="settings-label">火山方舟</span>
+              <span class="settings-label settings-provider-label">火山方舟</span>
               <span class="settings-inline">
                 <span class="settings-value">未接入</span>
                 <button type="button" class="settings-button" disabled>
@@ -2042,6 +2042,10 @@ function onEscape(): void {
 }
 .settings-row-editing {
   gap: 8px;
+}
+.settings-provider-label {
+  flex: 0 0 112px;
+  width: 112px;
 }
 .settings-key-fields {
   display: grid;
