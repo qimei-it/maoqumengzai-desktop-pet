@@ -428,6 +428,12 @@ export type AgentAttachmentProgress = {
   name: string
   stage?: string
 }
+export type AiProviderState = {
+  configured: boolean
+  test: AiTestState
+  models?: string[]
+  modelsError?: string
+}
 export type AiState = {
   configured: boolean
   busy: boolean
@@ -436,6 +442,7 @@ export type AiState = {
   test: AiTestState
   models?: string[]
   modelsError?: string
+  minimax: AiProviderState
 }
 export type LocalEngineState = {
   status: 'missing' | 'ready' | 'error'
@@ -546,6 +553,10 @@ export type Command =
   | { type: 'ai-delete' }
   | { type: 'ai-test'; apiKey?: string }
   | { type: 'ai-models'; apiKey?: string }
+  | { type: 'minimax-config'; apiKey: string; test?: boolean }
+  | { type: 'minimax-test'; apiKey?: string }
+  | { type: 'minimax-models'; apiKey?: string }
+  | { type: 'minimax-delete' }
   | { type: 'ai-quota-refresh' }
   | {
       type: 'ai-quota-config'

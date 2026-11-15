@@ -94,7 +94,9 @@ import {
   type DeepSeekMessage,
 } from '../shared/deepseek'
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
+import { clearProviderKey, loadProviderKey, saveProviderKey } from './provider-keys'
 import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
+import { listMiniMaxModels, testMiniMaxConnection } from '../shared/minimax'
 import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
 import {
   emptyAiQuotaProvider,
@@ -522,6 +524,11 @@ let aiTest: AiTestState = { status: 'idle' }
 let aiTestToken = 0
 let aiModels: string[] | undefined
 let aiModelsError: string | undefined
+let minimaxKey: string | undefined
+let minimaxTest: AiTestState = { status: 'idle' }
+let minimaxTestToken = 0
+let minimaxModels: string[] | undefined
+let minimaxModelsError: string | undefined
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
@@ -1414,6 +1421,12 @@ function aiState(): AiState {
     test: { ...aiTest },
     ...(aiModels ? { models: aiModels } : {}),
     ...(aiModelsError ? { modelsError: aiModelsError } : {}),
+    minimax: {
+      configured: Boolean(minimaxKey),
+      test: { ...minimaxTest },
+      ...(minimaxModels ? { models: minimaxModels } : {}),
+      ...(minimaxModelsError ? { modelsError: minimaxModelsError } : {}),
+    },
   }
 }
 function pushAiMessage(
@@ -1674,6 +1687,65 @@ async function deleteAiKey(): Promise<void> {
   })
   if (choice.response !== 1) return
   await clearAi()
+}
+async function configureMiniMax(
+  apiKey: string,
+  test = false,
+): Promise<void> {
+  const key = apiKey.trim()
+  if (key.length < 10) throw new Error('API Key 太短，请检查后重试。')
+  if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
+  await saveProviderKey('minimax', key)
+  minimaxKey = key
+  minimaxTest = { status: 'idle' }
+  minimaxTestToken += 1
+  minimaxModels = undefined
+  minimaxModelsError = undefined
+  broadcast()
+  if (test) void testMiniMax()
+}
+async function deleteMiniMaxKey(): Promise<void> {
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '删除 MiniMax API Key',
+    message: '确定删除已保存的 MiniMax API Key？',
+    detail: '删除后需要重新添加。',
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  await clearProviderKey('minimax')
+  minimaxKey = undefined
+  minimaxTest = { status: 'idle' }
+  minimaxTestToken += 1
+  minimaxModels = undefined
+  minimaxModelsError = undefined
+  broadcast()
+}
+async function testMiniMax(draftKey?: string): Promise<void> {
+  const key = draftKey?.trim() || minimaxKey
+  if (!key) {
+    minimaxTest = { status: 'error', error: '请先添加 MiniMax API Key。' }
+    broadcast()
+    return
+  }
+  const token = ++minimaxTestToken
+  minimaxTest = { status: 'testing' }
+  broadcast()
+  try {
+    const latencyMs = await testMiniMaxConnection(key)
+    if (token !== minimaxTestToken) return
+    minimaxTest = { status: 'ok', latencyMs }
+  } catch (error) {
+    if (token !== minimaxTestToken) return
+    minimaxTest = {
+      status: 'error',
+      error: error instanceof Error ? error.message : '连接测试失败。',
+    }
+  }
+  broadcast()
 }
 async function testAiConnection(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || aiKey
@@ -9387,6 +9459,10 @@ function setupIpc(): void {
       'ai-delete',
       'ai-test',
       'ai-models',
+      'minimax-config',
+      'minimax-test',
+      'minimax-models',
+      'minimax-delete',
       'extract-audio',
       'convert-open',
       'convert-start',
@@ -9881,6 +9957,34 @@ function setupIpc(): void {
         break
       case 'ai-test':
         void testAiConnection(command.apiKey)
+        break
+      case 'minimax-config':
+        await configureMiniMax(command.apiKey, command.test)
+        break
+      case 'minimax-test':
+        void testMiniMax(command.apiKey)
+        break
+      case 'minimax-models': {
+        const key = command.apiKey?.trim() || minimaxKey
+        if (!key) {
+          minimaxModels = undefined
+          minimaxModelsError = '请先添加 MiniMax API Key。'
+          broadcast()
+          break
+        }
+        minimaxModelsError = undefined
+        try {
+          minimaxModels = await listMiniMaxModels(key)
+        } catch (error) {
+          minimaxModels = undefined
+          minimaxModelsError =
+            error instanceof Error ? error.message : '拉取模型失败。'
+        }
+        broadcast()
+        break
+      }
+      case 'minimax-delete':
+        await deleteMiniMaxKey()
         break
       case 'ai-models': {
         const key = command.apiKey?.trim() || aiKey
@@ -11816,6 +11920,7 @@ else {
         app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin })
       applyDockIcon()
       aiKey = await loadStoredKey()
+      minimaxKey = await loadProviderKey('minimax')
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,

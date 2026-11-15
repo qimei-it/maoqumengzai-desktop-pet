@@ -74,6 +74,10 @@ const section = computed<SettingsSection>(
 )
 const apiKey = ref('')
 const editingKey = ref(false)
+const minimaxKey = ref('')
+const editingMiniMaxKey = ref(false)
+const minimaxModelsOpen = ref(false)
+const minimaxModelPreview = ref('')
 const wheelEditor = ref<'hover' | 'file' | null>(null)
 
 const settings = computed<SettingsState>(
@@ -104,6 +108,19 @@ const openAiAccountStatus = computed(() =>
 )
 const aiModels = computed(() => props.state?.ai.models ?? [])
 const aiModelsError = computed(() => props.state?.ai.modelsError)
+const minimax = computed(() => props.state?.ai.minimax)
+const minimaxConfigured = computed(() => minimax.value?.configured === true)
+const minimaxTest = computed<AiTestState>(
+  () => minimax.value?.test ?? { status: 'idle' },
+)
+const minimaxModels = computed(() => minimax.value?.models ?? [])
+const minimaxModelsError = computed(() => minimax.value?.modelsError)
+const minimaxLatencyClass = computed(() => {
+  const latency = minimaxTest.value.latencyMs ?? 0
+  if (latency <= 400) return 'is-fast'
+  if (latency <= 1200) return 'is-medium'
+  return 'is-slow'
+})
 const supportedModels = new Set<string>(deepseekModelIds)
 const modelPreview = ref('')
 const modelsOpen = ref(false)
@@ -120,6 +137,59 @@ watch(editingKey, (value) => {
 })
 watch(configured, (value) => {
   if (!value) modelsOpen.value = false
+})
+function addMiniMaxKey(): void {
+  minimaxKey.value = ''
+  editingMiniMaxKey.value = true
+}
+function cancelMiniMaxKey(): void {
+  editingMiniMaxKey.value = false
+  minimaxKey.value = ''
+}
+function deleteMiniMaxKey(): void {
+  emit('command', { type: 'minimax-delete' })
+}
+function testSavedMiniMaxKey(): void {
+  if (!minimaxConfigured.value || minimaxTest.value.status === 'testing') return
+  emit('command', { type: 'minimax-test' })
+}
+function testDraftMiniMaxKey(): void {
+  const value = minimaxKey.value.trim()
+  if (!value || minimaxTest.value.status === 'testing') return
+  emit('command', { type: 'minimax-test', apiKey: value })
+}
+function saveMiniMaxKey(): void {
+  const value = minimaxKey.value.trim()
+  if (!value) return
+  emit('command', { type: 'minimax-config', apiKey: value, test: true })
+  minimaxKey.value = ''
+  editingMiniMaxKey.value = false
+}
+function toggleMiniMaxModels(): void {
+  if (minimaxModelsOpen.value) {
+    minimaxModelsOpen.value = false
+    return
+  }
+  minimaxModelsOpen.value = true
+  const draft = editingMiniMaxKey.value ? minimaxKey.value.trim() : ''
+  emit('command', {
+    type: 'minimax-models',
+    ...(draft ? { apiKey: draft } : {}),
+  })
+}
+watch(
+  minimaxModels,
+  (models) => {
+    if (!models.includes(minimaxModelPreview.value))
+      minimaxModelPreview.value = models[0] ?? ''
+  },
+  { immediate: true },
+)
+watch(editingMiniMaxKey, (value) => {
+  if (!value) minimaxModelsOpen.value = false
+})
+watch(minimaxConfigured, (value) => {
+  if (!value) minimaxModelsOpen.value = false
 })
 function toggleModels(): void {
   if (modelsOpen.value) {
@@ -1154,14 +1224,141 @@ function onEscape(): void {
               </SelectField>
               <p v-else class="settings-error">{{ aiModelsError }}</p>
             </div>
-            <div class="settings-row">
+            <div
+              class="settings-row"
+              :class="{
+                'settings-row-connected': editingMiniMaxKey || minimaxModelsOpen,
+              }"
+            >
               <span class="settings-label">MiniMax API Key</span>
               <span class="settings-inline">
-                <span class="settings-value">未接入</span>
-                <button type="button" class="settings-button" disabled>
+                <span
+                  v-if="minimaxTest.status === 'testing'"
+                  class="ai-latency"
+                  >测试中…</span
+                >
+                <span
+                  v-else-if="minimaxTest.status === 'ok'"
+                  class="ai-latency"
+                  :class="minimaxLatencyClass"
+                  >{{ minimaxTest.latencyMs }} ms</span
+                >
+                <span
+                  v-else-if="minimaxTest.status === 'error'"
+                  class="ai-latency is-slow"
+                  :title="minimaxTest.error"
+                  >测试失败</span
+                >
+                <button
+                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  type="button"
+                  class="settings-button"
+                  :disabled="minimaxTest.status === 'testing'"
+                  @click="testSavedMiniMaxKey"
+                >
+                  测试延迟
+                </button>
+                <button
+                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  type="button"
+                  class="settings-button"
+                  @click="toggleMiniMaxModels"
+                >
+                  模型列表
+                </button>
+                <button
+                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  type="button"
+                  class="settings-button danger"
+                  @click="deleteMiniMaxKey"
+                >
+                  删除
+                </button>
+                <button
+                  v-if="!editingMiniMaxKey && !minimaxConfigured"
+                  type="button"
+                  class="settings-button primary"
+                  @click="addMiniMaxKey"
+                >
                   添加
                 </button>
               </span>
+            </div>
+            <div
+              v-if="editingMiniMaxKey"
+              class="settings-field"
+              :class="{ 'settings-field-connected': minimaxModelsOpen }"
+            >
+              <input
+                v-model="minimaxKey"
+                type="password"
+                autocomplete="off"
+                aria-label="MiniMax API Key"
+                :placeholder="
+                  minimaxConfigured ? '替换 API Key' : 'API Key'
+                "
+                @keydown.enter="saveMiniMaxKey"
+              />
+              <button
+                type="button"
+                class="settings-button"
+                @click="cancelMiniMaxKey"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="settings-button"
+                :disabled="
+                  !minimaxKey.trim() || minimaxTest.status === 'testing'
+                "
+                @click="testDraftMiniMaxKey"
+              >
+                测试
+              </button>
+              <button
+                type="button"
+                class="settings-button"
+                :disabled="!minimaxKey.trim()"
+                @click="toggleMiniMaxModels"
+              >
+                模型列表
+              </button>
+              <button
+                type="button"
+                class="settings-button primary"
+                :disabled="!minimaxKey.trim()"
+                @click="saveMiniMaxKey"
+              >
+                添加
+              </button>
+            </div>
+            <div
+              v-if="
+                minimaxModelsOpen &&
+                (minimaxModels.length || minimaxModelsError)
+              "
+              class="settings-model-list"
+            >
+              <SelectField
+                v-if="minimaxModels.length"
+                :model-value="minimaxModelPreview"
+                aria-label="MiniMax 可用模型"
+                title="仅查看，不会切换当前模型"
+                min-width="240px"
+                @update:model-value="
+                  value => (minimaxModelPreview = value)
+                "
+              >
+                <option
+                  v-for="model in minimaxModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                </option>
+              </SelectField>
+              <p v-else class="settings-error">{{ minimaxModelsError }}</p>
             </div>
             <div class="settings-row">
               <span class="settings-label">百炼 API Key</span>
