@@ -5436,6 +5436,7 @@ function statusLabel(status: string): string {
 }
 .agent-approval-option[aria-checked='true'] {
   background: var(--color-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--color-brand-highlight);
 }
 .agent-approval-option[aria-checked='true'] .agent-approval-label {
   font-weight: 600;
