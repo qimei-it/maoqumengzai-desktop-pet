@@ -1710,7 +1710,7 @@ async function deleteMiniMaxKey(): Promise<void> {
     type: 'warning',
     title: '删除 MiniMax API Key',
     message: '确定删除已保存的 MiniMax API Key？',
-    detail: '删除后需要重新添加。',
+    detail: '删除后需要重新添加并测试 API Key。',
     buttons: ['取消', '删除'],
     defaultId: 0,
     cancelId: 0,
