@@ -16,6 +16,7 @@ import type {
 import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
+import { deepseekModelIds } from '../shared/deepseek'
 import {
   defaultSettings,
   musicBarStyleLabels,
@@ -101,6 +102,25 @@ const aiQuota = computed(() => props.state?.aiQuota)
 const openAiAccountStatus = computed(() =>
   formatOpenAiAccountStatus(aiQuota.value?.openai),
 )
+const aiModels = computed(() => props.state?.ai.models ?? [])
+const aiModelsError = computed(() => props.state?.ai.modelsError)
+const supportedModels = new Set<string>(deepseekModelIds)
+const modelPreview = ref('')
+watch(
+  aiModels,
+  (models) => {
+    if (!models.includes(modelPreview.value))
+      modelPreview.value = models[0] ?? ''
+  },
+  { immediate: true },
+)
+function pullModels(): void {
+  const draft = editingKey.value ? apiKey.value.trim() : ''
+  emit('command', {
+    type: 'ai-models',
+    ...(draft ? { apiKey: draft } : {}),
+  })
+}
 const quotaStatus = computed(() => {
   if (!settings.value.aiQuotaEnabled)
     return { label: '已关闭', tone: 'muted', title: '额度监控未开启。' }
@@ -1032,6 +1052,14 @@ function onEscape(): void {
                 <button
                   v-if="!editingKey && configured"
                   type="button"
+                  class="settings-button"
+                  @click="pullModels"
+                >
+                  拉取模型
+                </button>
+                <button
+                  v-if="!editingKey && configured"
+                  type="button"
                   class="settings-button danger"
                   @click="deleteKey"
                 >
@@ -1073,6 +1101,14 @@ function onEscape(): void {
               </button>
               <button
                 type="button"
+                class="settings-button"
+                :disabled="!apiKey.trim()"
+                @click="pullModels"
+              >
+                拉取模型
+              </button>
+              <button
+                type="button"
                 class="settings-button primary"
                 :disabled="!apiKey.trim()"
                 @click="saveAndTestKey"
@@ -1080,6 +1116,26 @@ function onEscape(): void {
                 添加
               </button>
             </div>
+            <div v-if="aiModels.length" class="settings-row">
+              <span class="settings-label">可用模型</span>
+              <SelectField
+                :model-value="modelPreview"
+                aria-label="可用模型"
+                title="仅查看，不会切换当前模型"
+                @update:model-value="value => (modelPreview = value)"
+              >
+                <option
+                  v-for="model in aiModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                </option>
+              </SelectField>
+            </div>
+            <p v-else-if="aiModelsError" class="settings-error">
+              {{ aiModelsError }}
+            </p>
             <div class="settings-row">
               <span class="settings-label">MiniMax API Key</span>
               <span class="settings-inline">

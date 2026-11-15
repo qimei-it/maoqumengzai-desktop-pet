@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { afterEach, describe, expect, test } from 'vitest'
 import {
+  listDeepSeekModels,
   requestCompletion,
   testDeepSeekConnection,
 } from '../../src/shared/deepseek'
@@ -104,6 +105,24 @@ describe('DeepSeek chat completions', () => {
     const latency = await testDeepSeekConnection('sk-test', { endpoint: url })
     expect(authorization).toBe('Bearer sk-test')
     expect(latency).toBeGreaterThanOrEqual(0)
+  })
+
+  test('lists available models', async () => {
+    const url = await endpoint((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(
+        JSON.stringify({
+          object: 'list',
+          data: [
+            { id: 'deepseek-flash', object: 'model' },
+            { id: 'deepseek-chat', object: 'model' },
+          ],
+        }),
+      )
+    }, '/models')
+    await expect(
+      listDeepSeekModels('sk-test', { endpoint: url }),
+    ).resolves.toEqual(['deepseek-flash', 'deepseek-chat'])
   })
 
   test('reports an invalid key during connection test', async () => {

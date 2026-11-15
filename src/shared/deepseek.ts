@@ -160,6 +160,50 @@ export async function requestCompletion(
   return content
 }
 
+/** Reads the model IDs available to this API key. */
+export async function listDeepSeekModels(
+  apiKey: string,
+  options: Pick<RequestOptions, 'endpoint' | 'timeoutMs'> = {},
+): Promise<string[]> {
+  const endpoint =
+    options.endpoint ??
+    process.env.MQMZ_DEEPSEEK_MODELS_URL ??
+    deepseekModelsEndpoint
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
+    })
+  } catch {
+    throw new Error('连接 DeepSeek 失败，请检查网络后重试。')
+  }
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403)
+      throw new Error('API Key 无效，请重新添加。')
+    if (response.status === 429)
+      throw new Error('拉取模型过于频繁，请稍后再试。')
+    if (response.status >= 500)
+      throw new Error('DeepSeek 服务暂时不可用，请稍后重试。')
+    throw new Error(`拉取模型失败（${response.status}）。`)
+  }
+  const data = (await response.json().catch(() => null)) as
+    | { data?: unknown }
+    | null
+  if (!data || !Array.isArray(data.data))
+    throw new Error('DeepSeek 模型列表返回了无效数据。')
+  return data.data
+    .map((item) =>
+      item && typeof item === 'object' && 'id' in item
+        ? String((item as { id?: unknown }).id ?? '')
+        : '',
+    )
+    .filter(Boolean)
+}
+
 /** Measures a real round-trip to the DeepSeek models endpoint. */
 export async function testDeepSeekConnection(
   apiKey: string,

@@ -434,6 +434,8 @@ export type AiState = {
   files: AiFile[]
   messages: AiMessage[]
   test: AiTestState
+  models?: string[]
+  modelsError?: string
 }
 export type LocalEngineState = {
   status: 'missing' | 'ready' | 'error'
@@ -543,6 +545,7 @@ export type Command =
   | { type: 'ai-clear' }
   | { type: 'ai-delete' }
   | { type: 'ai-test'; apiKey?: string }
+  | { type: 'ai-models'; apiKey?: string }
   | { type: 'ai-quota-refresh' }
   | {
       type: 'ai-quota-config'

@@ -88,6 +88,7 @@ import {
   type LyricsCandidate,
 } from '../shared/lyrics-match'
 import {
+  listDeepSeekModels,
   requestCompletion,
   testDeepSeekConnection,
   type DeepSeekMessage,
@@ -519,6 +520,8 @@ let aiFiles: AiFile[] = []
 let aiToken = 0
 let aiTest: AiTestState = { status: 'idle' }
 let aiTestToken = 0
+let aiModels: string[] | undefined
+let aiModelsError: string | undefined
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
@@ -1409,6 +1412,8 @@ function aiState(): AiState {
     files: [...aiFiles],
     messages: [...aiMessages],
     test: { ...aiTest },
+    ...(aiModels ? { models: aiModels } : {}),
+    ...(aiModelsError ? { modelsError: aiModelsError } : {}),
   }
 }
 function pushAiMessage(
@@ -1633,6 +1638,8 @@ async function configureAi(
   aiKey = key
   aiTest = { status: 'idle' }
   aiTestToken += 1
+  aiModels = undefined
+  aiModelsError = undefined
   greetAi()
   if (!wasConfigured && enableMusicAi)
     await updateSettings({ musicAiEnabled: true })
@@ -1648,6 +1655,8 @@ async function clearAi(): Promise<void> {
   aiToken += 1
   aiTest = { status: 'idle' }
   aiTestToken += 1
+  aiModels = undefined
+  aiModelsError = undefined
   if (settings.musicAiEnabled) await updateSettings({ musicAiEnabled: false })
   void refreshAiQuota()
   broadcast()
@@ -9377,6 +9386,7 @@ function setupIpc(): void {
       'ai-keys',
       'ai-delete',
       'ai-test',
+      'ai-models',
       'extract-audio',
       'convert-open',
       'convert-start',
@@ -9872,6 +9882,25 @@ function setupIpc(): void {
       case 'ai-test':
         void testAiConnection(command.apiKey)
         break
+      case 'ai-models': {
+        const key = command.apiKey?.trim() || aiKey
+        if (!key) {
+          aiModels = undefined
+          aiModelsError = '请先添加 API Key。'
+          broadcast()
+          break
+        }
+        aiModelsError = undefined
+        try {
+          aiModels = await listDeepSeekModels(key)
+        } catch (error) {
+          aiModels = undefined
+          aiModelsError =
+            error instanceof Error ? error.message : '拉取模型失败。'
+        }
+        broadcast()
+        break
+      }
       case 'extract-audio':
         await extractAudio(command.fileIds)
         break

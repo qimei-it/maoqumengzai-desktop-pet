@@ -172,6 +172,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('ai-models'),
+      apiKey: z.string().min(1).max(400).optional(),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('extract-audio'),
       fileIds: z.array(z.string().uuid()).max(32),
     })
