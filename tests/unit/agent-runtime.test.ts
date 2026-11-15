@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createAgentRuntime } from '../../src/main/agent/runtime'
@@ -581,6 +581,150 @@ describe('agent runtime', () => {
         file_id: 'file-api-new',
       })
     }
+  })
+
+  test('prunes uploaded files that no stored message references', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-orphan-'))
+    const storePath = join(directory, 'agent.json')
+    const source = join(directory, 'photo.png')
+    await writeFile(source, new Uint8Array([1, 2, 3]))
+    const ref = (id: string) => ({
+      id,
+      name: 'photo.png',
+      path: source,
+      purpose: 'user_data',
+      expiresAt: Date.now() + 86_400_000,
+    })
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 2,
+        projects: [],
+        sessions: [
+          {
+            id: 'orphan-session',
+            title: '旧会话',
+            mode: 'build',
+            model: 'deepseek-flash',
+            reasoning: 'high',
+            workspace: null,
+            projectId: null,
+            pinned: false,
+            createdAt: 1,
+            updatedAt: 2,
+            ui: [],
+            history: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: '看看这张图' },
+                  { type: 'file', file_id: 'file-used' },
+                ],
+              },
+            ],
+            files: [ref('file-used'), ref('file-orphan')],
+            usage: { input: 0, output: 0 },
+          },
+        ],
+      }),
+    )
+    const removed: string[] = []
+    const runtime = createAgentRuntime({
+      services: makeServices(),
+      storePath,
+      getKey: () => 'test-key',
+      getSettings: () => ({ ...defaultSettings }),
+      getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
+      broadcast: () => {},
+      pickWorkspace: async () => directory,
+      stream: async () => ({ text: '完成', toolCalls: [] }),
+      files: {
+        upload: async () => ({ id: 'unused', expiresAt: null }),
+        transcribe: async () => '',
+        remove: async (_key, id) => {
+          removed.push(id)
+        },
+      },
+    })
+    await runtime.load()
+    await runtime.flush()
+    expect(removed).toEqual(['file-orphan'])
+    const store = JSON.parse(await readFile(storePath, 'utf8')) as {
+      sessions: Array<{ files?: Array<{ id: string }> }>
+    }
+    expect(store.sessions[0].files?.map((item) => item.id)).toEqual([
+      'file-used',
+    ])
+  })
+
+  test('deletes a removed session uploaded files from the account', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-remove-'))
+    const storePath = join(directory, 'agent.json')
+    const session = (id: string, fileId: string) => ({
+      id,
+      title: id,
+      mode: 'build',
+      model: 'deepseek-flash',
+      reasoning: 'high',
+      workspace: null,
+      projectId: null,
+      pinned: false,
+      createdAt: 1,
+      updatedAt: 2,
+      ui: [],
+      history: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '看看这张图' },
+            { type: 'file', file_id: fileId },
+          ],
+        },
+      ],
+      files: [
+        {
+          id: fileId,
+          name: 'photo.png',
+          path: join(directory, 'photo.png'),
+          purpose: 'user_data',
+          expiresAt: Date.now() + 86_400_000,
+        },
+      ],
+      usage: { input: 0, output: 0 },
+    })
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 2,
+        projects: [],
+        sessions: [
+          session('session-a', 'file-a'),
+          session('session-b', 'file-b'),
+        ],
+      }),
+    )
+    const removed: string[] = []
+    const runtime = createAgentRuntime({
+      services: makeServices(),
+      storePath,
+      getKey: () => 'test-key',
+      getSettings: () => ({ ...defaultSettings }),
+      getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
+      broadcast: () => {},
+      pickWorkspace: async () => directory,
+      stream: async () => ({ text: '完成', toolCalls: [] }),
+      files: {
+        upload: async () => ({ id: 'unused', expiresAt: null }),
+        transcribe: async () => '',
+        remove: async (_key, id) => {
+          removed.push(id)
+        },
+      },
+    })
+    await runtime.load()
+    expect(removed).toEqual([])
+    runtime.remove('session-b')
+    expect(removed).toEqual(['file-b'])
   })
 
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {

@@ -82,6 +82,19 @@ describe('DeepSeek attachment APIs', () => {
     ).toBe('你好，世界。')
   })
 
+  test('asks for a new attachment when the source file is gone', async () => {
+    const fake = vi.fn() as unknown as typeof fetch
+    await expect(
+      uploadAgentFile('sk-test', '/missing/photo.png', 'user_data', {
+        fetch: fake,
+      }),
+    ).rejects.toThrow('源文件已不在了，请重新添加附件。')
+    await expect(
+      transcribeAgentAudio('sk-test', '/missing/voice.wav', { fetch: fake }),
+    ).rejects.toThrow('音频源文件已不在了，请重新添加音频。')
+    expect(fake).not.toHaveBeenCalled()
+  })
+
   test('rejects audio over the 8 MB transcription limit', async () => {
     const path = await file(
       'large.wav',

@@ -379,6 +379,14 @@ test('shows attachment parsing progress and can cancel a long parse', async () =
     document.body.append(input)
   })
   await agent.locator('#mqmz-agent-parse-input').setInputFiles(slowDocx)
+  await expect
+    .poll(async () =>
+      agent.evaluate(async () => {
+        const result = await window.mqmz!.snapshot()
+        return result.ok ? result.value.agent.busy : true
+      }),
+    )
+    .toBe(false)
   await agent.evaluate(() => {
     const input =
       document.querySelector<HTMLInputElement>('#mqmz-agent-parse-input')!

@@ -58,9 +58,10 @@ export async function uploadAgentFile(
   purpose: AgentFilePurpose,
   options: UploadOptions = {},
 ): Promise<UploadedAgentFile> {
-  const info = await stat(path)
-  if (!info.isFile() || info.size === 0)
-    throw new Error('附件已经不可用。')
+  const info = await stat(path).catch(() => null)
+  if (!info?.isFile())
+    throw new Error('源文件已不在了，请重新添加附件。')
+  if (info.size === 0) throw new Error('附件是空文件，无法上传。')
   const bytes = await readFile(path)
   const form = new FormData()
   // DeepSeek requires purpose before the file field for documents.
@@ -114,9 +115,10 @@ export async function transcribeAgentAudio(
   path: string,
   options: UploadOptions = {},
 ): Promise<string> {
-  const info = await stat(path)
-  if (!info.isFile() || info.size === 0)
-    throw new Error('音频已经不可用。')
+  const info = await stat(path).catch(() => null)
+  if (!info?.isFile())
+    throw new Error('音频源文件已不在了，请重新添加音频。')
+  if (info.size === 0) throw new Error('音频是空文件，无法转写。')
   if (info.size > agentAsrFileBytes)
     throw new Error('单段音频超过 8 MB，无法转写。')
   const bytes = await readFile(path)

@@ -59,7 +59,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 附件解析期间在标题栏下方显示「解析附件 n/总数 · 文件名 · 阶段」和「取消」，解析中禁用发送与继续添加；单文件超时 120 秒，取消后保留已完成附件并清理临时文件。
 - 附件优先本地解析：文本与代码直接读取；PDF 用 PDF.js 抽取文字；Office 走本地 LibreOffice；OFD 用 EasyOFD 渲染；EPUB 读取书脊文本；压缩包解压后只汇总可读文字；BMP/TIFF/HEIC 用 sharp 转 PNG。扫描版 PDF、图片、无本地 Office 的文档和 MOBI 才通过 DeepSeek Files API 上传，音频与视频用 FFmpeg 切成 16 kHz WAV 后调用 ASR 转写。
 - `deepseek-v4-pro` 只接受文字：需要上传解析的图片/文档在添加时直接拦截，切到 Pro 时也会移除已选附件并提示；音频转写结果按文字发送，不受影响。被拒绝或不支持的附件不会出现在输入框下方，只显示 toast。
-- Files API 上传按 30 天有效期保存 `file_id`；后续轮次到期前会自动重传，本地源文件不在时在历史里标注附件已过期。删除会话时同步删除已上传文件。
+- Files API 上传按 30 天有效期保存 `file_id`；后续轮次到期前会自动重传，本地源文件不在时在历史里标注“源文件已不在”，避免把过期引用发给模型。需要重传却没有本地源文件时，本轮中止并提示“源文件已不在了，请重新添加附件”。删除会话、超出会话上限被淘汰或启动时发现没有任何消息引用的上传记录，都会同步删除云端文件，避免孤儿文件占满 30 天配额。
 - 对话工作区按钮显示当前项目名，点击后弹出项目选择面板：搜索项目、当前项目勾选、新建项目、不在项目中工作。选择项目会把会话的 `workspace` 设为项目目录并归入该项目；新建项目成功后自动选中；不在项目中工作时清空工作区与项目归属。
 - 模型使用完整名称：`deepseek-flash` 为 DeepSeek-V4.1-Flash，`deepseek-v4-pro` 为 DeepSeek-V4-Pro。两者都支持思考/非思考、JSON Output、Tool Calls、Responses/Anthropic API 和前缀续写，上下文 1M、最大输出 384K；图像理解仅 Flash 支持，Pro 不支持。
 - 推理强度可选关闭 / 低 / 高 / 最高，默认高。关闭时发送 `thinking.type = disabled`；开启时发送 `thinking.type = enabled` 和 `reasoning_effort`。思考模式带 `tools` 的请求必须在历史中回传 `reasoning_content`，否则接口返回 400。
@@ -179,6 +179,6 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 输出与滚动用例：`tests/e2e/agent-output.spec.ts` 覆盖 Mermaid、图标复制到系统剪贴板、会话“保存为 Markdown”、生成文件下载、手动上滚暂停跟随、回到底部按钮，以及输出中三点波浪与悬停箭头。
 - 技能用例：`tests/unit/agent-skills.test.ts` 覆盖 SKILL.md/压缩包导入、资源保留、禁用持久化、重名目录和卸载；`tests/e2e/agent-skills.spec.ts` 覆盖入口、搜索、刷新、添加、两列卡片、详情开关、Finder 按钮、卸载和关闭。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
-- 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败降级和 30 天过期重传。
+- 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射、源文件丢失提示和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败中止、30 天过期重传、孤儿上传清理和会话删除时的云端文件清理。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、项目迁移、shell 超时与截断。
 - 服务契约测试：`tests/unit/services-contract.test.ts` 覆盖结构化成功返回、校验错误、设置白名单、邮件收件人、剪贴板、番茄钟边界和文本/二进制读取。

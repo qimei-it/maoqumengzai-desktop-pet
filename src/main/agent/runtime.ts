@@ -65,6 +65,8 @@ export type AgentFilesClient = {
     path: string,
     signal: AbortSignal,
   ): Promise<string>
+  /** Removes an uploaded file from the remote account. */
+  remove?(apiKey: string, id: string): Promise<void>
 }
 
 export type AgentRuntimeDeps = {
@@ -314,6 +316,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       uploadAgentFile(apiKey, path, purpose, { signal }),
     transcribe: (apiKey, path, signal) =>
       transcribeAgentAudio(apiKey, path, { signal }),
+    remove: (apiKey, id) => deleteAgentFile(apiKey, id),
   }
   const tools = createTools(deps.services)
   const toolList = Object.values(tools)
@@ -352,14 +355,55 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return sessions.find((session) => session.id === activeId)
   }
 
+  function removeRemoteFile(key: string, id: string): void {
+    void files.remove?.(key, id).catch(() => {})
+  }
+
+  function releaseSessionFiles(session: StoredSession): void {
+    const key = deps.getKey()
+    if (!key || !session.files?.length) return
+    const shared = new Set<string>()
+    for (const other of sessions)
+      if (other.id !== session.id)
+        for (const ref of other.files ?? []) shared.add(ref.id)
+    for (const ref of session.files)
+      if (!shared.has(ref.id)) removeRemoteFile(key, ref.id)
+    session.files = []
+  }
+
+  async function pruneOrphanFileRefs(): Promise<void> {
+    const key = deps.getKey()
+    if (!key) return
+    const referenced = new Set<string>()
+    for (const session of sessions)
+      for (const message of session.history)
+        if (message.role === 'user' && Array.isArray(message.content))
+          for (const block of message.content)
+            if (block.type === 'file') referenced.add(block.file_id)
+    let changed = false
+    for (const session of sessions) {
+      const refs = session.files ?? []
+      if (!refs.length) continue
+      const keep = refs.filter((ref) => referenced.has(ref.id))
+      if (keep.length === refs.length) continue
+      for (const ref of refs)
+        if (!referenced.has(ref.id)) removeRemoteFile(key, ref.id)
+      session.files = keep
+      changed = true
+    }
+    if (changed) persist()
+  }
+
   function ensureSession(): StoredSession {
     const current = activeSession()
     if (current) return current
     const session = newSession(deps.getSettings().aiModel)
     sessions.unshift(session)
     activeId = session.id
-    if (sessions.length > maxAgentSessions)
-      sessions.splice(maxAgentSessions)
+    if (sessions.length > maxAgentSessions) {
+      const evicted = sessions.splice(maxAgentSessions)
+      for (const item of evicted) releaseSessionFiles(item)
+    }
     return session
   }
 
@@ -388,9 +432,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ref.expiresAt - Date.now() > 60 * 60 * 1000
         )
           continue
+        const info = await stat(ref.path).catch(() => null)
+        if (!info?.isFile()) {
+          message.content[index] = {
+            type: 'text',
+            text: `[附件 ${ref.name} 的源文件已不在了，无法再次读取]`,
+          }
+          changed = true
+          continue
+        }
         try {
-          const info = await stat(ref.path).catch(() => null)
-          if (!info?.isFile()) throw new Error('源文件已不在')
           const uploaded = await files.upload(
             key,
             ref.path,
@@ -404,9 +455,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ref.id = uploaded.id
           ref.expiresAt = uploaded.expiresAt
         } catch {
+          const expired = ref.expiresAt !== null && ref.expiresAt <= Date.now()
           message.content[index] = {
             type: 'text',
-            text: `[附件 ${ref.name} 已过期，无法再次读取]`,
+            text: expired
+              ? `[附件 ${ref.name} 已过期，无法再次读取]`
+              : `[附件 ${ref.name} 暂时无法读取]`,
           }
         }
         changed = true
@@ -816,6 +870,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       sessions = store.sessions
       projects = store.projects
       activeId = sessions[0]?.id ?? null
+      await pruneOrphanFileRefs()
     },
     state(): AgentState {
       const session = activeSession()
@@ -956,8 +1011,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (busy) this.cancel()
       const session = newSession(deps.getSettings().aiModel)
       sessions.unshift(session)
-      if (sessions.length > maxAgentSessions)
-        sessions.splice(maxAgentSessions)
+      if (sessions.length > maxAgentSessions) {
+        const evicted = sessions.splice(maxAgentSessions)
+        for (const item of evicted) releaseSessionFiles(item)
+      }
       activeId = session.id
       errorText = undefined
       persist()
@@ -973,8 +1030,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         project.workspace,
       )
       sessions.unshift(session)
-      if (sessions.length > maxAgentSessions)
-        sessions.splice(maxAgentSessions)
+      if (sessions.length > maxAgentSessions) {
+        const evicted = sessions.splice(maxAgentSessions)
+        for (const item of evicted) releaseSessionFiles(item)
+      }
       activeId = session.id
       errorText = undefined
       persist()
@@ -1083,10 +1142,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const removed = sessions[index]
       sessions.splice(index, 1)
       if (activeId === id) activeId = sessions[0]?.id ?? null
-      const key = deps.getKey()
-      if (key && removed.files?.length)
-        for (const ref of removed.files)
-          void deleteAgentFile(key, ref.id).catch(() => {})
+      releaseSessionFiles(removed)
       persist()
       emit()
     },
