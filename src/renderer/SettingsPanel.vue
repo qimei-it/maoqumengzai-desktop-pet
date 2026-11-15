@@ -17,6 +17,7 @@ import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import { deepseekModelIds } from '../shared/deepseek'
+import { minimaxModelCatalog } from '../shared/minimax'
 import {
   defaultSettings,
   musicBarStyleLabels,
@@ -162,7 +163,6 @@ function testAndPullMiniMaxModels(): void {
   const value = minimaxKey.value.trim()
   if (!value) return
   emit('command', { type: 'minimax-test', apiKey: value })
-  emit('command', { type: 'minimax-models', apiKey: value })
 }
 function saveMiniMaxKey(): void {
   const value = minimaxKey.value.trim()
@@ -177,11 +177,6 @@ function toggleMiniMaxModels(): void {
     return
   }
   minimaxModelsOpen.value = true
-  const draft = editingMiniMaxKey.value ? minimaxKey.value.trim() : ''
-  emit('command', {
-    type: 'minimax-models',
-    ...(draft ? { apiKey: draft } : {}),
-  })
 }
 watch(
   minimaxModels,
@@ -1296,11 +1291,11 @@ function onEscape(): void {
                   >
                     <option value="" disabled>模型列表</option>
                     <option
-                      v-for="model in minimaxModels"
+                      v-for="model in minimaxModelCatalog"
                       :key="model"
                       :value="model"
                     >
-                      {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                      {{ model }}
                     </option>
                   </SelectField>
                 </div>
@@ -1414,7 +1409,6 @@ function onEscape(): void {
               class="settings-model-list"
             >
               <SelectField
-                v-if="minimaxModels.length"
                 :model-value="minimaxModelPreview"
                 aria-label="MiniMax 可用模型"
                 title="仅查看，不会切换当前模型"
@@ -1424,14 +1418,13 @@ function onEscape(): void {
                 "
               >
                 <option
-                  v-for="model in minimaxModels"
+                  v-for="model in minimaxModelCatalog"
                   :key="model"
                   :value="model"
                 >
-                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                  {{ model }}
                 </option>
               </SelectField>
-              <p v-else class="settings-error">{{ minimaxModelsError }}</p>
             </div>
             <div class="settings-row">
               <span class="settings-label settings-provider-label">阿里云百炼</span>

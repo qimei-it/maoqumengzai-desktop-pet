@@ -7,6 +7,15 @@ export const minimaxModelIds = [
   'MiniMax-M3',
 ] as const
 export type MiniMaxModel = (typeof minimaxModelIds)[number]
+/** Models to show in settings; video/image/speech use separate APIs. */
+export const minimaxModelCatalog = [
+  'MiniMax-M3.1-Flash',
+  'MiniMax-M3',
+  'MiniMax-H3',
+  'MiniMax-H3-Image',
+  'speech-2.8-hd',
+  'speech-2.8-turbo',
+] as const
 
 type Options = { endpoint?: string; timeoutMs?: number }
 
