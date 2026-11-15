@@ -218,6 +218,26 @@ test('attachments use local text, upload images, and respect the Pro model', asy
   expect(chat!.body).toContain('<attachment name=\\"notes.md\\">')
   expect(chat!.body).toContain('本地文本内容。')
 
+  await application.evaluate(({ shell }) => {
+    const state = globalThis as unknown as { __mqmzOpened: string[] }
+    state.__mqmzOpened = []
+    shell.openPath = async (path) => {
+      state.__mqmzOpened.push(path)
+      return ''
+    }
+  })
+  await agent.getByRole('button', { name: '打开附件 notes.md' }).click()
+  await expect
+    .poll(() =>
+      application.evaluate(
+        () =>
+          (
+            globalThis as unknown as { __mqmzOpened: string[] }
+          ).__mqmzOpened.length,
+      ),
+    )
+    .toBe(1)
+
   await agent.evaluate(
     (directory) =>
       window.mqmz!.command({
@@ -498,4 +518,27 @@ test('shows attachment parsing progress and can cancel a long parse', async () =
   await agent
     .locator('#mqmz-agent-parse-input')
     .evaluate((element) => element.remove())
+})
+
+test('pastes a clipboard image as an attachment with a preview', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  await application.evaluate(async ({ clipboard, ClipboardItem }, data) => {
+    await clipboard.write([
+      new ClipboardItem({
+        'image/png': new Blob([new Uint8Array(data)], {
+          type: 'image/png',
+        }),
+      }),
+    ])
+  }, [...png])
+  await agent.getByLabel('给智能体发送指令').focus()
+  await agent.keyboard.press(
+    `${process.platform === 'darwin' ? 'Meta' : 'Control'}+v`,
+  )
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.locator('.agent-attachment-thumb')).toBeVisible()
+  await agent.getByRole('button', { name: /移除附件 截图/ }).click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
 })

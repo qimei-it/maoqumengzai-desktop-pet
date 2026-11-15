@@ -117,6 +117,7 @@ const progressLabel = computed(() => {
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
 const attachmentError = ref('')
+const attachmentPreviews = ref<Record<string, string>>({})
 const skillsOpen = ref(false)
 const skillQuery = ref('')
 const skillBusy = ref(false)
@@ -214,6 +215,27 @@ watch(
     attachments.value = value ?? []
   },
   { immediate: true },
+)
+watch(
+  attachments,
+  async (items) => {
+    const ids = new Set(items.map((item) => item.id))
+    attachmentPreviews.value = Object.fromEntries(
+      Object.entries(attachmentPreviews.value).filter(([id]) => ids.has(id)),
+    )
+    for (const item of items) {
+      if (item.kind !== 'image' || attachmentPreviews.value[item.id])
+        continue
+      const result = await window.mqmz?.readAgentAttachmentPreview(item.id)
+      if (!result?.ok || !result.value) continue
+      if (!attachments.value.some((entry) => entry.id === item.id)) continue
+      attachmentPreviews.value = {
+        ...attachmentPreviews.value,
+        [item.id]: result.value,
+      }
+    }
+  },
+  { deep: true },
 )
 watch(
   () => skills.value.map((skill) => skill.id).join('|'),
@@ -730,6 +752,29 @@ async function onDrop(event: DragEvent): Promise<void> {
     ...attachments.value,
     ...result.value.added.filter((item) => !known.has(item.id)),
   ]
+}
+
+async function onPaste(event: ClipboardEvent): Promise<void> {
+  if (busy.value || parsing.value) return
+  const hasImage = [...(event.clipboardData?.items ?? [])].some((item) =>
+    item.type.startsWith('image/'),
+  )
+  if (!hasImage) return
+  event.preventDefault()
+  attachmentError.value = ''
+  const result = await window.mqmz?.attachAgentClipboardImage()
+  if (!result?.ok) {
+    attachmentError.value = result?.error ?? '粘贴图片失败。'
+    return
+  }
+  if (!result.value) return
+  const known = new Set(attachments.value.map((item) => item.id))
+  attachments.value = [
+    ...attachments.value,
+    ...result.value.added.filter((item) => !known.has(item.id)),
+  ]
+  if (result.value.skipped.length)
+    attachmentError.value = `未添加 ${result.value.skipped[0]}`
 }
 
 function send(): void {
@@ -2169,6 +2214,20 @@ function statusLabel(status: string): string {
                       v-if="file.canSave"
                       type="button"
                       class="agent-message-file-save"
+                      :aria-label="`打开附件 ${file.name}`"
+                      :title="`打开 ${file.name}`"
+                      @click="openSource(file.id)"
+                    >
+                      <SquareArrowOutUpRight
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button
+                      v-if="file.canSave"
+                      type="button"
+                      class="agent-message-file-save"
                       :aria-label="`保存附件 ${file.name}`"
                       :title="`保存 ${file.name}`"
                       @click="saveSource(file.id)"
@@ -2538,7 +2597,13 @@ function statusLabel(status: string): string {
                   class="agent-attachment"
                   :class="{ 'is-error': item.uploadError }"
                 >
-                  <FileTypeIcon :name="item.name" :size="16" />
+                  <img
+                    v-if="attachmentPreviews[item.id]"
+                    class="agent-attachment-thumb"
+                    :src="attachmentPreviews[item.id]"
+                    alt=""
+                  />
+                  <FileTypeIcon v-else :name="item.name" :size="16" />
                   <span
                     class="agent-attachment-name"
                     :title="
@@ -2589,6 +2654,7 @@ function statusLabel(status: string): string {
                 rows="1"
                 :placeholder="`让“${petName}”来帮你工作`"
                 aria-label="给智能体发送指令"
+                @paste="onPaste"
                 @keydown.enter.exact.prevent="send"
               ></textarea>
               <div class="agent-composer-row">
@@ -4557,6 +4623,13 @@ function statusLabel(status: string): string {
 }
 .agent-attachment > img {
   flex: none;
+}
+.agent-attachment-thumb {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
 }
 .agent-attachment-name {
   flex: 0 1 auto;

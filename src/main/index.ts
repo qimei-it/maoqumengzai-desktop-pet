@@ -23,6 +23,7 @@ import {
   cp,
   lstat,
   mkdir,
+  mkdtemp,
   readFile,
   readdir,
   rename,
@@ -6515,7 +6516,9 @@ async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
       },
     })
     quotaBar = window
-    window.setIgnoreMouseEvents(true)
+    // Forward mouse moves so the freshness tooltip works while clicks still
+    // pass through to the desktop.
+    window.setIgnoreMouseEvents(true, { forward: true })
     configurePetOverlay(window)
     secureWindow(window)
     await load(window, 'quota')

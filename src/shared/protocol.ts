@@ -63,6 +63,8 @@ export const channels = {
   agentAttachmentPrune: 'mqmz:agent:attachments-prune',
   agentAttachmentRetry: 'mqmz:agent:attachments-retry',
   agentAttachFiles: 'mqmz:agent:attach-files',
+  agentAttachmentPaste: 'mqmz:agent:attachments-paste',
+  agentAttachmentPreview: 'mqmz:agent:attachments-preview',
   agentOpenWithFiles: 'mqmz:agent:open-with-files',
   agentAttachmentCancel: 'mqmz:agent:attachments-cancel',
   agentCopyOutput: 'mqmz:agent:copy-output',
@@ -842,6 +844,10 @@ export interface PrototypeApi {
     files: File[],
   ): Promise<Result<{ added: AgentAttachmentPick[]; skipped: string[] }>>
   openAgentWithFiles(files: File[]): Promise<Result<void>>
+  attachAgentClipboardImage(): Promise<
+    Result<{ added: AgentAttachmentPick[]; skipped: string[] } | null>
+  >
+  readAgentAttachmentPreview(id: string): Promise<Result<string | null>>
   cancelAgentAttachmentParsing(): Promise<Result<void>>
   retryAgentAttachment(
     id: string,

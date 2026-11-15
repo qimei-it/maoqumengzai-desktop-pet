@@ -53,6 +53,10 @@ const api: PrototypeApi = {
       })
     }
   },
+  attachAgentClipboardImage: () =>
+    ipcRenderer.invoke(channels.agentAttachmentPaste),
+  readAgentAttachmentPreview: (id) =>
+    ipcRenderer.invoke(channels.agentAttachmentPreview, id),
   openAgentWithFiles: (files) => {
     try {
       return ipcRenderer.invoke(
