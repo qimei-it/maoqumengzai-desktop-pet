@@ -35,13 +35,27 @@ import {
 import { existsSync, mkdirSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
-import type { AgentMode, AgentPetProfile } from '../shared/agent'
+import type {
+  AgentAttachmentPick,
+  AgentMode,
+  AgentPetProfile,
+} from '../shared/agent'
 import { createAgentRuntime } from './agent/runtime'
+import {
+  agentAttachmentLimit,
+  agentAttachmentTotalChars,
+} from './agent/attachments'
+import {
+  agentAttachmentPick,
+  prepareAgentAttachment,
+  releaseAgentAttachment,
+  type PreparedAgentAttachment,
+} from './agent/attachment-pipeline'
 import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
@@ -158,6 +172,7 @@ import type {
   BreakKind,
   SettingsSection,
   Snapshot,
+  ToastPart,
   ClipboardConfig,
   TodoListColor,
   TodoRepeat,
@@ -166,6 +181,7 @@ import { defaultTodoListIcon } from '../shared/protocol'
 import {
   fitToDisplays,
   hitOpaquePixel,
+  intersectionArea,
   movedBeyondThreshold,
 } from '../shared/geometry'
 import { basePetSize, donutWindowSize, petSprite } from '../shared/donut'
@@ -326,6 +342,13 @@ let lab: BrowserWindow | undefined
 let tray: Tray | undefined
 let scale = 1
 let settings: Settings = { ...defaultSettings }
+function agentAttachmentDirectory(): string {
+  return (
+    settings.agentAttachmentDir ||
+    join(app.getPath('downloads'), 'maoqumengzai', 'agent')
+  )
+}
+
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
 let clipboardData: ClipboardData = defaultClipboard()
@@ -513,6 +536,9 @@ let lyricsWidth = 240
 let bubbleWindow: BrowserWindow | undefined
 let toastWindow: BrowserWindow | undefined
 let toastText: string | undefined
+let toastParts: ToastPart[] | undefined
+let toastWidth = 190
+let toastHeight = 64
 let toastHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
@@ -761,6 +787,85 @@ const services = createServices({
   },
 })
 
+const agentDraftAttachments = new Map<string, PreparedAgentAttachment>()
+
+function safeOutputName(value: string | undefined): string {
+  const name = (value ?? '')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\s]+|[.\s]+$/g, '')
+    .slice(0, 60)
+  if (!name || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name))
+    return 'agent-reply'
+  return name
+}
+
+function plainAgentText(value: string): string {
+  return value
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/^[#>*\-\s]+/gm, ' ')
+    .replace(/[*_~|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function runCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { timeout: 120_000 }, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
+
+async function synthesizeSpeech(text: string, output: string): Promise<void> {
+  if (process.platform === 'darwin') {
+    const aiff = join(tmpdir(), `mqmz-tts-${randomUUID()}.aiff`)
+    try {
+      await runCommand('say', ['-o', aiff, text])
+      await runCommand('afconvert', [
+        '-f',
+        'WAVE',
+        '-d',
+        'LEI16@22050',
+        aiff,
+        output,
+      ])
+    } finally {
+      await rm(aiff, { force: true }).catch(() => {})
+    }
+    return
+  }
+  if (process.platform === 'win32') {
+    const textFile = join(tmpdir(), `mqmz-tts-${randomUUID()}.txt`)
+    try {
+      await writeFile(textFile, text, 'utf8')
+      const quote = (value: string) => value.replace(/'/g, "''")
+      const script = [
+        'Add-Type -AssemblyName System.Speech',
+        '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
+        `$s.SetOutputToWaveFile('${quote(output)}')`,
+        `$s.Speak([IO.File]::ReadAllText('${quote(textFile)}', [Text.Encoding]::UTF8))`,
+        '$s.Dispose()',
+      ].join('; ')
+      await runCommand('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        script,
+      ])
+    } finally {
+      await rm(textFile, { force: true }).catch(() => {})
+    }
+    return
+  }
+  throw new Error('当前系统不支持本地语音导出。')
+}
+
 const agent = createAgentRuntime({
   services,
   storePath: agentPath,
@@ -771,7 +876,7 @@ const agent = createAgentRuntime({
   pickWorkspace: async () => {
     const owner = askWindow && askWindow.isVisible() ? askWindow : pet
     const result = await dialog.showOpenDialog(owner, {
-      title: '选择 shell 工作区',
+      title: '选择对话工作区',
       properties: ['openDirectory', 'createDirectory'],
     })
     if (result.canceled) return null
@@ -954,7 +1059,7 @@ function snapshot(): Snapshot {
       ? { bubble: { text: bubbleText, mood: bubbleMood, ai: bubbleAiStyle } }
       : {}),
     musicAiCache: { ...musicAiCacheState },
-    ...(toastText ? { toast: toastText } : {}),
+    ...(toastText ? { toast: toastText, ...(toastParts ? { toastParts } : {}) } : {}),
     ...(mailAlert ? { mailAlert } : {}),
   }
 }
@@ -2518,6 +2623,7 @@ function settingsState(): SettingsState {
     aiQuotaEnabled: settings.aiQuotaEnabled,
     aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
     aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
+    agentAttachmentDir: settings.agentAttachmentDir,
     hoverWheelActions: settings.hoverWheelActions,
     fileWheelActions: settings.fileWheelActions,
   }
@@ -3978,7 +4084,7 @@ function scheduleMailSync(): void {
   mailSyncTimer = undefined
   if (mailConfig.syncMinutes <= 0) return
   mailSyncTimer = setInterval(() => {
-    void syncAllMail(true)
+    void syncAllMail(true).catch(() => {})
   }, mailConfig.syncMinutes * 60_000)
 }
 async function directoryBytes(path: string): Promise<number> {
@@ -6122,8 +6228,8 @@ function updateBubbleWindow(): void {
 function positionToast(): void {
   if (!toastWindow || toastWindow.isDestroyed()) return
   const b = pet.getBounds()
-  const width = mailAlert ? 300 : 190
-  const height = mailAlert ? 126 : 64
+  const width = mailAlert ? 300 : toastWidth
+  const height = mailAlert ? 126 : toastHeight
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + Math.round(9 * scale) - 6 - height
   toastWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
@@ -6140,9 +6246,10 @@ function updateToastWindow(): void {
     toastWindow.hide()
   }
 }
-function showToast(text: string): void {
+function showToast(text: string, parts?: ToastPart[]): void {
   if (!settings.statusBubbles) return
   toastText = text
+  toastParts = parts
   if (toastHideTimer) clearTimeout(toastHideTimer)
   toastHideTimer = setTimeout(hideToast, 3200)
   syncOverlays()
@@ -6155,6 +6262,7 @@ function hideToast(): void {
   }
   if (!toastText) return
   toastText = undefined
+  toastParts = undefined
   syncOverlays()
   broadcast()
 }
@@ -6302,25 +6410,43 @@ function quotaBarBlocked(): boolean {
     dropMode ||
     wheelOpen ||
     petHoverMode ||
-    (music.title && barVisible)
+    (music.title && barVisible) ||
+    !pet ||
+    pet.isDestroyed()
   )
     return true
-  return Boolean(
-    windowVisible(pocket) ||
-      windowVisible(askWindow) ||
-      windowVisible(convertWindow) ||
-      windowVisible(archiveWindow) ||
-      windowVisible(renameWindow) ||
-      windowVisible(settingsWindow) ||
-      windowVisible(mailWindow) ||
-      windowVisible(mailComposeWindow) ||
-      windowVisible(pomodoroWindow) ||
-      windowVisible(waterWindow) ||
-      windowVisible(breakWindow) ||
-      windowVisible(profileWindow) ||
-      windowVisible(clipboardWindow) ||
-      windowVisible(todoWindow),
-  )
+  const bar = quotaBarLayout(false)
+  return panelWindowList().some((window) => {
+    if (!windowVisible(window)) return false
+    const bounds = window.getBounds()
+    // Ignore a few pixels of edge or shadow contact: a panel brushing the
+    // quota pill must not count as covering it.
+    const margin = 8
+    const inset = {
+      x: bounds.x + margin,
+      y: bounds.y + margin,
+      width: bounds.width - margin * 2,
+      height: bounds.height - margin * 2,
+    }
+    if (inset.width <= 0 || inset.height <= 0) return false
+    return intersectionArea(inset, bar) > 0
+  })
+}
+/** Panels are movable; keep the quota pill from sitting on top of one. */
+function watchPanelQuotaOverlap(window: BrowserWindow): void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const refresh = (): void => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = undefined
+      if (!shuttingDown) updateQuotaWindow()
+    }, 80)
+  }
+  window.on('move', refresh)
+  window.on('resize', refresh)
+  window.on('closed', () => {
+    if (timer) clearTimeout(timer)
+  })
 }
 function updateQuotaWindow(): void {
   if (!quotaBar || quotaBar.isDestroyed()) {
@@ -8153,6 +8279,130 @@ async function saveCopyForAgent(fileId: string): Promise<string | null> {
   return destination.filePath
 }
 
+/** True when `child` is `parent` itself or lives below it. */
+function withinDirectory(parent: string, child: string): boolean {
+  const value = relative(resolve(parent), resolve(child))
+  return value === '' || (!value.startsWith('..') && !isAbsolute(value))
+}
+
+/** A non-colliding destination inside `directory`; never overwrites. */
+async function freeTransferPath(
+  directory: string,
+  name: string,
+  kind: 'file' | 'folder',
+): Promise<string> {
+  const direct = join(directory, name)
+  if (!(await pathExists(direct))) return direct
+  const extension = kind === 'file' ? extname(name) : ''
+  const stem = extension ? name.slice(0, -extension.length) : name
+  for (let index = 2; index <= 999; index += 1) {
+    const candidate = join(directory, `${stem} (${index})${extension}`)
+    if (!(await pathExists(candidate))) return candidate
+  }
+  throw new Error('目标文件夹中同名项目过多。')
+}
+
+/**
+ * Copies or moves a dropped batch into one chosen folder. Files and folders
+ * both go through the shelf registry so a stale source is refused before
+ * anything touches the disk. Copies never overwrite; moves update the shelf
+ * entry so the pocket keeps following the original.
+ */
+async function transferToDirectory(
+  mode: 'copy' | 'move',
+  fileIds: string[],
+  folderIds: string[],
+  destination: string,
+): Promise<void> {
+  const target = await stat(destination).catch(() => null)
+  if (!target?.isDirectory()) throw new Error('请选择一个文件夹作为目标位置。')
+  const sources: {
+    id: string
+    kind: 'file' | 'folder'
+    name: string
+    path: string
+  }[] = []
+  for (const id of fileIds) {
+    const path = await registeredPath(id)
+    sources.push({ id, kind: 'file', name: basename(path), path })
+  }
+  for (const id of folderIds) {
+    const path = await registeredPath(id)
+    sources.push({ id, kind: 'folder', name: basename(path), path })
+  }
+  if (!sources.length) throw new Error('没有可处理的文件或文件夹。')
+  for (const source of sources) {
+    if (source.kind === 'folder' && withinDirectory(source.path, destination))
+      throw new Error(`不能把「${source.name}」放回它自己里面。`)
+    if (
+      mode === 'move' &&
+      resolve(dirname(source.path)) === resolve(destination)
+    )
+      throw new Error('项目已在目标文件夹中，请选择其他文件夹。')
+  }
+
+  let completed = 0
+  let shelved = false
+  const failures: string[] = []
+  for (const source of sources) {
+    try {
+      const current = await registeredPath(source.id)
+      const destinationPath = await freeTransferPath(
+        destination,
+        basename(current),
+        source.kind,
+      )
+      if (mode === 'copy') {
+        if (source.kind === 'folder')
+          await cp(current, destinationPath, {
+            recursive: true,
+            errorOnExist: true,
+            force: false,
+            preserveTimestamps: true,
+          })
+        else await copyFile(current, destinationPath)
+      } else {
+        await movePath(current, destinationPath)
+        const record = files.get(source.id)
+        if (record) {
+          record.path = destinationPath
+          record.name = basename(destinationPath)
+          try {
+            const info = await lstat(destinationPath)
+            record.device = info.dev
+            record.inode = info.ino
+            record.modifiedAt = info.mtimeMs
+            if (record.kind === 'file') record.size = info.size
+          } catch {
+            /* keep the previous metadata if the moved item vanished */
+          }
+          if (record.status === 'shelved') shelved = true
+        }
+      }
+      completed += 1
+    } catch (error) {
+      failures.push(
+        `${source.name}：${error instanceof Error ? error.message : '操作失败'}`,
+      )
+    }
+  }
+
+  if (mode === 'move' && shelved) {
+    await saveShelf()
+    refreshPocketLayout()
+  }
+  if (completed > 0) {
+    const openError = await shell.openPath(destination)
+    if (openError) addEvent(`无法打开目标文件夹：${openError}`)
+  }
+  const verb = mode === 'copy' ? '复制' : '移动'
+  if (failures.length)
+    throw new Error(
+      `已${verb} ${completed} 项，${failures.length} 项失败：${failures[0]}`,
+    )
+  addEvent(`已${verb} ${completed} 项到「${basename(destination)}」。`)
+}
+
 async function registeredPath(id: string): Promise<string> {
   const entry = files.get(id)
   if (!entry) throw new Error('文件记录不存在。')
@@ -8205,6 +8455,140 @@ function setupIpc(): void {
     const secret = await loadMailSecret(mailSecretsPath, accountId)
     if (!secret) throw new Error('授权码不可用，请重新输入。')
     return secret
+  })
+  handle(channels.agentAttachments, 'either', async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以添加附件。')
+    const result = await dialog.showOpenDialog(askWindow, {
+      title: '添加附件',
+      properties: ['openFile', 'multiSelections'],
+    })
+    if (result.canceled) return { added: [], skipped: [] }
+    const options = {
+      model: agent.state().model,
+      soffice: await libreOfficeExecutable(),
+      ffmpeg: await ffmpegExecutable(),
+    }
+    const existing = new Set(
+      [...agentDraftAttachments.values()].map((item) => item.sourcePath),
+    )
+    let total = [...agentDraftAttachments.values()].reduce(
+      (sum, item) => sum + (item.text?.length ?? 0),
+      0,
+    )
+    const added: AgentAttachmentPick[] = []
+    const skipped: string[] = []
+    for (const path of result.filePaths) {
+      if (agentDraftAttachments.size >= agentAttachmentLimit) break
+      if (existing.has(path)) continue
+      const remaining = agentAttachmentTotalChars - total
+      const prepared = await prepareAgentAttachment(path, remaining, options)
+      if ('skipped' in prepared) {
+        skipped.push(`${basename(path)}：${prepared.skipped}`)
+        continue
+      }
+      const attachment = prepared.attachment
+      agentDraftAttachments.set(attachment.id, attachment)
+      existing.add(path)
+      total += attachment.text?.length ?? 0
+      added.push(agentAttachmentPick(attachment))
+    }
+    if (skipped.length)
+      showToast(
+        skipped.length === 1
+          ? `未添加 ${skipped[0]}`
+          : `已跳过 ${skipped.slice(0, 2).join('；')}${
+              skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
+            }`,
+      )
+    return { added, skipped }
+  })
+  handle(channels.agentAttachmentPrune, 'either', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以修改附件。')
+    if (agent.state().model !== 'deepseek-v4-pro') return []
+    const removed: string[] = []
+    for (const [id, item] of agentDraftAttachments) {
+      if (!item.needsModelUpload) continue
+      agentDraftAttachments.delete(id)
+      void releaseAgentAttachment(item)
+      removed.push(id)
+    }
+    if (removed.length)
+      showToast('已移除需要上传解析的附件：当前模型只支持文字')
+    return removed
+  })
+  handle(channels.agentAttachmentRemove, 'either', (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以修改附件。')
+    const id = z.string().uuid().parse(payload)
+    const item = agentDraftAttachments.get(id)
+    agentDraftAttachments.delete(id)
+    if (item) void releaseAgentAttachment(item)
+  })
+  handle(channels.agentSaveOutput, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以保存输出。')
+    const input = z
+      .object({
+        text: z.string().min(1).max(1_000_000),
+        title: z.string().trim().max(120).optional(),
+      })
+      .parse(payload)
+    try {
+      const base = safeOutputName(input.title)
+      const saved = await writeExclusive(
+        agentAttachmentDirectory(),
+        (attempt) =>
+          `${base}${attempt === 1 ? '' : ` (${attempt})`}.md`,
+        Buffer.from(input.text, 'utf8'),
+      )
+      showToast(`已保存 ${basename(saved)}`)
+      return saved
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : '保存智能体输出失败。',
+      )
+      throw error
+    }
+  })
+  handle(channels.agentExportAudio, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以导出音频。')
+    const input = z
+      .object({
+        text: z.string().min(1).max(1_000_000),
+        title: z.string().trim().max(120).optional(),
+      })
+      .parse(payload)
+    const plain = plainAgentText(input.text).slice(0, 10_000)
+    if (!plain) throw new Error('这段回复没有可朗读的文字。')
+    const base = safeOutputName(input.title)
+    const directory = agentAttachmentDirectory()
+    const temp = join(tmpdir(), `mqmz-tts-${randomUUID()}.wav`)
+    try {
+      await synthesizeSpeech(plain, temp)
+      const bytes = await readFile(temp)
+      const saved = await writeExclusive(
+        directory,
+        (attempt) => `${base}${attempt === 1 ? '' : ` (${attempt})`}.wav`,
+        bytes,
+      )
+      showToast(`已导出音频 ${basename(saved)}`)
+      return saved
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : '导出音频失败。',
+      )
+      throw error
+    } finally {
+      await rm(temp, { force: true }).catch(() => {})
+    }
   })
   handle(channels.mailAttachments, 'either', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -8295,6 +8679,8 @@ function setupIpc(): void {
       'remove-file',
       'reveal-file',
       'save-copy',
+      'copy-to',
+      'move-to',
       'wheel',
       'eat-files',
       'restore-eaten',
@@ -8343,6 +8729,8 @@ function setupIpc(): void {
       'settings-section',
       'settings-update',
       'settings-open-data',
+      'settings-choose-agent-dir',
+      'settings-open-agent-dir',
       'settings-clear-cache',
       'settings-clear-belly',
       'settings-open-licenses',
@@ -8448,6 +8836,7 @@ function setupIpc(): void {
       'agent-session-delete',
       'agent-mode',
       'agent-model',
+      'agent-reasoning',
       'agent-workspace',
       'agent-config',
       'agent-keys',
@@ -8574,13 +8963,28 @@ function setupIpc(): void {
       case 'agent-close':
         closeAsk()
         break
-      case 'agent-send':
-        void agent.send(command.prompt).catch((error) => {
-          showToast(
-            error instanceof Error ? error.message : '智能体执行失败。',
+      case 'agent-send': {
+        const ids = command.attachmentIds ?? []
+        const attachments = ids
+          .map((id) => agentDraftAttachments.get(id))
+          .filter(
+            (item): item is PreparedAgentAttachment => Boolean(item),
           )
-        })
+        void agent
+          .send(command.prompt, attachments)
+          .then(async () => {
+            for (const id of ids) agentDraftAttachments.delete(id)
+            await Promise.all(attachments.map(releaseAgentAttachment))
+          })
+          .catch((error) => {
+            for (const id of ids) agentDraftAttachments.delete(id)
+            void Promise.all(attachments.map(releaseAgentAttachment))
+            showToast(
+              error instanceof Error ? error.message : '智能体执行失败。',
+            )
+          })
         break
+      }
       case 'agent-cancel':
         agent.cancel()
         break
@@ -8652,8 +9056,11 @@ function setupIpc(): void {
       case 'agent-model':
         agent.setModel(command.model)
         break
+      case 'agent-reasoning':
+        agent.setReasoning(command.reasoning)
+        break
       case 'agent-workspace':
-        void agent.chooseWorkspace()
+        agent.setWorkspace(command.projectId)
         break
       case 'agent-config':
         await configureAi(command.apiKey, false, false)
@@ -8813,6 +9220,28 @@ function setupIpc(): void {
       case 'settings-update':
         await updateSettings(command.patch)
         break
+      case 'settings-choose-agent-dir': {
+        const result = await dialog.showOpenDialog(
+          settingsWindow ?? pet,
+          {
+            title: '选择附件保存目录',
+            properties: ['openDirectory', 'createDirectory'],
+          },
+        )
+        const path = result.filePaths[0]
+        if (!result.canceled && path) {
+          await updateSettings({ agentAttachmentDir: path })
+          showToast('附件保存目录已更新')
+        }
+        break
+      }
+      case 'settings-open-agent-dir': {
+        const directory = agentAttachmentDirectory()
+        await mkdir(directory, { recursive: true })
+        const error = await shell.openPath(directory)
+        if (error) throw new Error('无法打开附件保存目录。')
+        break
+      }
       case 'settings-open-data': {
         const error = await shell.openPath(dataRoot)
         if (error) throw new Error('无法打开数据目录。')
@@ -9141,7 +9570,7 @@ function setupIpc(): void {
         removeTodoGroup(command.id)
         break
       case 'notify':
-        showToast(command.text)
+        showToast(command.text, command.parts)
         break
       case 'panel-control': {
         const owner = BrowserWindow.fromWebContents(event.sender)
@@ -9216,6 +9645,22 @@ function setupIpc(): void {
         }
         break
       }
+      case 'copy-to':
+        await transferToDirectory(
+          'copy',
+          command.fileIds,
+          command.folderIds,
+          command.destination,
+        )
+        break
+      case 'move-to':
+        await transferToDirectory(
+          'move',
+          command.fileIds,
+          command.folderIds,
+          command.destination,
+        )
+        break
       case 'refresh':
         addEvent('已刷新权限与显示器状态。')
         break
@@ -9239,12 +9684,36 @@ function setupIpc(): void {
     broadcast()
     return snapshot()
   })
-  handle(channels.pickDirectory, 'either', async (event) => {
-    const owner = BrowserWindow.fromWebContents(event.sender) ?? pet
-    const selection = await dialog.showOpenDialog(owner, {
-      title: '选择项目文件夹',
+  handle(channels.openExternal, 'either', async (_event, payload) => {
+    const value = z.string().trim().min(1).max(4096).parse(payload)
+    let protocol: string
+    try {
+      protocol = new URL(value).protocol
+    } catch {
+      throw new Error('链接格式不正确。')
+    }
+    if (!['http:', 'https:', 'mailto:'].includes(protocol))
+      throw new Error('不支持打开这个链接。')
+    await shell.openExternal(value)
+  })
+  handle(channels.pickDirectory, 'either', async (event, payload) => {
+    const title =
+      z.string().trim().min(1).max(40).optional().parse(payload) ??
+      '选择项目文件夹'
+    // The pet and the pocket sit wherever the user parked them. Parenting the
+    // panel to those windows made macOS draw it as a sheet beside the pet, so
+    // folder pickers opened from the wheel are unparented and stay centred.
+    // Activating the app first also lifts the picker above any open panel.
+    const sender = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title,
       properties: ['openDirectory', 'createDirectory'],
-    })
+    }
+    if (process.platform === 'darwin') app.focus({ steal: true })
+    const selection =
+      sender && sender !== pet && sender !== pocket
+        ? await dialog.showOpenDialog(sender, options)
+        : await dialog.showOpenDialog(options)
     if (selection.canceled) return null
     return selection.filePaths[0] ?? null
   })
@@ -9296,6 +9765,24 @@ function setupIpc(): void {
     await receivePaths(pathsSchema.parse(payload))
     if (owner !== pet) showPocket()
     return snapshot()
+  })
+  ipcMain.on(channels.toastFit, (event, payload) => {
+    const source = BrowserWindow.fromWebContents(event.sender)
+    if (!toastWindow || toastWindow.isDestroyed() || source !== toastWindow)
+      return
+    const size = z
+      .object({
+        width: z.number().int().min(160).max(320),
+        height: z.number().int().min(52).max(220),
+      })
+      .safeParse(payload)
+    if (!size.success) return
+    toastWidth = size.data.width
+    toastHeight = size.data.height
+    if (toastText && !mailAlert && !dropMode && toastWindow.isVisible()) {
+      positionToast()
+      toastWindow.moveTop()
+    }
   })
   ipcMain.on(channels.startDrag, (event, payload) => {
     try {
@@ -10281,6 +10768,7 @@ async function createWindows(): Promise<void> {
     ...(lab ? [load(lab, 'lab')] : []),
   ])
   pet.showInactive()
+  for (const window of panelWindowList()) watchPanelQuotaOverlap(window)
   syncOverlays()
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   tray = new Tray(trayImage())
@@ -10430,6 +10918,11 @@ else {
       await mkdir(dataRoot, { recursive: true })
       const loadedSettings = await loadSettingsFile(settingsPath)
       settings = loadedSettings.settings
+      if (!settings.agentAttachmentDir)
+        settings = {
+          ...settings,
+          agentAttachmentDir: agentAttachmentDirectory(),
+        }
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
@@ -10457,7 +10950,7 @@ else {
       void updateMailBadge()
       scheduleMailSync()
       setTimeout(() => {
-        void syncAllMail(true)
+        void syncAllMail(true).catch(() => {})
       }, 4000)
       pruneClipboard()
       await saveClipboardFile(clipboardPath, clipboardData)

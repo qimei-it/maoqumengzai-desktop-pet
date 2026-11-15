@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { agentModes } from '../shared/agent'
+import { agentModes, agentReasoningLevels } from '../shared/agent'
 import {
   archiveFormats,
   todoListColors,
@@ -16,7 +16,7 @@ import {
   hoverActions,
   maxWheelActions,
   minWheelActions,
-  sliceActions,
+  sliceActionCatalog,
 } from '../shared/donut'
 import {
   mailDisplayNameError,
@@ -81,6 +81,22 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('remove-file'), fileId }).strict(),
   z.object({ type: z.literal('reveal-file'), fileId }).strict(),
   z.object({ type: z.literal('save-copy'), fileId }).strict(),
+  z
+    .object({
+      type: z.literal('copy-to'),
+      fileIds: z.array(fileId).max(32).default([]),
+      folderIds: z.array(fileId).max(32).default([]),
+      destination: z.string().trim().min(1).max(4096),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('move-to'),
+      fileIds: z.array(fileId).max(32).default([]),
+      folderIds: z.array(fileId).max(32).default([]),
+      destination: z.string().trim().min(1).max(4096),
+    })
+    .strict(),
   z.object({ type: z.literal('wheel'), open: z.boolean() }).strict(),
   z
     .object({
@@ -227,6 +243,17 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('notify'),
       text: z.string().min(1).max(500),
+      parts: z
+        .array(
+          z
+            .object({
+              text: z.string().min(1).max(500),
+              code: z.boolean().optional(),
+            })
+            .strict(),
+        )
+        .max(20)
+        .optional(),
     })
     .strict(),
   z
@@ -331,13 +358,16 @@ export const commandSchema = z.discriminatedUnion('type', [
           aiQuotaEnabled: z.boolean().optional(),
           aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
           aiQuotaOpenAIPath: z.string().max(1024).optional(),
+          agentAttachmentDir: z.string().trim().max(4096).optional(),
           hoverWheelActions: wheelActions(hoverActions).optional(),
-          fileWheelActions: wheelActions(sliceActions).optional(),
+          fileWheelActions: wheelActions(sliceActionCatalog).optional(),
         })
         .strict(),
     })
     .strict(),
   z.object({ type: z.literal('settings-open-data') }).strict(),
+  z.object({ type: z.literal('settings-choose-agent-dir') }).strict(),
+  z.object({ type: z.literal('settings-open-agent-dir') }).strict(),
   z.object({ type: z.literal('settings-clear-cache') }).strict(),
   z.object({ type: z.literal('settings-clear-belly') }).strict(),
   z.object({ type: z.literal('settings-open-licenses') }).strict(),
@@ -795,6 +825,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-send'),
       prompt: z.string().trim().min(1).max(8000),
+      attachmentIds: z.array(z.string().uuid()).max(8).optional(),
     })
     .strict(),
   z.object({ type: z.literal('agent-cancel') }).strict(),
@@ -814,7 +845,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('agent-project-create'),
-      name: z.string().trim().min(1).max(40),
+      name: z.string().trim().max(40),
       workspace: z.string().trim().min(1).max(4096),
     })
     .strict(),
@@ -822,7 +853,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-project-update'),
       id: z.string().uuid(),
-      name: z.string().trim().min(1).max(40).optional(),
+      name: z.string().trim().max(40).optional(),
       workspace: z.string().trim().min(1).max(4096).optional(),
     })
     .strict(),
@@ -890,7 +921,18 @@ export const commandSchema = z.discriminatedUnion('type', [
       model: z.enum(deepseekModelIds),
     })
     .strict(),
-  z.object({ type: z.literal('agent-workspace') }).strict(),
+  z
+    .object({
+      type: z.literal('agent-reasoning'),
+      reasoning: z.enum(agentReasoningLevels),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('agent-workspace'),
+      projectId: z.string().uuid().nullable(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('agent-config'),

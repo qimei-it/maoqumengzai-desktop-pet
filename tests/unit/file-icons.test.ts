@@ -14,6 +14,11 @@ describe('archive file icons', () => {
 })
 
 describe('folder and office file icons', () => {
+  test('markdown files use their own artwork', () => {
+    expect(fileIconFor('notes.md')).not.toBe(fileIconFor('notes.txt'))
+    expect(fileIconFor('README.markdown')).toBe(fileIconFor('notes.md'))
+  })
+
   test('folders use the folder artwork regardless of the name', () => {
     expect(fileIconFor('素材', 'folder')).toBe(fileIconFor('项目', 'folder'))
     expect(fileIconFor('素材', 'folder')).not.toBe(fileIconFor('素材.zip'))

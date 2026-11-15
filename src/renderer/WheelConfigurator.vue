@@ -12,6 +12,7 @@ const props = defineProps<{
   wheelLabels: Record<string, readonly string[]>
   min: number
   max: number
+  defaults?: readonly string[]
   singleLine?: boolean
   petImage?: string
 }>()
@@ -234,7 +235,7 @@ function onHitKeydown(event: KeyboardEvent, index: number): void {
 }
 
 function reset(): void {
-  emit('update', [...props.catalog].slice(0, props.max))
+  emit('update', [...(props.defaults ?? props.catalog)].slice(0, props.max))
   resetDrag()
 }
 
@@ -435,7 +436,8 @@ onMounted(() => {
 }
 .wheel-page-body {
   display: flex;
-  align-items: center;
+  flex: 1;
+  align-items: flex-start;
   justify-content: center;
   gap: 14px;
   min-height: 0;
@@ -550,9 +552,9 @@ onMounted(() => {
 .wheel-palette {
   display: flex;
   flex: none;
+  align-self: flex-start;
   flex-direction: column;
   width: 188px;
-  max-height: 312px;
   padding: 10px;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
@@ -567,6 +569,7 @@ onMounted(() => {
 }
 .wheel-palette-head {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -582,13 +585,10 @@ onMounted(() => {
 }
 .wheel-palette-list {
   display: flex;
-  flex: 1;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
   margin-top: 8px;
-  overflow: auto;
-  padding-right: 2px;
 }
 .wheel-palette-chip {
   display: flex;

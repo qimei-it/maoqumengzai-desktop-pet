@@ -97,6 +97,29 @@ export async function convertOffice(
   batch: boolean,
   signal?: AbortSignal,
 ): Promise<string> {
+  const bytes = await officeBytes(soffice, sourcePath, target, signal)
+  return writeExclusive(
+    outputDirectory(sourcePath, batch),
+    (attempt) => outputName(sourcePath, target, attempt),
+    bytes,
+  )
+}
+
+/** Converts an Office file in a private temp folder and returns its bytes. */
+export async function officePdfBuffer(
+  soffice: string,
+  sourcePath: string,
+  signal?: AbortSignal,
+): Promise<Buffer> {
+  return officeBytes(soffice, sourcePath, 'pdf', signal)
+}
+
+async function officeBytes(
+  soffice: string,
+  sourcePath: string,
+  target: 'pdf' | 'docx' | 'xlsx' | 'pptx',
+  signal?: AbortSignal,
+): Promise<Buffer> {
   if (signal?.aborted) throw abortError()
   const output = await mkdtemp(join(tmpdir(), 'mqmz-office-'))
   const profile = await mkdtemp(join(tmpdir(), 'mqmz-office-profile-'))
@@ -132,12 +155,7 @@ export async function convertOffice(
       generatedPath = join(output, generated)
     }
     if (signal?.aborted) throw abortError()
-    const bytes = await readFile(generatedPath)
-    return writeExclusive(
-      outputDirectory(sourcePath, batch),
-      (attempt) => outputName(sourcePath, target, attempt),
-      bytes,
-    )
+    return await readFile(generatedPath)
   } finally {
     await rm(output, { recursive: true, force: true }).catch(() => {})
     await rm(profile, { recursive: true, force: true }).catch(() => {})

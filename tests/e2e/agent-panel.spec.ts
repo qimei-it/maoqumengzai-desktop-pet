@@ -53,15 +53,55 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   ).toBeVisible()
   await agent.getByLabel('DeepSeek API Key').fill('sk-agent-test')
   await agent.getByRole('button', { name: '保存', exact: true }).click()
-  await expect(agent.getByLabel('对话模型')).toBeVisible()
+  const input = agent.locator('.agent-input')
+  await expect(input).toHaveAttribute(
+    'placeholder',
+    '让“麻薯”来帮你工作',
+  )
+  await expect(agent.locator('.agent-empty')).toContainText(
+    '今天我们要做点什么？我可以处理待办、文件和邮件哦～',
+  )
+  await agent.evaluate(() =>
+    window.mqmz!.command({
+      type: 'settings-update',
+      patch: { petName: '测试宠' },
+    }),
+  )
+  await expect(input).toHaveAttribute(
+    'placeholder',
+    '让“测试宠”来帮你工作',
+  )
+  await agent.evaluate(() =>
+    window.mqmz!.command({
+      type: 'settings-update',
+      patch: { petName: '麻薯' },
+    }),
+  )
+  const modelTrigger = agent.getByRole('button', { name: /^选择模型/ })
+  await expect(modelTrigger).toBeVisible()
+  await expect(modelTrigger).toContainText('DeepSeek-V4.1-Flash')
 
-  await agent.getByLabel('对话模型').selectOption('deepseek-v4-pro')
+  await modelTrigger.click()
+  await agent
+    .getByRole('menuitemradio', { name: 'DeepSeek-V4-Pro', exact: true })
+    .click()
   await expect
     .poll(async () => {
       const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
       return snapshot.ok ? snapshot.value.agent.model : ''
     })
     .toBe('deepseek-v4-pro')
+
+  await modelTrigger.click()
+  await agent
+    .getByRole('menuitemradio', { name: '最高', exact: true })
+    .click()
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.agent.reasoning : ''
+    })
+    .toBe('max')
 
   await agent.getByRole('button', { name: '计划', exact: true }).click()
   await expect
@@ -141,6 +181,60 @@ test('projects group sessions and support session actions', async () => {
       return Boolean(sessionId)
     })
     .toBe(true)
+
+  const sessionProjectId = async () => {
+    const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+    return snapshot.ok
+      ? (snapshot.value.agent.sessions.find((item) => item.id === sessionId)
+          ?.projectId ?? null)
+      : projectId
+  }
+
+  const empty = agent.locator('.agent-empty')
+  await expect(empty).toBeVisible()
+  await expect(empty.locator('.agent-empty-project-name')).toHaveText(name)
+  await expect(empty.locator('.agent-empty-project-dots')).toHaveText(/^\.+$/)
+  await expect(empty.locator('br')).toHaveCount(1)
+  expect(
+    await empty.evaluate((element) => getComputedStyle(element).fontSize),
+  ).toBe('18px')
+  expect(
+    await empty.evaluate((element) => getComputedStyle(element).color),
+  ).toBe('rgb(26, 26, 26)')
+  expect(
+    await empty
+      .locator('.agent-empty-project-name')
+      .evaluate((element) => getComputedStyle(element).fontWeight),
+  ).toBe('600')
+  const emptySpaces = await empty.locator('p').evaluate((element) => {
+    const text = [...element.childNodes].map(
+      (node) => node.textContent ?? '',
+    )
+    return {
+      before: text[0]?.endsWith(' ') ?? false,
+      after: text[2]?.startsWith(' ') ?? false,
+    }
+  })
+  expect(emptySpaces).toEqual({ before: true, after: true })
+
+  await agent.locator('.agent-workspace-select').click()
+  const search = agent.getByPlaceholder('搜索项目')
+  await expect(search).toBeVisible()
+  await search.fill('没有这个项目')
+  await expect(agent.getByText('没有匹配的项目')).toBeVisible()
+  await search.fill(name)
+  const projectOption = agent.getByRole('option', { name, exact: true })
+  await expect(projectOption).toHaveAttribute('aria-selected', 'true')
+  await agent.getByRole('button', { name: '不在项目中工作' }).click()
+  await expect.poll(sessionProjectId).toBeNull()
+  await expect(empty).toContainText(
+    '今天我们要做点什么？我可以处理待办、文件和邮件哦～',
+  )
+
+  await agent.locator('.agent-workspace-select').click()
+  await agent.getByRole('option', { name, exact: true }).click()
+  await expect.poll(sessionProjectId).toBe(projectId)
+  await expect(empty.locator('.agent-empty-project-name')).toHaveText(name)
 
   await expect(agent.getByText('项目', { exact: true })).toBeVisible()
   const projectRow = agent
@@ -262,6 +356,46 @@ test('projects group sessions and support session actions', async () => {
     })
     .toBe(projectId)
 
+  const pinnedSection = agent
+    .locator('.agent-section')
+    .filter({ hasText: '置顶' })
+  await expect(pinnedSection).toBeVisible()
+  const pinnedRow = pinnedSection
+    .locator('.agent-session')
+    .filter({ hasText: '重命名测试' })
+  await expect(pinnedRow).toBeVisible()
+  await pinnedRow.hover()
+  await expect(
+    pinnedRow.getByRole('button', { name: '取消置顶' }),
+  ).toBeVisible()
+  await expect(
+    pinnedRow.getByRole('button', { name: '删除对话' }),
+  ).toBeVisible()
+  await expect(
+    pinnedRow.getByRole('button', { name: '对话菜单' }),
+  ).toHaveCount(0)
+  await expect(
+    agent
+      .locator('.agent-project-sessions .agent-session')
+      .filter({ hasText: '重命名测试' }),
+  ).toHaveCount(0)
+
+  await pinnedRow.getByRole('button', { name: '取消置顶' }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.sessions.find((item) => item.id === sessionId)
+            ?.pinned
+        : true
+    })
+    .toBe(false)
+  await expect(
+    agent
+      .locator('.agent-project-sessions .agent-session')
+      .filter({ hasText: '重命名测试' }),
+  ).toBeVisible()
+
   await agent.evaluate(
     ({ id }) =>
       window.mqmz!.command({
@@ -281,14 +415,65 @@ test('projects group sessions and support session actions', async () => {
     })
     .toBe('项目重命名')
 
-  await agent.evaluate(
-    (id) => window.mqmz!.command({ type: 'agent-session-delete', id }),
-    sessionId,
+  const deletableSession = agent.locator('.agent-session', {
+    hasText: '重命名测试',
+  })
+  await deletableSession.hover()
+  await deletableSession.getByRole('button', { name: '对话菜单' }).click()
+  await agent.getByRole('menuitem', { name: '删除', exact: true }).click()
+  const sessionConfirm = agent.getByRole('alertdialog')
+  await expect(sessionConfirm).toBeVisible()
+  await expect(
+    sessionConfirm.getByRole('button', { name: '取消', exact: true }),
+  ).toBeVisible()
+  await sessionConfirm.getByRole('button', { name: '确认', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.sessions.some((item) => item.id === sessionId)
+        : true
+    })
+    .toBe(false)
+
+  const deletableProject = agent.locator('.agent-project-row', {
+    hasText: '项目重命名',
+  })
+  await deletableProject.hover()
+  await deletableProject.getByRole('button', { name: '项目菜单' }).click()
+  await agent.getByRole('menuitem', { name: '删除', exact: true }).click()
+  const projectConfirm = agent.getByRole('alertdialog')
+  await expect(projectConfirm).toBeVisible()
+  await projectConfirm.getByRole('button', { name: '确认', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? snapshot.value.agent.projects.some((item) => item.id === projectId)
+        : true
+    })
+    .toBe(false)
+
+  const fallbackProject = await agent.evaluate(
+    ({ workspace }) =>
+      window.mqmz!.command({
+        type: 'agent-project-create',
+        name: '',
+        workspace,
+      }),
+    { workspace },
   )
-  await agent.evaluate(
-    (id) => window.mqmz!.command({ type: 'agent-project-delete', id }),
-    projectId,
-  )
+  expect(fallbackProject.ok).toBe(true)
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok
+        ? (snapshot.value.agent.projects.find(
+            (item) => item.workspace === workspace,
+          )?.name ?? '')
+        : ''
+    })
+    .toBe(name)
 })
 
 test('agent window resizes, maximizes, and remembers bounds', async () => {
@@ -357,6 +542,28 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
     .toBe(true)
   await expect(agent.locator('.agent-shell.is-maximized')).toBeVisible()
 
+  const sidebarLayout = () =>
+    agent.evaluate(() => {
+      const rect = (selector: string) => {
+        const box = document
+          .querySelector(selector)!
+          .getBoundingClientRect()
+        return { x: box.x, y: box.y }
+      }
+      return {
+        side: rect('.agent-side'),
+        newChat: rect('.agent-new-chat'),
+        head: rect('.agent-head'),
+      }
+    })
+  const maximizedLayout = await sidebarLayout()
+  expect(maximizedLayout.side.x).toBeCloseTo(7, 0)
+  expect(maximizedLayout.side.y).toBeCloseTo(7, 0)
+  expect(maximizedLayout.newChat.x).toBeCloseTo(11, 0)
+  expect(maximizedLayout.newChat.y).toBeCloseTo(39, 0)
+  expect(maximizedLayout.head.x).toBeCloseTo(255, 0)
+  expect(maximizedLayout.head.y).toBeCloseTo(7, 0)
+
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'panel-control', action: 'maximize' }),
   )
@@ -377,6 +584,104 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
   await expect
     .poll(async () => (await readWindow()).maximized, { timeout: 4000 })
     .toBe(false)
+})
+
+test('agent sidebar settings opens the 智能体 section', async () => {
+  await agent.evaluate(() => window.mqmz!.command({ type: 'agent-open' }))
+  await agent.getByRole('button', { name: '设置', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await settings.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.settingsSection : ''
+    })
+    .toBe('ai')
+  const visible = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('设置'),
+    )
+    return window?.isVisible() ?? false
+  })
+  expect(visible).toBe(true)
+  const navItem = settings.getByRole('button', {
+    name: '智能体',
+    exact: true,
+  })
+  await expect(navItem).toBeVisible()
+  await expect(navItem.locator('svg')).toHaveClass(/lucide-cpu-ai/)
+  await expect(
+    settings.getByText('DeepSeek API Key', { exact: true }).first(),
+  ).toBeVisible()
+})
+
+test('composer grows to 75% of the conversation pane', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-open' }),
+  )
+  const ratio = () =>
+    agent.evaluate(() => {
+      const main = document
+        .querySelector('.agent-main')!
+        .getBoundingClientRect()
+      const form = document
+        .querySelector('.agent-composer')!
+        .getBoundingClientRect()
+      return form.width / main.width
+    })
+  const widths = () =>
+    agent.evaluate(() => {
+      const messages = document
+        .querySelector('.agent-messages-inner')!
+        .getBoundingClientRect()
+      const composer = document
+        .querySelector('.agent-composer')!
+        .getBoundingClientRect()
+      return { messages: messages.width, composer: composer.width }
+    })
+  const composerHeight = () =>
+    agent.evaluate(
+      () =>
+        document.querySelector('.agent-composer')!.getBoundingClientRect()
+          .height,
+    )
+  const readBounds = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes('智能体'),
+      )!
+      return window.getBounds()
+    })
+
+  const original = await readBounds()
+  expect(await ratio()).toBeGreaterThan(0.9)
+  const initialWidths = await widths()
+  expect(initialWidths.messages).toBeGreaterThan(0)
+  expect(
+    Math.abs(initialWidths.messages - initialWidths.composer),
+  ).toBeLessThan(16)
+  const initialHeight = await composerHeight()
+  expect(initialHeight).toBeLessThan(112)
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('智能体'),
+    )!
+    window.setBounds({ ...window.getBounds(), width: 1400, height: 800 })
+  })
+  await agent.waitForTimeout(600)
+  expect(await ratio()).toBeCloseTo(0.75, 2)
+  const enlargedWidths = await widths()
+  expect(
+    Math.abs(enlargedWidths.messages - enlargedWidths.composer),
+  ).toBeLessThan(16)
+  expect(await composerHeight()).toBeGreaterThan(initialHeight + 8)
+
+  await application.evaluate(({ BrowserWindow }, bounds) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('智能体'),
+    )!
+    window.setBounds(bounds)
+  }, original)
+  await agent.waitForTimeout(400)
 })
 
 test('pet profile section exposes create and bind entries', async () => {

@@ -1,5 +1,10 @@
 import type { ClipboardConfig, ClipboardState } from './clipboard'
-import type { AgentMode, AgentState } from './agent'
+import type {
+  AgentMode,
+  AgentReasoning,
+  AgentState,
+  AgentAttachmentPick,
+} from './agent'
 import type { DeepSeekModel } from './deepseek'
 import type { FfmpegEngineState } from './ffmpeg'
 import type { FocusSession, WaterEntry } from './focus'
@@ -17,7 +22,7 @@ import type {
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
-export type { AgentMode, AgentState } from './agent'
+export type { AgentMode, AgentState, AgentAttachmentPick } from './agent'
 export type { FfmpegEngineState, FfmpegEngineStatus } from './ffmpeg'
 export type {
   MailAccount,
@@ -45,7 +50,14 @@ export const channels = {
   saveCapture: 'mqmz:capture:save-preview',
   mailSecret: 'mqmz:mail:secret',
   mailAttachments: 'mqmz:mail:attachments',
+  agentAttachments: 'mqmz:agent:attachments',
+  agentAttachmentRemove: 'mqmz:agent:attachments-remove',
+  agentAttachmentPrune: 'mqmz:agent:attachments-prune',
+  agentSaveOutput: 'mqmz:agent:save-output',
+  agentExportAudio: 'mqmz:agent:export-audio',
+  openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
+  toastFit: 'mqmz:toast:fit',
 } as const
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -395,6 +407,8 @@ export type LocalEngineState = {
   version?: string
   error?: string
 }
+export type ToastPart = { text: string; code?: boolean }
+
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
   petBounds: Rect
@@ -424,6 +438,7 @@ export type Snapshot = {
     limit: number
   }
   toast?: string
+  toastParts?: ToastPart[]
   mailAlert?: MailAlert
   aiOpen: boolean
   ai: AiState
@@ -472,6 +487,8 @@ export type Command =
   | { type: 'remove-file'; fileId: string }
   | { type: 'reveal-file'; fileId: string }
   | { type: 'save-copy'; fileId: string }
+  | { type: 'copy-to'; fileIds: string[]; folderIds: string[]; destination: string }
+  | { type: 'move-to'; fileIds: string[]; folderIds: string[]; destination: string }
   | { type: 'wheel'; open: boolean }
   | { type: 'eat-files'; fileIds: string[]; folderIds: string[] }
   | { type: 'restore-eaten'; entryId: string }
@@ -503,7 +520,7 @@ export type Command =
   | { type: 'ai-keys' }
   | { type: 'agent-open' }
   | { type: 'agent-close' }
-  | { type: 'agent-send'; prompt: string }
+  | { type: 'agent-send'; prompt: string; attachmentIds?: string[] }
   | { type: 'agent-cancel' }
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-deny'; id: string }
@@ -534,7 +551,8 @@ export type Command =
   | { type: 'agent-session-delete'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }
   | { type: 'agent-model'; model: DeepSeekModel }
-  | { type: 'agent-workspace' }
+  | { type: 'agent-reasoning'; reasoning: AgentReasoning }
+  | { type: 'agent-workspace'; projectId: string | null }
   | { type: 'agent-config'; apiKey: string }
   | { type: 'agent-keys' }
   | { type: 'profile-create' }
@@ -548,7 +566,7 @@ export type Command =
   | { type: 'convert-output-open'; outputId: string }
   | { type: 'convert-close' }
   | { type: 'convert-reveal' }
-  | { type: 'notify'; text: string }
+  | { type: 'notify'; text: string; parts?: ToastPart[] }
   | { type: 'rename-open'; fileIds: string[]; folderIds: string[] }
   | { type: 'rename-apply'; config: RenameConfig }
   | { type: 'rename-undo' }
@@ -568,6 +586,8 @@ export type Command =
       patch: Partial<SettingsState>
     }
   | { type: 'settings-open-data' }
+  | { type: 'settings-choose-agent-dir' }
+  | { type: 'settings-open-agent-dir' }
   | { type: 'settings-clear-cache' }
   | { type: 'settings-clear-belly' }
   | { type: 'settings-open-licenses' }
@@ -779,7 +799,22 @@ export interface PrototypeApi {
   saveCapture(id: string): Promise<Result<Snapshot>>
   mailSecret(accountId: string): Promise<Result<string>>
   mailChooseAttachments(): Promise<Result<MailAttachmentPick[]>>
-  pickDirectory(): Promise<Result<string | null>>
+  pickAgentAttachments(): Promise<
+    Result<{ added: AgentAttachmentPick[]; skipped: string[] }>
+  >
+  releaseAgentAttachment(id: string): Promise<Result<void>>
+  pruneAgentAttachments(): Promise<Result<string[]>>
+  saveAgentOutput(input: {
+    text: string
+    title?: string
+  }): Promise<Result<string>>
+  exportAgentAudio(input: {
+    text: string
+    title?: string
+  }): Promise<Result<string>>
+  openExternal(url: string): Promise<Result<void>>
+  pickDirectory(title?: string): Promise<Result<string | null>>
+  toastFit(width: number, height: number): void
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
   onHover(listener: () => void): () => void
 }

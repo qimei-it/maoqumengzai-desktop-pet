@@ -12,11 +12,15 @@ import {
   hoverActions,
   maxWheelActions,
   minWheelActions,
+  sliceActionCatalog,
   sliceActions,
 } from '../shared/donut'
 import { deepseekModelIds } from '../shared/deepseek'
 
-const wheelActions = <T extends string>(catalog: readonly T[]) =>
+const wheelActions = <T extends string>(
+  catalog: readonly T[],
+  defaults: readonly T[] = catalog,
+) =>
   z
     .array(z.enum(catalog))
     .min(minWheelActions)
@@ -25,8 +29,8 @@ const wheelActions = <T extends string>(catalog: readonly T[]) =>
       (actions) => new Set(actions).size === actions.length,
       '轮盘选项不能重复',
     )
-    .default([...catalog])
-    .catch([...catalog])
+    .default([...defaults])
+    .catch([...defaults])
 
 /** The hover order shipped before the shelf moved up beside the clipboard. */
 const previousHoverActions = [
@@ -42,18 +46,32 @@ const previousHoverActions = [
   'settings',
 ] as const
 
-/** The file order shipped before the file wheel led with the agent. */
-const previousFileActions = [
-  'stash',
-  'convert',
-  'archive',
-  'extract',
-  'shrink',
-  'eat',
-  'copy',
-  'mail',
-  'rename',
-  'ask',
+/** The file orders shipped before the wheel copied a whole batch to a folder. */
+const previousFileOrders = [
+  [
+    'stash',
+    'convert',
+    'archive',
+    'extract',
+    'shrink',
+    'eat',
+    'copy',
+    'mail',
+    'rename',
+    'ask',
+  ],
+  [
+    'ask',
+    'stash',
+    'archive',
+    'extract',
+    'shrink',
+    'eat',
+    'copy',
+    'mail',
+    'convert',
+    'rename',
+  ],
 ] as const
 
 function matchesOrder<T extends string>(
@@ -68,7 +86,9 @@ function matchesOrder<T extends string>(
 
 function migrateSettings(value: Settings): Settings {
   const previousHover = matchesOrder(value.hoverWheelActions, previousHoverActions)
-  const previousFile = matchesOrder(value.fileWheelActions, previousFileActions)
+  const previousFile = previousFileOrders.some((order) =>
+    matchesOrder(value.fileWheelActions, order),
+  )
   if (!previousHover && !previousFile) return value
   return {
     ...value,
@@ -103,9 +123,10 @@ const settingsSchema = z
     aiQuotaEnabled: z.boolean().default(true),
     aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
     aiQuotaOpenAIPath: z.string().max(1024).default(''),
+    agentAttachmentDir: z.string().trim().max(4096).default(''),
     archiveFormat: z.enum(['zip', '7z']).optional(),
     hoverWheelActions: wheelActions(hoverActions),
-    fileWheelActions: wheelActions(sliceActions),
+    fileWheelActions: wheelActions(sliceActionCatalog, sliceActions),
   })
   .strict()
   .transform(({ archiveFormat: _legacyArchiveFormat, ...rest }) => rest)

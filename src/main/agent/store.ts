@@ -6,6 +6,7 @@ import { basename } from 'node:path'
 import type {
   AgentMessageView,
   AgentMode,
+  AgentReasoning,
   AgentUsage,
 } from '../../shared/agent'
 import type { DeepSeekModel } from '../../shared/deepseek'
@@ -19,11 +20,20 @@ export type StoredProject = {
   createdAt: number
 }
 
+export type StoredFileRef = {
+  id: string
+  name: string
+  path: string
+  purpose: 'user_data' | 'text_recognition' | 'rich_layout_recognition'
+  expiresAt: number | null
+}
+
 export type StoredSession = {
   id: string
   title: string
   mode: AgentMode
   model: DeepSeekModel
+  reasoning: AgentReasoning
   workspace: string | null
   projectId: string | null
   pinned: boolean
@@ -31,6 +41,7 @@ export type StoredSession = {
   updatedAt: number
   ui: AgentMessageView[]
   history: ProviderMessage[]
+  files?: StoredFileRef[]
   usage: AgentUsage
 }
 
@@ -63,6 +74,29 @@ function parseProject(value: unknown): StoredProject | null {
   }
 }
 
+function parseFileRef(value: unknown): StoredFileRef | null {
+  if (!isRecord(value)) return null
+  if (typeof value.id !== 'string' || !value.id) return null
+  if (typeof value.name !== 'string' || !value.name) return null
+  if (typeof value.path !== 'string' || !value.path) return null
+  if (
+    value.purpose !== 'user_data' &&
+    value.purpose !== 'text_recognition' &&
+    value.purpose !== 'rich_layout_recognition'
+  )
+    return null
+  return {
+    id: value.id.slice(0, 200),
+    name: value.name.slice(0, 300),
+    path: value.path,
+    purpose: value.purpose,
+    expiresAt:
+      typeof value.expiresAt === 'number' && Number.isFinite(value.expiresAt)
+        ? value.expiresAt
+        : null,
+  }
+}
+
 function parseSession(value: unknown): StoredSession | null {
   if (!isRecord(value)) return null
   if (typeof value.id !== 'string' || !value.id) return null
@@ -77,6 +111,12 @@ function parseSession(value: unknown): StoredSession | null {
     title: value.title.slice(0, 60),
     mode: value.mode as AgentMode,
     model: value.model as DeepSeekModel,
+    reasoning:
+      value.reasoning === 'off' ||
+      value.reasoning === 'low' ||
+      value.reasoning === 'max'
+        ? value.reasoning
+        : 'high',
     workspace:
       typeof value.workspace === 'string' && value.workspace
         ? value.workspace
@@ -92,6 +132,12 @@ function parseSession(value: unknown): StoredSession | null {
       typeof value.updatedAt === 'number' ? value.updatedAt : Date.now(),
     ui: (value.ui as AgentMessageView[]).slice(-maxSessionMessages),
     history: (value.history as ProviderMessage[]).slice(-maxHistoryEntries),
+    files: Array.isArray(value.files)
+      ? value.files
+          .map(parseFileRef)
+          .filter((ref): ref is StoredFileRef => Boolean(ref))
+          .slice(-200)
+      : [],
     usage: {
       input: typeof usage.input === 'number' ? usage.input : 0,
       output: typeof usage.output === 'number' ? usage.output : 0,

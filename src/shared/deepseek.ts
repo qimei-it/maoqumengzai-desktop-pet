@@ -13,8 +13,8 @@ export const deepseekSearchEndpoint = 'https://api.deepseek.com/v1/tools/search'
 export const deepseekModelIds = ['deepseek-flash', 'deepseek-v4-pro'] as const
 export type DeepSeekModel = (typeof deepseekModelIds)[number]
 export const deepseekModelLabels: Record<DeepSeekModel, string> = {
-  'deepseek-flash': 'Flash',
-  'deepseek-v4-pro': 'Pro',
+  'deepseek-flash': 'DeepSeek-V4.1-Flash',
+  'deepseek-v4-pro': 'DeepSeek-V4-Pro',
 }
 
 type RequestOptions = {

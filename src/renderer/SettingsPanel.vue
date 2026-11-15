@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, Database, Info, KeyRound, Mail, Monitor, Palette, PawPrint, Plus, QrCode, SixteenthNotes } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, QrCode, SixteenthNotes } from '@lucide/vue'
 import { formatOpenAiAccountStatus } from '../shared/ai-quota'
 import type {
   AiTestState,
@@ -30,6 +30,7 @@ import {
   hoverLabels,
   maxWheelActions,
   minWheelActions,
+  sliceActionCatalog,
   sliceActions,
   sliceLabelColumns,
   sliceLabels,
@@ -59,7 +60,7 @@ const nav = [
   { id: 'conversion', label: '格式转换', icon: Boxes },
   { id: 'mail', label: '邮件客户端', icon: Mail },
   { id: 'music', label: '音乐播放器', icon: SixteenthNotes },
-  { id: 'ai', label: 'API Key', icon: KeyRound },
+  { id: 'ai', label: '智能体', icon: CpuAi },
   { id: 'about', label: '关于', icon: Info },
 ] as const
 const section = computed<SettingsSection>(
@@ -343,6 +344,7 @@ function onEscape(): void {
             :catalog="hoverActions"
             :labels="hoverActionLabels"
             :wheel-labels="hoverLabels"
+            :defaults="hoverActions"
             :min="minWheelActions"
             :max="maxWheelActions"
             single-line
@@ -354,9 +356,10 @@ function onEscape(): void {
             v-else-if="wheelEditor === 'file'"
             title="文件轮盘"
             :actions="settings.fileWheelActions"
-            :catalog="sliceActions"
+            :catalog="sliceActionCatalog"
             :labels="sliceLabels"
             :wheel-labels="sliceLabelColumns"
+            :defaults="sliceActions"
             :min="minWheelActions"
             :max="maxWheelActions"
             single-line
@@ -1087,6 +1090,34 @@ function onEscape(): void {
                 刷新
               </button>
             </div>
+            <div class="settings-row">
+              <span class="settings-label">附件保存目录</span>
+              <span class="settings-inline settings-path-inline">
+                <span
+                  class="settings-path"
+                  :title="settings.agentAttachmentDir"
+                  >{{ settings.agentAttachmentDir }}</span
+                >
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="
+                    emit('command', { type: 'settings-choose-agent-dir' })
+                  "
+                >
+                  选择
+                </button>
+                <button
+                  type="button"
+                  class="settings-button primary"
+                  @click="
+                    emit('command', { type: 'settings-open-agent-dir' })
+                  "
+                >
+                  打开
+                </button>
+              </span>
+            </div>
           </template>
 
           <template v-else>
@@ -1463,6 +1494,23 @@ function onEscape(): void {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.settings-path-inline {
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.settings-path {
+  min-width: 0;
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-path-inline .settings-button {
+  flex: none;
 }
 .settings-switch {
   position: relative;

@@ -20,6 +20,7 @@ function session(
     title: `会话 ${index}`,
     mode: 'build',
     model: 'deepseek-flash',
+    reasoning: 'high',
     workspace: null,
     projectId,
     pinned: false,
@@ -149,6 +150,50 @@ test('filters invalid rows without dropping valid ones', async () => {
   expect(loaded.sessions.find((item) => item.id === 'session-7')?.projectId).toBe(
     'project-7',
   )
+})
+
+test('persists uploaded file references', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
+  const path = join(directory, 'agent.json')
+  const stored = session(1)
+  stored.files = [
+    {
+      id: 'file-api-1',
+      name: 'photo.png',
+      path: '/tmp/photo.png',
+      purpose: 'user_data',
+      expiresAt: 1_800_000_000_000,
+    },
+  ]
+  await saveAgentStore(path, { sessions: [stored], projects: [] })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0].files).toEqual(stored.files)
+})
+
+test('filters invalid file references without dropping valid ones', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
+  const path = join(directory, 'agent.json')
+  const stored = session(1)
+  stored.files = [
+    {
+      id: 'file-api-1',
+      name: 'photo.png',
+      path: '/tmp/photo.png',
+      purpose: 'user_data',
+      expiresAt: null,
+    },
+    {
+      id: '',
+      name: 'bad',
+      path: '/tmp/bad',
+      purpose: 'user_data',
+      expiresAt: null,
+    } as never,
+  ]
+  await saveAgentStore(path, { sessions: [stored], projects: [] })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0].files).toHaveLength(1)
+  expect(loaded.sessions[0].files?.[0].id).toBe('file-api-1')
 })
 
 test('migrates version 1 workspaces into projects', async () => {

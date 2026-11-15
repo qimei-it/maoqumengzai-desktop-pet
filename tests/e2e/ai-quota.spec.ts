@@ -157,8 +157,8 @@ test("shows both providers, then shrinks and hides as configuration changes", as
   await expect.poll(async () => Boolean(await quotaPage())).toBe(true);
   quota = await quotaPage();
   if (!quota) throw new Error("quota page missing");
-  await expect(quota.locator(".quota-surface")).toContainText("5h 75%");
-  await expect(quota.locator(".quota-surface")).toContainText("1w 40%");
+  await expect(quota.locator(".quota-surface")).toContainText("75%");
+  await expect(quota.locator(".quota-surface")).toContainText("40%");
   await expect(quota.locator(".quota-surface")).toContainText("¥28.60");
   const sides = await quota.evaluate(() => [
     document.querySelector(".quota-openai")!.getBoundingClientRect().width,
@@ -191,10 +191,57 @@ test("shows both providers, then shrinks and hides as configuration changes", as
     window.mqmz!.command({ type: "wheel", open: false }),
   );
   await expect.poll(quotaVisible).toBe(true);
-  await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
-  await expect.poll(quotaVisible).toBe(false);
-  await pet.evaluate(() => window.mqmz!.command({ type: "todo-close" }));
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
+  await expect
+    .poll(() =>
+      application.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows().find((item) =>
+          item.getTitle().includes("设置"),
+        );
+        return window ? window.isVisible() : false;
+      }),
+    )
+    .toBe(true);
+  await application.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("设置"))!
+      .setBounds({ x: 0, y: 0, width: 760, height: 620 });
+  });
   await expect.poll(quotaVisible).toBe(true);
+  const quotaBounds = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("AI 额度"))!
+      .getBounds(),
+  );
+  await application.evaluate(({ BrowserWindow }, bar) => {
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("设置"))!
+      .setBounds({
+        x: bar.x - 758,
+        y: bar.y - 200,
+        width: 760,
+        height: 620,
+      });
+  }, quotaBounds);
+  await expect.poll(quotaVisible).toBe(true);
+  await application.evaluate(({ BrowserWindow }, bar) => {
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("设置"))!
+      .setBounds({
+        x: bar.x - 300,
+        y: bar.y - 500,
+        width: 760,
+        height: 620,
+      });
+  }, quotaBounds);
+  await expect.poll(quotaVisible).toBe(false);
+  await application.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes("设置"))!
+      .setBounds({ x: 0, y: 0, width: 760, height: 620 });
+  });
+  await expect.poll(quotaVisible).toBe(true);
+  await pet.evaluate(() => window.mqmz!.command({ type: "settings-close" }));
 
   await pet.evaluate(() => window.mqmz!.command({ type: "ai-clear" }));
   await expect

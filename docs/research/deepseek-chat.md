@@ -9,6 +9,11 @@
 - 模型：`deepseek-flash`（DeepSeek-V4.1-Flash-1017）或 `deepseek-v4-pro`（DeepSeek-V4-Pro），在智能体面板选择，默认 Flash
 - 连接测试：设置页“测试链接”请求 `GET https://api.deepseek.com/models` 并显示往返延迟
 - 认证：`Authorization: Bearer <API Key>`
+- Files API：`POST https://api.deepseek.com/files`，`purpose` 支持 `user_data`、`text_recognition`、`rich_layout_recognition`；图片与文本/表格/电子书用 `user_data`，PDF/Word/PPT 用后两者，上传时的 `purpose` 必须排在 `file` 之前
+- 聊天中引用文件：`{"type":"file","file_id":"file-api-..."}`，文件仅由 `deepseek-flash` 使用
+- 文件有效期：`expires_after[anchor]=created_at`、`expires_after[seconds]` 取 3600–2592000；本项目统一 30 天并记录 `file_id` 与 `expires_at`
+- OCR：`POST https://api.deepseek.com/v1/tools/ocr`，按页返回文字，不进入 Files API
+- ASR：`POST https://api.deepseek.com/v1/tools/asr`，16-bit PCM WAV 或 Ogg Opus，单文件 ≤ 8 MB、时长 ≤ 120 秒
 - 请求关闭思考模式：`thinking: { "type": "disabled" }`，非流式返回
 - 输出上限 1600 tokens，超时 60 秒
 
@@ -16,6 +21,8 @@
 
 - `src/shared/deepseek.ts`：纯请求层，便于用本地 HTTP mock 做单元测试；不接触密钥存储
 - `src/main/ai-key.ts`：API Key 使用 Electron `safeStorage` 加密后写入 `mqmz.ai.json`（文件权限 0600）；加密不可用时才退化为同权限的本地明文，并继续只留在本机
+- `src/main/agent/attachment-pipeline.ts`：本地优先读取附件；只有扫描件、图片、缺少本地引擎的文档和 MOBI 进入上传路径
+- `src/main/agent/files.ts`：Files API 上传与 ASR 转写；上传统一 30 天过期，错误按 400/402/408/413/429/503/504 映射
 - `src/main/index.ts`：在 Electron 主进程发请求，密钥不下发到任何渲染窗口
 - `src/renderer/AskPanel.vue`：第六个轮盘扇区“智能问答”的面板；未配置时显示连接页，已配置后显示文件上下文与对话
 - 拖入的文本文件（txt/md/csv/json/代码等）最多读取 16 个，单文件 12k、总计 40k 字符；文件内容只在用户点击发送时拼入请求，不后台预上传

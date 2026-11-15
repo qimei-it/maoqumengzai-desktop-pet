@@ -44,13 +44,25 @@ ServiceContext（index.ts 提供的现有主进程能力）
 ## 面板布局
 
 - 参考 Codex 与 DSH：左侧按“项目 / 未分组”分组会话；项目来自会话的工作区，未分组保留无工作区会话。
-- 右侧只有标题栏和消息区；`计划 / 执行` 与对话模型放在底部输入框内，发送和停止也在同一行。
+- 右侧只有标题栏和消息区；底部输入框左侧依次是附件 `+`、对话工作区选择、`计划 / 执行`，右侧是模型与推理强度、发送。
+- 输入框占位为「让“{桌宠名}”来帮你工作」，不区分项目；空对话提示按当前会话是否属于项目切换，项目名使用 `.` 字符组成的虚线下划线。
+- 助手输出下方提供「保存」与「导出音频」：保存 Markdown 源格式到「设置 → 智能体 → 附件保存目录」（默认 `Downloads/maoqumengzai/agent`），音频使用系统本地语音引擎导出 WAV，不调用 DeepSeek TTS。
+- 助手 Markdown 输出支持 Mermaid 11.17.2 懒加载渲染，只渲染完整代码块，失败回退源码。
+- 输入框左下角的 `+` 打开系统文件选择框；附件在输入框顶部以药丸显示，文件类型图标复用置物架素材。最多 8 个，文本单文件 12k 字符、整轮 30k 字符；纯文本上限 2 MB，文档/图片/压缩包 20 MB，音视频 200 MB。附件正文随该条消息发送，消息里只保留文件名。
+- 附件优先本地解析：文本与代码直接读取；PDF 用 PDF.js 抽取文字；Office 走本地 LibreOffice；OFD 用 EasyOFD 渲染；EPUB 读取书脊文本；压缩包解压后只汇总可读文字；BMP/TIFF/HEIC 用 sharp 转 PNG。扫描版 PDF、图片、无本地 Office 的文档和 MOBI 才通过 DeepSeek Files API 上传，音频与视频用 FFmpeg 切成 16 kHz WAV 后调用 ASR 转写。
+- `deepseek-v4-pro` 只接受文字：需要上传解析的图片/文档在添加时直接拦截，切到 Pro 时也会移除已选附件并提示；音频转写结果按文字发送，不受影响。被拒绝或不支持的附件不会出现在输入框下方，只显示 toast。
+- Files API 上传按 30 天有效期保存 `file_id`；后续轮次到期前会自动重传，本地源文件不在时在历史里标注附件已过期。删除会话时同步删除已上传文件。
+- 对话工作区按钮显示当前项目名，点击后弹出项目选择面板：搜索项目、当前项目勾选、新建项目、不在项目中工作。选择项目会把会话的 `workspace` 设为项目目录并归入该项目；新建项目成功后自动选中；不在项目中工作时清空工作区与项目归属。
+- 模型使用完整名称：`deepseek-flash` 为 DeepSeek-V4.1-Flash，`deepseek-v4-pro` 为 DeepSeek-V4-Pro。两者都支持思考/非思考、JSON Output、Tool Calls、Responses/Anthropic API 和前缀续写，上下文 1M、最大输出 384K；图像理解仅 Flash 支持，Pro 不支持。
+- 推理强度可选关闭 / 低 / 高 / 最高，默认高。关闭时发送 `thinking.type = disabled`；开启时发送 `thinking.type = enabled` 和 `reasoning_effort`。思考模式带 `tools` 的请求必须在历史中回传 `reasoning_content`，否则接口返回 400。
+- `计划 / 执行` 使用滑块轨道切换，滑块位置随当前模式过渡。
 - macOS 使用系统红绿灯关闭窗口，不再放右上角 X；Windows 保留关闭按钮，避免无边框窗口没有退出入口。
 - 工具卡、审批卡和 token 用量保持轻量，不引入 DSH 的完整信息架构。
 
 ## 项目与会话
 
-- 侧边栏分为「新建对话」「项目」「未分组」三块；项目和未分组都支持整体展开/收起。
+- 侧边栏分为「新建对话」「项目」「未分组」三块；「新建对话」固定在侧栏顶部、不随会话列表滚动，项目和未分组都支持整体展开/收起。
+- 侧边栏不提供工作区选择入口；未分组的会话在首次执行 `shell_run` 时通过系统目录选择框确定工作区。
 - 项目保存名称、工作目录、置顶状态和创建时间；会话通过 `projectId` 归属项目，工作目录跟随项目。
 - 项目菜单：置顶、编辑、在 Finder/资源管理器中打开、删除。删除项目只移除项目，会话移动到未分组，不删除对话记录。
 - 会话菜单：重命名、置顶、移动、删除。置顶项目与会话排在同组最前。
@@ -142,5 +154,8 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 运行时真实联调：`shelf_list` 只读调用、`todo_create` 审批后落库、`shell_run` 审批后执行并返回输出、`plan` 模式未产生写入、会话重启后恢复、token 用量累计。
 - 人格切换联调：麻薯 → 小白后，下一次回复使用新名字；同一会话仍正常调用工具。
 - Electron 定向用例：`tests/e2e/agent-panel.spec.ts` 覆盖连接页、模型切换、模式切换、新建会话、宠物档案按钮。
+- 附件定向用例：`tests/e2e/agent-attachments.spec.ts` 用本地 mock 验证文本附件、图片 Files API 上传、聊天中的 `file` 内容块，以及切换 Pro 后移除上传类附件。
+- 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
+- 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败降级和 30 天过期重传。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、项目迁移、shell 超时与截断。
 - 服务契约测试：`tests/unit/services-contract.test.ts` 覆盖结构化成功返回、校验错误、设置白名单、邮件收件人、剪贴板、番茄钟边界和文本/二进制读取。

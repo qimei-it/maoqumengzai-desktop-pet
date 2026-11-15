@@ -50,6 +50,7 @@ export type Settings = {
   aiQuotaEnabled: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string
+  agentAttachmentDir: string
   hoverWheelActions: HoverAction[]
   fileWheelActions: DropAction[]
 }
@@ -75,6 +76,7 @@ export const defaultSettings: Settings = {
   aiQuotaEnabled: true,
   aiQuotaRefreshMinutes: 5,
   aiQuotaOpenAIPath: '',
+  agentAttachmentDir: '',
   hoverWheelActions: [...hoverActions],
   fileWheelActions: [...sliceActions],
 }

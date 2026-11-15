@@ -79,7 +79,7 @@ export async function ofdToImages(
   signal?: AbortSignal,
 ): Promise<{ folder: string; pages: number; files: string[] }> {
   if (signal?.aborted) throw abortError()
-  const pages = await renderOfdPages(sourcePath, signal)
+  const pages = await renderOfdPageBuffers(sourcePath, signal)
   const folder = splitOutputDirectory(sourcePath)
   const files: string[] = []
   let page = 0
@@ -117,7 +117,7 @@ export async function ofdToPdf(
   signal?: AbortSignal,
 ): Promise<string> {
   if (signal?.aborted) throw abortError()
-  const pages = await renderOfdPages(sourcePath, signal)
+  const pages = await renderOfdPageBuffers(sourcePath, signal)
   if (!pages.length) throw new Error('OFD 没有可渲染的页面。')
   const pdf = await PDFDocument.create()
   for (const png of pages) {
@@ -136,7 +136,7 @@ export async function ofdToPdf(
   )
 }
 
-async function renderOfdPages(
+export async function renderOfdPageBuffers(
   sourcePath: string,
   signal?: AbortSignal,
 ): Promise<Buffer[]> {

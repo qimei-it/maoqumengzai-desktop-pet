@@ -1,12 +1,16 @@
 /** Agent loop: streaming, tool calls, approvals, cancellation and sessions. */
 
 import { randomUUID } from 'node:crypto'
+import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
   AgentApproval,
+  AgentAttachmentInput,
+  AgentAttachmentView,
   AgentMessageView,
   AgentMode,
   AgentPetProfile,
+  AgentReasoning,
   AgentState,
   AgentTextPart,
   AgentToolPart,
@@ -20,14 +24,23 @@ import {
   maxSessionMessages,
   maxAgentSessions,
   saveAgentStore,
+  type StoredFileRef,
   type StoredProject,
   type StoredSession,
 } from './store'
 import {
   streamChat,
+  type ProviderContentBlock,
   type ProviderMessage,
+  type ProviderUserContent,
   type StreamResult,
 } from './provider'
+import {
+  deleteAgentFile,
+  transcribeAgentAudio,
+  uploadAgentFile,
+  type AgentFilePurpose,
+} from './files'
 import {
   createTools,
   permissionFor,
@@ -36,6 +49,20 @@ import {
   type AgentTool,
 } from './tools'
 import type { Services } from '../services/contracts'
+
+export type AgentFilesClient = {
+  upload(
+    apiKey: string,
+    path: string,
+    purpose: AgentFilePurpose,
+    signal: AbortSignal,
+  ): Promise<{ id: string; expiresAt: number | null }>
+  transcribe(
+    apiKey: string,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<string>
+}
 
 export type AgentRuntimeDeps = {
   services: Services
@@ -47,12 +74,14 @@ export type AgentRuntimeDeps = {
   pickWorkspace(): Promise<string | null>
   /** Injectable for tests; production uses the real streaming client. */
   stream?: typeof streamChat
+  /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
+  files?: AgentFilesClient
 }
 
 export type AgentRuntime = {
   load(): Promise<void>
   state(): AgentState
-  send(prompt: string): Promise<void>
+  send(prompt: string, attachments?: AgentAttachmentInput[]): Promise<void>
   cancel(): void
   approve(id: string): void
   deny(id: string): void
@@ -72,7 +101,8 @@ export type AgentRuntime = {
   remove(id: string): void
   setMode(mode: AgentMode): void
   setModel(model: DeepSeekModel): void
-  chooseWorkspace(): Promise<void>
+  setReasoning(reasoning: AgentReasoning): void
+  setWorkspace(projectId: string | null): void
   flush(): Promise<void>
 }
 
@@ -94,6 +124,7 @@ function newSession(
     title: '新会话',
     mode: 'build',
     model,
+    reasoning: 'high',
     workspace,
     projectId,
     pinned: false,
@@ -101,6 +132,7 @@ function newSession(
     updatedAt: stamp,
     ui: [],
     history: [],
+    files: [],
     usage: { input: 0, output: 0 },
   }
 }
@@ -133,8 +165,23 @@ function pushHistory(
     session.history.splice(0, session.history.length - maxHistoryEntries)
 }
 
+function trimContent(
+  content: ProviderUserContent,
+  limit: number,
+): ProviderUserContent {
+  if (typeof content === 'string') return truncate(content, limit)
+  return content.map((block) =>
+    block.type === 'text'
+      ? { ...block, text: truncate(block.text, limit) }
+      : block,
+  )
+}
+
 /** Keeps recent context and never starts on an orphan tool result. */
-function trimHistory(history: ProviderMessage[]): ProviderMessage[] {
+function trimHistory(
+  history: ProviderMessage[],
+  model: DeepSeekModel,
+): ProviderMessage[] {
   const recent = history.slice(-maxShellHistory)
   while (recent.length && recent[0].role === 'tool') recent.shift()
   return recent.map((message) => {
@@ -146,7 +193,21 @@ function trimHistory(history: ProviderMessage[]): ProviderMessage[] {
     }
     if (message.role === 'tool')
       return { ...message, content: truncate(message.content, 8000) }
-    return { ...message, content: truncate(message.content, 8000) }
+    if (message.role === 'user') {
+      let content = message.content
+      if (model === 'deepseek-v4-pro' && Array.isArray(content)) {
+        content = content.map((block) =>
+          block.type === 'file'
+            ? {
+                type: 'text' as const,
+                text: '[当前模型无法读取之前上传的图片或文档附件]',
+              }
+            : block,
+        )
+      }
+      return { role: 'user', content: trimContent(content, 40_000) }
+    }
+    return message
   })
 }
 
@@ -176,8 +237,32 @@ function systemPrompt(
   ].join('\n')
 }
 
+function projectNameValue(name: string, workspace: string): string {
+  const value = name.trim()
+  if (value) return value.slice(0, 40)
+  return (basename(workspace) || '项目').slice(0, 40)
+}
+
+function escapeAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback
+}
+
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const stream = deps.stream ?? streamChat
+  const files: AgentFilesClient = deps.files ?? {
+    upload: (apiKey, path, purpose, signal) =>
+      uploadAgentFile(apiKey, path, purpose, { signal }),
+    transcribe: (apiKey, path, signal) =>
+      transcribeAgentAudio(apiKey, path, { signal }),
+  }
   const tools = createTools(deps.services)
   const toolList = Object.values(tools)
   const buildDefinitions = toolList.map(toolDefinition)
@@ -217,6 +302,150 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
   function emit(): void {
     deps.broadcast()
+  }
+
+  async function refreshFileRefs(
+    session: StoredSession,
+    key: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (session.model !== 'deepseek-flash') return
+    const refs = session.files ?? []
+    if (!refs.length) return
+    let changed = false
+    for (const message of session.history) {
+      if (message.role !== 'user' || !Array.isArray(message.content)) continue
+      for (let index = 0; index < message.content.length; index += 1) {
+        const block = message.content[index]
+        if (block.type !== 'file') continue
+        const ref = refs.find((item) => item.id === block.file_id)
+        if (!ref) continue
+        if (
+          ref.expiresAt === null ||
+          ref.expiresAt - Date.now() > 60 * 60 * 1000
+        )
+          continue
+        try {
+          const info = await stat(ref.path).catch(() => null)
+          if (!info?.isFile()) throw new Error('源文件已不在')
+          const uploaded = await files.upload(
+            key,
+            ref.path,
+            ref.purpose,
+            signal,
+          )
+          message.content[index] = {
+            type: 'file',
+            file_id: uploaded.id,
+          }
+          ref.id = uploaded.id
+          ref.expiresAt = uploaded.expiresAt
+        } catch {
+          message.content[index] = {
+            type: 'text',
+            text: `[附件 ${ref.name} 已过期，无法再次读取]`,
+          }
+        }
+        changed = true
+      }
+    }
+    if (changed) {
+      session.updatedAt = now()
+      persist()
+    }
+  }
+
+  async function buildUserContent(
+    session: StoredSession,
+    key: string,
+    prompt: string,
+    attachments: AgentAttachmentInput[],
+    signal: AbortSignal,
+  ): Promise<{ content: ProviderUserContent; views: AgentAttachmentView[] }> {
+    const views = attachments.map(({ id, name, size }) => ({ id, name, size }))
+    const textFiles = attachments.filter((item) => item.text?.trim())
+    const uploads = attachments.flatMap((item) =>
+      (item.upload ?? []).map((file) => ({ ...file, name: item.name })),
+    )
+    const audioFiles = attachments.flatMap((item) =>
+      (item.audio ?? []).map((path) => ({ path, name: item.name })),
+    )
+    if (session.model === 'deepseek-v4-pro' && uploads.length)
+      throw new Error(
+        '当前模型只支持文字附件，请切换到 DeepSeek-V4.1-Flash。',
+      )
+
+    const sections: string[] = [prompt]
+    if (textFiles.length) {
+      sections.push('以下是用户本次附加的文件内容，仅作为参考：')
+      for (const file of textFiles) {
+        sections.push(
+          [
+            `<attachment name="${escapeAttribute(file.name)}">`,
+            file.text,
+            '</attachment>',
+            ...(file.truncated ? ['（文件内容过长，已截断）'] : []),
+          ].join('\n'),
+        )
+      }
+    }
+
+    const blocks: ProviderContentBlock[] = []
+    for (const file of uploads) {
+      if (signal.aborted) throw new Error('已停止。')
+      try {
+        const uploaded = await files.upload(
+          key,
+          file.path,
+          file.purpose,
+          signal,
+        )
+        blocks.push({ type: 'file', file_id: uploaded.id })
+        session.files ??= []
+        session.files.push({
+          id: uploaded.id,
+          name: file.name,
+          path: file.path,
+          purpose: file.purpose,
+          expiresAt: uploaded.expiresAt,
+        })
+      } catch (error) {
+        sections.push(
+          `[附件 ${file.name} 上传失败：${errorMessage(error, '请稍后重试')}]`,
+        )
+      }
+    }
+
+    let transcriptChars = 0
+    for (const file of audioFiles) {
+      if (signal.aborted) throw new Error('已停止。')
+      if (transcriptChars >= 12_000) break
+      try {
+        const transcript = await files.transcribe(
+          key,
+          file.path,
+          signal,
+        )
+        const clipped = transcript.slice(0, 12_000 - transcriptChars)
+        if (!clipped) continue
+        sections.push(
+          `<transcript name="${escapeAttribute(file.name)}">\n${clipped}\n</transcript>`,
+        )
+        transcriptChars += clipped.length
+      } catch (error) {
+        sections.push(
+          `[音频 ${file.name} 转写失败：${errorMessage(error, '请稍后重试')}]`,
+        )
+      }
+    }
+
+    const text = sections.join('\n\n').slice(0, 80_000)
+    return {
+      content: blocks.length
+        ? [{ type: 'text', text }, ...blocks]
+        : text,
+      views,
+    }
   }
 
   function requestApproval(
@@ -304,6 +533,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     key: string,
     signal: AbortSignal,
   ): Promise<void> {
+    await refreshFileRefs(session, key, signal).catch(() => {})
     for (let step = 0; step < maxSteps; step += 1) {
       if (signal.aborted) return
       const assistant: AgentMessageView = {
@@ -319,6 +549,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       try {
         result = await stream(key, {
           model: session.model,
+          reasoning: session.reasoning,
           messages: [
             {
               role: 'system',
@@ -328,7 +559,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
                 deps.getPetProfile(),
               ),
             },
-            ...trimHistory(session.history),
+            ...trimHistory(session.history, session.model),
           ],
           tools:
             session.mode === 'plan' ? planDefinitions : buildDefinitions,
@@ -387,6 +618,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       pushHistory(session, {
         role: 'assistant',
         content: result.text.trim() ? result.text : null,
+        ...(result.reasoning ? { reasoning_content: result.reasoning } : {}),
         tool_calls: callEntries.map((call) => ({
           id: call.id,
           type: 'function',
@@ -516,6 +748,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         sessionId: session?.id ?? null,
         mode: session?.mode ?? 'build',
         model: session?.model ?? deps.getSettings().aiModel,
+        reasoning: session?.reasoning ?? 'high',
         workspace: session?.workspace ?? null,
         messages: session?.ui.slice(-80) ?? [],
         approval: pending?.info ?? null,
@@ -523,13 +756,21 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(errorText ? { error: errorText } : {}),
       }
     },
-    async send(prompt: string) {
+    async send(prompt: string, attachments: AgentAttachmentInput[] = []) {
       const value = prompt.trim()
       if (!value) return
       if (busy) throw new Error('正在执行，请稍候。')
       const key = deps.getKey()
       if (!key) throw new Error('请先配置 DeepSeek API Key。')
       const session = ensureSession()
+      const files = attachments.slice(0, 8)
+      if (
+        session.model === 'deepseek-v4-pro' &&
+        files.some((item) => (item.upload?.length ?? 0) > 0)
+      )
+        throw new Error(
+          '当前模型只支持文字附件，请切换到 DeepSeek-V4.1-Flash。',
+        )
       errorText = undefined
       busy = true
       controller = new AbortController()
@@ -538,18 +779,34 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         id: randomUUID(),
         role: 'user',
         parts: [{ type: 'text', text: value }],
+        ...(files.length
+          ? {
+              attachments: files.map(({ id, name, size }) => ({
+                id,
+                name,
+                size,
+              })),
+            }
+          : {}),
       }
       pushUi(session, userMessage)
-      pushHistory(session, { role: 'user', content: value })
-      if (session.title === '新会话') session.title = sessionTitle(value)
-      session.updatedAt = now()
       emit()
       try {
+        const built = await buildUserContent(
+          session,
+          key,
+          value,
+          files,
+          signal,
+        )
+        pushHistory(session, { role: 'user', content: built.content })
+        if (session.title === '新会话') session.title = sessionTitle(value)
+        session.updatedAt = now()
+        emit()
         await loop(session, key, signal)
       } catch (error) {
         if (!signal.aborted) {
-          errorText =
-            error instanceof Error ? error.message : '执行失败，请稍后重试。'
+          errorText = errorMessage(error, '执行失败，请稍后重试。')
           session.ui.push({
             id: randomUUID(),
             role: 'assistant',
@@ -560,6 +817,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         busy = false
         controller = null
         if (pending) settleApproval(false)
+        if (signal.aborted && session.ui.at(-1)?.role === 'user')
+          session.ui.push({
+            id: randomUUID(),
+            role: 'assistant',
+            parts: [{ type: 'text', text: '已停止。' }],
+          })
         session.updatedAt = now()
         persist()
         emit()
@@ -608,15 +871,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       emit()
     },
     createProject(name: string, workspace: string) {
-      const value = name.trim().slice(0, 40)
-      if (!value) throw new Error('缺少项目名称。')
-      if (!workspace.trim()) throw new Error('缺少项目文件夹。')
-      if (projects.some((item) => item.workspace === workspace))
+      const path = workspace.trim()
+      if (!path) throw new Error('缺少项目文件夹。')
+      if (projects.some((item) => item.workspace === path))
         throw new Error('这个文件夹已经是项目。')
       projects.push({
         id: randomUUID(),
-        name: value,
-        workspace,
+        name: projectNameValue(name, path),
+        workspace: path,
         pinned: false,
         createdAt: now(),
       })
@@ -628,20 +890,21 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     updateProject(id, patch) {
       const project = projects.find((item) => item.id === id)
       if (!project) return
-      if (patch.name !== undefined) {
-        const name = patch.name.trim().slice(0, 40)
-        if (!name) throw new Error('缺少项目名称。')
-        project.name = name
-      }
+      let workspace = project.workspace
       if (patch.workspace !== undefined) {
-        const workspace = patch.workspace.trim()
-        if (!workspace) throw new Error('缺少项目文件夹。')
+        const value = patch.workspace.trim()
+        if (!value) throw new Error('缺少项目文件夹。')
         if (
           projects.some(
-            (item) => item.id !== id && item.workspace === workspace,
+            (item) => item.id !== id && item.workspace === value,
           )
         )
           throw new Error('这个文件夹已经是项目。')
+        workspace = value
+      }
+      if (patch.name !== undefined)
+        project.name = projectNameValue(patch.name, workspace)
+      if (patch.workspace !== undefined) {
         project.workspace = workspace
         for (const session of sessions) {
           if (session.projectId === id) session.workspace = workspace
@@ -707,8 +970,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const index = sessions.findIndex((session) => session.id === id)
       if (index < 0) return
       if (busy && activeId === id) this.cancel()
+      const removed = sessions[index]
       sessions.splice(index, 1)
       if (activeId === id) activeId = sessions[0]?.id ?? null
+      const key = deps.getKey()
+      if (key && removed.files?.length)
+        for (const ref of removed.files)
+          void deleteAgentFile(key, ref.id).catch(() => {})
       persist()
       emit()
     },
@@ -730,11 +998,27 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
       emit()
     },
-    async chooseWorkspace() {
-      const picked = await deps.pickWorkspace()
-      if (!picked) return
+    setReasoning(reasoning: AgentReasoning) {
+      if (busy) return
       const session = ensureSession()
-      session.workspace = picked
+      if (session.reasoning === reasoning) return
+      session.reasoning = reasoning
+      session.updatedAt = now()
+      persist()
+      emit()
+    },
+    setWorkspace(projectId: string | null) {
+      if (busy) return
+      const session = ensureSession()
+      if (projectId) {
+        const project = projects.find((item) => item.id === projectId)
+        if (!project) return
+        session.workspace = project.workspace
+        session.projectId = project.id
+      } else {
+        session.workspace = null
+        session.projectId = null
+      }
       session.updatedAt = now()
       persist()
       emit()
@@ -743,10 +1027,4 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       await saveAgentStore(deps.storePath, { sessions, projects })
     },
   }
-}
-
-export function workspaceLabel(path: string | null): string {
-  if (!path) return '选择工作区'
-  const name = basename(path)
-  return name || path
 }

@@ -16,6 +16,7 @@ import {
   normalizeWheelActions,
   outlinePath,
   pointAt,
+  sliceActionCatalog,
   sliceActions,
   sliceCount,
   sliceLabels,
@@ -33,7 +34,18 @@ describe('donut menu actions', () => {
     expect(sliceActions).toHaveLength(10)
     expect(sliceActions).toContain('mail')
     expect(sliceActions).not.toContain('audio')
+    expect(sliceActions).toContain('copy-to')
+    expect(sliceActions).not.toContain('copy')
     expect(sliceLabels.mail).toBe('发送邮件')
+  })
+
+  test('the editor can add move-to and the old save-copy action', () => {
+    expect(sliceActionCatalog).toHaveLength(12)
+    expect(sliceActionCatalog).toContain('move-to')
+    expect(sliceActionCatalog).toContain('copy')
+    expect(sliceLabels['copy-to']).toBe('复制到')
+    expect(sliceLabels['move-to']).toBe('移动到')
+    expect(sliceLabels.copy).toBe('另存副本')
   })
 
   test('hover wheel keeps eight tools and adds mail plus settings', () => {

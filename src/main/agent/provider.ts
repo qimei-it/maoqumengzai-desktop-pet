@@ -4,6 +4,7 @@
  */
 
 import type { DeepSeekModel } from '../../shared/deepseek'
+import type { AgentReasoning } from '../../shared/agent'
 
 export type ProviderToolCall = {
   id: string
@@ -14,6 +15,8 @@ export type ProviderToolCall = {
 export type ProviderAssistantMessage = {
   role: 'assistant'
   content: string | null
+  /** Must be echoed back on later tool-enabled turns. */
+  reasoning_content?: string
   tool_calls?: Array<{
     id: string
     type: 'function'
@@ -21,8 +24,22 @@ export type ProviderAssistantMessage = {
   }>
 }
 
+export type ProviderTextBlock = { type: 'text'; text: string }
+export type ProviderImageBlock = {
+  type: 'image_url'
+  image_url: { url: string; detail?: 'low' | 'high' | 'original' | 'auto' }
+}
+export type ProviderFileBlock = { type: 'file'; file_id: string }
+export type ProviderContentBlock =
+  | ProviderTextBlock
+  | ProviderImageBlock
+  | ProviderFileBlock
+
+export type ProviderUserContent = string | ProviderContentBlock[]
+
 export type ProviderMessage =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: ProviderUserContent }
   | ProviderAssistantMessage
   | { role: 'tool'; tool_call_id: string; content: string }
 
@@ -37,6 +54,7 @@ export type ProviderToolDefinition = {
 
 export type StreamResult = {
   text: string
+  reasoning?: string
   toolCalls: ProviderToolCall[]
   usage?: { input: number; output: number }
   finishReason?: string
@@ -46,6 +64,7 @@ export type StreamOptions = {
   model: DeepSeekModel
   messages: ProviderMessage[]
   tools?: ProviderToolDefinition[]
+  reasoning?: AgentReasoning
   maxTokens?: number
   temperature?: number
   signal: AbortSignal
@@ -82,6 +101,7 @@ type StreamChunk = {
   choices?: Array<{
     delta?: {
       content?: string | null
+      reasoning_content?: string | null
       tool_calls?: Array<{
         index?: number
         id?: string
@@ -95,24 +115,35 @@ type StreamChunk = {
   message?: string
 }
 
-/** Streams one assistant turn, including any tool calls it requests. */
-export async function streamChat(
-  apiKey: string,
+/** Builds the DeepSeek Chat Completions payload for one streamed turn. */
+export function chatRequestBody(
   options: StreamOptions,
-): Promise<StreamResult> {
+): Record<string, unknown> {
+  const reasoning = options.reasoning ?? 'high'
+  const thinking = reasoning !== 'off'
   const body: Record<string, unknown> = {
     model: options.model,
     messages: options.messages,
     stream: true,
     stream_options: { include_usage: true },
-    thinking: { type: 'disabled' },
+    thinking: { type: thinking ? 'enabled' : 'disabled' },
+    ...(thinking ? { reasoning_effort: reasoning } : {}),
     temperature: options.temperature ?? 0.3,
-    max_tokens: options.maxTokens ?? 4096,
+    max_tokens: options.maxTokens ?? (thinking ? 32_768 : 4096),
   }
   if (options.tools?.length) {
     body.tools = options.tools
     body.tool_choice = 'auto'
   }
+  return body
+}
+
+/** Streams one assistant turn, including any tool calls it requests. */
+export async function streamChat(
+  apiKey: string,
+  options: StreamOptions,
+): Promise<StreamResult> {
+  const body = chatRequestBody(options)
 
   const timeout = AbortSignal.timeout(requestTimeoutMs)
   const signal = AbortSignal.any([options.signal, timeout])
@@ -148,6 +179,7 @@ export async function streamChat(
   if (!response.body) throw new Error('DeepSeek 没有返回内容流。')
 
   let text = ''
+  let reasoning = ''
   let finishReason: string | undefined
   let usage: StreamResult['usage']
   const calls: ProviderToolCall[] = []
@@ -176,6 +208,9 @@ export async function streamChat(
     if (choice.finish_reason) finishReason = choice.finish_reason
     const delta = choice.delta
     if (!delta) return
+    if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+      reasoning += delta.reasoning_content
+    }
     if (typeof delta.content === 'string' && delta.content) {
       text += delta.content
       options.onText?.(delta.content)
@@ -209,6 +244,7 @@ export async function streamChat(
 
   return {
     text,
+    ...(reasoning ? { reasoning } : {}),
     toolCalls: calls.filter((call) => call.name),
     ...(usage ? { usage } : {}),
     ...(finishReason ? { finishReason } : {}),

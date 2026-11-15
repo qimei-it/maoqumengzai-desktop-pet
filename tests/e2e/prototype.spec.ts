@@ -439,12 +439,36 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     .click();
   const fileRegion = settings.getByRole("region", { name: "文件轮盘" });
   await expect(fileRegion.locator(".wheel-hit")).toHaveCount(10);
+  await expect(
+    fileRegion.getByRole("button", { name: "添加移动到", exact: true }),
+  ).toBeVisible();
+  await expect(
+    fileRegion.getByRole("button", { name: "添加另存副本", exact: true }),
+  ).toBeVisible();
+  await expect(
+    fileRegion.getByRole("button", { name: "添加复制到", exact: true }),
+  ).toHaveCount(0);
   for (let index = 0; index < 6; index += 1) {
     const hit = fileRegion.locator(".wheel-hit").first();
     await hit.focus();
     await hit.press("Delete");
   }
   await expect(fileRegion.locator(".wheel-hit")).toHaveCount(4);
+  await expect(fileRegion.locator(".wheel-palette-chip")).toHaveCount(8);
+  const layout = await fileRegion.evaluate((region) => {
+    const head = region.querySelector(".wheel-page-head")!.getBoundingClientRect();
+    const palette = region.querySelector(".wheel-palette")!.getBoundingClientRect();
+    const list = region.querySelector(".wheel-palette-list")!;
+    return {
+      headBottom: head.bottom,
+      paletteTop: palette.top,
+      paletteHeight: palette.height,
+      listOverflow: list.scrollHeight > list.clientHeight,
+    };
+  });
+  expect(layout.paletteTop).toBeGreaterThanOrEqual(layout.headBottom);
+  expect(layout.paletteHeight).toBeGreaterThan(312);
+  expect(layout.listOverflow).toBe(false);
   const firstFileHit = fileRegion.locator(".wheel-hit").first();
   await firstFileHit.focus();
   await firstFileHit.press("Delete");
@@ -2164,9 +2188,55 @@ test("file-card drag gestures dispatch the system drag capability rather than a 
   expect(await readFile(fixture, "utf8")).toBe("drag-card-fixture");
 });
 
+async function clearShelf(): Promise<void> {
+  const state = await lab.evaluate(() => window.mqmz!.snapshot());
+  if (!state.ok) return;
+  for (const file of state.value.files)
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      file.id,
+    );
+}
+
+async function stubOpenPath(): Promise<void> {
+  await application.evaluate(({ shell }) => {
+    const store = globalThis as unknown as {
+      mqmzOpenPath: typeof shell.openPath;
+      mqmzOpenedPaths: string[];
+    };
+    store.mqmzOpenPath = shell.openPath;
+    store.mqmzOpenedPaths = [];
+    shell.openPath = async (path: string) => {
+      store.mqmzOpenedPaths.push(path);
+      return "";
+    };
+  });
+}
+
+async function openedPaths(): Promise<string[]> {
+  return application.evaluate(
+    () =>
+      (
+        globalThis as unknown as {
+          mqmzOpenedPaths?: string[];
+        }
+      ).mqmzOpenedPaths ?? [],
+  );
+}
+
+async function restoreOpenPath(): Promise<void> {
+  await application.evaluate(({ shell }) => {
+    const store = globalThis as unknown as {
+      mqmzOpenPath?: typeof shell.openPath;
+    };
+    if (store.mqmzOpenPath) shell.openPath = store.mqmzOpenPath;
+  });
+}
+
 async function dropOnPet(
   fixture: string | string[],
   target: "center" | "outside" | DropAction,
+  wheel: readonly DropAction[] = sliceActions,
 ): Promise<void> {
   const fixtures = Array.isArray(fixture) ? fixture : [fixture];
   const metrics = donutMetrics(1);
@@ -2216,7 +2286,7 @@ async function dropOnPet(
       ? { x: cx, y: cy }
       : target === "outside"
         ? { x: cx, y: cy + metrics.outer + 12 }
-        : pointOnSlice(target, cx, cy);
+        : pointOnSlice(target, cx, cy, wheel);
   if (target !== "center" && target !== "outside") {
     await pet.evaluate(({ x, y }) => {
       const input = document.querySelector<HTMLInputElement>("#mqmz-drop-input")!;
@@ -2256,12 +2326,12 @@ function pointOnSlice(
   action: DropAction,
   cx: number,
   cy: number,
+  wheel: readonly DropAction[] = sliceActions,
 ): { x: number; y: number } {
   const metrics = donutMetrics(1);
-  const angle = midAngle(
-    sliceActions.indexOf(action),
-    sliceActions.length,
-  );
+  const index = wheel.indexOf(action);
+  if (index < 0) throw new Error(`Action ${action} is not on the wheel`);
+  const angle = midAngle(index, wheel.length);
   return {
     x: cx + metrics.mid * Math.sin(angle),
     y: cy - metrics.mid * Math.cos(angle),
@@ -3737,6 +3807,310 @@ test("saving a real copy preserves the original and refuses to overwrite it", as
       ).mqmzSaveDialog;
     });
   }
+});
+
+test("copy-to copies a dropped file into the chosen folder and keeps the original", async () => {
+  const source = join(directory, "复制到原件.txt");
+  const target = join(directory, "复制到目标");
+  await mkdir(target, { recursive: true });
+  await writeFile(source, "copy-to-bytes");
+  await application.evaluate(({ dialog }) => {
+    (
+      globalThis as unknown as { mqmzOpenDialog: typeof dialog.showOpenDialog }
+    ).mqmzOpenDialog = dialog.showOpenDialog;
+  });
+  await stubOpenPath();
+  try {
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, target);
+    await dropOnPet(source, "copy-to");
+    await expect
+      .poll(async () => {
+        try {
+          return await readFile(join(target, "复制到原件.txt"), "utf8");
+        } catch {
+          return "";
+        }
+      })
+      .toBe("copy-to-bytes");
+    expect(await readFile(source, "utf8")).toBe("copy-to-bytes");
+    await expect
+      .poll(async () => {
+        const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+        return snapshot.ok ? snapshot.value.toast ?? "" : "";
+      })
+      .toBe("将「复制到原件.txt」复制到「复制到目标」了～");
+    const toastRenderer = (await application.windows()).find((page) =>
+      page.url().includes("view=toast"),
+    );
+    if (!toastRenderer) throw new Error("toast renderer is missing");
+    await expect(toastRenderer.locator(".toast-inline-code")).toHaveCount(2);
+    await expect(toastRenderer.locator(".toast-inline-code")).toHaveText([
+      "复制到原件.txt",
+      "复制到目标",
+    ]);
+    await expect
+      .poll(async () => {
+        const bounds = await application.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .find((window) => window.getTitle().includes("提示"))
+            ?.getBounds(),
+        );
+        return bounds?.width ?? 0;
+      })
+      .toBeGreaterThan(190);
+    expect(await openedPaths()).toContain(target);
+    await expect(pet.locator(".donut-ring")).toHaveCount(0, { timeout: 4000 });
+    await dropOnPet(source, "copy-to");
+    await expect
+      .poll(async () => {
+        try {
+          return await readFile(join(target, "复制到原件 (2).txt"), "utf8");
+        } catch {
+          return "";
+        }
+      })
+      .toBe("copy-to-bytes");
+    expect(await readFile(source, "utf8")).toBe("copy-to-bytes");
+  } finally {
+    await application.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = (
+        globalThis as unknown as {
+          mqmzOpenDialog: typeof dialog.showOpenDialog;
+        }
+      ).mqmzOpenDialog;
+    });
+    await restoreOpenPath();
+    await clearShelf();
+  }
+});
+
+test("move-to moves the original and points the shelf entry at the new path", async () => {
+  const source = join(directory, "移动到原件.txt");
+  const target = join(directory, "移动到目标");
+  await mkdir(target, { recursive: true });
+  await writeFile(source, "move-to-bytes");
+  const wheel = sliceActions.map((action) =>
+    action === "copy-to" ? "move-to" : action,
+  );
+  await lab.evaluate(
+    (actions) =>
+      window.mqmz!.command({
+        type: "settings-update",
+        patch: { fileWheelActions: actions },
+      }),
+    wheel,
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? snapshot.value.settings.fileWheelActions.includes("move-to")
+        : false;
+    })
+    .toBe(true);
+  await application.evaluate(({ dialog }) => {
+    (
+      globalThis as unknown as { mqmzOpenDialog: typeof dialog.showOpenDialog }
+    ).mqmzOpenDialog = dialog.showOpenDialog;
+  });
+  await stubOpenPath();
+  try {
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, target);
+    await dropOnPet(source, "move-to", wheel);
+    await expect
+      .poll(async () => {
+        try {
+          return await readFile(join(target, "移动到原件.txt"), "utf8");
+        } catch {
+          return "";
+        }
+      })
+      .toBe("move-to-bytes");
+    await expect
+      .poll(async () => {
+        try {
+          await readFile(source, "utf8");
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBe(false);
+    await expect
+      .poll(async () => {
+        try {
+          const shelf = JSON.parse(
+            await readFile(
+              join(directory, "data", "mqmz.file-shelf.json"),
+              "utf8",
+            ),
+          ) as { files?: { name: string; path: string }[]; entries?: { name: string; path: string }[] };
+          const entries = shelf.files ?? shelf.entries ?? [];
+          return entries.find((entry) => entry.name === "移动到原件.txt")?.path;
+        } catch {
+          return undefined;
+        }
+      })
+      .toBe(join(target, "移动到原件.txt"));
+    await expect
+      .poll(async () => {
+        const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+        return snapshot.ok ? snapshot.value.toast ?? "" : "";
+      })
+      .toBe("将「移动到原件.txt」移动到「移动到目标」了～");
+    expect(await openedPaths()).toContain(target);
+  } finally {
+    await application.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = (
+        globalThis as unknown as {
+          mqmzOpenDialog: typeof dialog.showOpenDialog;
+        }
+      ).mqmzOpenDialog;
+    });
+    await restoreOpenPath();
+    await lab.evaluate(
+      (actions) =>
+        window.mqmz!.command({
+          type: "settings-update",
+          patch: { fileWheelActions: actions },
+        }),
+      [...sliceActions],
+    );
+    await clearShelf();
+  }
+});
+
+test("copy-to and move-to handle folders recursively", async () => {
+  const folder = join(directory, "转移文件夹");
+  await mkdir(folder, { recursive: true });
+  await writeFile(join(folder, "嵌套.txt"), "nested-bytes");
+  const copied = join(directory, "文件夹复制目标");
+  const moved = join(directory, "文件夹移动目标");
+  await mkdir(copied, { recursive: true });
+  await mkdir(moved, { recursive: true });
+  await application.evaluate(({ dialog }) => {
+    (
+      globalThis as unknown as { mqmzOpenDialog: typeof dialog.showOpenDialog }
+    ).mqmzOpenDialog = dialog.showOpenDialog;
+  });
+  await stubOpenPath();
+  try {
+    await application.evaluate(({ dialog }, path) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [path],
+      });
+    }, folder);
+    await pet.evaluate(() => window.mqmz!.selectEntry());
+    await application.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = (
+        globalThis as unknown as {
+          mqmzOpenDialog: typeof dialog.showOpenDialog;
+        }
+      ).mqmzOpenDialog;
+    });
+    const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+    const entry = snapshot.ok
+      ? snapshot.value.files.find(
+          (file) => file.kind === "folder" && file.name === "转移文件夹",
+        )
+      : undefined;
+    if (!entry) throw new Error("folder entry was not registered");
+    await lab.evaluate(
+      ({ id, destination }) =>
+        window.mqmz!.command({
+          type: "copy-to",
+          fileIds: [],
+          folderIds: [id],
+          destination,
+        }),
+      { id: entry.id, destination: copied },
+    );
+    expect(await readFile(join(copied, "转移文件夹", "嵌套.txt"), "utf8")).toBe(
+      "nested-bytes",
+    );
+    expect(await readFile(join(folder, "嵌套.txt"), "utf8")).toBe("nested-bytes");
+    expect(await openedPaths()).toContain(copied);
+    await lab.evaluate(
+      ({ id, destination }) =>
+        window.mqmz!.command({
+          type: "move-to",
+          fileIds: [],
+          folderIds: [id],
+          destination,
+        }),
+      { id: entry.id, destination: moved },
+    );
+    expect(
+      await readFile(join(moved, "转移文件夹", "嵌套.txt"), "utf8"),
+    ).toBe("nested-bytes");
+    expect(await openedPaths()).toContain(moved);
+    await expect
+      .poll(async () => {
+        try {
+          await readFile(join(folder, "嵌套.txt"), "utf8");
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .toBe(false);
+    await lab.evaluate(
+      (fileId) => window.mqmz!.command({ type: "remove-file", fileId }),
+      entry.id,
+    );
+  } finally {
+    await application.evaluate(({ dialog }) => {
+      dialog.showOpenDialog = (
+        globalThis as unknown as {
+          mqmzOpenDialog: typeof dialog.showOpenDialog;
+        }
+      ).mqmzOpenDialog;
+    });
+    await restoreOpenPath();
+    await clearShelf();
+  }
+});
+
+test("long status text grows the toast bubble to fit", async () => {
+  const text =
+    "将「一份名字特别长的季度报告与附件合集以及补充说明和会议记录.zip」复制到「归档目录里的年度整理文件夹中的项目资料子目录」了～";
+  await pet.evaluate(
+    (message) => window.mqmz!.command({ type: "notify", text: message }),
+    text,
+  );
+  const bounds = async () =>
+    application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((window) => window.getTitle().includes("提示"))
+        ?.getBounds(),
+    );
+  await expect
+    .poll(async () => (await bounds())?.width ?? 0)
+    .toBeGreaterThan(190);
+  await expect
+    .poll(async () => (await bounds())?.height ?? 0)
+    .toBeGreaterThan(64);
+  const sizes = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.getTitle().includes("提示"),
+    );
+    return window && window.isVisible()
+      ? { width: window.getBounds().width, height: window.getBounds().height }
+      : null;
+  });
+  expect(sizes?.width).toBeLessThanOrEqual(320);
+  expect(sizes?.height).toBeLessThanOrEqual(220);
 });
 
 test("forged files, malformed commands, and privileged commands from the pet are rejected", async () => {

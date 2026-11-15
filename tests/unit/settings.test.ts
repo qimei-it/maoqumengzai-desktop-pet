@@ -164,11 +164,61 @@ describe('settings store', () => {
       'extract',
       'shrink',
       'eat',
-      'copy',
+      'copy-to',
       'mail',
       'convert',
       'rename',
     ])
+  })
+
+  test('migrates the agent-first file wheel order to the copy-to default', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        fileWheelActions: [
+          'ask',
+          'stash',
+          'archive',
+          'extract',
+          'shrink',
+          'eat',
+          'copy',
+          'mail',
+          'convert',
+          'rename',
+        ],
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.fileWheelActions).toEqual([
+      'ask',
+      'stash',
+      'archive',
+      'extract',
+      'shrink',
+      'eat',
+      'copy-to',
+      'mail',
+      'convert',
+      'rename',
+    ])
+  })
+
+  test('keeps a custom file wheel that still asks for 另存副本', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    const custom = ['stash', 'copy', 'mail', 'ask']
+    await writeFile(
+      path,
+      JSON.stringify({ ...defaultSettings, fileWheelActions: custom }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.existed).toBe(true)
+    expect(loaded.settings.fileWheelActions).toEqual(custom)
   })
 
   test('drops the removed archive format without losing other settings', async () => {

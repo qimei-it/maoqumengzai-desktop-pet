@@ -47,6 +47,18 @@ export function sevenZipBinaryPath(): string | null {
   return sevenZipBinary ?? null
 }
 
+export type ExtractLimits = {
+  inputBytes: number
+  entries: number
+  expandedBytes: number
+}
+
+const defaultExtractLimits: ExtractLimits = {
+  inputBytes: archiveInputLimit,
+  entries: extractEntryLimit,
+  expandedBytes: extractSizeLimit,
+}
+
 /** Builds a flat ZIP next to the first source file without replacing anything. */
 function run7z(args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -256,10 +268,13 @@ async function makeExtractFolder(zipPath: string): Promise<string> {
  */
 async function extractZip(
   zipPath: string,
+  limits: ExtractLimits,
 ): Promise<{ folder: string; count: number }> {
   const info = await stat(zipPath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  if (info.size > limits.inputBytes)
+    throw new Error(
+      `压缩包超过 ${Math.round(limits.inputBytes / 1024 / 1024)} MB，暂不支持解压。`,
+    )
   const bytes = new Uint8Array(await readFile(zipPath))
   let count = 0
   let expanded = 0
@@ -277,9 +292,9 @@ async function extractZip(
         used.add(safe)
         count += 1
         expanded += file.originalSize || 0
-        if (count > extractEntryLimit)
+        if (count > limits.entries)
           throw new Error('压缩包文件数量过多，已停止解压。')
-        if (expanded > extractSizeLimit)
+        if (expanded > limits.expandedBytes)
           throw new Error('解压后体积过大，已停止解压。')
         return true
       },
@@ -307,7 +322,10 @@ async function extractZip(
   return { folder, count }
 }
 
-function validateSevenZipFiles(files: ListItem[]): number {
+function validateSevenZipFiles(
+  files: ListItem[],
+  limits: ExtractLimits,
+): number {
   const used = new Set<string>()
   let expanded = 0
   for (const item of files) {
@@ -319,9 +337,9 @@ function validateSevenZipFiles(files: ListItem[]): number {
       throw new Error('压缩包包含重复路径，已停止解压。')
     used.add(safe)
     expanded += Number(item.size || 0)
-    if (files.length > extractEntryLimit)
+    if (files.length > limits.entries)
       throw new Error('压缩包文件数量过多，已停止解压。')
-    if (expanded > extractSizeLimit)
+    if (expanded > limits.expandedBytes)
       throw new Error('解压后体积过大，已停止解压。')
   }
   if (!files.length) throw new Error('压缩包是空的。')
@@ -338,12 +356,15 @@ async function sevenZipFiles(archivePath: string): Promise<ListItem[]> {
 
 async function extractWith7z(
   archivePath: string,
+  limits: ExtractLimits,
 ): Promise<{ folder: string; count: number }> {
   const info = await stat(archivePath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  if (info.size > limits.inputBytes)
+    throw new Error(
+      `压缩包超过 ${Math.round(limits.inputBytes / 1024 / 1024)} MB，暂不支持解压。`,
+    )
   const files = await sevenZipFiles(archivePath)
-  const count = validateSevenZipFiles(files)
+  const count = validateSevenZipFiles(files, limits)
   const folder = await makeExtractFolder(archivePath)
   try {
     await _7z.unpack(archivePath, folder)
@@ -356,10 +377,13 @@ async function extractWith7z(
 
 async function extractSingleStream(
   archivePath: string,
+  limits: ExtractLimits,
 ): Promise<{ folder: string; count: number }> {
   const info = await stat(archivePath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  if (info.size > limits.inputBytes)
+    throw new Error(
+      `压缩包超过 ${Math.round(limits.inputBytes / 1024 / 1024)} MB，暂不支持解压。`,
+    )
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-stream-'))
   try {
     await _7z.unpack(archivePath, directory)
@@ -368,7 +392,7 @@ async function extractSingleStream(
     const safe = safeArchiveEntry(names[0])
     if (!safe) throw new Error('压缩包包含不安全的路径，已停止解压。')
     const source = join(directory, names[0])
-    if ((await stat(source)).size > extractSizeLimit)
+    if ((await stat(source)).size > limits.expandedBytes)
       throw new Error('解压后体积过大，已停止解压。')
     const folder = await makeExtractFolder(archivePath)
     try {
@@ -385,24 +409,27 @@ async function extractSingleStream(
 
 async function extractTgz(
   archivePath: string,
+  limits: ExtractLimits,
 ): Promise<{ folder: string; count: number }> {
   const info = await stat(archivePath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  if (info.size > limits.inputBytes)
+    throw new Error(
+      `压缩包超过 ${Math.round(limits.inputBytes / 1024 / 1024)} MB，暂不支持解压。`,
+    )
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-tgz-'))
   try {
     const outer = await sevenZipFiles(archivePath)
-    validateSevenZipFiles(outer)
+    validateSevenZipFiles(outer, limits)
     await _7z.unpack(archivePath, directory)
     const tarName = (await readdir(directory)).find((name) =>
       name.toLowerCase().endsWith('.tar'),
     )
     if (!tarName) throw new Error('不是有效的 TGZ 压缩包。')
     const tarPath = join(directory, tarName)
-    if ((await stat(tarPath)).size > extractSizeLimit)
+    if ((await stat(tarPath)).size > limits.expandedBytes)
       throw new Error('解压后体积过大，已停止解压。')
     const files = await sevenZipFiles(tarPath)
-    const count = validateSevenZipFiles(files)
+    const count = validateSevenZipFiles(files, limits)
     const folder = await makeExtractFolder(archivePath)
     try {
       await _7z.unpack(tarPath, folder)
@@ -418,10 +445,13 @@ async function extractTgz(
 
 async function extractRar(
   archivePath: string,
+  limits: ExtractLimits,
 ): Promise<{ folder: string; count: number }> {
   const info = await stat(archivePath)
-  if (info.size > archiveInputLimit)
-    throw new Error('压缩包超过 512 MB，暂不支持解压。')
+  if (info.size > limits.inputBytes)
+    throw new Error(
+      `压缩包超过 ${Math.round(limits.inputBytes / 1024 / 1024)} MB，暂不支持解压。`,
+    )
   const bytes = await readFile(archivePath)
   const data = bytes.buffer.slice(
     bytes.byteOffset,
@@ -442,9 +472,9 @@ async function extractRar(
       throw new Error('压缩包包含重复路径，已停止解压。')
     used.add(safe)
     expanded += header.unpSize
-    if (headers.length > extractEntryLimit)
+    if (headers.length > limits.entries)
       throw new Error('压缩包文件数量过多，已停止解压。')
-    if (expanded > extractSizeLimit)
+    if (expanded > limits.expandedBytes)
       throw new Error('解压后体积过大，已停止解压。')
   }
   if (!headers.length) throw new Error('压缩包是空的。')
@@ -470,13 +500,15 @@ async function extractRar(
 
 export async function extractArchive(
   archivePath: string,
+  limits: Partial<ExtractLimits> = {},
 ): Promise<{ folder: string; count: number }> {
-  if (is7zFile(archivePath)) return extractWith7z(archivePath)
-  if (isTarFile(archivePath)) return extractWith7z(archivePath)
-  if (isTgzFile(archivePath)) return extractTgz(archivePath)
-  if (isGzFile(archivePath)) return extractSingleStream(archivePath)
-  if (isBz2File(archivePath)) return extractSingleStream(archivePath)
-  if (isXzFile(archivePath)) return extractSingleStream(archivePath)
-  if (isRarFile(archivePath)) return extractRar(archivePath)
-  return extractZip(archivePath)
+  const value: ExtractLimits = { ...defaultExtractLimits, ...limits }
+  if (is7zFile(archivePath)) return extractWith7z(archivePath, value)
+  if (isTarFile(archivePath)) return extractWith7z(archivePath, value)
+  if (isTgzFile(archivePath)) return extractTgz(archivePath, value)
+  if (isGzFile(archivePath)) return extractSingleStream(archivePath, value)
+  if (isBz2File(archivePath)) return extractSingleStream(archivePath, value)
+  if (isXzFile(archivePath)) return extractSingleStream(archivePath, value)
+  if (isRarFile(archivePath)) return extractRar(archivePath, value)
+  return extractZip(archivePath, value)
 }

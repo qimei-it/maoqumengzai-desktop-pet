@@ -22,6 +22,7 @@ import type {
   ReceivedBatch,
   Result,
   Snapshot,
+  ToastPart,
 } from "../shared/protocol";
 import {
   conversionEngineForKinds,
@@ -39,6 +40,7 @@ import {
   normalizeWheelActions,
   petSprite,
   popOut,
+  sliceActionCatalog,
   sliceActions,
   sliceLabelColumns,
   type DropAction,
@@ -184,7 +186,11 @@ watch(
   updateWheelHint,
 );
 const fileWheelActions = computed<readonly DropAction[]>(() =>
-  normalizeWheelActions(state.value?.settings.fileWheelActions, sliceActions),
+  normalizeWheelActions(
+    state.value?.settings.fileWheelActions,
+    sliceActionCatalog,
+    sliceActions,
+  ),
 );
 const hoverWheelActions = computed<readonly HoverAction[]>(() =>
   normalizeWheelActions(state.value?.settings.hoverWheelActions, hoverActions),
@@ -220,6 +226,7 @@ const displayPose = computed<PetPose>(() => {
 });
 const poseSrc = computed(() => poseSources[displayPose.value]);
 const toast = ref("");
+const toastTextEl = ref<HTMLElement | null>(null);
 const wheelHint = ref("");
 let dragFileKinds: FileKind[] = [];
 const markerScale = computed(() => state.value?.scale || 1);
@@ -277,9 +284,13 @@ async function selectEntry(): Promise<void> {
     if (api) state.value = unwrap(await api.selectEntry());
   });
 }
-function flash(message: string): void {
+function flash(message: string, parts?: ToastPart[]): void {
   if (api) {
-    void command({ type: "notify", text: message });
+    void command({
+      type: "notify",
+      text: message,
+      ...(parts ? { parts } : {}),
+    });
     return;
   }
   toast.value = message;
@@ -288,6 +299,43 @@ function flash(message: string): void {
     toast.value = "";
   }, 6000);
 }
+/** Size the separate toast window to the wrapped text and inline code. */
+function fitToast(): void {
+  const element = toastTextEl.value;
+  if (!element || !api) return;
+  const text = element.textContent ?? "";
+  if (!text) return;
+  const widthProbe = element.cloneNode(true) as HTMLElement;
+  widthProbe.style.cssText =
+    "position:fixed;left:-9999px;top:0;visibility:hidden;display:block;white-space:nowrap;width:max-content;max-width:none;";
+  document.body.append(widthProbe);
+  const intrinsic = widthProbe.getBoundingClientRect().width;
+  widthProbe.remove();
+  const chromeWidth = 22;
+  const width = Math.min(320, Math.max(190, Math.ceil(intrinsic) + chromeWidth));
+  const bodyProbe = document.createElement("div");
+  bodyProbe.className = "bubble-body toast-body";
+  bodyProbe.style.cssText = `position:fixed;left:-9999px;top:0;visibility:hidden;width:${width}px;height:auto;`;
+  const textProbe = element.cloneNode(true) as HTMLElement;
+  textProbe.style.whiteSpace = "normal";
+  bodyProbe.append(textProbe);
+  document.body.append(bodyProbe);
+  const bodyHeight = Math.max(
+    52,
+    Math.ceil(bodyProbe.getBoundingClientRect().height),
+  );
+  bodyProbe.remove();
+  api.toastFit(width, Math.min(220, bodyHeight + 12));
+}
+watch(
+  () => state.value?.toast,
+  async (text) => {
+    if (!toastView || !text || state.value?.mailAlert || !api) return;
+    await nextTick();
+    fitToast();
+  },
+  { flush: "post" },
+);
 /**
  * The wheel grows around the pet, so the point where the file first enters the
  * small window is not where the user is aiming. Slices only answer once the
@@ -556,6 +604,34 @@ const fileOnlyFolderResults: Record<string, string> = {
   stash: "未放入置物架",
   copy: "未保存副本",
 };
+/** Last path segment, for the bubble's destination name. */
+function folderDisplayName(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const parts = trimmed.split(/[\\/]/);
+  return parts[parts.length - 1] || path;
+}
+function transferNotice(
+  names: string[],
+  target: string,
+  action: "copy-to" | "move-to",
+): { text: string; parts: ToastPart[] } {
+  const name = names[0] ?? "项目";
+  const count = names.length;
+  const targetName = folderDisplayName(target);
+  const verb = action === "copy-to" ? "复制到" : "移动到";
+  const source = count > 1 ? `「${name}」等 ${count} 项` : `「${name}」`;
+  return {
+    text: `将${source}${verb}「${targetName}」了～`,
+    parts: [
+      { text: "将 " },
+      { text: name, code: true },
+      ...(count > 1 ? [{ text: ` 等 ${count} 项` }] : []),
+      { text: ` ${verb} ` },
+      { text: targetName, code: true },
+      { text: " 了～" },
+    ],
+  };
+}
 async function applyDrop(files: File[], action: DropAction): Promise<void> {
   await attemptDrop(async () => {
     if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
@@ -618,8 +694,46 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       return;
     }
 
-    const folderResult = fileOnlyFolderResults[action] ?? "未处理";
+    const folderResult =
+      fileOnlyFolderResults[action] ??
+      (action === "copy-to"
+        ? "未复制"
+        : action === "move-to"
+          ? "未移动"
+          : "未处理");
     const missed = [...folderNames, ...skipped];
+    if (action === "copy-to" || action === "move-to") {
+      if (!ids.length && !folderIds.length) {
+        flashMissedFolders(
+          skipped,
+          action === "copy-to" ? "未复制" : "未移动",
+        );
+        if (!skipped.length) flash("没有可处理的文件或文件夹");
+        return;
+      }
+      const picked = await api.pickDirectory(
+        action === "copy-to" ? "复制到文件夹" : "移动到文件夹",
+      );
+      if (!picked.ok) throw new Error(picked.error);
+      if (!picked.value) return;
+      state.value = unwrap(
+        await api.command({
+          type: action,
+          fileIds: ids,
+          folderIds,
+          destination: picked.value,
+        }),
+      );
+      const names = [...ids, ...folderIds]
+        .map(
+          (id) => state.value?.files.find((file) => file.id === id)?.name,
+        )
+        .filter((name): name is string => Boolean(name));
+      const notice = transferNotice(names, picked.value, action);
+      flash(notice.text, notice.parts);
+      flashMissedFolders(skipped, folderResult);
+      return;
+    }
     if (!ids.length) {
       flashMissedFolders(missed, folderResult);
       return;
@@ -1703,7 +1817,20 @@ onUnmounted(() => {
       </template>
     </div>
     <div v-else class="bubble-body toast-body">
-      <span class="bubble-text">{{ state?.toast }}</span>
+      <span ref="toastTextEl" class="bubble-text">
+        <template v-if="state?.toastParts?.length">
+          <template
+            v-for="(part, index) in state.toastParts"
+            :key="`${index}-${part.text}`"
+          >
+            <code v-if="part.code" class="toast-inline-code">{{
+              part.text
+            }}</code>
+            <span v-else>{{ part.text }}</span>
+          </template>
+        </template>
+        <template v-else>{{ state?.toast }}</template>
+      </span>
     </div>
   </main>
 

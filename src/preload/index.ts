@@ -34,7 +34,21 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.mailSecret, { accountId }),
   mailChooseAttachments: () =>
     ipcRenderer.invoke(channels.mailAttachments),
-  pickDirectory: () => ipcRenderer.invoke(channels.pickDirectory),
+  pickAgentAttachments: () =>
+    ipcRenderer.invoke(channels.agentAttachments),
+  releaseAgentAttachment: (id) =>
+    ipcRenderer.invoke(channels.agentAttachmentRemove, id),
+  pruneAgentAttachments: () =>
+    ipcRenderer.invoke(channels.agentAttachmentPrune),
+  saveAgentOutput: (input) =>
+    ipcRenderer.invoke(channels.agentSaveOutput, input),
+  exportAgentAudio: (input) =>
+    ipcRenderer.invoke(channels.agentExportAudio, input),
+  openExternal: (url) => ipcRenderer.invoke(channels.openExternal, url),
+  pickDirectory: (title?: string) =>
+    ipcRenderer.invoke(channels.pickDirectory, title),
+  toastFit: (width: number, height: number) =>
+    ipcRenderer.send(channels.toastFit, { width, height }),
   onSnapshot: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: Snapshot) =>
       listener(state)

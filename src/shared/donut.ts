@@ -35,7 +35,28 @@ export const popOut = 7
 export const minWheelActions = 4
 export const maxWheelActions = 10
 
-/** Every action the file wheel can offer, in the default ring order. */
+/** Every action the file wheel can offer. */
+export const sliceActionCatalog = [
+  'ask',
+  'stash',
+  'archive',
+  'extract',
+  'shrink',
+  'eat',
+  'copy-to',
+  'move-to',
+  'copy',
+  'mail',
+  'convert',
+  'rename',
+] as const
+export type DropAction = (typeof sliceActionCatalog)[number]
+
+/**
+ * The ten actions a fresh file wheel shows, in ring order. Copying the whole
+ * batch into a chosen folder replaces the per-file "save copy" so the wheel no
+ * longer repeats the pocket's own save-copy button.
+ */
 export const sliceActions = [
   'ask',
   'stash',
@@ -43,12 +64,11 @@ export const sliceActions = [
   'extract',
   'shrink',
   'eat',
-  'copy',
+  'copy-to',
   'mail',
   'convert',
   'rename',
-] as const
-export type DropAction = (typeof sliceActions)[number]
+] as const satisfies readonly DropAction[]
 /** Every action the hover wheel can offer, in the default ring order. */
 export const hoverActions = [
   'agent',
@@ -68,13 +88,15 @@ export type HoverAction = (typeof hoverActions)[number]
  * Labels follow the hover wheel's curved layout: up to three characters stay
  * on one line, four characters split into two rows of two along the words.
  */
-export const sliceLabelColumns: Record<DropAction, string[]> = {
+export const sliceLabelColumns: Record<DropAction, readonly string[]> = {
   stash: ['置物架'],
   convert: ['格式', '转换'],
   archive: ['打包', '归档'],
   extract: ['解压缩'],
   shrink: ['压缩', '大小'],
   eat: ['吃掉'],
+  'copy-to': ['复制到'],
+  'move-to': ['移动到'],
   copy: ['另存', '副本'],
   mail: ['发送', '邮件'],
   rename: ['重命名'],
@@ -88,6 +110,8 @@ export const sliceLabels: Record<DropAction, string> = {
   extract: '解压缩',
   shrink: '压缩大小',
   eat: '吃掉',
+  'copy-to': '复制到',
+  'move-to': '移动到',
   copy: '另存副本',
   mail: '发送邮件',
   rename: '重命名',

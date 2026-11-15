@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createAgentRuntime } from '../../src/main/agent/runtime'
@@ -38,6 +38,7 @@ async function makeRuntime(
   calls: string[] = [],
   override?: {
     stream?: typeof import('../../src/main/agent/provider').streamChat
+    files?: import('../../src/main/agent/runtime').AgentFilesClient
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -52,6 +53,7 @@ async function makeRuntime(
     broadcast: () => {},
     pickWorkspace: async () => directory,
     stream: override?.stream ?? script.stream,
+    ...(override?.files ? { files: override.files } : {}),
   })
   await runtime.load()
   runtime.newSession()
@@ -264,5 +266,320 @@ describe('agent runtime', () => {
     expect(state.sessions.length).toBe(1)
     expect(state.messages.length).toBe(2)
     expect(state.messages[0].role).toBe('user')
+  })
+
+  test('sends text attachments as context and keeps their names', async () => {
+    let captured: StreamOptions['messages'] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        captured = options.messages
+        options.onText?.('收到')
+        return { text: '收到', toolCalls: [] }
+      },
+    })
+    await runtime.send('看看附件', [
+      {
+        id: 'attachment-1',
+        name: 'notes.md',
+        size: 24,
+        kind: 'text',
+        mode: 'text',
+        needsModelUpload: false,
+        truncated: false,
+        text: '# 标题\n这里是附件内容',
+      },
+    ])
+
+    const user = captured.find((message) => message.role === 'user')
+    expect(user?.content).toContain('<attachment name="notes.md">')
+    expect(user?.content).toContain('这里是附件内容')
+    const message = runtime
+      .state()
+      .messages.find((item) => item.role === 'user')
+    expect(message?.attachments).toEqual([
+      { id: 'attachment-1', name: 'notes.md', size: 24 },
+    ])
+  })
+
+  test('uploads image attachments and keeps file blocks in history', async () => {
+    let captured: StreamOptions['messages'] = []
+    let uploaded = 0
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        captured = options.messages
+        options.onText?.('看到了')
+        return { text: '看到了', toolCalls: [] }
+      },
+      files: {
+        upload: async () => {
+          uploaded += 1
+          return { id: 'file-api-image', expiresAt: Date.now() + 86_400_000 }
+        },
+        transcribe: async () => '',
+      },
+    })
+    await runtime.send('看看这张图', [
+      {
+        id: 'attachment-image',
+        name: 'photo.png',
+        size: 128,
+        kind: 'image',
+        mode: 'vision',
+        needsModelUpload: true,
+        truncated: false,
+        upload: [{ path: '/tmp/photo.png', purpose: 'user_data' }],
+      },
+    ])
+
+    expect(uploaded).toBe(1)
+    const user = captured.find((message) => message.role === 'user')
+    expect(Array.isArray(user?.content)).toBe(true)
+    if (Array.isArray(user?.content)) {
+      expect(user.content[0]).toMatchObject({ type: 'text' })
+      expect(user.content[1]).toEqual({
+        type: 'file',
+        file_id: 'file-api-image',
+      })
+    }
+  })
+
+  test('turns audio attachments into transcript text', async () => {
+    let captured: StreamOptions['messages'] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        captured = options.messages
+        return { text: '听完了', toolCalls: [] }
+      },
+      files: {
+        upload: async () => ({ id: 'unused', expiresAt: null }),
+        transcribe: async () => '这是语音内容。',
+      },
+    })
+    await runtime.send('听听录音', [
+      {
+        id: 'attachment-audio',
+        name: 'voice.wav',
+        size: 1024,
+        kind: 'audio',
+        mode: 'audio',
+        needsModelUpload: false,
+        truncated: false,
+        audio: ['/tmp/voice.wav'],
+      },
+    ])
+    const user = captured.find((message) => message.role === 'user')
+    expect(typeof user?.content).toBe('string')
+    expect(user?.content).toContain('<transcript name="voice.wav">')
+    expect(user?.content).toContain('这是语音内容。')
+  })
+
+  test('blocks upload-required attachments on the Pro model', async () => {
+    const { runtime } = await makeRuntime([], [])
+    runtime.setModel('deepseek-v4-pro')
+    await expect(
+      runtime.send('看看这张图', [
+        {
+          id: 'attachment-image',
+          name: 'photo.png',
+          size: 128,
+          kind: 'image',
+          mode: 'vision',
+          needsModelUpload: true,
+          truncated: false,
+          upload: [{ path: '/tmp/photo.png', purpose: 'user_data' }],
+        },
+      ]),
+    ).rejects.toThrow('当前模型只支持文字附件')
+  })
+
+  test('keeps the turn going when an upload fails', async () => {
+    let captured: StreamOptions['messages'] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        captured = options.messages
+        return { text: '收到了', toolCalls: [] }
+      },
+      files: {
+        upload: async () => {
+          throw new Error('网络错误')
+        },
+        transcribe: async () => '',
+      },
+    })
+    await runtime.send('看看这张图', [
+      {
+        id: 'attachment-image',
+        name: 'photo.png',
+        size: 128,
+        kind: 'image',
+        mode: 'vision',
+        needsModelUpload: true,
+        truncated: false,
+        upload: [{ path: '/tmp/photo.png', purpose: 'user_data' }],
+      },
+    ])
+    const user = captured.find((message) => message.role === 'user')
+    expect(user?.content).toContain('[附件 photo.png 上传失败：网络错误]')
+  })
+
+  test('refreshes an expired uploaded file when its source still exists', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-refresh-'))
+    const source = join(directory, 'photo.png')
+    await writeFile(source, new Uint8Array([1, 2, 3]))
+    const storePath = join(directory, 'agent.json')
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 2,
+        projects: [],
+        sessions: [
+          {
+            id: 'expired-session',
+            title: '旧会话',
+            mode: 'build',
+            model: 'deepseek-flash',
+            reasoning: 'high',
+            workspace: null,
+            projectId: null,
+            pinned: false,
+            createdAt: 1,
+            updatedAt: 2,
+            ui: [
+              {
+                id: 'u1',
+                role: 'user',
+                parts: [{ type: 'text', text: '之前上传的图片' }],
+              },
+            ],
+            history: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: '之前上传的图片' },
+                  { type: 'file', file_id: 'file-api-old' },
+                ],
+              },
+            ],
+            files: [
+              {
+                id: 'file-api-old',
+                name: 'photo.png',
+                path: source,
+                purpose: 'user_data',
+                expiresAt: Date.now() - 1000,
+              },
+            ],
+            usage: { input: 0, output: 0 },
+          },
+        ],
+      }),
+    )
+    let captured: StreamOptions['messages'] = []
+    let uploads = 0
+    const runtime = createAgentRuntime({
+      services: makeServices(),
+      storePath,
+      getKey: () => 'test-key',
+      getSettings: () => ({ ...defaultSettings }),
+      getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
+      broadcast: () => {},
+      pickWorkspace: async () => directory,
+      stream: async (_key, options) => {
+        captured = options.messages
+        return { text: '好了', toolCalls: [] }
+      },
+      files: {
+        upload: async () => {
+          uploads += 1
+          return {
+            id: 'file-api-new',
+            expiresAt: Date.now() + 86_400_000,
+          }
+        },
+        transcribe: async () => '',
+      },
+    })
+    await runtime.load()
+    await runtime.send('继续')
+
+    expect(uploads).toBe(1)
+    const firstUser = captured.find((message) => message.role === 'user')
+    expect(Array.isArray(firstUser?.content)).toBe(true)
+    if (Array.isArray(firstUser?.content)) {
+      expect(firstUser.content[1]).toEqual({
+        type: 'file',
+        file_id: 'file-api-new',
+      })
+    }
+  })
+
+  test('passes reasoning effort and echoes reasoning_content with tools', async () => {
+    const seen: StreamOptions[] = []
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        seen.push(options)
+        if (seen.length === 1)
+          return {
+            text: '',
+            reasoning: '先看看置物架。',
+            toolCalls: [
+              { id: 'call-1', name: 'shelf_list', arguments: '{}' },
+            ],
+          }
+        return { text: '完成', toolCalls: [] }
+      },
+    })
+    runtime.setReasoning('max')
+    await runtime.send('列一下文件')
+
+    expect(seen[0]?.reasoning).toBe('max')
+    const assistant = seen[1]?.messages.find(
+      (message) => message.role === 'assistant',
+    )
+    expect(assistant?.reasoning_content).toBe('先看看置物架。')
+  })
+
+  test('sets the active session workspace from a project', async () => {
+    const { runtime } = await makeRuntime([], [])
+    const workspace = '/tmp/mqmz-agent-workspace'
+    runtime.createProject('工作区项目', workspace)
+    const project = runtime.state().projects[0]
+    runtime.setWorkspace(project.id)
+    let state = runtime.state()
+    expect(state.workspace).toBe(workspace)
+    expect(
+      state.sessions.find((item) => item.id === state.sessionId)?.projectId,
+    ).toBe(project.id)
+
+    runtime.setWorkspace(null)
+    state = runtime.state()
+    expect(state.workspace).toBeNull()
+    expect(
+      state.sessions.find((item) => item.id === state.sessionId)?.projectId,
+    ).toBeNull()
+  })
+
+  test('defaults project names to the folder name', async () => {
+    const { runtime } = await makeRuntime([], [])
+    runtime.createProject('', '/tmp/mqmz-project-default')
+    let project = runtime.state().projects[0]
+    expect(project.name).toBe('mqmz-project-default')
+
+    runtime.updateProject(project.id, { name: '' })
+    project = runtime.state().projects[0]
+    expect(project.name).toBe('mqmz-project-default')
+
+    runtime.updateProject(project.id, {
+      name: '',
+      workspace: '/tmp/another-project-folder',
+    })
+    project = runtime.state().projects[0]
+    expect(project.name).toBe('another-project-folder')
+
+    runtime.updateProject(project.id, {
+      workspace: '/tmp/third-project-folder',
+    })
+    project = runtime.state().projects[0]
+    expect(project.name).toBe('another-project-folder')
   })
 })

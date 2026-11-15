@@ -9,9 +9,11 @@ import {
 } from 'vue'
 import {
   AlertTriangle,
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
+  Download,
   Ellipsis,
   Folder,
   FolderClosed,
@@ -23,6 +25,10 @@ import {
   Minus,
   PenLine,
   Pin,
+  PinOff,
+  Plus,
+  Save,
+  Search,
   Send,
   Settings,
   Square,
@@ -32,9 +38,15 @@ import {
 } from '@lucide/vue'
 import {
   agentModeLabels,
+  agentReasoningLabels,
+  agentReasoningLevels,
+  type AgentAttachmentPick,
+  type AgentMessageView,
   type AgentMode,
   type AgentProjectView,
+  type AgentReasoning,
   type AgentSessionSummary,
+  type AgentTextPart,
 } from '../shared/agent'
 import {
   deepseekModelIds,
@@ -42,7 +54,8 @@ import {
   type DeepSeekModel,
 } from '../shared/deepseek'
 import type { Command, Snapshot } from '../shared/protocol'
-import SelectField from './SelectField.vue'
+import FileTypeIcon from './FileTypeIcon.vue'
+import MarkdownView from './MarkdownView.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -57,10 +70,21 @@ type DialogState =
   | { kind: 'rename-session'; id: string }
   | { kind: 'move-session'; id: string }
 
+type ConfirmState = {
+  kind: 'session' | 'project'
+  id: string
+  title: string
+}
+
 const agent = computed(() => props.state?.agent)
 const configured = computed(() => agent.value?.configured === true)
 const busy = computed(() => agent.value?.busy === true)
 const draft = ref('')
+const attachments = ref<AgentAttachmentPick[]>([])
+const attachmentError = ref('')
+const outputBusy = ref<{ id: string; action: 'save' | 'audio' } | null>(
+  null,
+)
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
 const mac = /Mac/i.test(navigator.platform)
@@ -68,11 +92,13 @@ const maximized = computed(() => props.state?.agentMaximized === true)
 
 const projects = computed(() => agent.value?.projects ?? [])
 const sessions = computed(() => agent.value?.sessions ?? [])
+const pinnedOpen = ref(true)
 const projectsOpen = ref(true)
 const ungroupedOpen = ref(true)
 const expanded = ref<Record<string, boolean>>({})
 const menu = ref<MenuState | null>(null)
 const dialog = ref<DialogState | null>(null)
+const confirm = ref<ConfirmState | null>(null)
 const draftName = ref('')
 const draftWorkspace = ref('')
 const dialogInput = ref<HTMLInputElement>()
@@ -82,23 +108,76 @@ const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
 const model = computed<DeepSeekModel>(
   () => agent.value?.model ?? 'deepseek-flash',
 )
+watch(model, async (value) => {
+  if (value !== 'deepseek-v4-pro') return
+  const result = await window.mqmz?.pruneAgentAttachments()
+  if (!result?.ok || !result.value.length) return
+  const removed = new Set(result.value)
+  attachments.value = attachments.value.filter(
+    (item) => !removed.has(item.id),
+  )
+})
+const reasoning = computed<AgentReasoning>(
+  () => agent.value?.reasoning ?? 'high',
+)
+const modelMenuOpen = ref(false)
+const modelPicker = ref<HTMLElement>()
+const workspaceMenuOpen = ref(false)
+const workspaceSearch = ref('')
+const workspacePicker = ref<HTMLElement>()
+const workspaceSearchInput = ref<HTMLInputElement>()
+const selectCreatedProject = ref(false)
+const workspace = computed(() => agent.value?.workspace ?? null)
 const activeSession = computed(() =>
   sessions.value.find((item) => item.id === agent.value?.sessionId),
 )
-const title = computed(() => activeSession.value?.title ?? '新会话')
-const workspace = computed(() => {
-  const path = agent.value?.workspace
+const activeProject = computed(() =>
+  projects.value.find(
+    (item) => item.id === activeSession.value?.projectId,
+  ),
+)
+const workspaceLabel = computed(() => {
+  if (activeProject.value) return activeProject.value.name
+  const path = workspace.value
   if (!path) return '选择工作区'
-  return groupName(path)
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
+})
+const filteredProjects = computed(() => {
+  const query = workspaceSearch.value.trim().toLowerCase()
+  if (!query) return projects.value
+  return projects.value.filter((item) =>
+    item.name.toLowerCase().includes(query),
+  )
+})
+const title = computed(() => activeSession.value?.title ?? '新会话')
+const petName = computed(() => {
+  const name = props.state?.settings.petName?.trim()
+  return name || '麻薯'
+})
+const projectDots = '.'.repeat(200)
+const longProjectName = computed(() => {
+  const name = activeProject.value?.name ?? ''
+  const width = [...name].reduce(
+    (sum, character) => sum + (/[^\x00-\xff]/.test(character) ? 2 : 1),
+    0,
+  )
+  return width > 16
 })
 const canSend = computed(
   () => Boolean(draft.value.trim()) && !busy.value && configured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
 
-const ungrouped = computed(() => sortSessions(
-  sessions.value.filter((session) => !session.projectId),
-))
+const ungrouped = computed(() =>
+  sortSessions(
+    sessions.value.filter(
+      (session) => !session.projectId && !session.pinned,
+    ),
+  ),
+)
+const pinnedSessions = computed(() =>
+  sortSessions(sessions.value.filter((session) => session.pinned)),
+)
 
 const menuProject = computed(() =>
   menu.value?.kind === 'project'
@@ -126,10 +205,6 @@ const moveSession = computed(() => {
   return sessions.value.find((item) => item.id === state.id)
 })
 
-function groupName(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path
-}
-
 function sortSessions(list: AgentSessionSummary[]): AgentSessionSummary[] {
   return [...list].sort(
     (left, right) =>
@@ -140,7 +215,10 @@ function sortSessions(list: AgentSessionSummary[]): AgentSessionSummary[] {
 
 function projectSessions(projectId: string): AgentSessionSummary[] {
   return sortSessions(
-    sessions.value.filter((session) => session.projectId === projectId),
+    sessions.value.filter(
+      (session) =>
+        session.projectId === projectId && !session.pinned,
+    ),
   )
 }
 
@@ -157,6 +235,7 @@ function toggleProject(id: string): void {
 watch(
   () => agent.value?.sessionId,
   () => {
+    clearAttachments()
     const session = activeSession.value
     if (session?.projectId)
       expanded.value = {
@@ -178,11 +257,82 @@ watch(
   { deep: true },
 )
 
+async function addAttachments(): Promise<void> {
+  if (busy.value) return
+  attachmentError.value = ''
+  const result = await window.mqmz!.pickAgentAttachments()
+  if (!result.ok) {
+    attachmentError.value = result.error
+    return
+  }
+  const known = new Set(attachments.value.map((item) => item.id))
+  attachments.value = [
+    ...attachments.value,
+    ...result.value.added.filter((item) => !known.has(item.id)),
+  ]
+}
+
+function assistantText(message: AgentMessageView): string {
+  return message.parts
+    .filter((part): part is AgentTextPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n\n')
+    .trim()
+}
+
+async function saveOutput(message: AgentMessageView): Promise<void> {
+  const text = assistantText(message)
+  if (!text || outputBusy.value) return
+  outputBusy.value = { id: message.id, action: 'save' }
+  try {
+    await window.mqmz?.saveAgentOutput({
+      text,
+      title: title.value || '智能体回复',
+    })
+  } finally {
+    outputBusy.value = null
+  }
+}
+
+async function exportAudio(message: AgentMessageView): Promise<void> {
+  const text = assistantText(message)
+  if (!text || outputBusy.value) return
+  outputBusy.value = { id: message.id, action: 'audio' }
+  try {
+    await window.mqmz?.exportAgentAudio({
+      text,
+      title: title.value || '智能体回复',
+    })
+  } finally {
+    outputBusy.value = null
+  }
+}
+
+function removeAttachment(id: string): void {
+  attachments.value = attachments.value.filter((item) => item.id !== id)
+  void window.mqmz!.releaseAgentAttachment(id)
+}
+
+function clearAttachments(): void {
+  for (const item of attachments.value)
+    void window.mqmz!.releaseAgentAttachment(item.id)
+  attachments.value = []
+  attachmentError.value = ''
+}
+
 function send(): void {
   const prompt = draft.value.trim()
   if (!prompt || busy.value || !configured.value) return
-  emit('command', { type: 'agent-send', prompt })
+  const attachmentIds = attachments.value.map((item) => item.id)
+  modelMenuOpen.value = false
+  emit('command', {
+    type: 'agent-send',
+    prompt,
+    ...(attachmentIds.length ? { attachmentIds } : {}),
+  })
   draft.value = ''
+  attachments.value = []
+  attachmentError.value = ''
 }
 function stop(): void {
   emit('command', { type: 'agent-cancel' })
@@ -215,21 +365,59 @@ function selectSession(id: string): void {
   emit('command', { type: 'agent-session-select', id })
 }
 function removeSession(id: string): void {
-  if (!window.confirm('删除这个对话？')) return
-  emit('command', { type: 'agent-session-delete', id })
+  confirm.value = { kind: 'session', id, title: '删除这个对话？' }
 }
-function chooseWorkspace(): void {
-  emit('command', { type: 'agent-workspace' })
+function deleteSessionFromMenu(session: AgentSessionSummary): void {
+  closeMenu()
+  removeSession(session.id)
+}
+function confirmRemove(): void {
+  const pending = confirm.value
+  if (!pending) return
+  confirm.value = null
+  if (pending.kind === 'session') {
+    emit('command', { type: 'agent-session-delete', id: pending.id })
+    return
+  }
+  emit('command', { type: 'agent-project-delete', id: pending.id })
+  if (dialog.value?.kind === 'edit-project') closeDialog()
 }
 function setMode(value: AgentMode): void {
   if (mode.value === value) return
   emit('command', { type: 'agent-mode', mode: value })
 }
-function setModel(value: string | number): void {
-  emit('command', {
-    type: 'agent-model',
-    model: value as DeepSeekModel,
-  })
+function setModel(value: DeepSeekModel): void {
+  modelMenuOpen.value = false
+  if (model.value === value) return
+  emit('command', { type: 'agent-model', model: value })
+}
+function setReasoning(value: AgentReasoning): void {
+  modelMenuOpen.value = false
+  if (reasoning.value === value) return
+  emit('command', { type: 'agent-reasoning', reasoning: value })
+}
+function toggleWorkspaceMenu(): void {
+  if (busy.value) return
+  modelMenuOpen.value = false
+  workspaceMenuOpen.value = !workspaceMenuOpen.value
+  if (!workspaceMenuOpen.value) return
+  workspaceSearch.value = ''
+  void nextTick(() => workspaceSearchInput.value?.focus())
+}
+function closeWorkspaceMenu(): void {
+  workspaceMenuOpen.value = false
+  workspaceSearch.value = ''
+}
+function selectWorkspaceProject(projectId: string | null): void {
+  closeWorkspaceMenu()
+  emit('command', { type: 'agent-workspace', projectId })
+}
+function createProjectFromWorkspace(): void {
+  closeWorkspaceMenu()
+  openCreateProject(true)
+}
+function openApiKeySettings(): void {
+  emit('command', { type: 'settings-section', section: 'ai' })
 }
 function approve(id: string): void {
   emit('command', { type: 'agent-approve', id })
@@ -265,10 +453,11 @@ function closeMenu(): void {
   menu.value = null
 }
 
-function openCreateProject(): void {
+function openCreateProject(autoSelect = false): void {
   draftName.value = ''
   draftWorkspace.value = ''
   dialogError.value = ''
+  selectCreatedProject.value = autoSelect
   dialog.value = { kind: 'create-project' }
   focusDialogInput()
 }
@@ -302,8 +491,11 @@ function focusDialogInput(): void {
 function closeDialog(): void {
   dialog.value = null
   dialogError.value = ''
+  selectCreatedProject.value = false
 }
-async function runDialogCommand(command: Command): Promise<boolean> {
+async function runDialogCommand(
+  command: Command,
+): Promise<Snapshot | true | null> {
   const api = window.mqmz
   if (!api) {
     emit('command', command)
@@ -312,9 +504,9 @@ async function runDialogCommand(command: Command): Promise<boolean> {
   const result = await api.command(command)
   if (!result.ok) {
     dialogError.value = result.error
-    return false
+    return null
   }
-  return true
+  return result.value
 }
 async function pickFolder(): Promise<void> {
   const result = await window.mqmz?.pickDirectory()
@@ -328,13 +520,22 @@ async function pickFolder(): Promise<void> {
 async function createProject(): Promise<void> {
   const name = draftName.value.trim()
   const path = draftWorkspace.value.trim()
-  if (!name || !path) return
-  const saved = await runDialogCommand({
+  if (!path) return
+  const autoSelect = selectCreatedProject.value
+  const snapshot = await runDialogCommand({
     type: 'agent-project-create',
     name,
     workspace: path,
   })
-  if (saved) closeDialog()
+  if (!snapshot) return
+  closeDialog()
+  if (autoSelect && snapshot !== true) {
+    const created = snapshot.agent.projects.find(
+      (item) => item.workspace === path,
+    )
+    if (created)
+      emit('command', { type: 'agent-workspace', projectId: created.id })
+  }
 }
 async function saveProject(): Promise<void> {
   if (dialog.value?.kind !== 'edit-project') return
@@ -342,7 +543,7 @@ async function saveProject(): Promise<void> {
   if (!project) return
   const name = draftName.value.trim()
   const path = draftWorkspace.value.trim()
-  if (!name || !path) return
+  if (!path) return
   const saved = await runDialogCommand({
     type: 'agent-project-update',
     id: project.id,
@@ -351,16 +552,15 @@ async function saveProject(): Promise<void> {
   })
   if (saved) closeDialog()
 }
-async function removeProject(): Promise<void> {
+function removeProject(): void {
   if (dialog.value?.kind !== 'edit-project') return
   const project = editProject.value
   if (!project) return
-  if (!window.confirm('移除这个项目？项目下的对话会移动到未分组。')) return
-  const removed = await runDialogCommand({
-    type: 'agent-project-delete',
+  confirm.value = {
+    kind: 'project',
     id: project.id,
-  })
-  if (removed) closeDialog()
+    title: '移除这个项目？',
+  }
 }
 function toggleProjectPin(project: AgentProjectView): void {
   emit('command', {
@@ -380,8 +580,11 @@ function editProjectFromMenu(project: AgentProjectView): void {
 }
 function deleteProjectFromMenu(project: AgentProjectView): void {
   closeMenu()
-  if (!window.confirm('移除这个项目？项目下的对话会移动到未分组。')) return
-  emit('command', { type: 'agent-project-delete', id: project.id })
+  confirm.value = {
+    kind: 'project',
+    id: project.id,
+    title: '移除这个项目？',
+  }
 }
 function renameFromMenu(session: AgentSessionSummary): void {
   closeMenu()
@@ -422,11 +625,27 @@ async function moveTo(projectId: string | null): Promise<void> {
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
-  if (menu.value) menu.value = null
+  if (confirm.value) confirm.value = null
+  else if (modelMenuOpen.value) modelMenuOpen.value = false
+  else if (workspaceMenuOpen.value) closeWorkspaceMenu()
+  else if (menu.value) menu.value = null
   else if (dialog.value) dialog.value = null
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+function onDocumentMouseDown(event: MouseEvent): void {
+  const target = event.target as Node
+  if (modelMenuOpen.value && !modelPicker.value?.contains(target))
+    modelMenuOpen.value = false
+  if (workspaceMenuOpen.value && !workspacePicker.value?.contains(target))
+    closeWorkspaceMenu()
+}
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('mousedown', onDocumentMouseDown)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('mousedown', onDocumentMouseDown)
+})
 
 const statusLabels: Record<string, string> = {
   running: '执行中',
@@ -453,15 +672,86 @@ function statusLabel(status: string): string {
           @dblclick="onHeaderDoubleClick"
         ></div>
 
-        <div class="agent-side-scroll">
+        <div class="agent-side-top">
           <button type="button" class="agent-new-chat" @click="newSession">
             <MessageCirclePlus
-              :size="16"
+              :size="12"
               :stroke-width="2"
               aria-hidden="true"
             />
             <span>新建对话</span>
           </button>
+        </div>
+
+        <div class="agent-side-scroll">
+          <section v-if="pinnedSessions.length" class="agent-section">
+            <div class="agent-section-head">
+              <button
+                type="button"
+                class="agent-section-title"
+                :aria-expanded="pinnedOpen"
+                @click="pinnedOpen = !pinnedOpen"
+              >
+                <span>置顶</span>
+                <ChevronDown
+                  v-if="pinnedOpen"
+                  :size="12"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+                <ChevronRight
+                  v-else
+                  :size="12"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+
+            <div v-if="pinnedOpen">
+              <div
+                v-for="session in pinnedSessions"
+                :key="session.id"
+                class="agent-session"
+                :class="{ active: session.id === agent?.sessionId }"
+                role="button"
+                tabindex="0"
+                :aria-current="session.id === agent?.sessionId"
+                @click="selectSession(session.id)"
+                @keydown.enter.prevent="selectSession(session.id)"
+              >
+                <span class="agent-session-text">{{ session.title }}</span>
+                <span class="agent-row-actions">
+                  <button
+                    type="button"
+                    class="agent-row-button"
+                    aria-label="取消置顶"
+                    title="取消置顶"
+                    @click.stop="toggleSessionPin(session)"
+                  >
+                    <PinOff
+                      :size="15"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    class="agent-row-button"
+                    aria-label="删除对话"
+                    title="删除"
+                    @click.stop="deleteSessionFromMenu(session)"
+                  >
+                    <Trash2
+                      :size="15"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </span>
+              </div>
+            </div>
+          </section>
 
           <section class="agent-section">
             <div class="agent-section-head">
@@ -490,7 +780,7 @@ function statusLabel(status: string): string {
                 class="agent-section-action"
                 aria-label="添加项目"
                 title="添加项目"
-                @click="openCreateProject"
+                @click="openCreateProject()"
               >
                 <FolderPlus
                   :size="15"
@@ -641,19 +931,6 @@ function statusLabel(status: string): string {
                   aria-hidden="true"
                 />
               </button>
-              <button
-                type="button"
-                class="agent-section-action"
-                aria-label="新建对话"
-                title="新建对话"
-                @click="newSession"
-              >
-                <MessageCirclePlus
-                  :size="15"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </button>
             </div>
 
             <div v-if="ungroupedOpen">
@@ -700,12 +977,12 @@ function statusLabel(status: string): string {
         <div class="agent-side-foot">
           <button
             type="button"
-            class="agent-workspace"
-            :title="agent?.workspace ?? '选择 shell 工作区'"
-            @click="chooseWorkspace"
+            class="agent-settings"
+            aria-label="设置"
+            title="设置"
+            @click="openApiKeySettings"
           >
-            <Folder :size="14" :stroke-width="2" aria-hidden="true" />
-            <span>{{ workspace }}</span>
+            <Settings :size="16" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
       </aside>
@@ -792,48 +1069,132 @@ function statusLabel(status: string): string {
 
         <template v-else>
           <div ref="list" class="agent-messages">
-            <div
-              v-if="!(agent?.messages ?? []).length"
-              class="agent-empty"
-            >
-              <p>问点什么，或者让我处理待办、文件、邮件和设置。</p>
-            </div>
-            <article
-              v-for="message in agent?.messages ?? []"
-              :key="message.id"
-              class="agent-message"
-              :class="message.role"
-            >
-              <template
-                v-for="(part, index) in message.parts"
-                :key="index"
+            <div class="agent-messages-inner">
+              <div
+                v-if="!(agent?.messages ?? []).length"
+                class="agent-empty"
               >
-                <p v-if="part.type === 'text'" class="agent-text">
-                  {{ part.text }}
+                <p v-if="activeProject">
+                  我们今天要在
+                  <span class="agent-empty-project">
+                    <span class="agent-empty-project-name">
+                      {{ activeProject.name }}
+                    </span>
+                    <span
+                      class="agent-empty-project-dots"
+                      aria-hidden="true"
+                      >{{ projectDots }}</span
+                    >
+                  </span>
+                  里做些什么呢？<br v-if="longProjectName" />我可以完成好多任务哦～
                 </p>
+                <p v-else>
+                  今天我们要做点什么？我可以处理待办、文件和邮件哦～
+                </p>
+              </div>
+              <article
+                v-for="message in agent?.messages ?? []"
+                :key="message.id"
+                class="agent-message"
+                :class="message.role"
+              >
                 <div
-                  v-else
-                  class="agent-tool"
-                  :data-status="part.status"
+                  v-if="message.attachments?.length"
+                  class="agent-message-files"
                 >
-                  <div class="agent-tool-head">
-                    <Wrench
+                  <span
+                    v-for="file in message.attachments"
+                    :key="file.id"
+                    class="agent-message-file"
+                    :title="file.name"
+                  >
+                    <FileTypeIcon :name="file.name" :size="16" />
+                    <span>{{ file.name }}</span>
+                  </span>
+                </div>
+                <template
+                  v-for="(part, index) in message.parts"
+                  :key="index"
+                >
+                  <MarkdownView
+                    v-if="
+                      part.type === 'text' &&
+                      message.role === 'assistant'
+                    "
+                    :text="part.text"
+                    :streaming="busy"
+                  />
+                  <p v-else-if="part.type === 'text'" class="agent-text">
+                    {{ part.text }}
+                  </p>
+                  <div
+                    v-else
+                    class="agent-tool"
+                    :data-status="part.status"
+                  >
+                    <div class="agent-tool-head">
+                      <Wrench
+                        :size="13"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span class="agent-tool-title">{{ part.title }}</span>
+                      <span class="agent-tool-status">{{
+                        statusLabel(part.status)
+                      }}</span>
+                    </div>
+                    <pre v-if="part.output" class="agent-tool-output">{{
+                      part.output
+                    }}</pre>
+                  </div>
+                </template>
+                <div
+                  v-if="
+                    message.role === 'assistant' &&
+                    assistantText(message)
+                  "
+                  class="agent-message-actions"
+                >
+                  <button
+                    type="button"
+                    class="agent-output-button"
+                    :disabled="outputBusy !== null"
+                    @click="saveOutput(message)"
+                  >
+                    <Save
                       :size="13"
                       :stroke-width="2"
                       aria-hidden="true"
                     />
-                    <span class="agent-tool-title">{{ part.title }}</span>
-                    <span class="agent-tool-status">{{
-                      statusLabel(part.status)
-                    }}</span>
-                  </div>
-                  <pre v-if="part.output" class="agent-tool-output">{{
-                    part.output
-                  }}</pre>
+                    {{
+                      outputBusy?.id === message.id &&
+                      outputBusy?.action === 'save'
+                        ? '保存中…'
+                        : '保存'
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="agent-output-button"
+                    :disabled="outputBusy !== null"
+                    @click="exportAudio(message)"
+                  >
+                    <Download
+                      :size="13"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                    {{
+                      outputBusy?.id === message.id &&
+                      outputBusy?.action === 'audio'
+                        ? '导出中…'
+                        : '导出音频'
+                    }}
+                  </button>
                 </div>
-              </template>
-            </article>
-            <p v-if="busy" class="agent-running">正在执行…</p>
+              </article>
+              <p v-if="busy" class="agent-running">正在执行…</p>
+            </div>
           </div>
 
           <div v-if="agent?.approval" class="agent-approval">
@@ -872,53 +1233,279 @@ function statusLabel(status: string): string {
 
           <div class="agent-composer-wrap">
             <form class="agent-composer" @submit.prevent="send">
+              <div
+                v-if="attachments.length"
+                class="agent-attachments"
+                aria-label="已添加的附件"
+              >
+                <span
+                  v-for="item in attachments"
+                  :key="item.id"
+                  class="agent-attachment"
+                >
+                  <FileTypeIcon :name="item.name" :size="16" />
+                  <span
+                    class="agent-attachment-name"
+                    :title="item.detail ? `${item.name} · ${item.detail}` : item.name"
+                  >
+                    {{ item.name }}
+                  </span>
+                  <button
+                    type="button"
+                    class="agent-attachment-remove"
+                    :aria-label="`移除附件 ${item.name}`"
+                    :title="`移除 ${item.name}`"
+                    @click="removeAttachment(item.id)"
+                  >
+                    <X :size="11" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                </span>
+              </div>
               <textarea
                 v-model="draft"
                 class="agent-input"
                 rows="1"
-                placeholder="交给智能体一条指令"
+                :placeholder="`让“${petName}”来帮你工作`"
                 aria-label="给智能体发送指令"
                 @keydown.enter.exact.prevent="send"
               ></textarea>
               <div class="agent-composer-row">
-                <div class="agent-modes" role="group" aria-label="执行模式">
+                <div class="agent-composer-tools">
                   <button
                     type="button"
+                    class="agent-attach"
                     :disabled="busy"
-                    :class="{ active: mode === 'plan' }"
-                    :aria-pressed="mode === 'plan'"
-                    @click="setMode('plan')"
+                    aria-label="添加附件"
+                    title="添加附件"
+                    @click="addAttachments"
                   >
-                    {{ agentModeLabels.plan }}
+                    <Plus
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
                   </button>
-                  <button
-                    type="button"
-                    :disabled="busy"
-                    :class="{ active: mode === 'build' }"
-                    :aria-pressed="mode === 'build'"
-                    @click="setMode('build')"
+                  <div ref="workspacePicker" class="agent-workspace-picker">
+                    <button
+                      type="button"
+                      class="agent-workspace-select"
+                      :disabled="busy"
+                      :title="
+                        activeProject?.workspace ??
+                        workspace ??
+                        '选择对话工作区'
+                      "
+                      aria-label="选择对话工作区"
+                      :aria-expanded="workspaceMenuOpen"
+                      aria-haspopup="dialog"
+                      @click="toggleWorkspaceMenu"
+                    >
+                      <Folder
+                        :size="13"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span class="agent-workspace-name">
+                        {{ workspaceLabel }}
+                      </span>
+                    </button>
+
+                    <div
+                      v-if="workspaceMenuOpen"
+                      class="agent-workspace-menu"
+                      role="dialog"
+                      aria-label="选择项目"
+                    >
+                      <label class="agent-workspace-search">
+                        <Search
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <input
+                          ref="workspaceSearchInput"
+                          v-model="workspaceSearch"
+                          type="text"
+                          placeholder="搜索项目"
+                          aria-label="搜索项目"
+                        />
+                      </label>
+
+                      <div
+                        class="agent-workspace-list"
+                        role="listbox"
+                        aria-label="项目"
+                      >
+                        <button
+                          v-for="project in filteredProjects"
+                          :key="project.id"
+                          type="button"
+                          class="agent-workspace-option"
+                          role="option"
+                          :aria-selected="activeProject?.id === project.id"
+                          @click="selectWorkspaceProject(project.id)"
+                        >
+                          <Folder
+                            :size="14"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                          <span class="agent-workspace-option-name">
+                            {{ project.name }}
+                          </span>
+                          <Check
+                            v-if="activeProject?.id === project.id"
+                            :size="14"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                        </button>
+                        <p
+                          v-if="!filteredProjects.length"
+                          class="agent-workspace-empty"
+                        >
+                          {{
+                            projects.length
+                              ? '没有匹配的项目'
+                              : '暂无项目'
+                          }}
+                        </p>
+                      </div>
+
+                      <div class="agent-workspace-divider"></div>
+                      <button
+                        type="button"
+                        class="agent-workspace-action"
+                        @click="createProjectFromWorkspace"
+                      >
+                        <FolderPlus
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        新建项目
+                      </button>
+                      <button
+                        type="button"
+                        class="agent-workspace-action"
+                        @click="selectWorkspaceProject(null)"
+                      >
+                        <X
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        不在项目中工作
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    class="agent-modes"
+                    :data-mode="mode"
+                    role="group"
+                    aria-label="执行模式"
                   >
-                    {{ agentModeLabels.build }}
-                  </button>
+                    <span class="agent-modes-thumb" aria-hidden="true"></span>
+                    <button
+                      type="button"
+                      :disabled="busy"
+                      :class="{ active: mode === 'plan' }"
+                      :aria-pressed="mode === 'plan'"
+                      @click="setMode('plan')"
+                    >
+                      {{ agentModeLabels.plan }}
+                    </button>
+                    <button
+                      type="button"
+                      :disabled="busy"
+                      :class="{ active: mode === 'build' }"
+                      :aria-pressed="mode === 'build'"
+                      @click="setMode('build')"
+                    >
+                      {{ agentModeLabels.build }}
+                    </button>
+                  </div>
                 </div>
 
                 <div class="agent-composer-trailing">
-                  <span class="agent-model">
-                    <SelectField
-                      :model-value="model"
+                  <div ref="modelPicker" class="agent-model-picker">
+                    <button
+                      type="button"
+                      class="agent-model-trigger"
                       :disabled="busy"
-                      aria-label="对话模型"
-                      @update:model-value="setModel"
+                      :aria-expanded="modelMenuOpen"
+                      aria-haspopup="menu"
+                      :aria-label="`选择模型，当前 ${deepseekModelLabels[model]}，推理强度${agentReasoningLabels[reasoning]}`"
+                      @click="modelMenuOpen = !modelMenuOpen"
                     >
-                      <option
+                      <span class="agent-model-name">
+                        {{ deepseekModelLabels[model] }}
+                      </span>
+                      <span class="agent-model-effort">
+                        {{ agentReasoningLabels[reasoning] }}
+                      </span>
+                      <ChevronDown
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+
+                    <div
+                      v-if="modelMenuOpen"
+                      class="agent-model-menu"
+                      role="menu"
+                      aria-label="模型与推理强度"
+                    >
+                      <p class="agent-model-group">模型</p>
+                      <button
                         v-for="id in deepseekModelIds"
                         :key="id"
-                        :value="id"
+                        type="button"
+                        class="agent-model-option"
+                        role="menuitemradio"
+                        :aria-checked="model === id"
+                        @click="setModel(id)"
                       >
-                        {{ deepseekModelLabels[id] }}
-                      </option>
-                    </SelectField>
-                  </span>
+                        <Check
+                          v-if="model === id"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span
+                          v-else
+                          class="agent-model-check-space"
+                          aria-hidden="true"
+                        ></span>
+                        <span>{{ deepseekModelLabels[id] }}</span>
+                      </button>
+                      <div class="agent-model-divider"></div>
+                      <p class="agent-model-group">推理强度</p>
+                      <button
+                        v-for="level in agentReasoningLevels"
+                        :key="level"
+                        type="button"
+                        class="agent-model-option"
+                        role="menuitemradio"
+                        :aria-checked="reasoning === level"
+                        @click="setReasoning(level)"
+                      >
+                        <Check
+                          v-if="reasoning === level"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span
+                          v-else
+                          class="agent-model-check-space"
+                          aria-hidden="true"
+                        ></span>
+                        <span>{{ agentReasoningLabels[level] }}</span>
+                      </button>
+                    </div>
+                  </div>
                   <button
                     v-if="busy"
                     type="button"
@@ -942,6 +1529,7 @@ function statusLabel(status: string): string {
                     title="发送"
                   >
                     <Send
+                      class="agent-send-plane"
                       :size="15"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -954,8 +1542,11 @@ function statusLabel(status: string): string {
               <span class="agent-usage">
                 {{ usage.input }} / {{ usage.output }} tokens
               </span>
-              <p v-if="error || agent?.error" class="agent-error">
-                {{ error || agent?.error }}
+              <p
+                v-if="attachmentError || error || agent?.error"
+                class="agent-error"
+              >
+                {{ attachmentError || error || agent?.error }}
               </p>
             </div>
           </div>
@@ -1044,10 +1635,7 @@ function statusLabel(status: string): string {
             type="button"
             class="agent-menu-item danger"
             role="menuitem"
-            @click="
-              closeMenu();
-              removeSession(menuSession.id)
-            "
+            @click="deleteSessionFromMenu(menuSession)"
           >
             <Trash2 :size="14" :stroke-width="2" aria-hidden="true" />
             删除
@@ -1218,7 +1806,7 @@ function statusLabel(status: string): string {
               v-else
               type="button"
               class="agent-button primary"
-              :disabled="!draftName.trim() || !draftWorkspace.trim()"
+              :disabled="!draftWorkspace.trim()"
               @click="
                 dialog.kind === 'create-project'
                   ? createProject()
@@ -1231,19 +1819,64 @@ function statusLabel(status: string): string {
         </template>
       </div>
     </div>
+
+    <div
+      v-if="confirm"
+      class="agent-modal-layer"
+      @mousedown.self="confirm = null"
+    >
+      <div
+        class="agent-modal agent-confirm"
+        role="alertdialog"
+        aria-modal="true"
+        :aria-label="confirm.title"
+      >
+        <h2 class="agent-confirm-title">{{ confirm.title }}</h2>
+        <p v-if="confirm.kind === 'project'" class="agent-confirm-note">
+          项目下的对话会移动到未分组。
+        </p>
+        <footer class="agent-modal-foot">
+          <span class="agent-modal-spacer" />
+          <button
+            type="button"
+            class="agent-button"
+            @click="confirm = null"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="agent-button danger"
+            @click="confirmRemove"
+          >
+            确认
+          </button>
+        </footer>
+      </div>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .agent-shell {
+  --agent-shell-inset: 7px;
+  --agent-side-width: 248px;
+  --agent-frame-split: calc(
+    var(--agent-shell-inset) + var(--agent-side-width)
+  );
   height: 100vh;
-  padding: 7px;
+  padding: var(--agent-shell-inset);
   background: transparent;
   color: var(--color-ink);
   user-select: none;
 }
 .agent-shell.is-maximized {
-  padding: 0;
+  padding: var(--agent-shell-inset);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-muted) 0 var(--agent-frame-split),
+    var(--color-canvas) var(--agent-frame-split)
+  );
 }
 .agent-shell.is-maximized .agent-surface {
   border-radius: 0;
@@ -1261,7 +1894,7 @@ function statusLabel(status: string): string {
   display: flex;
   flex: none;
   flex-direction: column;
-  width: 248px;
+  width: var(--agent-side-width);
   min-width: 0;
   border-right: 1px solid var(--color-line);
   background: var(--color-surface-muted);
@@ -1271,7 +1904,11 @@ function statusLabel(status: string): string {
   -webkit-app-region: drag;
 }
 .agent-shell.is-mac .agent-side-head {
-  height: 58px;
+  height: 32px;
+}
+.agent-side-top {
+  flex: none;
+  padding: 0 var(--space-2) var(--space-2);
 }
 .agent-side-scroll {
   flex: 1;
@@ -1304,6 +1941,36 @@ function statusLabel(status: string): string {
 .agent-section {
   margin-top: var(--space-4);
 }
+.agent-side-scroll > .agent-section:first-child {
+  margin-top: var(--space-2);
+}
+.agent-side-foot {
+  flex: none;
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+.agent-settings {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-settings:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-settings:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-section-head {
   display: flex;
   align-items: center;
@@ -1322,7 +1989,7 @@ function statusLabel(status: string): string {
   background: transparent;
   color: var(--color-subtle);
   font: inherit;
-  font-size: var(--font-size-caption);
+  font-size: var(--font-size-label);
   font-weight: 600;
   text-align: left;
 }
@@ -1335,6 +2002,7 @@ function statusLabel(status: string): string {
   place-items: center;
   width: 24px;
   height: 24px;
+  min-height: 24px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -1371,14 +2039,14 @@ function statusLabel(status: string): string {
   flex: none;
   color: var(--color-muted);
 }
-.agent-project-row:hover {
-  background: var(--color-surface);
+.agent-project-row:hover,
+.agent-project-row:focus-within {
+  background: var(--color-brand-soft);
 }
 .agent-project-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1410,18 +2078,23 @@ function statusLabel(status: string): string {
   place-items: center;
   width: 24px;
   height: 24px;
+  min-height: 24px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
 }
-.agent-row-button:hover {
-  background: var(--color-brand-soft);
+.agent-row-button:hover,
+.agent-row-button:focus-visible {
+  background: var(--color-surface);
   color: var(--color-brand-ink);
 }
 .agent-project-sessions {
-  padding-left: 26px;
+  padding-top: var(--space-2);
+}
+.agent-project-sessions .agent-session {
+  padding-left: calc(26px + var(--space-3));
 }
 .agent-session {
   position: relative;
@@ -1436,8 +2109,9 @@ function statusLabel(status: string): string {
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease-standard);
 }
-.agent-session:hover {
-  background: var(--color-surface);
+.agent-session:hover,
+.agent-session:focus-within {
+  background: var(--color-brand-soft);
 }
 .agent-session.active {
   background: var(--color-brand-soft);
@@ -1461,6 +2135,19 @@ function statusLabel(status: string): string {
 .agent-session .session-menu:focus-visible {
   opacity: 1;
 }
+.agent-session .session-menu:hover,
+.agent-session .session-menu:focus-visible {
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+}
+.agent-session.active .session-menu {
+  background: var(--color-brand-soft);
+}
+.agent-session.active .agent-row-button:hover,
+.agent-session.active .agent-row-button:focus-visible {
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+}
 .agent-session-empty {
   margin: 0;
   padding: 4px var(--space-3);
@@ -1479,34 +2166,6 @@ function statusLabel(status: string): string {
 .agent-section-title:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: -2px;
-}
-.agent-side-foot {
-  flex: none;
-  padding: var(--space-3);
-  border-top: 1px solid var(--color-line);
-}
-.agent-workspace {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 30px;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
-  text-align: left;
-}
-.agent-workspace span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.agent-workspace:hover {
-  background: var(--color-surface);
-  color: var(--color-ink);
 }
 .agent-main {
   display: flex;
@@ -1538,23 +2197,61 @@ function statusLabel(status: string): string {
   white-space: nowrap;
 }
 .agent-messages {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: var(--space-5);
   min-height: 0;
-  padding: var(--space-6) var(--space-8) var(--space-4);
+  padding: var(--space-6) 0 var(--space-4);
   overflow: auto;
   user-select: text;
 }
+.agent-messages-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: calc(100% - 32px);
+  min-height: 100%;
+  margin: 0 auto;
+}
 .agent-empty {
+  max-width: 100%;
   margin: auto;
-  color: var(--color-subtle);
-  font-size: var(--font-size-body);
+  color: var(--color-ink);
+  font-size: 18px;
+  line-height: 1.6;
   text-align: center;
 }
 .agent-empty p {
   margin: 0;
+}
+.agent-empty-project {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  padding-bottom: 3px;
+  color: var(--color-ink);
+  vertical-align: baseline;
+}
+.agent-empty-project-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.agent-empty-project-dots {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  color: var(--color-brand);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
 }
 .agent-message {
   display: flex;
@@ -1578,6 +2275,75 @@ function statusLabel(status: string): string {
   border-radius: var(--radius-card) var(--radius-card) var(--radius-xs)
     var(--radius-card);
   background: var(--color-brand-soft);
+}
+.agent-message-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: 84%;
+}
+.agent-message.user .agent-message-files {
+  justify-content: flex-end;
+}
+.agent-message-file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 220px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+}
+.agent-message-file > svg {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-message-file > img {
+  flex: none;
+}
+.agent-message-file > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.agent-output-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-output-button:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-output-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.agent-output-button:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-output-button svg {
+  flex: none;
 }
 .agent-tool {
   border: 1px solid var(--color-line);
@@ -1701,7 +2467,7 @@ function statusLabel(status: string): string {
 }
 .agent-input {
   width: 100%;
-  min-height: 44px;
+  min-height: 52px;
   max-height: 140px;
   padding: 2px 2px 0;
   border: 0;
@@ -1715,20 +2481,296 @@ function statusLabel(status: string): string {
 }
 .agent-composer-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  row-gap: var(--space-2);
   min-width: 0;
 }
-.agent-modes {
-  display: inline-flex;
+.agent-composer-tools {
+  display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
+  min-width: 0;
+}
+.agent-attach {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-attach:hover:not(:disabled) {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-attach:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.agent-attach:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-workspace-select {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 132px;
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-workspace-select:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-workspace-select svg {
+  flex: none;
+}
+.agent-workspace-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-workspace-select:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-workspace-picker {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+.agent-workspace-select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.agent-workspace-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-height: 360px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+.agent-workspace-search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  color: var(--color-muted);
+}
+.agent-workspace-search svg {
+  flex: none;
+}
+.agent-workspace-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  outline: none;
+}
+.agent-workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  overflow: auto;
+}
+.agent-workspace-option {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-workspace-option:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-workspace-option[aria-selected='true'] {
+  background: var(--color-fill-secondary);
+  font-weight: 600;
+}
+.agent-workspace-option > svg:first-child {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-workspace-option > svg:last-child {
+  flex: none;
+  color: var(--color-brand-ink);
+}
+.agent-workspace-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-workspace-empty {
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--color-subtle);
+  font-size: var(--font-size-label);
+}
+.agent-workspace-divider {
+  flex: none;
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-line);
+}
+.agent-workspace-action {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-workspace-action:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-workspace-action svg {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-workspace-option:focus-visible,
+.agent-workspace-action:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-attachments {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.agent-attachments::-webkit-scrollbar {
+  display: none;
+}
+.agent-attachment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 220px;
+  height: 28px;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-secondary);
+  color: var(--color-ink);
+  font-size: var(--font-size-label);
+}
+.agent-attachment > img {
+  flex: none;
+}
+.agent-attachment-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-attachment-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-attachment-remove:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.agent-attachment-remove:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-modes {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  margin-left: var(--space-2);
   padding: 2px;
   border-radius: var(--radius-control);
   background: var(--color-fill-secondary);
 }
+.agent-modes-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  pointer-events: none;
+  transition: transform var(--motion-slide) var(--ease-spring);
+}
+.agent-modes[data-mode='build'] .agent-modes-thumb {
+  transform: translateX(100%);
+}
 .agent-modes button {
+  position: relative;
+  z-index: 1;
   min-height: 24px;
   padding: 0 var(--space-3);
   border: 0;
@@ -1738,19 +2780,16 @@ function statusLabel(status: string): string {
   font: inherit;
   font-size: var(--font-size-label);
   font-weight: 500;
-  transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 .agent-modes button:disabled {
   cursor: default;
   opacity: 0.6;
 }
 .agent-modes button.active {
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-brand-ink);
   font-weight: 600;
-  box-shadow: var(--shadow-control);
 }
 .agent-modes button:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -1761,22 +2800,110 @@ function statusLabel(status: string): string {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  margin-left: auto;
 }
-.agent-model {
+.agent-model-picker {
+  position: relative;
   display: inline-flex;
   min-width: 0;
 }
-.agent-model :deep(select) {
-  height: 28px;
-  padding: 0 24px 0 8px;
+.agent-model-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 226px;
+  min-height: 28px;
+  padding: 0 var(--space-1) 0 var(--space-2);
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-model-trigger:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+.agent-model-trigger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.agent-model-trigger > svg {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-model-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-model-effort {
+  flex: none;
+  margin-left: var(--space-2);
   color: var(--color-muted);
   font-size: var(--font-size-label);
 }
-.agent-model :deep(.select-field-icon) {
-  right: 6px;
-  color: var(--color-muted);
+.agent-model-trigger:focus-visible,
+.agent-model-option:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-model-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  width: 240px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+.agent-model-group {
+  margin: 0;
+  padding: 4px var(--space-2) 2px;
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+.agent-model-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-model-option:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-model-option[aria-checked='true'] {
+  color: var(--color-brand-ink);
+  font-weight: 600;
+}
+.agent-model-option > svg {
+  flex: none;
+}
+.agent-model-check-space {
+  flex: none;
+  width: 14px;
+}
+.agent-model-divider {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-line);
 }
 .agent-send {
   display: grid;
@@ -1784,6 +2911,7 @@ function statusLabel(status: string): string {
   place-items: center;
   width: 32px;
   height: 32px;
+  min-height: 32px;
   padding: 0;
   border: 1px solid var(--color-brand-ink);
   border-radius: var(--radius-circle);
@@ -1796,6 +2924,10 @@ function statusLabel(status: string): string {
 .agent-send:hover:not(:disabled) {
   border-color: var(--color-brand);
   background: var(--color-brand);
+}
+/* The paper plane's optical center sits up-right of its bounding box. */
+.agent-send-plane {
+  transform: translate(-0.5px, 0.75px);
 }
 .agent-send:disabled {
   border-color: var(--color-line);
@@ -1846,6 +2978,7 @@ function statusLabel(status: string): string {
   place-items: center;
   width: 28px;
   height: 28px;
+  min-height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -1869,6 +3002,7 @@ function statusLabel(status: string): string {
   place-items: center;
   width: 28px;
   height: 28px;
+  min-height: 28px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-circle);
@@ -2103,6 +3237,22 @@ function statusLabel(status: string): string {
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+}
+.agent-confirm {
+  width: min(360px, calc(100vw - 48px));
+}
+.agent-confirm-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 650;
+}
+.agent-confirm-note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
 }
 .agent-modal-spacer {
   flex: 1;
@@ -2147,6 +3297,26 @@ function statusLabel(status: string): string {
     opacity: 1;
   }
 }
+@media (min-width: 921px) {
+  .agent-composer-wrap {
+    padding-inline: 0;
+  }
+  .agent-composer {
+    width: max(625px, 75%);
+    margin-inline: auto;
+  }
+  .agent-input {
+    min-height: 64px;
+  }
+  .agent-messages-inner {
+    width: max(625px, 75%);
+  }
+  .agent-composer-meta,
+  .agent-approval {
+    width: max(625px, 75%);
+    margin-inline: auto;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .agent-running {
     animation: none;
@@ -2158,6 +3328,13 @@ function statusLabel(status: string): string {
   .agent-row-actions,
   .agent-composer,
   .agent-modes button,
+  .agent-modes-thumb,
+  .agent-attach,
+  .agent-workspace-select,
+  .agent-settings,
+  .agent-model-trigger,
+  .agent-output-button,
+  .agent-attachment-remove,
   .agent-send,
   .agent-icon-button {
     transition: none;
