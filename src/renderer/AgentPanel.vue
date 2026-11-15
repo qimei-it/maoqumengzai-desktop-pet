@@ -2352,6 +2352,7 @@ function statusLabel(status: string): string {
                   "
                   type="button"
                   class="agent-skills-more"
+                  :class="{ 'is-collapse': group.hidden === 0 }"
                   @click="toggleSkillCategory(group.category)"
                 >
                   {{
@@ -5662,6 +5663,9 @@ function statusLabel(status: string): string {
   color: var(--color-muted);
   font: inherit;
   font-size: var(--font-size-label);
+}
+.agent-skills-more.is-collapse {
+  min-width: 0;
 }
 .agent-skills-more:hover {
   border-color: var(--color-brand);
