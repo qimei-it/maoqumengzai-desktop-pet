@@ -3128,6 +3128,2190 @@
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/write-skill",
       "license": "MIT"
+    },
+    {
+      "id": "builtin-commerce-catalog-listings",
+      "dir": "commerce/catalog-listings",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/merchant-agent/skills/catalog-listings",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-inventory-operations",
+      "dir": "commerce/inventory-operations",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/merchant-agent/skills/inventory-operations",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-marketing-campaigns",
+      "dir": "commerce/marketing-campaigns",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/merchant-agent/skills/marketing-campaigns",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-performance-insights",
+      "dir": "commerce/performance-insights",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/merchant-agent/skills/performance-insights",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-pricing-promotions",
+      "dir": "commerce/pricing-promotions",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/merchant-agent/skills/pricing-promotions",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-customer-care",
+      "dir": "commerce/customer-care",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/shopping-agent/skills/customer-care",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-memory-personalization",
+      "dir": "commerce/memory-personalization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/shopping-agent/skills/memory-personalization",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-planning-goals",
+      "dir": "commerce/planning-goals",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/shopping-agent/skills/planning-goals",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-purchase-research",
+      "dir": "commerce/purchase-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/shopping-agent/skills/purchase-research",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-search-discovery",
+      "dir": "commerce/search-discovery",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/shopping-agent/skills/search-discovery",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-architecture",
+      "dir": "commerce/commerce-architecture",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-architecture",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-evals",
+      "dir": "commerce/commerce-evals",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-evals",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-merchant-operations",
+      "dir": "commerce/commerce-merchant-operations",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-merchant-operations",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-prompt-caching",
+      "dir": "commerce/commerce-prompt-caching",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-prompt-caching",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-trust-safety",
+      "dir": "commerce/commerce-trust-safety",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-trust-safety",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-commerce-commerce-ui-tools",
+      "dir": "commerce/commerce-ui-tools",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/commerce-agents/tree/fd4d59224ab96b43c6dc6888207c67b3bd5a24cf/plugins/commerce-builder/skills/commerce-ui-tools",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-visual-ecommerce-visual-copywriting",
+      "dir": "visual/ecommerce-visual-copywriting",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/feichanggege/ecommerce-visual-copywriting-skill/tree/7fd4abaa5a280dddf414ccc1372d886bef702cba",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-ab-testing",
+      "dir": "marketing/ab-testing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ab-testing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-ad-creative",
+      "dir": "marketing/ad-creative",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ad-creative",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-ads",
+      "dir": "marketing/ads",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ads",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-ai-seo",
+      "dir": "marketing/ai-seo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ai-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-analytics",
+      "dir": "marketing/analytics",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/analytics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-aso",
+      "dir": "marketing/aso",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/aso",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-attribution",
+      "dir": "marketing/attribution",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/attribution",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-churn-prevention",
+      "dir": "marketing/churn-prevention",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/churn-prevention",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-co-marketing",
+      "dir": "marketing/co-marketing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/co-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-cold-email",
+      "dir": "marketing/cold-email",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/cold-email",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-community-marketing",
+      "dir": "marketing/community-marketing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/community-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-competitor-profiling",
+      "dir": "marketing/competitor-profiling",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/competitor-profiling",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-competitors",
+      "dir": "marketing/competitors",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/competitors",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-content-strategy",
+      "dir": "marketing/content-strategy",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/content-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-conversion-tracking",
+      "dir": "marketing/conversion-tracking",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/conversion-tracking",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-copy-editing",
+      "dir": "marketing/copy-editing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/copy-editing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-copywriting",
+      "dir": "marketing/copywriting",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/copywriting",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-cro",
+      "dir": "marketing/cro",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/cro",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-customer-research",
+      "dir": "marketing/customer-research",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/customer-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-directory-submissions",
+      "dir": "marketing/directory-submissions",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/directory-submissions",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-emails",
+      "dir": "marketing/emails",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/emails",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-events",
+      "dir": "marketing/events",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/events",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-free-tools",
+      "dir": "marketing/free-tools",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/free-tools",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-image",
+      "dir": "marketing/image",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/image",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-influencer-marketing",
+      "dir": "marketing/influencer-marketing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/influencer-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-launch",
+      "dir": "marketing/launch",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/launch",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-lead-magnets",
+      "dir": "marketing/lead-magnets",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/lead-magnets",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-link-building",
+      "dir": "marketing/link-building",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/link-building",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-marketing-council",
+      "dir": "marketing/marketing-council",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/marketing-council",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-marketing-ideas",
+      "dir": "marketing/marketing-ideas",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/marketing-ideas",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-marketing-loops",
+      "dir": "marketing/marketing-loops",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/marketing-loops",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-marketing-plan",
+      "dir": "marketing/marketing-plan",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/marketing-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-marketing-psychology",
+      "dir": "marketing/marketing-psychology",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/marketing-psychology",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-offers",
+      "dir": "marketing/offers",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/offers",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-onboarding",
+      "dir": "marketing/onboarding",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/onboarding",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-paywalls",
+      "dir": "marketing/paywalls",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/paywalls",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-popups",
+      "dir": "marketing/popups",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/popups",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-pricing",
+      "dir": "marketing/pricing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/pricing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-product-marketing",
+      "dir": "marketing/product-marketing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/product-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-programmatic-seo",
+      "dir": "marketing/programmatic-seo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/programmatic-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-prospecting",
+      "dir": "marketing/prospecting",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/prospecting",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-public-relations",
+      "dir": "marketing/public-relations",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/public-relations",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-referrals",
+      "dir": "marketing/referrals",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/referrals",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-reverse-engineer-marketing",
+      "dir": "marketing/reverse-engineer-marketing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/reverse-engineer-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-revops",
+      "dir": "marketing/revops",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/revops",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-sales-enablement",
+      "dir": "marketing/sales-enablement",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/sales-enablement",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-schema",
+      "dir": "marketing/schema",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/schema",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-seo-audit",
+      "dir": "marketing/seo-audit",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/seo-audit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-signup",
+      "dir": "marketing/signup",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/signup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-site-architecture",
+      "dir": "marketing/site-architecture",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/site-architecture",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-sms",
+      "dir": "marketing/sms",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/sms",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-social",
+      "dir": "marketing/social",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/social",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-marketing-video",
+      "dir": "marketing/video",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/video",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo",
+      "dir": "seo/seo",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-agentic",
+      "dir": "seo/seo-agentic",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-agentic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-audit",
+      "dir": "seo/seo-audit",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-audit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-backlinks",
+      "dir": "seo/seo-backlinks",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-backlinks",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-bing",
+      "dir": "seo/seo-bing",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-bing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-cluster",
+      "dir": "seo/seo-cluster",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-cluster",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-competitor-pages",
+      "dir": "seo/seo-competitor-pages",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-competitor-pages",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-content",
+      "dir": "seo/seo-content",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-content",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-content-brief",
+      "dir": "seo/seo-content-brief",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-content-brief",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-dataforseo",
+      "dir": "seo/seo-dataforseo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-dataforseo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-drift",
+      "dir": "seo/seo-drift",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-drift",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-ecommerce",
+      "dir": "seo/seo-ecommerce",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-ecommerce",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-flow",
+      "dir": "seo/seo-flow",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-flow",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-geo",
+      "dir": "seo/seo-geo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-geo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-google",
+      "dir": "seo/seo-google",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-google",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-hreflang",
+      "dir": "seo/seo-hreflang",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-hreflang",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-image-gen",
+      "dir": "seo/seo-image-gen",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-image-gen",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-images",
+      "dir": "seo/seo-images",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-images",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-local",
+      "dir": "seo/seo-local",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-local",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-maps",
+      "dir": "seo/seo-maps",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-maps",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-page",
+      "dir": "seo/seo-page",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-page",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-plan",
+      "dir": "seo/seo-plan",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-posthog",
+      "dir": "seo/seo-posthog",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-posthog",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-programmatic",
+      "dir": "seo/seo-programmatic",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-programmatic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-schema",
+      "dir": "seo/seo-schema",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-schema",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-shopify",
+      "dir": "seo/seo-shopify",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-shopify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-sitemap",
+      "dir": "seo/seo-sitemap",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-sitemap",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-sxo",
+      "dir": "seo/seo-sxo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-sxo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-seo-seo-technical",
+      "dir": "seo/seo-technical",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-technical",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-affiliate-marketing-strategy",
+      "dir": "nexscope/affiliate-marketing-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/affiliate-marketing-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-api-monitoring",
+      "dir": "nexscope/api-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/api-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-monitoring",
+      "dir": "nexscope/brand-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-protection-brand-protection-amazon",
+      "dir": "nexscope/brand-protection-brand-protection-amazon",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-protection/brand-protection-amazon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-protection-brand-protection-ebay",
+      "dir": "nexscope/brand-protection-brand-protection-ebay",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-protection/brand-protection-ebay",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-protection-brand-protection-shopify",
+      "dir": "nexscope/brand-protection-brand-protection-shopify",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-protection/brand-protection-shopify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-protection-brand-protection-tiktok",
+      "dir": "nexscope/brand-protection-brand-protection-tiktok",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-protection/brand-protection-tiktok",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-brand-protection-brand-protection-walmart",
+      "dir": "nexscope/brand-protection-brand-protection-walmart",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/brand-protection/brand-protection-walmart",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-competitive-pricing-strategy",
+      "dir": "nexscope/competitive-pricing-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/competitive-pricing-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-competitor-price-analysis",
+      "dir": "nexscope/competitor-price-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/competitor-price-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-competitor-price-tracker",
+      "dir": "nexscope/competitor-price-tracker",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/competitor-price-tracker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-conversion-rate-optimization",
+      "dir": "nexscope/conversion-rate-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/conversion-rate-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-cross-border-ecommerce",
+      "dir": "nexscope/cross-border-ecommerce",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/cross-border-ecommerce",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-customer-feedback-analysis",
+      "dir": "nexscope/customer-feedback-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/customer-feedback-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-domain-monitoring",
+      "dir": "nexscope/domain-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/domain-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-dropshipping-product-research",
+      "dir": "nexscope/dropshipping-product-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/dropshipping-product-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-dynamic-pricing-ecommerce",
+      "dir": "nexscope/dynamic-pricing-ecommerce",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/dynamic-pricing-ecommerce",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ebay-advertising",
+      "dir": "nexscope/ebay-advertising",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ebay-advertising",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ebay-product-research",
+      "dir": "nexscope/ebay-product-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ebay-product-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ebay-seller-guide",
+      "dir": "nexscope/ebay-seller-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ebay-seller-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ebay-seller-tools",
+      "dir": "nexscope/ebay-seller-tools",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ebay-seller-tools",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ebay-seo",
+      "dir": "nexscope/ebay-seo",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ebay-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-ab-testing",
+      "dir": "nexscope/ecommerce-ab-testing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-ab-testing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-branding",
+      "dir": "nexscope/ecommerce-branding",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-branding",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-business-plan",
+      "dir": "nexscope/ecommerce-business-plan",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-business-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-checkout-optimization",
+      "dir": "nexscope/ecommerce-checkout-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-checkout-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-competitor-analysis",
+      "dir": "nexscope/ecommerce-competitor-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-competitor-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-content-marketing",
+      "dir": "nexscope/ecommerce-content-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-content-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-customer-retention",
+      "dir": "nexscope/ecommerce-customer-retention",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-customer-retention",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-email-marketing-builder",
+      "dir": "nexscope/ecommerce-email-marketing-builder",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-email-marketing-builder",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-feed-management",
+      "dir": "nexscope/ecommerce-feed-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-feed-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-growth-strategy",
+      "dir": "nexscope/ecommerce-growth-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-growth-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-keyword-research",
+      "dir": "nexscope/ecommerce-keyword-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-keyword-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-landing-page",
+      "dir": "nexscope/ecommerce-landing-page",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-landing-page",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-marketing-strategy-builder",
+      "dir": "nexscope/ecommerce-marketing-strategy-builder",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-marketing-strategy-builder",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-personalization",
+      "dir": "nexscope/ecommerce-personalization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-personalization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-ppc-strategy-planner",
+      "dir": "nexscope/ecommerce-ppc-strategy-planner",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-ppc-strategy-planner",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-returns-management",
+      "dir": "nexscope/ecommerce-returns-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-returns-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-shipping-rates",
+      "dir": "nexscope/ecommerce-shipping-rates",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-shipping-rates",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-social-media-marketing",
+      "dir": "nexscope/ecommerce-social-media-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-social-media-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-subscription-model",
+      "dir": "nexscope/ecommerce-subscription-model",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-subscription-model",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-ecommerce-video-marketing",
+      "dir": "nexscope/ecommerce-video-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/ecommerce-video-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-advertising",
+      "dir": "nexscope/etsy-advertising",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-advertising",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-competitor-analysis",
+      "dir": "nexscope/etsy-competitor-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-competitor-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-custom-orders",
+      "dir": "nexscope/etsy-custom-orders",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-custom-orders",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-digital-products",
+      "dir": "nexscope/etsy-digital-products",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-digital-products",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-keyword-research",
+      "dir": "nexscope/etsy-keyword-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-keyword-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-listing-photography",
+      "dir": "nexscope/etsy-listing-photography",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-listing-photography",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-multi-shop",
+      "dir": "nexscope/etsy-multi-shop",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-multi-shop",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-offsite-ads",
+      "dir": "nexscope/etsy-offsite-ads",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-offsite-ads",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-pricing-strategy",
+      "dir": "nexscope/etsy-pricing-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-pricing-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-print-on-demand",
+      "dir": "nexscope/etsy-print-on-demand",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-print-on-demand",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-product-description",
+      "dir": "nexscope/etsy-product-description",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-product-description",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-review-strategy",
+      "dir": "nexscope/etsy-review-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-review-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-seasonal-strategy",
+      "dir": "nexscope/etsy-seasonal-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-seasonal-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-seller-guide",
+      "dir": "nexscope/etsy-seller-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-seller-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-seo",
+      "dir": "nexscope/etsy-seo",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-seo-tags",
+      "dir": "nexscope/etsy-seo-tags",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-seo-tags",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-shipping-strategy",
+      "dir": "nexscope/etsy-shipping-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-shipping-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-shop-analytics",
+      "dir": "nexscope/etsy-shop-analytics",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-shop-analytics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-shop-branding",
+      "dir": "nexscope/etsy-shop-branding",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-shop-branding",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-shop-setup",
+      "dir": "nexscope/etsy-shop-setup",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-shop-setup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-social-media-marketing",
+      "dir": "nexscope/etsy-social-media-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-social-media-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-etsy-star-seller",
+      "dir": "nexscope/etsy-star-seller",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/etsy-star-seller",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-file-integrity-monitoring",
+      "dir": "nexscope/file-integrity-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/file-integrity-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-google-shopping-optimization",
+      "dir": "nexscope/google-shopping-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/google-shopping-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-influencer-outreach",
+      "dir": "nexscope/influencer-outreach",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/influencer-outreach",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-inventory-tracking-software",
+      "dir": "nexscope/inventory-tracking-software",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/inventory-tracking-software",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-localization-testing",
+      "dir": "nexscope/localization-testing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/localization-testing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-market-gap-analysis",
+      "dir": "nexscope/market-gap-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/market-gap-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-minimum-advertised-price",
+      "dir": "nexscope/minimum-advertised-price",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/minimum-advertised-price",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-multichannel-ecommerce",
+      "dir": "nexscope/multichannel-ecommerce",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/multichannel-ecommerce",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-omnichannel-ecommerce",
+      "dir": "nexscope/omnichannel-ecommerce",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/omnichannel-ecommerce",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-online-reputation-management",
+      "dir": "nexscope/online-reputation-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/online-reputation-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-price-optimization-tool",
+      "dir": "nexscope/price-optimization-tool",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/price-optimization-tool",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-description-generator",
+      "dir": "nexscope/product-description-generator",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-description-generator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-differentiation-product-differentiation-amazon",
+      "dir": "nexscope/product-differentiation-product-differentiation-amazon",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-differentiation/product-differentiation-amazon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-differentiation-product-differentiation-ebay",
+      "dir": "nexscope/product-differentiation-product-differentiation-ebay",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-differentiation/product-differentiation-ebay",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-differentiation-product-differentiation-shopify",
+      "dir": "nexscope/product-differentiation-product-differentiation-shopify",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-differentiation/product-differentiation-shopify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-differentiation-product-differentiation-tiktok",
+      "dir": "nexscope/product-differentiation-product-differentiation-tiktok",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-differentiation/product-differentiation-tiktok",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-launch-strategy",
+      "dir": "nexscope/product-launch-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-launch-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-page-seo",
+      "dir": "nexscope/product-page-seo",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-page-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-review-analysis",
+      "dir": "nexscope/product-review-analysis",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-review-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-product-title-optimization",
+      "dir": "nexscope/product-title-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/product-title-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-profit-margin-calculator-profit-margin-calculator-amazon",
+      "dir": "nexscope/profit-margin-calculator-profit-margin-calculator-amazon",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/profit-margin-calculator/profit-margin-calculator-amazon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-profit-margin-calculator-profit-margin-calculator-shopify",
+      "dir": "nexscope/profit-margin-calculator-profit-margin-calculator-shopify",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/profit-margin-calculator/profit-margin-calculator-shopify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-profit-margin-calculator-profit-margin-calculator-tiktok",
+      "dir": "nexscope/profit-margin-calculator-profit-margin-calculator-tiktok",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/profit-margin-calculator/profit-margin-calculator-tiktok",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-profit-margin-calculator-profit-margin-calculator-walmart",
+      "dir": "nexscope/profit-margin-calculator-profit-margin-calculator-walmart",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/profit-margin-calculator/profit-margin-calculator-walmart",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-public-status-page",
+      "dir": "nexscope/public-status-page",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/public-status-page",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-restock-alert",
+      "dir": "nexscope/restock-alert",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/restock-alert",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-review-checker-amazon-review-checker",
+      "dir": "nexscope/review-checker-amazon-review-checker",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/review-checker/amazon-review-checker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-review-checker-ebay-review-checker",
+      "dir": "nexscope/review-checker-ebay-review-checker",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/review-checker/ebay-review-checker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-review-checker-walmart-review-checker",
+      "dir": "nexscope/review-checker-walmart-review-checker",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/review-checker/walmart-review-checker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-review-monitoring",
+      "dir": "nexscope/review-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/review-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-sales-tracking-tool",
+      "dir": "nexscope/sales-tracking-tool",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/sales-tracking-tool",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-share-of-shelf",
+      "dir": "nexscope/share-of-shelf",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/share-of-shelf",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-ab-testing",
+      "dir": "nexscope/shopify-ab-testing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-ab-testing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-analytics-guide",
+      "dir": "nexscope/shopify-analytics-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-analytics-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-app-recommendations",
+      "dir": "nexscope/shopify-app-recommendations",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-app-recommendations",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-blog-strategy",
+      "dir": "nexscope/shopify-blog-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-blog-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-cart-abandonment",
+      "dir": "nexscope/shopify-cart-abandonment",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-cart-abandonment",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-checkout-customization",
+      "dir": "nexscope/shopify-checkout-customization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-checkout-customization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-conversion-optimization",
+      "dir": "nexscope/shopify-conversion-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-conversion-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-dropshipping",
+      "dir": "nexscope/shopify-dropshipping",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-dropshipping",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-email-flows",
+      "dir": "nexscope/shopify-email-flows",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-email-flows",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-facebook-instagram-shop",
+      "dir": "nexscope/shopify-facebook-instagram-shop",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-facebook-instagram-shop",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-google-channel",
+      "dir": "nexscope/shopify-google-channel",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-google-channel",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-international",
+      "dir": "nexscope/shopify-international",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-international",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-inventory-management",
+      "dir": "nexscope/shopify-inventory-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-inventory-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-landing-page-builder",
+      "dir": "nexscope/shopify-landing-page-builder",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-landing-page-builder",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-loyalty-program",
+      "dir": "nexscope/shopify-loyalty-program",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-loyalty-program",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-marketing",
+      "dir": "nexscope/shopify-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-migration",
+      "dir": "nexscope/shopify-migration",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-migration",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-page-speed",
+      "dir": "nexscope/shopify-page-speed",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-page-speed",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-product-photography-guide",
+      "dir": "nexscope/shopify-product-photography-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-product-photography-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-seo",
+      "dir": "nexscope/shopify-seo",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-speed-optimization",
+      "dir": "nexscope/shopify-speed-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-speed-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-store-setup",
+      "dir": "nexscope/shopify-store-setup",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-store-setup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-subscription-setup",
+      "dir": "nexscope/shopify-subscription-setup",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-subscription-setup",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-tax-compliance",
+      "dir": "nexscope/shopify-tax-compliance",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-tax-compliance",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-theme-optimization",
+      "dir": "nexscope/shopify-theme-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-theme-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-upsell-cross-sell",
+      "dir": "nexscope/shopify-upsell-cross-sell",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-upsell-cross-sell",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shopify-wholesale-channel",
+      "dir": "nexscope/shopify-wholesale-channel",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shopify-wholesale-channel",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-shoppable-video",
+      "dir": "nexscope/shoppable-video",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/shoppable-video",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-social-media-monitor",
+      "dir": "nexscope/social-media-monitor",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/social-media-monitor",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-amazon",
+      "dir": "nexscope/supply-chain-optimization-supply-chain-optimization-amazon",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-amazon",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-shopify",
+      "dir": "nexscope/supply-chain-optimization-supply-chain-optimization-shopify",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-shopify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-tiktok",
+      "dir": "nexscope/supply-chain-optimization-supply-chain-optimization-tiktok",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-tiktok",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-walmart",
+      "dir": "nexscope/supply-chain-optimization-supply-chain-optimization-walmart",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-walmart",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-synthetic-monitoring",
+      "dir": "nexscope/synthetic-monitoring",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/synthetic-monitoring",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-creator-marketplace",
+      "dir": "nexscope/tiktok-creator-marketplace",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-creator-marketplace",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-influencer-marketing",
+      "dir": "nexscope/tiktok-influencer-marketing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-influencer-marketing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-live-selling",
+      "dir": "nexscope/tiktok-live-selling",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-live-selling",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-ads",
+      "dir": "nexscope/tiktok-shop-ads",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-ads",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-affiliate-program",
+      "dir": "nexscope/tiktok-shop-affiliate-program",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-affiliate-program",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-analytics",
+      "dir": "nexscope/tiktok-shop-analytics",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-analytics",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-branding",
+      "dir": "nexscope/tiktok-shop-branding",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-branding",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-compliance",
+      "dir": "nexscope/tiktok-shop-compliance",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-compliance",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-content-strategy",
+      "dir": "nexscope/tiktok-shop-content-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-content-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-conversion",
+      "dir": "nexscope/tiktok-shop-conversion",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-conversion",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-creator-management",
+      "dir": "nexscope/tiktok-shop-creator-management",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-creator-management",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-cross-border",
+      "dir": "nexscope/tiktok-shop-cross-border",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-cross-border",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-customer-service",
+      "dir": "nexscope/tiktok-shop-customer-service",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-customer-service",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-fulfillment",
+      "dir": "nexscope/tiktok-shop-fulfillment",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-fulfillment",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-inventory",
+      "dir": "nexscope/tiktok-shop-inventory",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-inventory",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-listing-optimization",
+      "dir": "nexscope/tiktok-shop-listing-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-listing-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-pricing",
+      "dir": "nexscope/tiktok-shop-pricing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-pricing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-product-research",
+      "dir": "nexscope/tiktok-shop-product-research",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-product-research",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-promotions",
+      "dir": "nexscope/tiktok-shop-promotions",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-promotions",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-returns",
+      "dir": "nexscope/tiktok-shop-returns",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-returns",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-reviews",
+      "dir": "nexscope/tiktok-shop-reviews",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-reviews",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-seller-guide",
+      "dir": "nexscope/tiktok-shop-seller-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-seller-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-shipping",
+      "dir": "nexscope/tiktok-shop-shipping",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-shipping",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-tiktok-shop-trending-products",
+      "dir": "nexscope/tiktok-shop-trending-products",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-shop-trending-products",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-visual-regression-testing",
+      "dir": "nexscope/visual-regression-testing",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/visual-regression-testing",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-walmart-advertising-strategy",
+      "dir": "nexscope/walmart-advertising-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/walmart-advertising-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-walmart-listing-optimization",
+      "dir": "nexscope/walmart-listing-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/walmart-listing-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-walmart-price-tracker",
+      "dir": "nexscope/walmart-price-tracker",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/walmart-price-tracker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-walmart-seller-guide",
+      "dir": "nexscope/walmart-seller-guide",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/walmart-seller-guide",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-walmart-seller-tools",
+      "dir": "nexscope/walmart-seller-tools",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/walmart-seller-tools",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-warehouse-optimization",
+      "dir": "nexscope/warehouse-optimization",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/warehouse-optimization",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-nexscope-woocommerce-seo",
+      "dir": "nexscope/woocommerce-seo",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/woocommerce-seo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-account-audit",
+      "dir": "tiktok2/tiktok-account-audit",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-account-audit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-ads-operator",
+      "dir": "tiktok2/tiktok-ads-operator",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-ads-operator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-category-strategy",
+      "dir": "tiktok2/tiktok-category-strategy",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-category-strategy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-growth-plan",
+      "dir": "tiktok2/tiktok-growth-plan",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-growth-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-lead-generation-operator",
+      "dir": "tiktok2/tiktok-lead-generation-operator",
+      "category": "电商运营",
+      "defaultEnabled": false,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-lead-generation-operator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-tiktok2-tiktok-shop-operator",
+      "dir": "tiktok2/tiktok-shop-operator",
+      "category": "电商运营",
+      "defaultEnabled": true,
+      "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-shop-operator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-aivideo-cinematic-giant-visual-prompts",
+      "dir": "aivideo/cinematic-giant-visual-prompts",
+      "category": "创意工具",
+      "defaultEnabled": true,
+      "source": "https://github.com/Longxiaohao/AIvideo/tree/d64e14582ac549ca96dd0fd39b8554571f63478b/skills/cinematic-giant-visual-prompts",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-aivideo-facebook-diy-video-workflow",
+      "dir": "aivideo/facebook-diy-video-workflow",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/Longxiaohao/AIvideo/tree/d64e14582ac549ca96dd0fd39b8554571f63478b/skills/facebook-diy-video-workflow",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-topview-multi-platform-content-collector",
+      "dir": "topview/multi-platform-content-collector",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/multi-platform-content-collector",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-topview-social-media-uploader",
+      "dir": "topview/social-media-uploader",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/social-media-uploader",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-topview-topview-skill",
+      "dir": "topview/topview-skill",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/topview-skill",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-topview-video-script-writer",
+      "dir": "topview/video-script-writer",
+      "category": "创意工具",
+      "defaultEnabled": true,
+      "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/video-script-writer",
+      "license": "MIT"
     }
   ]
 }

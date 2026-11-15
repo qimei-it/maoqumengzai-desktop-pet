@@ -56,3 +56,24 @@ Not bundled:
 - `remotion-dev/skills`: no license file; Remotion's own licensing applies.
 - `vivy-yi/xiaohongshu-skills`: no license.
 - `noique/cross-border-ecommerce-skills`: CC BY-NC 4.0.
+
+## Commerce, marketing and SEO skills (2026-11-15)
+
+- https://github.com/anthropics/commerce-agents @ `fd4d59224ab96b43c6dc6888207c67b3bd5a24cf` (Apache-2.0)
+- https://github.com/feichanggege/ecommerce-visual-copywriting-skill @ `7fd4abaa5a280dddf414ccc1372d886bef702cba` (MIT)
+- https://github.com/coreyhaines31/marketingskills @ `1f837447b20bb6f0e72d87b80ece1c221c362c7d` (MIT)
+- https://github.com/AgriciDaniel/claude-seo @ `468ed5b0d9e3249394783710e54abb02837e326b` (MIT)
+- https://github.com/nexscope-ai/eCommerce-Skills @ `c5ba892a1cc3178626577aed1dbde5e62a82f1ac` (MIT)
+- https://github.com/aronhy/tiktok-agent-skills @ `ef939f8fa1204af33a8fba3d8cda759d0596217b` (MIT)
+- https://github.com/Longxiaohao/AIvideo @ `d64e14582ac549ca96dd0fd39b8554571f63478b` (MIT)
+- https://github.com/topviewai/codex-topview-ai @ `8177472128c9144575b1015f5b658716a5017741` (MIT)
+
+Not bundled:
+- `Shopify/agent-skills`: no license grant.
+- `woocommerce/agent-skills`: GPL-2.0, incompatible with this MIT/Apache client distribution.
+- `hypit-ai/hypit`: modified Apache with multi-tenant and commercial redistribution restrictions.
+- `liangdabiao/ecom-details-image`: no license.
+- `linkfox-ai/linkfox-skills`: platform-specific and substantially larger; not bundled in this pass.
+- `finsilabs/awesome-ecommerce-skills`, `xjli360/sealeap-amazon-skills`: large low-star collections, not bundled in this pass.
+- `nexscope-ai/Amazon-Skills`: overlaps the bundled eCommerce-Skills collection.
+- `dlazy-ai/ecommerce-skills`: removed earlier because most skills require the dlazy CLI.
