@@ -434,6 +434,12 @@ function testDraftKey(): void {
   if (!value || aiTest.value.status === 'testing') return
   emit('command', { type: 'ai-test', apiKey: value })
 }
+function testAndPullModels(): void {
+  const value = apiKey.value.trim()
+  if (!value) return
+  emit('command', { type: 'ai-test', apiKey: value })
+  emit('command', { type: 'ai-models', apiKey: value })
+}
 function saveAndTestKey(): void {
   const value = apiKey.value.trim()
   if (!value) return
@@ -1095,45 +1101,69 @@ function onEscape(): void {
           <template v-else-if="section === 'ai'">
             <div
               class="settings-row"
-              :class="{ 'settings-row-connected': editingKey || modelsOpen }"
+              :class="{
+                'settings-row-connected': editingKey || modelsOpen,
+                'settings-row-editing': editingKey,
+              }"
             >
               <span class="settings-label">DeepSeek</span>
-              <input
-                v-if="editingKey"
-                v-model="apiKey"
-                class="settings-inline-input"
-                type="password"
-                autocomplete="off"
-                aria-label="DeepSeek API Key"
-                :placeholder="configured ? '替换 API Key' : 'API Key'"
-                @keydown.enter="saveAndTestKey"
-              />
-              <span class="settings-inline">
+              <template v-if="editingKey">
+                <div class="settings-key-fields">
+                  <input
+                    v-model="apiKey"
+                    class="settings-inline-input settings-key-input"
+                    type="password"
+                    autocomplete="off"
+                    aria-label="DeepSeek API Key"
+                    :placeholder="configured ? '替换 API Key' : 'API Key'"
+                    @keydown.enter="saveAndTestKey"
+                  />
+                  <SelectField
+                    :model-value="modelPreview"
+                    aria-label="可用模型"
+                    title="测试后显示当前 Key 可用模型"
+                    wide
+                    @update:model-value="value => (modelPreview = value)"
+                  >
+                    <option value="" disabled>模型列表</option>
+                    <option
+                      v-for="model in aiModels"
+                      :key="model"
+                      :value="model"
+                    >
+                      {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                    </option>
+                  </SelectField>
+                </div>
+                <button
+                  type="button"
+                  class="settings-button"
+                  :disabled="!apiKey.trim() || aiTest.status === 'testing'"
+                  @click="testAndPullModels"
+                >
+                  测试
+                </button>
+              </template>
+              <span v-else class="settings-inline">
                 <span
-                  v-if="
-                    (configured || editingKey) && aiTest.status === 'testing'
-                  "
+                  v-if="configured && aiTest.status === 'testing'"
                   class="ai-latency"
                   >测试中…</span
                 >
                 <span
-                  v-else-if="
-                    (configured || editingKey) && aiTest.status === 'ok'
-                  "
+                  v-else-if="configured && aiTest.status === 'ok'"
                   class="ai-latency"
                   :class="aiTestLatencyClass"
                   >{{ aiTest.latencyMs }} ms</span
                 >
                 <span
-                  v-else-if="
-                    (configured || editingKey) && aiTest.status === 'error'
-                  "
+                  v-else-if="configured && aiTest.status === 'error'"
                   class="ai-latency is-slow"
                   :title="aiTest.error"
                   >测试失败</span
                 >
                 <button
-                  v-if="!editingKey && configured"
+                  v-if="configured"
                   type="button"
                   class="settings-button"
                   :disabled="aiTest.status === 'testing'"
@@ -1142,7 +1172,7 @@ function onEscape(): void {
                   测试延迟
                 </button>
                 <button
-                  v-if="!editingKey && configured"
+                  v-if="configured"
                   type="button"
                   class="settings-button"
                   @click="toggleModels"
@@ -1150,7 +1180,7 @@ function onEscape(): void {
                   模型列表
                 </button>
                 <button
-                  v-if="!editingKey && configured"
+                  v-if="configured"
                   type="button"
                   class="settings-button danger"
                   @click="deleteKey"
@@ -1158,7 +1188,7 @@ function onEscape(): void {
                   删除
                 </button>
                 <button
-                  v-if="!editingKey && !configured"
+                  v-if="!configured"
                   type="button"
                   class="settings-button primary"
                   @click="addKey"
@@ -1167,55 +1197,30 @@ function onEscape(): void {
                 </button>
               </span>
             </div>
-            <div
-              v-if="editingKey"
-              class="settings-field settings-field-end"
-              :class="{ 'settings-field-connected': modelsOpen }"
-            >
-              <SelectField
-                v-if="modelsOpen && aiModels.length"
-                :model-value="modelPreview"
-                aria-label="可用模型"
-                title="仅查看，不会切换当前模型"
-                min-width="200px"
-                @update:model-value="value => (modelPreview = value)"
+            <div v-if="editingKey" class="settings-field settings-field-end">
+              <span
+                v-if="aiTest.status === 'testing'"
+                class="ai-latency"
+                >测试中…</span
               >
-                <option
-                  v-for="model in aiModels"
-                  :key="model"
-                  :value="model"
-                >
-                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
-                </option>
-              </SelectField>
-              <p
-                v-else-if="modelsOpen && aiModelsError"
-                class="settings-error settings-model-error"
+              <span
+                v-else-if="aiTest.status === 'ok'"
+                class="ai-latency"
+                :class="aiTestLatencyClass"
+                >{{ aiTest.latencyMs }} ms</span
               >
-                {{ aiModelsError }}
-              </p>
+              <span
+                v-else-if="aiTest.status === 'error'"
+                class="ai-latency is-slow"
+                :title="aiTest.error"
+                >测试失败</span
+              >
               <button
                 type="button"
                 class="settings-button"
                 @click="cancelKey"
               >
                 取消
-              </button>
-              <button
-                type="button"
-                class="settings-button"
-                :disabled="!apiKey.trim() || aiTest.status === 'testing'"
-                @click="testDraftKey"
-              >
-                测试
-              </button>
-              <button
-                type="button"
-                class="settings-button"
-                :disabled="!apiKey.trim()"
-                @click="toggleModels"
-              >
-                模型列表
               </button>
               <button
                 type="button"
@@ -2021,6 +2026,24 @@ function onEscape(): void {
   justify-content: flex-end;
   padding-left: 0;
   padding-right: 0;
+}
+.settings-row-editing {
+  gap: 8px;
+}
+.settings-key-fields {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.settings-key-input {
+  width: 100%;
+  margin-right: 0;
+}
+.settings-key-fields :deep(.select-field) {
+  width: 100%;
+  min-width: 0;
 }
 .settings-field input {
   flex: 1;
