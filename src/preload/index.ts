@@ -82,6 +82,8 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.agentSaveSource, id),
   openAgentSource: (id) =>
     ipcRenderer.invoke(channels.agentSourceOpen, id),
+  exportAgentDiagram: (kind, data) =>
+    ipcRenderer.invoke(channels.agentDiagramExport, { kind, data }),
   refreshAgentSkills: () =>
     ipcRenderer.invoke(channels.agentSkillsRefresh),
   addAgentSkill: () => ipcRenderer.invoke(channels.agentSkillInstall),

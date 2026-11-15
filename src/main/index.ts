@@ -8701,6 +8701,36 @@ function setupIpc(): void {
     const error = await shell.openPath(source.path)
     if (error) throw new Error(error)
   })
+  handle(channels.agentDiagramExport, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以导出图表。')
+    const input = z
+      .object({
+        kind: z.enum(['svg', 'png']),
+        data: z.string().min(1).max(20_000_000),
+      })
+      .parse(payload)
+    const bytes =
+      input.kind === 'png'
+        ? Buffer.from(input.data, 'base64')
+        : Buffer.from(input.data, 'utf8')
+    if (!bytes.length) throw new Error('图表内容为空。')
+    const saved = await dialog.showSaveDialog(askWindow, {
+      defaultPath: join(
+        agentAttachmentDirectory(),
+        `mermaid-${Date.now()}.${input.kind}`,
+      ),
+      filters: [
+        input.kind === 'png'
+          ? { name: 'PNG', extensions: ['png'] }
+          : { name: 'SVG', extensions: ['svg'] },
+      ],
+    })
+    if (saved.canceled || !saved.filePath) return null
+    await writeFile(saved.filePath, bytes)
+    return saved.filePath
+  })
   handle(channels.agentSaveSource, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)

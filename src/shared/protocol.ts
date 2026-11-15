@@ -69,6 +69,7 @@ export const channels = {
   agentSaveSession: 'mqmz:agent:save-session',
   agentSaveSource: 'mqmz:agent:save-source',
   agentSourceOpen: 'mqmz:agent:source-open',
+  agentDiagramExport: 'mqmz:agent:diagram-export',
   agentSkillsRefresh: 'mqmz:agent:skills-refresh',
   agentSkillInstall: 'mqmz:agent:skill-install',
   agentSkillRead: 'mqmz:agent:skill-read',
@@ -851,6 +852,10 @@ export interface PrototypeApi {
   saveAgentSession(id: string): Promise<Result<string>>
   saveAgentSource(id: string): Promise<Result<string>>
   openAgentSource(id: string): Promise<Result<void>>
+  exportAgentDiagram(
+    kind: 'svg' | 'png',
+    data: string,
+  ): Promise<Result<string | null>>
   refreshAgentSkills(): Promise<Result<AgentSkillView[]>>
   addAgentSkill(): Promise<Result<AgentSkillDetail[]>>
   readAgentSkill(id: string): Promise<Result<AgentSkillDetail>>

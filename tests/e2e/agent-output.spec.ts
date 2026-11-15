@@ -351,3 +351,77 @@ test('shows thinking dots while streaming and returns to the bottom', async () =
     .toBeLessThan(30)
   await expect(scrollButton).toBeHidden()
 })
+
+test('copies Mermaid source, exports images and redraws on theme change', async () => {
+  const diagram = agent.locator('.agent-mermaid').first()
+  await expect(diagram).toBeVisible({ timeout: 30_000 })
+  await diagram.hover()
+  await diagram
+    .getByRole('button', { name: '复制 Mermaid 源码' })
+    .click()
+  expect(
+    await application.evaluate(({ clipboard }) => clipboard.readText()),
+  ).toContain('flowchart LR')
+
+  const directory = join(saveDirectory, 'diagrams')
+  await mkdir(directory, { recursive: true })
+  const svgPath = join(directory, 'diagram.svg')
+  const pngPath = join(directory, 'diagram.png')
+  await application.evaluate(({ dialog }, paths) => {
+    const state = globalThis as unknown as {
+      __mqmzExportIndex: number
+      __mqmzExportPaths: string[]
+    }
+    state.__mqmzExportIndex = 0
+    state.__mqmzExportPaths = paths
+    dialog.showSaveDialog = async () => ({
+      canceled: false,
+      filePath: state.__mqmzExportPaths[state.__mqmzExportIndex++],
+    })
+  }, [svgPath, pngPath])
+
+  await diagram.hover()
+  await diagram.getByRole('button', { name: '导出 SVG 图片' }).click()
+  await expect
+    .poll(() =>
+      readFile(svgPath, 'utf8').then(
+        () => true,
+        () => false,
+      ),
+    )
+    .toBe(true)
+  expect(await readFile(svgPath, 'utf8')).toContain('<svg')
+
+  await diagram.hover()
+  await diagram.getByRole('button', { name: '导出 PNG 图片' }).click()
+  await expect
+    .poll(() =>
+      readFile(pngPath).then(
+        () => true,
+        () => false,
+      ),
+    )
+    .toBe(true)
+  const png = await readFile(pngPath)
+  expect(png.subarray(1, 4).toString('ascii')).toBe('PNG')
+
+  const theme = await agent.evaluate(async () => {
+    const snapshot = await window.mqmz!.snapshot()
+    return snapshot.ok ? snapshot.value.settings.theme : 'default'
+  })
+  await agent.evaluate(() =>
+    window.mqmz!.command({
+      type: 'settings-update',
+      patch: { theme: 'halloween' },
+    }),
+  )
+  await expect(agent.locator('.agent-mermaid').first()).toBeVisible()
+  await agent.evaluate(
+    (value) =>
+      window.mqmz!.command({
+        type: 'settings-update',
+        patch: { theme: value },
+      }),
+    theme,
+  )
+})
