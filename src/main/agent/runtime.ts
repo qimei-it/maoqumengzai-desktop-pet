@@ -70,6 +70,12 @@ export type AgentFilesClient = {
   remove?(apiKey: string, id: string): Promise<void>
 }
 
+export type AgentSkillPrompt = {
+  name: string
+  description: string
+  content: string
+}
+
 export type AgentRuntimeDeps = {
   services: Services
   storePath: string
@@ -82,6 +88,8 @@ export type AgentRuntimeDeps = {
   stream?: typeof streamChat
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
   files?: AgentFilesClient
+  /** Enabled skills exposed to the model as a catalog plus a loader tool. */
+  loadSkills?(): Promise<AgentSkillPrompt[]>
 }
 
 export type AgentRuntime = {
@@ -339,6 +347,7 @@ function systemPrompt(
   mode: AgentMode,
   workspace: string | null,
   pet: AgentPetProfile,
+  skills: AgentSkillPrompt[] = [],
 ): string {
   return [
     '你是“毛趣萌仔”桌面宠物里的个人助理智能体。默认使用中文，回答简洁直接。',
@@ -358,6 +367,19 @@ function systemPrompt(
     '回复时可以带一点这个角色的口吻，也可以用它自称。',
     '以上只影响称呼、语气和情绪表达；不得改变任务判断、工具选择、操作安全规则和事实陈述。',
     '执行用户交代的工作时，始终以上面的助理规则和模型自身的判断为准。',
+    ...(skills.length
+      ? [
+          '',
+          '# 已启用技能',
+          '需要按某个技能执行时，先调用 skill_load 读取完整说明，再照做。',
+          ...skills
+            .slice(0, 50)
+            .map(
+              (skill) =>
+                `- ${skill.name}：${(skill.description || '无描述').slice(0, 160)}`,
+            ),
+        ]
+      : []),
   ].join('\n')
 }
 
@@ -433,7 +455,39 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     remove: (apiKey, id) => deleteAgentFile(apiKey, id),
   }
   const tools = createTools(deps.services)
-  const toolList = Object.values(tools)
+  const skillTool: AgentTool = {
+    name: 'skill_load',
+    description:
+      '读取已启用技能的完整说明。需要遵循某个技能时先调用它，再按说明执行。',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: '技能名称' },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+    plan: 'allow',
+    build: 'allow',
+    title: (args) => `读取技能 ${String(args.name ?? '')}`.slice(0, 80),
+    async run(args) {
+      const name = String(args.name ?? '').trim()
+      if (!name) return { ok: false, text: '缺少技能名称。' }
+      const skills = await (deps.loadSkills?.() ?? Promise.resolve([]))
+      const match =
+        skills.find((skill) => skill.name === name) ??
+        skills.find(
+          (skill) => skill.name.toLowerCase() === name.toLowerCase(),
+        )
+      if (!match)
+        return {
+          ok: false,
+          text: `没有找到技能“${name}”。先查看系统提示里已启用的技能列表。`,
+        }
+      return { ok: true, text: truncate(match.content, 20_000) }
+    },
+  }
+  const toolList = [...Object.values(tools), skillTool]
   const buildDefinitions = toolList.map(toolDefinition)
   const planDefinitions = toolList
     .filter((tool) => tool.plan === 'allow')
@@ -792,6 +846,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     signal: AbortSignal,
   ): Promise<void> {
     await refreshFileRefs(session, key, signal).catch(() => {})
+    const skills = await (deps.loadSkills?.() ?? Promise.resolve([])).catch(
+      () => [],
+    )
     for (let step = 0; step < maxSteps; step += 1) {
       if (signal.aborted) return
       const assistant: AgentMessageView = {
@@ -820,6 +877,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
                   session.mode,
                   session.workspace,
                   deps.getPetProfile(),
+                  skills,
                 ),
                 ...(context.summary
                   ? [`\n\n本会话较早内容的摘要：\n${context.summary}`]
@@ -925,7 +983,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
       for (const call of callEntries) {
         if (signal.aborted) return
-        const tool = tools[call.name]
+        const tool =
+          call.name === 'skill_load' ? skillTool : tools[call.name]
         let args: Record<string, unknown> = {}
         let parseError: string | undefined
         try {

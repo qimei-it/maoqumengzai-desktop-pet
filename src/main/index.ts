@@ -48,7 +48,10 @@ import type {
   AgentSkillDetail,
   AgentSkillView,
 } from '../shared/agent'
-import { createAgentRuntime } from './agent/runtime'
+import {
+  createAgentRuntime,
+  type AgentSkillPrompt,
+} from './agent/runtime'
 import {
   createSkillStore,
   type SkillStore,
@@ -969,12 +972,31 @@ function safeOutputName(value: string | undefined): string {
   return name
 }
 
+async function loadEnabledSkillPrompts(): Promise<AgentSkillPrompt[]> {
+  if (!agentSkillStore) return []
+  const prompts: AgentSkillPrompt[] = []
+  for (const skill of agentSkills.filter((item) => item.enabled).slice(0, 50)) {
+    try {
+      const detail = await agentSkillStore.read(skill.id)
+      prompts.push({
+        name: detail.name,
+        description: detail.description,
+        content: detail.content.slice(0, 40_000),
+      })
+    } catch {
+      // Ignore a skill removed between listing and reading.
+    }
+  }
+  return prompts
+}
+
 const agent = createAgentRuntime({
   services,
   storePath: agentPath,
   getKey: () => aiKey,
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
+  loadSkills: loadEnabledSkillPrompts,
   broadcast: () => broadcast(),
   pickWorkspace: async () => {
     const owner = askWindow && askWindow.isVisible() ? askWindow : pet

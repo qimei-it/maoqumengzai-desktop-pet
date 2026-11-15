@@ -2,7 +2,10 @@ import { describe, expect, test } from 'vitest'
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createAgentRuntime } from '../../src/main/agent/runtime'
+import {
+  createAgentRuntime,
+  type AgentSkillPrompt,
+} from '../../src/main/agent/runtime'
 import type {
   StreamOptions,
   StreamResult,
@@ -39,6 +42,7 @@ async function makeRuntime(
   override?: {
     stream?: typeof import('../../src/main/agent/provider').streamChat
     files?: import('../../src/main/agent/runtime').AgentFilesClient
+    loadSkills?: () => Promise<AgentSkillPrompt[]>
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -54,6 +58,7 @@ async function makeRuntime(
     pickWorkspace: async () => directory,
     stream: override?.stream ?? script.stream,
     ...(override?.files ? { files: override.files } : {}),
+    ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
   })
   await runtime.load()
   runtime.newSession()
@@ -1064,6 +1069,54 @@ describe('agent runtime', () => {
         }),
       ]),
     )
+  })
+
+  test('lists enabled skills and loads one through the tool', async () => {
+    const seen: StreamOptions['messages'][] = []
+    const toolSets: string[][] = []
+    const { runtime } = await makeRuntime([], [], {
+      loadSkills: async () => [
+        {
+          name: '日报',
+          description: '按三段写日报',
+          content: '请按三段写日报。',
+        },
+      ],
+      stream: async (_key, options) => {
+        seen.push(options.messages)
+        toolSets.push(
+          (options.tools ?? []).map((tool) => tool.function.name),
+        )
+        if (seen.length === 1)
+          return {
+            text: '',
+            toolCalls: [
+              {
+                id: 'skill-1',
+                name: 'skill_load',
+                arguments: JSON.stringify({ name: '日报' }),
+              },
+            ],
+          }
+        options.onText?.('已完成日报')
+        return { text: '已完成日报', toolCalls: [] }
+      },
+    })
+    await runtime.send('写日报')
+    const system = seen[0].find((message) => message.role === 'system')
+    expect(system?.content).toContain('已启用技能')
+    expect(system?.content).toContain('日报：按三段写日报')
+    expect(toolSets[0]).toContain('skill_load')
+    const toolResult = seen[1].find((message) => message.role === 'tool')
+    expect(toolResult?.content).toContain('请按三段写日报。')
+    const skillPart = toolParts(runtime).find(
+      (part) => part.type === 'tool' && part.name === 'skill_load',
+    )
+    expect(skillPart).toMatchObject({
+      type: 'tool',
+      title: '读取技能 日报',
+      status: 'done',
+    })
   })
 
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
