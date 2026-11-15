@@ -118,6 +118,8 @@ test('groups built-in skills by category and keeps them read-only', async () => 
     '通用工具',
     '论文科研',
     '文档办公',
+    '设计开发',
+    '内容创作',
     '创意工具',
     '电商运营',
   ])
@@ -128,6 +130,8 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(groups.nth(2)).toContainText('Doc Gamma')
   await expect(groups.nth(3)).toContainText('暂无技能')
   await expect(groups.nth(4)).toContainText('暂无技能')
+  await expect(groups.nth(5)).toContainText('暂无技能')
+  await expect(groups.nth(6)).toContainText('暂无技能')
   await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
   await expect(agent.locator('.agent-skill-check')).toHaveCount(2)
 

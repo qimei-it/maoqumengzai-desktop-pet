@@ -1676,7 +1676,7 @@
     {
       "id": "builtin-anthropic-frontend-design",
       "dir": "anthropic/frontend-design",
-      "category": "通用工具",
+      "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/frontend-design",
       "license": "Apache-2.0"
@@ -2024,6 +2024,1110 @@
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/xiyou-insight",
       "license": "MIT (README)"
+    },
+    {
+      "id": "builtin-academic-pptx-academic-pptx",
+      "dir": "academic-pptx/academic-pptx",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/gabberflast/academic-pptx-skill/tree/9f2b703ffe8d1449851617665ab1ffb3516d54ac",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-android-native-dev",
+      "dir": "minimax/android-native-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/android-native-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-buddy-sings",
+      "dir": "minimax/buddy-sings",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/buddy-sings",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-flutter-dev",
+      "dir": "minimax/flutter-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/flutter-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-frontend-dev",
+      "dir": "minimax/frontend-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/frontend-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-fullstack-dev",
+      "dir": "minimax/fullstack-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/fullstack-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-gif-sticker-maker",
+      "dir": "minimax/gif-sticker-maker",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/gif-sticker-maker",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-ios-application-dev",
+      "dir": "minimax/ios-application-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/ios-application-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-docx",
+      "dir": "minimax/minimax-docx",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-docx",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-multimodal-toolkit",
+      "dir": "minimax/minimax-multimodal-toolkit",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-multimodal-toolkit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-music-gen",
+      "dir": "minimax/minimax-music-gen",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-music-gen",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-music-playlist",
+      "dir": "minimax/minimax-music-playlist",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-music-playlist",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-pdf",
+      "dir": "minimax/minimax-pdf",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-pdf",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-minimax-xlsx",
+      "dir": "minimax/minimax-xlsx",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-xlsx",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-pptx-generator",
+      "dir": "minimax/pptx-generator",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/pptx-generator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-react-native-dev",
+      "dir": "minimax/react-native-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/react-native-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-shader-dev",
+      "dir": "minimax/shader-dev",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/shader-dev",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-minimax-vision-analysis",
+      "dir": "minimax/vision-analysis",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/vision-analysis",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-banner-design",
+      "dir": "uiux/banner-design",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/banner-design",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-brand",
+      "dir": "uiux/brand",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/brand",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-design",
+      "dir": "uiux/design",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/design",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-design-system",
+      "dir": "uiux/design-system",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/design-system",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-slides",
+      "dir": "uiux/slides",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/slides",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-ui-styling",
+      "dir": "uiux/ui-styling",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/ui-styling",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-uiux-ui-ux-pro-max",
+      "dir": "uiux/ui-ux-pro-max",
+      "category": "设计开发",
+      "defaultEnabled": true,
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/ui-ux-pro-max",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-impeccable-impeccable",
+      "dir": "impeccable/impeccable",
+      "category": "设计开发",
+      "defaultEnabled": true,
+      "source": "https://github.com/pbakaus/impeccable/tree/2b86d9c07b97d4bed7de23583e1bd1e58dd2baae/.claude/skills/impeccable",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-figma",
+      "dir": "hyperframes/figma",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/figma",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-hyperframes",
+      "dir": "hyperframes/hyperframes",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-hyperframes-cli",
+      "dir": "hyperframes/hyperframes-cli",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes-cli",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-hyperframes-registry",
+      "dir": "hyperframes/hyperframes-registry",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes-registry",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-media-use",
+      "dir": "hyperframes/media-use",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/media-use",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-remotion-to-hyperframes",
+      "dir": "hyperframes/remotion-to-hyperframes",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/remotion-to-hyperframes",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-reverse-any-video",
+      "dir": "hyperframes/reverse-any-video",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/reverse-any-video",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-slideshow",
+      "dir": "hyperframes/slideshow",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/slideshow",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-hyperframes-style-sampling",
+      "dir": "hyperframes/style-sampling",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/style-sampling",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-article-illustrator",
+      "dir": "baoyu/baoyu-article-illustrator",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-article-illustrator",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-comic",
+      "dir": "baoyu/baoyu-comic",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-comic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-compress-image",
+      "dir": "baoyu/baoyu-compress-image",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-compress-image",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-cover-image",
+      "dir": "baoyu/baoyu-cover-image",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-cover-image",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-danger-gemini-web",
+      "dir": "baoyu/baoyu-danger-gemini-web",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-danger-gemini-web",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-danger-x-to-markdown",
+      "dir": "baoyu/baoyu-danger-x-to-markdown",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-danger-x-to-markdown",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-diagram",
+      "dir": "baoyu/baoyu-diagram",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-diagram",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-electron-extract",
+      "dir": "baoyu/baoyu-electron-extract",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-electron-extract",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-format-markdown",
+      "dir": "baoyu/baoyu-format-markdown",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-format-markdown",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-image-gen",
+      "dir": "baoyu/baoyu-image-gen",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-image-gen",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-infographic",
+      "dir": "baoyu/baoyu-infographic",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-infographic",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-markdown-to-html",
+      "dir": "baoyu/baoyu-markdown-to-html",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-markdown-to-html",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-post-to-wechat",
+      "dir": "baoyu/baoyu-post-to-wechat",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-wechat",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-post-to-weibo",
+      "dir": "baoyu/baoyu-post-to-weibo",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-weibo",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-post-to-x",
+      "dir": "baoyu/baoyu-post-to-x",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-x",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-slide-deck",
+      "dir": "baoyu/baoyu-slide-deck",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-slide-deck",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-translate",
+      "dir": "baoyu/baoyu-translate",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-translate",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-url-to-markdown",
+      "dir": "baoyu/baoyu-url-to-markdown",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-url-to-markdown",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-wechat-summary",
+      "dir": "baoyu/baoyu-wechat-summary",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-wechat-summary",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-xhs-images",
+      "dir": "baoyu/baoyu-xhs-images",
+      "category": "创意工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-xhs-images",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-baoyu-baoyu-youtube-transcript",
+      "dir": "baoyu/baoyu-youtube-transcript",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-youtube-transcript",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-bump",
+      "dir": "cheat/cheat-bump",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-bump",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-init",
+      "dir": "cheat/cheat-init",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-init",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-learn-from",
+      "dir": "cheat/cheat-learn-from",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-learn-from",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-migrate",
+      "dir": "cheat/cheat-migrate",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-migrate",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-persona",
+      "dir": "cheat/cheat-persona",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-persona",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-predict",
+      "dir": "cheat/cheat-predict",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-predict",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-publish",
+      "dir": "cheat/cheat-publish",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-publish",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-recommend",
+      "dir": "cheat/cheat-recommend",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-recommend",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-retro",
+      "dir": "cheat/cheat-retro",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-retro",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-score",
+      "dir": "cheat/cheat-score",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-score",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-score-blind",
+      "dir": "cheat/cheat-score-blind",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-score-blind",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-seed",
+      "dir": "cheat/cheat-seed",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-seed",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-shoot",
+      "dir": "cheat/cheat-shoot",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-shoot",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-status",
+      "dir": "cheat/cheat-status",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-status",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-cheat-cheat-trends",
+      "dir": "cheat/cheat-trends",
+      "category": "内容创作",
+      "defaultEnabled": false,
+      "source": "https://github.com/XBuilderLAB/cheat-on-content/tree/d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89/skills/cheat-trends",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-gstack",
+      "dir": "gstack/gstack",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-autoplan",
+      "dir": "gstack/autoplan",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/autoplan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-benchmark",
+      "dir": "gstack/benchmark",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/benchmark",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-benchmark-models",
+      "dir": "gstack/benchmark-models",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/benchmark-models",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-browse",
+      "dir": "gstack/browse",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/browse",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-browser-skills-hackernews-frontpage",
+      "dir": "gstack/browser-skills-hackernews-frontpage",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/browser-skills/hackernews-frontpage",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-canary",
+      "dir": "gstack/canary",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/canary",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-capy-skill-gstack",
+      "dir": "gstack/capy-skill-gstack",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/capy/skill/gstack",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-careful",
+      "dir": "gstack/careful",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/careful",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-codex",
+      "dir": "gstack/codex",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/codex",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-context-restore",
+      "dir": "gstack/context-restore",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/context-restore",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-context-save",
+      "dir": "gstack/context-save",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/context-save",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-cso",
+      "dir": "gstack/cso",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/cso",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-design-consultation",
+      "dir": "gstack/design-consultation",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-consultation",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-design-html",
+      "dir": "gstack/design-html",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-html",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-design-motion",
+      "dir": "gstack/design-motion",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-motion",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-design-review",
+      "dir": "gstack/design-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-design-shotgun",
+      "dir": "gstack/design-shotgun",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-shotgun",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-deslop-shared-libs",
+      "dir": "gstack/deslop-shared-libs",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/deslop-shared-libs",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-devex-review",
+      "dir": "gstack/devex-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/devex-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-diagram",
+      "dir": "gstack/diagram",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/diagram",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-document-generate",
+      "dir": "gstack/document-generate",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/document-generate",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-document-release",
+      "dir": "gstack/document-release",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/document-release",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-eval-plan",
+      "dir": "gstack/eval-plan",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/eval-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-freeze",
+      "dir": "gstack/freeze",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/freeze",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-gstack-upgrade",
+      "dir": "gstack/gstack-upgrade",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/gstack-upgrade",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-guard",
+      "dir": "gstack/guard",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/guard",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-health",
+      "dir": "gstack/health",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/health",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ios-clean",
+      "dir": "gstack/ios-clean",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-clean",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ios-design-review",
+      "dir": "gstack/ios-design-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-design-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ios-fix",
+      "dir": "gstack/ios-fix",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-fix",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ios-qa",
+      "dir": "gstack/ios-qa",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-qa",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ios-sync",
+      "dir": "gstack/ios-sync",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-sync",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-land-and-deploy",
+      "dir": "gstack/land-and-deploy",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/land-and-deploy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-landing-report",
+      "dir": "gstack/landing-report",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/landing-report",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-learn",
+      "dir": "gstack/learn",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/learn",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-make-pdf",
+      "dir": "gstack/make-pdf",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/make-pdf",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-modernize",
+      "dir": "gstack/modernize",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/modernize",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-office-hours",
+      "dir": "gstack/office-hours",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/office-hours",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-open-gstack-browser",
+      "dir": "gstack/open-gstack-browser",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/open-gstack-browser",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-openclaw-skills-gstack-openclaw-ceo-review",
+      "dir": "gstack/openclaw-skills-gstack-openclaw-ceo-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-ceo-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-openclaw-skills-gstack-openclaw-office-hours",
+      "dir": "gstack/openclaw-skills-gstack-openclaw-office-hours",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-office-hours",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-openclaw-skills-gstack-openclaw-retro",
+      "dir": "gstack/openclaw-skills-gstack-openclaw-retro",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-retro",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-pair-agent",
+      "dir": "gstack/pair-agent",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/pair-agent",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-plan-ceo-review",
+      "dir": "gstack/plan-ceo-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-ceo-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-plan-design-review",
+      "dir": "gstack/plan-design-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-design-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-plan-devex-review",
+      "dir": "gstack/plan-devex-review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-devex-review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-plan-tune",
+      "dir": "gstack/plan-tune",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-tune",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-qa",
+      "dir": "gstack/qa",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qa",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-qa-only",
+      "dir": "gstack/qa-only",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qa-only",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-qm-sandbox-skills-gstack-plan",
+      "dir": "gstack/qm-sandbox-skills-gstack-plan",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qm/sandbox/skills/gstack-plan",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-retro",
+      "dir": "gstack/retro",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/retro",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-review",
+      "dir": "gstack/review",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/review",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-runaway-stopper",
+      "dir": "gstack/runaway-stopper",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/runaway-stopper",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-scrape",
+      "dir": "gstack/scrape",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/scrape",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-setup-browser-cookies",
+      "dir": "gstack/setup-browser-cookies",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-browser-cookies",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-setup-deploy",
+      "dir": "gstack/setup-deploy",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-deploy",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-setup-gbrain",
+      "dir": "gstack/setup-gbrain",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-gbrain",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ship",
+      "dir": "gstack/ship",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ship",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-skillify",
+      "dir": "gstack/skillify",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/skillify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-spec",
+      "dir": "gstack/spec",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/spec",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-sync-gbrain",
+      "dir": "gstack/sync-gbrain",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/sync-gbrain",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-test-audit",
+      "dir": "gstack/test-audit",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/test-audit",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-ubicloud",
+      "dir": "gstack/ubicloud",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ubicloud",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-unfreeze",
+      "dir": "gstack/unfreeze",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/unfreeze",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-verify",
+      "dir": "gstack/verify",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/verify",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-gstack-write-skill",
+      "dir": "gstack/write-skill",
+      "category": "设计开发",
+      "defaultEnabled": false,
+      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/write-skill",
+      "license": "MIT"
     }
   ]
 }

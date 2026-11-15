@@ -39,3 +39,20 @@ Anthropic skills are Apache-2.0; the shared license is at `licenses/anthropic-Ap
 - https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill @ `cfdf288f868e2ed23bb1bbe73c37e4581bf88b87` (MIT declared in README; no LICENSE file)
 
 Not bundled because no license grant was found: `infometa/workbuddyskills` (ozon-1688-uploader) and `liangdabiao/amazon-listing-alexa-optimizer`.
+
+## Design, content and engineering skills (2026-11-15)
+
+- https://github.com/gabberflast/academic-pptx-skill @ `9f2b703ffe8d1449851617665ab1ffb3516d54ac` (MIT)
+- https://github.com/MiniMax-AI/skills @ `02853d885acb1abc157477ce00c4d98a8ed14a71` (MIT)
+- https://github.com/nextlevelbuilder/ui-ux-pro-max-skill @ `d643997c82e94742dd3bee43210b0198e8bbba3d` (MIT)
+- https://github.com/pbakaus/impeccable @ `2b86d9c07b97d4bed7de23583e1bd1e58dd2baae` (Apache-2.0)
+- https://github.com/heygen-com/hyperframes @ `04202e8a4c2e7f334636bf1e3b07dd38c77e5b43` (Apache-2.0)
+- https://github.com/jimliu/baoyu-skills @ `ca703c2d7c2c4399a1dc0cf82224f8551e05a96d` (MIT)
+- https://github.com/XBuilderLAB/cheat-on-content @ `d88d004abcabfe6656a007b8fb4e7ed4ea7a4c89` (MIT)
+- https://github.com/garrytan/gstack @ `0326b144af36676d599dcf63a9fad9a870d22ed6` (MIT; SKILL.md files only because the source repository is large)
+
+Not bundled:
+- `borghei/Claude-Skills`: Commons Clause + MIT, not an open-source grant.
+- `remotion-dev/skills`: no license file; Remotion's own licensing applies.
+- `vivy-yi/xiaohongshu-skills`: no license.
+- `noique/cross-border-ecommerce-skills`: CC BY-NC 4.0.

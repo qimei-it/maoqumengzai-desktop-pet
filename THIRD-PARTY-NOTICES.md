@@ -74,8 +74,16 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 | liangdabiao/Amazon-Skills-Liang | MIT | 1 | amazon-listing-optimization |
 | coral870921-source/Ozon-Profit-Skills | MIT | 2 | Ozon Listing 与利润账本 |
 | liangdabiao/amazon-sorftime-research-MCP-skill | MIT（README 声明，无 LICENSE 文件） | 9 | Amazon 选品与关键词研究，依赖外部 MCP/Key |
+| gabberflast/academic-pptx-skill | MIT | 1 | 学术 PPT 制作 |
+| MiniMax-AI/skills | MIT | 17 | 开发、文档、音乐与多模态；部分依赖 MiniMax API |
+| nextlevelbuilder/ui-ux-pro-max-skill | MIT | 7 | UI/UX、设计系统、品牌与幻灯片 |
+| pbakaus/impeccable | Apache-2.0 | 1 | 前端设计与评审 |
+| heygen-com/hyperframes | Apache-2.0 | 9 | HTML 视频制作与渲染 |
+| jimliu/baoyu-skills | MIT | 21 | 内容创作、图片、Markdown 与发布 |
+| XBuilderLAB/cheat-on-content | MIT | 15 | 内容评分、预测与发布 |
+| garrytan/gstack | MIT | 67 | 工程、设计、QA 与发布工作流；仅内置 SKILL.md |
 
-Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。
+Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。borghei/Claude-Skills 使用 Commons Clause；remotion-dev/skills、vivy-yi/xiaohongshu-skills 未找到许可证；noique/cross-border-ecommerce-skills 为 CC BY-NC，均未内置。
 
 ## Artwork
 
