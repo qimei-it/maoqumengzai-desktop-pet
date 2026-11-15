@@ -72,10 +72,12 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.agentAttachmentRemove, id),
   pruneAgentAttachments: () =>
     ipcRenderer.invoke(channels.agentAttachmentPrune),
-  saveAgentOutput: (input) =>
-    ipcRenderer.invoke(channels.agentSaveOutput, input),
-  exportAgentAudio: (input) =>
-    ipcRenderer.invoke(channels.agentExportAudio, input),
+  copyAgentOutput: (text) =>
+    ipcRenderer.invoke(channels.agentCopyOutput, text),
+  saveAgentSession: (id) =>
+    ipcRenderer.invoke(channels.agentSaveSession, id),
+  saveAgentSource: (id) =>
+    ipcRenderer.invoke(channels.agentSaveSource, id),
   openExternal: (url) => ipcRenderer.invoke(channels.openExternal, url),
   pickDirectory: (title?: string) =>
     ipcRenderer.invoke(channels.pickDirectory, title),

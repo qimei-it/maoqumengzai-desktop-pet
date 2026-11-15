@@ -259,7 +259,7 @@ import type {
   MailProvider,
   MailState,
 } from '../shared/mail'
-import { writeExclusive } from './write-output'
+import { copyExclusive, writeExclusive } from './write-output'
 import { convertDocumentToPdf } from './convert-document'
 import { ofdToImages, ofdToPdf } from './convert-ofd'
 import { csvToXlsx } from './convert-spreadsheet'
@@ -515,6 +515,7 @@ let convertMode: 'convert' | 'audio' = 'convert'
 let archiveBusy = false
 let archiveFiles: ArchiveFile[] = []
 let archiveOutcome: ArchiveOutcome | undefined
+let archiveOutputPath: string | undefined
 let archiveNotice: string | undefined
 let archiveFolder: string | undefined
 let archiveToken = 0
@@ -639,6 +640,9 @@ const services = createServices({
       outputs: outcome.outputs.map((output) => ({
         name: output.name,
         size: output.size,
+        ...(convertOutputPaths.get(output.id)
+          ? { path: convertOutputPaths.get(output.id) }
+          : {}),
       })),
       messages: outcome.messages,
     }
@@ -657,6 +661,7 @@ const services = createServices({
       size: archiveOutcome.size,
       count: archiveOutcome.count,
       format,
+      ...(archiveOutputPath ? { path: archiveOutputPath } : {}),
     }
   },
   extractFiles: (ids) => extractSelected(ids),
@@ -919,72 +924,6 @@ function safeOutputName(value: string | undefined): string {
   if (!name || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name))
     return 'agent-reply'
   return name
-}
-
-function plainAgentText(value: string): string {
-  return value
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/^[#>*\-\s]+/gm, ' ')
-    .replace(/[*_~|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function runCommand(command: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: 10 * 60 * 1000 }, (error) => {
-      if (error) reject(error)
-      else resolve()
-    })
-  })
-}
-
-async function synthesizeSpeech(text: string, output: string): Promise<void> {
-  if (process.platform === 'darwin') {
-    const aiff = join(tmpdir(), `mqmz-tts-${randomUUID()}.aiff`)
-    try {
-      await runCommand('say', ['-o', aiff, text])
-      await runCommand('afconvert', [
-        '-f',
-        'WAVE',
-        '-d',
-        'LEI16@22050',
-        aiff,
-        output,
-      ])
-    } finally {
-      await rm(aiff, { force: true }).catch(() => {})
-    }
-    return
-  }
-  if (process.platform === 'win32') {
-    const textFile = join(tmpdir(), `mqmz-tts-${randomUUID()}.txt`)
-    try {
-      await writeFile(textFile, text, 'utf8')
-      const quote = (value: string) => value.replace(/'/g, "''")
-      const script = [
-        'Add-Type -AssemblyName System.Speech',
-        '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
-        `$s.SetOutputToWaveFile('${quote(output)}')`,
-        `$s.Speak([IO.File]::ReadAllText('${quote(textFile)}', [Text.Encoding]::UTF8))`,
-        '$s.Dispose()',
-      ].join('; ')
-      await runCommand('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        script,
-      ])
-    } finally {
-      await rm(textFile, { force: true }).catch(() => {})
-    }
-    return
-  }
-  throw new Error('当前系统不支持本地语音导出。')
 }
 
 const agent = createAgentRuntime({
@@ -1831,6 +1770,7 @@ function openArchive(fileIds: string[], folderIds: string[] = []): void {
     }),
   ].slice(0, 32)
   archiveOutcome = undefined
+  archiveOutputPath = undefined
   archiveNotice = undefined
   archiveFolder = undefined
   if (archiveWindow && !archiveWindow.isDestroyed()) {
@@ -1857,6 +1797,7 @@ async function startArchive(format: ArchiveFormat): Promise<void> {
   archiveBusy = true
   archiveNotice = undefined
   archiveOutcome = undefined
+  archiveOutputPath = undefined
   archiveFolder = undefined
   broadcast()
   try {
@@ -1894,6 +1835,7 @@ async function startArchive(format: ArchiveFormat): Promise<void> {
       ...(folderCount ? { folderCount } : {}),
     }
     archiveFolder = dirname(destination)
+    archiveOutputPath = destination
     if (windowVisible(archiveWindow)) positionArchive()
   } catch (error) {
     if (token !== archiveToken) return
@@ -8648,66 +8590,53 @@ function setupIpc(): void {
       broadcast()
     }
   })
-  handle(channels.agentSaveOutput, 'either', async (event, payload) => {
+  handle(channels.agentCopyOutput, 'either', (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
-      throw new Error('仅智能体窗口可以保存输出。')
-    const input = z
-      .object({
-        text: z.string().min(1).max(1_000_000),
-        title: z.string().trim().max(120).optional(),
-      })
-      .parse(payload)
-    try {
-      const base = safeOutputName(input.title)
-      const saved = await writeExclusive(
-        agentAttachmentDirectory(),
-        (attempt) =>
-          `${base}${attempt === 1 ? '' : ` (${attempt})`}.md`,
-        Buffer.from(input.text, 'utf8'),
-      )
-      showToast(`已保存 ${basename(saved)}`)
-      return saved
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : '保存智能体输出失败。',
-      )
-      throw error
-    }
+      throw new Error('仅智能体窗口可以复制输出。')
+    const text = z.string().min(1).max(1_000_000).parse(payload)
+    electronClipboard.writeText(text)
+    lastClipboardText = text
+    addClipboardText(text)
+    showToast('已复制')
   })
-  handle(channels.agentExportAudio, 'either', async (event, payload) => {
+  handle(channels.agentSaveSession, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
-      throw new Error('仅智能体窗口可以导出音频。')
-    const input = z
-      .object({
-        text: z.string().min(1).max(1_000_000),
-        title: z.string().trim().max(120).optional(),
-      })
-      .parse(payload)
-    const plain = plainAgentText(input.text).slice(0, 10_000)
-    if (!plain) throw new Error('这段回复没有可朗读的文字。')
-    const base = safeOutputName(input.title)
-    const directory = agentAttachmentDirectory()
-    const temp = join(tmpdir(), `mqmz-tts-${randomUUID()}.wav`)
-    try {
-      await synthesizeSpeech(plain, temp)
-      const bytes = await readFile(temp)
-      const saved = await writeExclusive(
-        directory,
-        (attempt) => `${base}${attempt === 1 ? '' : ` (${attempt})`}.wav`,
-        bytes,
-      )
-      showToast(`已导出音频 ${basename(saved)}`)
-      return saved
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : '导出音频失败。',
-      )
-      throw error
-    } finally {
-      await rm(temp, { force: true }).catch(() => {})
-    }
+      throw new Error('仅智能体窗口可以保存对话。')
+    const id = z.string().uuid().parse(payload)
+    const session = agent.sessionMarkdown(id)
+    if (!session) throw new Error('对话不存在。')
+    const base = safeOutputName(session.title)
+    const saved = await writeExclusive(
+      agentAttachmentDirectory(),
+      (attempt) => `${base}${attempt === 1 ? '' : ` (${attempt})`}.md`,
+      Buffer.from(session.text, 'utf8'),
+    )
+    showToast(`已保存 ${basename(saved)}`)
+    return saved
+  })
+  handle(channels.agentSaveSource, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以保存文件。')
+    const id = z.string().uuid().parse(payload)
+    const source = agent.source(id)
+    if (!source) throw new Error('文件记录不存在。')
+    const info = await lstat(source.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('源文件已不在。')
+    const extension = extname(source.name)
+    const stem = safeOutputName(
+      basename(source.name, extension) || 'agent-file',
+    )
+    const saved = await copyExclusive(
+      agentAttachmentDirectory(),
+      (attempt) =>
+        `${stem}${extension}${attempt === 1 ? '' : ` (${attempt})`}`,
+      source.path,
+    )
+    showToast(`已保存 ${basename(saved)}`)
+    return saved
   })
   handle(channels.mailAttachments, 'either', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)

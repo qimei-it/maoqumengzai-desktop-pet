@@ -28,6 +28,13 @@ export type StoredFileRef = {
   expiresAt: number | null
 }
 
+export type StoredSource = {
+  id: string
+  name: string
+  path: string
+  kind: 'attachment' | 'artifact'
+}
+
 export type StoredSession = {
   id: string
   title: string
@@ -42,6 +49,7 @@ export type StoredSession = {
   ui: AgentMessageView[]
   history: ProviderMessage[]
   files?: StoredFileRef[]
+  sources?: StoredSource[]
   usage: AgentUsage
 }
 
@@ -97,6 +105,20 @@ function parseFileRef(value: unknown): StoredFileRef | null {
   }
 }
 
+function parseSource(value: unknown): StoredSource | null {
+  if (!isRecord(value)) return null
+  if (typeof value.id !== 'string' || !value.id) return null
+  if (typeof value.name !== 'string' || !value.name) return null
+  if (typeof value.path !== 'string' || !value.path) return null
+  if (value.kind !== 'attachment' && value.kind !== 'artifact') return null
+  return {
+    id: value.id.slice(0, 200),
+    name: value.name.slice(0, 300),
+    path: value.path,
+    kind: value.kind,
+  }
+}
+
 function parseSession(value: unknown): StoredSession | null {
   if (!isRecord(value)) return null
   if (typeof value.id !== 'string' || !value.id) return null
@@ -137,6 +159,12 @@ function parseSession(value: unknown): StoredSession | null {
           .map(parseFileRef)
           .filter((ref): ref is StoredFileRef => Boolean(ref))
           .slice(-200)
+      : [],
+    sources: Array.isArray(value.sources)
+      ? value.sources
+          .map(parseSource)
+          .filter((source): source is StoredSource => Boolean(source))
+          .slice(-400)
       : [],
     usage: {
       input: typeof usage.input === 'number' ? usage.input : 0,

@@ -5,6 +5,8 @@ import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
   AgentApproval,
+  AgentArtifactKind,
+  AgentArtifactView,
   AgentAttachmentInput,
   AgentAttachmentView,
   AgentMessageView,
@@ -27,6 +29,7 @@ import {
   type StoredFileRef,
   type StoredProject,
   type StoredSession,
+  type StoredSource,
 } from './store'
 import {
   streamChat,
@@ -103,6 +106,10 @@ export type AgentRuntime = {
   setModel(model: DeepSeekModel): void
   setReasoning(reasoning: AgentReasoning): void
   setWorkspace(projectId: string | null): void
+  /** Resolve a saved attachment or artifact source for download. */
+  source(id: string): { name: string; path: string } | null
+  /** Serialize one session as Markdown for export. */
+  sessionMarkdown(id: string): { title: string; text: string } | null
   flush(): Promise<void>
 }
 
@@ -133,6 +140,7 @@ function newSession(
     ui: [],
     history: [],
     files: [],
+    sources: [],
     usage: { input: 0, output: 0 },
   }
 }
@@ -255,6 +263,50 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+function artifactKind(name: string): AgentArtifactKind {
+  const extension = name.includes('.')
+    ? name.slice(name.lastIndexOf('.') + 1).toLowerCase()
+    : ''
+  if (
+    ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'opus', 'aiff'].includes(
+      extension,
+    )
+  )
+    return 'audio'
+  if (
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff', 'tif', 'heic'].includes(
+      extension,
+    )
+  )
+    return 'image'
+  if (
+    ['zip', '7z', 'rar', 'tar', 'gz', 'tgz', 'bz2', 'xz'].includes(extension)
+  )
+    return 'archive'
+  if (
+    [
+      'pdf',
+      'doc',
+      'docx',
+      'xls',
+      'xlsx',
+      'ppt',
+      'pptx',
+      'md',
+      'markdown',
+      'txt',
+      'csv',
+      'html',
+      'htm',
+      'epub',
+      'ofd',
+      'json',
+    ].includes(extension)
+  )
+    return 'document'
+  return 'other'
+}
+
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const stream = deps.stream ?? streamChat
   const files: AgentFilesClient = deps.files ?? {
@@ -283,6 +335,17 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
   function persist(): void {
     void saveAgentStore(deps.storePath, { sessions, projects }).catch(() => {})
+  }
+
+  function rememberSource(
+    session: StoredSession,
+    source: StoredSource,
+  ): void {
+    session.sources ??= []
+    session.sources = [
+      source,
+      ...session.sources.filter((item) => item.id !== source.id),
+    ].slice(0, 400)
   }
 
   function activeSession(): StoredSession | undefined {
@@ -482,7 +545,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     args: Record<string, unknown>,
     argsText: string,
     signal: AbortSignal,
-  ): Promise<{ allowed: boolean; text: string; ok: boolean }> {
+  ): Promise<{
+    allowed: boolean
+    text: string
+    ok: boolean
+    artifacts?: { name: string; path: string }[]
+  }> {
     const permission = permissionFor(tool, session.mode)
     if (permission === 'deny') {
       return {
@@ -518,7 +586,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         workspace: session.workspace,
         signal,
       })
-      return { allowed: true, ok: result.ok, text: result.text }
+      return {
+        allowed: true,
+        ok: result.ok,
+        text: result.text,
+        ...(result.artifacts?.length
+          ? { artifacts: result.artifacts }
+          : {}),
+      }
     } catch (error) {
       return {
         allowed: true,
@@ -690,6 +765,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           part.status = outcome.ok ? 'done' : 'error'
           part.output = truncate(outcome.text, 6000)
         }
+        if (outcome.ok && outcome.artifacts?.length) {
+          part.artifacts = outcome.artifacts.map(({ name, path }) => {
+            const id = randomUUID()
+            rememberSource(session, {
+              id,
+              name,
+              path,
+              kind: 'artifact',
+            })
+            return { id, name, kind: artifactKind(name) }
+          })
+        }
         pushHistory(session, {
           role: 'tool',
           tool_call_id: call.id,
@@ -775,16 +862,26 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       busy = true
       controller = new AbortController()
       const signal = controller.signal
+      for (const file of files) {
+        if (!file.sourcePath) continue
+        rememberSource(session, {
+          id: file.id,
+          name: file.name,
+          path: file.sourcePath,
+          kind: 'attachment',
+        })
+      }
       const userMessage: AgentMessageView = {
         id: randomUUID(),
         role: 'user',
         parts: [{ type: 'text', text: value }],
         ...(files.length
           ? {
-              attachments: files.map(({ id, name, size }) => ({
+              attachments: files.map(({ id, name, size, sourcePath }) => ({
                 id,
                 name,
                 size,
+                ...(sourcePath ? { canSave: true } : {}),
               })),
             }
           : {}),
@@ -1022,6 +1119,74 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       session.updatedAt = now()
       persist()
       emit()
+    },
+    source(id: string) {
+      for (const session of sessions) {
+        const source = session.sources?.find((item) => item.id === id)
+        if (source) return { name: source.name, path: source.path }
+      }
+      return null
+    },
+    sessionMarkdown(id: string) {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return null
+      const statusLabel = (status: string): string => {
+        if (status === 'running') return '执行中'
+        if (status === 'awaiting') return '待确认'
+        if (status === 'done') return '完成'
+        if (status === 'error') return '失败'
+        if (status === 'denied') return '已拒绝'
+        return status
+      }
+      const sections: string[] = [`# ${session.title}`]
+      for (const message of session.ui) {
+        const text = message.parts
+          .filter((part): part is AgentTextPart => part.type === 'text')
+          .map((part) => part.text)
+          .join('\n\n')
+          .trim()
+        const tools = message.parts.filter(
+          (part): part is AgentToolPart => part.type === 'tool',
+        )
+        if (message.role === 'user') {
+          if (text) sections.push(`## 用户\n\n${text}`)
+          if (message.attachments?.length)
+            sections.push(
+              `### 附件\n\n${message.attachments
+                .map((item) => `- ${item.name}`)
+                .join('\n')}`,
+            )
+          continue
+        }
+        if (text) sections.push(`## 助手\n\n${text}`)
+        for (const tool of tools) {
+          const output = tool.output?.trim()
+          const lines = [
+            `> 工具：${tool.title}（${statusLabel(tool.status)}）`,
+            ...(output
+              ? [
+                  '>',
+                  ...output
+                    .split('\n')
+                    .map((line) => `> ${line}`),
+                ]
+              : []),
+            ...(tool.artifacts?.length
+              ? [
+                  '>',
+                  ...tool.artifacts.map(
+                    (artifact) => `> 生成文件：${artifact.name}`,
+                  ),
+                ]
+              : []),
+          ]
+          sections.push(lines.join('\n'))
+        }
+      }
+      return {
+        title: session.title,
+        text: `${sections.join('\n\n')}\n`,
+      }
     },
     async flush() {
       await saveAgentStore(deps.storePath, { sessions, projects })

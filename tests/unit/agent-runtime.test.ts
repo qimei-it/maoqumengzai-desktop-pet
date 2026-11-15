@@ -7,7 +7,7 @@ import type {
   StreamOptions,
   StreamResult,
 } from '../../src/main/agent/provider'
-import { makeServices } from './agent-fixtures'
+import { makeServices, shelfFileId } from './agent-fixtures'
 import { defaultSettings } from '../../src/shared/settings'
 
 function scripted(results: StreamResult[]) {
@@ -174,6 +174,72 @@ describe('agent runtime', () => {
     expect(tools[0].type === 'tool' ? tools[0].output : '').toContain(
       '未知工具',
     )
+  })
+
+  test('exports a session as Markdown with tools and attachments', async () => {
+    const { runtime } = await makeRuntime([
+      {
+        text: '',
+        toolCalls: [
+          {
+            id: 'call-todo',
+            name: 'todo_create',
+            arguments: JSON.stringify({ text: '买猫粮' }),
+          },
+        ],
+      },
+      { text: '好的。', toolCalls: [] },
+    ])
+    const running = runtime.send('创建待办', [
+      {
+        id: 'attachment-export',
+        name: 'notes.md',
+        size: 12,
+        kind: 'text',
+        mode: 'text',
+        needsModelUpload: false,
+        truncated: false,
+        sourcePath: '/tmp/notes.md',
+        text: '附件内容',
+      },
+    ])
+    await waitFor(() => runtime.state().approval !== null)
+    runtime.approve(runtime.state().approval!.id)
+    await running
+    const exported = runtime.sessionMarkdown(runtime.state().sessionId!)
+    expect(exported).toBeTruthy()
+    expect(exported!.title).toContain('创建待办')
+    expect(exported!.text).toContain('## 用户')
+    expect(exported!.text).toContain('### 附件')
+    expect(exported!.text).toContain('- notes.md')
+    expect(exported!.text).toContain('工具：新建待办')
+    expect(exported!.text).toContain('## 助手')
+  })
+
+  test('records tool artifacts and resolves their source path', async () => {
+    const { runtime } = await makeRuntime([
+      {
+        text: '',
+        toolCalls: [
+          {
+            id: 'call-save',
+            name: 'file_save_copy',
+            arguments: JSON.stringify({ fileId: shelfFileId }),
+          },
+        ],
+      },
+      { text: '已另存。', toolCalls: [] },
+    ])
+    const running = runtime.send('另存一份')
+    await waitFor(() => runtime.state().approval !== null)
+    runtime.approve(runtime.state().approval!.id)
+    await running
+    const tool = toolParts(runtime)[0]
+    expect(tool.type).toBe('tool')
+    if (tool.type !== 'tool') return
+    expect(tool.artifacts?.[0]).toMatchObject({ name: 'copy.txt' })
+    const source = runtime.source(tool.artifacts![0].id)
+    expect(source).toEqual({ name: 'copy.txt', path: '/tmp/copy.txt' })
   })
 
   test('cancel stops a running turn', async () => {

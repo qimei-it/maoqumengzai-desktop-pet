@@ -9,6 +9,7 @@ let application: ElectronApplication
 let agent: Page
 let settings: Page
 let saveDirectory = ''
+let artifactPath = ''
 const errors: string[] = []
 
 const reply = [
@@ -22,14 +23,21 @@ const reply = [
   '```',
   '',
   '这是一段普通文本。',
-].join('\n')
+  '',
+  ...Array.from(
+    { length: 80 },
+    (_, index) => `第 ${index + 1} 行用于测试滚动位置。`,
+  ),
+].join('\n\n')
 
 test.beforeAll(async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-output-'))
   const data = join(directory, 'data')
   saveDirectory = join(directory, 'saved')
+  artifactPath = join(directory, 'converted.pdf')
   await mkdir(data, { recursive: true })
   await mkdir(saveDirectory, { recursive: true })
+  await writeFile(artifactPath, '%PDF-1.4 test artifact')
   await writeFile(
     join(data, 'mqmz.agent.json'),
     JSON.stringify({
@@ -37,7 +45,7 @@ test.beforeAll(async () => {
       projects: [],
       sessions: [
         {
-          id: 'session-output',
+          id: '11111111-1111-4111-8111-111111111111',
           title: '功能验证',
           mode: 'build',
           model: 'deepseek-flash',
@@ -57,6 +65,36 @@ test.beforeAll(async () => {
               id: 'a1',
               role: 'assistant',
               parts: [{ type: 'text', text: reply }],
+            },
+            {
+              id: 'a2',
+              role: 'assistant',
+              parts: [
+                {
+                  type: 'tool',
+                  id: 'tool-1',
+                  name: 'convert_start',
+                  title: '转换 1 个文件为 pdf',
+                  args: '{}',
+                  status: 'done',
+                  output: '已生成 转换结果.pdf',
+                  artifacts: [
+                    {
+                      id: '11111111-1111-4111-8111-222222222222',
+                      name: '转换结果.pdf',
+                      kind: 'document',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+          sources: [
+            {
+              id: '11111111-1111-4111-8111-222222222222',
+              name: '转换结果.pdf',
+              path: artifactPath,
+              kind: 'artifact',
             },
           ],
           history: [],
@@ -94,7 +132,7 @@ test.afterAll(async () => {
   await application.close()
 })
 
-test('agent renders Mermaid and saves the source and audio', async () => {
+test('agent renders Mermaid, copies output, exports the chat, and follows scroll', async () => {
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
@@ -103,9 +141,15 @@ test('agent renders Mermaid and saves the source and audio', async () => {
   await expect(agent.locator('.agent-mermaid svg')).toBeVisible({
     timeout: 30_000,
   })
-  await expect(
-    agent.locator('.agent-message-actions button'),
-  ).toHaveText(['保存', '导出音频'])
+  const actions = agent.locator('.agent-message-actions button')
+  await expect(actions).toHaveCount(1)
+  await expect(actions).toHaveAttribute('aria-label', '复制')
+  await actions.click()
+  const clipboardText = await application.evaluate(
+    ({ clipboard }) => clipboard.readText(),
+  )
+  expect(clipboardText).toContain('```mermaid')
+  expect(clipboardText).toContain('这是一段普通文本。')
 
   await agent.evaluate(
     (directory) =>
@@ -115,33 +159,55 @@ test('agent renders Mermaid and saves the source and audio', async () => {
       }),
     saveDirectory,
   )
-
-  await agent
-    .locator('.agent-message-actions button')
-    .filter({ hasText: '保存' })
-    .click()
+  await agent.getByRole('button', { name: '保存 转换结果.pdf' }).click()
   await expect
-    .poll(async () => (await readdir(saveDirectory)).some((name) => name.endsWith('.md')))
-    .toBe(true)
-  const markdown = (await readdir(saveDirectory)).find((name) => name.endsWith('.md'))!
-  expect(await readFile(join(saveDirectory, markdown), 'utf8')).toContain(
-    '```mermaid',
-  )
-
-  await agent
-    .locator('.agent-message-actions button')
-    .filter({ hasText: '导出音频' })
-    .click()
-  await expect
-    .poll(
-      async () =>
-        (await readdir(saveDirectory)).some((name) => name.endsWith('.wav')),
-      { timeout: 60_000 },
+    .poll(async () =>
+      (await readdir(saveDirectory)).some((name) =>
+        name.startsWith('转换结果'),
+      ),
     )
     .toBe(true)
-  const audio = (await readdir(saveDirectory)).find((name) => name.endsWith('.wav'))!
-  const bytes = await readFile(join(saveDirectory, audio))
-  expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF')
+  const artifact = (await readdir(saveDirectory)).find((name) =>
+    name.startsWith('转换结果'),
+  )!
+  expect(await readFile(join(saveDirectory, artifact), 'utf8')).toBe(
+    '%PDF-1.4 test artifact',
+  )
+  await agent.getByLabel('对话菜单').first().click()
+  await agent.getByRole('menuitem', { name: '保存为 Markdown' }).click()
+  await expect
+    .poll(async () =>
+      (await readdir(saveDirectory)).some((name) => name.endsWith('.md')),
+    )
+    .toBe(true)
+  const markdown = (await readdir(saveDirectory)).find((name) =>
+    name.endsWith('.md'),
+  )!
+  const markdownText = await readFile(join(saveDirectory, markdown), 'utf8')
+  expect(markdownText).toContain('# 功能验证')
+  expect(markdownText).toContain('画一个流程图')
+  expect(markdownText).toContain('```mermaid')
+
+  const messages = agent.locator('.agent-messages')
+  await messages.evaluate((element) => {
+    element.scrollTop = 0
+    element.dispatchEvent(new Event('scroll'))
+  })
+  await expect(agent.locator('.agent-scroll-button')).toBeVisible()
+  await expect(agent.locator('.agent-scroll-button')).toHaveAttribute(
+    'aria-label',
+    '回到底部',
+  )
+  await agent.locator('.agent-scroll-button').click()
+  await expect
+    .poll(() =>
+      messages.evaluate(
+        (element) =>
+          element.scrollHeight - element.scrollTop - element.clientHeight,
+      ),
+    )
+    .toBeLessThan(30)
+  await expect(agent.locator('.agent-scroll-button')).toBeHidden()
 
   await settings.evaluate(() =>
     window.mqmz!.command({ type: 'settings-section', section: 'ai' }),
@@ -149,4 +215,83 @@ test('agent renders Mermaid and saves the source and audio', async () => {
   await expect(settings.getByText('附件保存目录', { exact: true })).toBeVisible()
   await expect(settings.locator('.settings-path')).toHaveText(saveDirectory)
   expect(errors).toEqual([])
+})
+
+test('shows thinking dots while streaming and returns to the bottom', async () => {
+  await application.evaluate(() => {
+    globalThis.fetch = async () => {
+      const encoder = new TextEncoder()
+      let index = 0
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const timer = setInterval(() => {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  choices: [
+                    {
+                      delta: {
+                        content: `流式输出 ${index + 1}\n\n`,
+                      },
+                    },
+                  ],
+                })}\n\n`,
+              ),
+            )
+            index += 1
+            if (index < 80) return
+            clearInterval(timer)
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  choices: [
+                    {
+                      delta: {},
+                      finish_reason: 'stop',
+                    },
+                  ],
+                  usage: {
+                    prompt_tokens: 1,
+                    completion_tokens: 80,
+                  },
+                })}\n\n`,
+              ),
+            )
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+          }, 50)
+        },
+      })
+      return new Response(body, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      })
+    }
+  })
+  await agent.getByLabel('给智能体发送指令').fill('继续输出')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.locator('.agent-running')).toBeVisible()
+  await agent.waitForTimeout(200)
+  await agent.locator('.agent-messages').evaluate((element) => {
+    element.scrollTop = 0
+    element.dispatchEvent(new Event('scroll'))
+  })
+  const scrollButton = agent.locator('.agent-scroll-button')
+  await expect(scrollButton).toBeVisible()
+  await expect(scrollButton).toHaveClass(/is-thinking/)
+  await scrollButton.hover()
+  await expect(scrollButton).not.toHaveClass(/is-thinking/)
+  await expect(scrollButton).toHaveAttribute('aria-label', '回到底部')
+  await scrollButton.click()
+  await expect
+    .poll(() =>
+      agent
+        .locator('.agent-messages')
+        .evaluate(
+          (element) =>
+            element.scrollHeight - element.scrollTop - element.clientHeight,
+        ),
+    )
+    .toBeLessThan(30)
+  await expect(scrollButton).toBeHidden()
 })

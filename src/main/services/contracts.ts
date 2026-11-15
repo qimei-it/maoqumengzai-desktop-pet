@@ -41,7 +41,7 @@ export type ShelfText = {
 export type ConvertSummary = {
   converted: number
   failed: number
-  outputs: { name: string; size: number }[]
+  outputs: { name: string; size: number; path?: string }[]
   messages: string[]
 }
 
@@ -50,6 +50,7 @@ export type ArchiveSummary = {
   size: number
   count: number
   format: ArchiveFormat
+  path?: string
 }
 
 export type RenameSummary = { count: number }

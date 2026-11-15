@@ -152,6 +152,29 @@ test('filters invalid rows without dropping valid ones', async () => {
   )
 })
 
+test('persists saveable attachment and artifact sources', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
+  const path = join(directory, 'agent.json')
+  const stored = session(1)
+  stored.sources = [
+    {
+      id: 'source-1',
+      name: 'notes.md',
+      path: '/tmp/notes.md',
+      kind: 'attachment',
+    },
+    {
+      id: 'source-2',
+      name: 'converted.pdf',
+      path: '/tmp/converted.pdf',
+      kind: 'artifact',
+    },
+  ]
+  await saveAgentStore(path, { sessions: [stored], projects: [] })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0].sources).toEqual(stored.sources)
+})
+
 test('persists uploaded file references', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')

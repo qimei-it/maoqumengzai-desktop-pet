@@ -9,6 +9,7 @@ import {
 } from 'vue'
 import {
   AlertTriangle,
+  ArrowDown,
   Check,
   ChevronDown,
   ChevronRight,
@@ -110,11 +111,11 @@ const attachmentError = ref('')
 const dropActive = ref(false)
 let dragDepth = 0
 let dropWatchdog: ReturnType<typeof setTimeout> | undefined
-const outputBusy = ref<{ id: string; action: 'save' | 'audio' } | null>(
-  null,
-)
+const copiedId = ref<string | null>(null)
+let copyTimer: ReturnType<typeof setTimeout> | undefined
 const keyDraft = ref('')
 const list = ref<HTMLElement>()
+const listInner = ref<HTMLElement>()
 const mac = /Mac/i.test(navigator.platform)
 const maximized = computed(() => props.state?.agentMaximized === true)
 
@@ -272,9 +273,71 @@ function toggleProject(id: string): void {
   }
 }
 
+const following = ref(true)
+const scrollHover = ref(false)
+let followFrame = 0
+let lastScrollTop = 0
+let messageObserver: ResizeObserver | undefined
+const showScrollButton = computed(
+  () =>
+    !following.value &&
+    (agent.value?.messages.length ?? 0) > 0 &&
+    !dropActive.value,
+)
+
+function nearBottom(): boolean {
+  const element = list.value
+  if (!element) return true
+  return (
+    element.scrollHeight - element.scrollTop - element.clientHeight <= 24
+  )
+}
+
+function scrollToBottom(): void {
+  const element = list.value
+  if (!element) return
+  element.scrollTop = element.scrollHeight
+  lastScrollTop = element.scrollTop
+}
+
+function scheduleFollow(): void {
+  if (followFrame) return
+  followFrame = requestAnimationFrame(() => {
+    followFrame = 0
+    if (following.value) scrollToBottom()
+  })
+}
+
+function onMessagesScroll(): void {
+  const element = list.value
+  if (!element) return
+  const top = element.scrollTop
+  const movedUp = top < lastScrollTop - 1
+  const atBottom = nearBottom()
+  if (movedUp) following.value = false
+  else if (atBottom) following.value = true
+  lastScrollTop = top
+  scrollHover.value = false
+}
+
+function jumpToBottom(): void {
+  following.value = true
+  scrollHover.value = false
+  scrollToBottom()
+}
+
+function scrollButtonClick(): void {
+  if (busy.value && !scrollHover.value) return
+  jumpToBottom()
+}
+
 watch(
   () => agent.value?.sessionId,
   () => {
+    following.value = true
+    scrollHover.value = false
+    lastScrollTop = 0
+    void nextTick(() => scheduleFollow())
     draft.value = ''
     attachmentError.value = ''
     const session = activeSession.value
@@ -287,16 +350,20 @@ watch(
   { immediate: true },
 )
 
-function scrollToEnd(): void {
-  void nextTick(() => {
-    if (list.value) list.value.scrollTop = list.value.scrollHeight
-  })
-}
 watch(
   () => agent.value?.messages,
-  scrollToEnd,
+  () => scheduleFollow(),
   { deep: true },
 )
+watch(busy, () => scheduleFollow())
+watch(listInner, (element) => {
+  messageObserver?.disconnect()
+  messageObserver = undefined
+  if (!element) return
+  messageObserver = new ResizeObserver(() => scheduleFollow())
+  messageObserver.observe(element)
+  scheduleFollow()
+})
 
 async function addAttachments(): Promise<void> {
   if (busy.value || parsing.value) return
@@ -321,32 +388,26 @@ function assistantText(message: AgentMessageView): string {
     .trim()
 }
 
-async function saveOutput(message: AgentMessageView): Promise<void> {
+async function copyOutput(message: AgentMessageView): Promise<void> {
   const text = assistantText(message)
-  if (!text || outputBusy.value) return
-  outputBusy.value = { id: message.id, action: 'save' }
-  try {
-    await window.mqmz?.saveAgentOutput({
-      text,
-      title: title.value || '智能体回复',
-    })
-  } finally {
-    outputBusy.value = null
+  if (!text) return
+  const result = await window.mqmz?.copyAgentOutput(text)
+  if (!result?.ok) {
+    attachmentError.value = result?.error ?? '复制失败。'
+    return
   }
+  copiedId.value = message.id
+  if (copyTimer) clearTimeout(copyTimer)
+  copyTimer = setTimeout(() => {
+    copyTimer = undefined
+    copiedId.value = null
+  }, 1200)
 }
 
-async function exportAudio(message: AgentMessageView): Promise<void> {
-  const text = assistantText(message)
-  if (!text || outputBusy.value) return
-  outputBusy.value = { id: message.id, action: 'audio' }
-  try {
-    await window.mqmz?.exportAgentAudio({
-      text,
-      title: title.value || '智能体回复',
-    })
-  } finally {
-    outputBusy.value = null
-  }
+async function saveSource(id: string): Promise<void> {
+  const result = await window.mqmz?.saveAgentSource(id)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '保存文件失败。'
 }
 
 function removeAttachment(id: string): void {
@@ -453,6 +514,9 @@ function send(): void {
   draft.value = ''
   attachments.value = []
   attachmentError.value = ''
+  following.value = true
+  scrollHover.value = false
+  void nextTick(() => scheduleFollow())
 }
 function stop(): void {
   emit('command', { type: 'agent-cancel' })
@@ -727,6 +791,14 @@ function moveFromMenu(session: AgentSessionSummary): void {
   closeMenu()
   openMoveSession(session.id)
 }
+async function saveSessionFromMenu(
+  session: AgentSessionSummary,
+): Promise<void> {
+  closeMenu()
+  const result = await window.mqmz?.saveAgentSession(session.id)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '保存对话失败。'
+}
 async function saveRename(): Promise<void> {
   if (dialog.value?.kind !== 'rename-session') return
   const name = draftName.value.trim()
@@ -766,11 +838,15 @@ function onDocumentMouseDown(event: MouseEvent): void {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('mousedown', onDocumentMouseDown)
+  void nextTick(() => scheduleFollow())
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousedown', onDocumentMouseDown)
   clearDropWatchdog()
+  messageObserver?.disconnect()
+  if (followFrame) cancelAnimationFrame(followFrame)
+  if (copyTimer) clearTimeout(copyTimer)
 })
 
 const statusLabels: Record<string, string> = {
@@ -1263,8 +1339,8 @@ function statusLabel(status: string): string {
         </template>
 
         <template v-else>
-          <div ref="list" class="agent-messages">
-            <div class="agent-messages-inner">
+          <div ref="list" class="agent-messages" @scroll="onMessagesScroll">
+            <div ref="listInner" class="agent-messages-inner">
               <div
                 v-if="!(agent?.messages ?? []).length"
                 class="agent-empty"
@@ -1305,6 +1381,20 @@ function statusLabel(status: string): string {
                   >
                     <FileTypeIcon :name="file.name" :size="16" />
                     <span>{{ file.name }}</span>
+                    <button
+                      v-if="file.canSave"
+                      type="button"
+                      class="agent-message-file-save"
+                      :aria-label="`保存附件 ${file.name}`"
+                      :title="`保存 ${file.name}`"
+                      @click="saveSource(file.id)"
+                    >
+                      <Download
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
                   </span>
                 </div>
                 <template
@@ -1341,6 +1431,28 @@ function statusLabel(status: string): string {
                     <pre v-if="part.output" class="agent-tool-output">{{
                       part.output
                     }}</pre>
+                    <div
+                      v-if="part.artifacts?.length"
+                      class="agent-artifacts"
+                    >
+                      <button
+                        v-for="artifact in part.artifacts"
+                        :key="artifact.id"
+                        type="button"
+                        class="agent-artifact"
+                        :aria-label="`保存 ${artifact.name}`"
+                        :title="`保存 ${artifact.name}`"
+                        @click="saveSource(artifact.id)"
+                      >
+                        <FileTypeIcon :name="artifact.name" :size="14" />
+                        <span>{{ artifact.name }}</span>
+                        <Download
+                          :size="12"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
                   </div>
                 </template>
                 <div
@@ -1352,39 +1464,25 @@ function statusLabel(status: string): string {
                 >
                   <button
                     type="button"
-                    class="agent-output-button"
-                    :disabled="outputBusy !== null"
-                    @click="saveOutput(message)"
+                    class="agent-message-action"
+                    :aria-label="
+                      copiedId === message.id ? '已复制' : '复制'
+                    "
+                    :title="copiedId === message.id ? '已复制' : '复制'"
+                    @click="copyOutput(message)"
                   >
-                    <Save
-                      :size="13"
+                    <Check
+                      v-if="copiedId === message.id"
+                      :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
                     />
-                    {{
-                      outputBusy?.id === message.id &&
-                      outputBusy?.action === 'save'
-                        ? '保存中…'
-                        : '保存'
-                    }}
-                  </button>
-                  <button
-                    type="button"
-                    class="agent-output-button"
-                    :disabled="outputBusy !== null"
-                    @click="exportAudio(message)"
-                  >
-                    <Download
-                      :size="13"
+                    <Copy
+                      v-else
+                      :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
                     />
-                    {{
-                      outputBusy?.id === message.id &&
-                      outputBusy?.action === 'audio'
-                        ? '导出中…'
-                        : '导出音频'
-                    }}
                   </button>
                 </div>
               </article>
@@ -1427,6 +1525,35 @@ function statusLabel(status: string): string {
           </div>
 
           <div class="agent-composer-wrap">
+            <button
+              v-if="showScrollButton"
+              type="button"
+              class="agent-scroll-button"
+              :class="{ 'is-thinking': busy && !scrollHover }"
+              :aria-label="
+                busy && !scrollHover ? '正在输出' : '回到底部'
+              "
+              :title="busy && !scrollHover ? '正在输出' : '回到底部'"
+              @mouseenter="scrollHover = true"
+              @mouseleave="scrollHover = false"
+              @click="scrollButtonClick"
+            >
+              <span
+                v-if="busy && !scrollHover"
+                class="agent-thinking-dots"
+                aria-hidden="true"
+              >
+                <span />
+                <span />
+                <span />
+              </span>
+              <ArrowDown
+                v-else
+                :size="16"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+            </button>
             <form class="agent-composer" @submit.prevent="send">
               <div
                 v-if="attachments.length"
@@ -1825,6 +1952,21 @@ function statusLabel(status: string): string {
           >
             <FolderInput :size="14" :stroke-width="2" aria-hidden="true" />
             移动
+          </button>
+          <button
+            type="button"
+            class="agent-menu-item"
+            role="menuitem"
+            :disabled="busy && menuSession.id === agent?.sessionId"
+            :title="
+              busy && menuSession.id === agent?.sessionId
+                ? '正在输出，请稍后再保存'
+                : '保存为 Markdown'
+            "
+            @click="saveSessionFromMenu(menuSession)"
+          >
+            <Save :size="14" :stroke-width="2" aria-hidden="true" />
+            保存为 Markdown
           </button>
           <button
             type="button"
@@ -2571,40 +2713,56 @@ function statusLabel(status: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-message-file-save {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-message-file-save:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-message-file-save:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-message-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.agent-output-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+.agent-message-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
   min-height: 24px;
-  padding: 0 var(--space-2);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
-  font: inherit;
-  font-size: var(--font-size-label);
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
-.agent-output-button:hover:not(:disabled) {
+.agent-message-action:hover {
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }
-.agent-output-button:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-.agent-output-button:focus-visible {
+.agent-message-action:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 1px;
 }
-.agent-output-button svg {
+.agent-message-action svg {
   flex: none;
 }
 .agent-tool {
@@ -2657,6 +2815,45 @@ function statusLabel(status: string): string {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+.agent-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 8px 10px;
+  border-top: 1px solid var(--color-line);
+}
+.agent-artifact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.agent-artifact > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-artifact > svg {
+  flex: none;
+  color: var(--color-muted);
+}
+.agent-artifact:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+.agent-artifact:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-running {
   margin: 0;
   color: var(--color-muted);
@@ -2708,8 +2905,75 @@ function statusLabel(status: string): string {
   margin-top: var(--space-3);
 }
 .agent-composer-wrap {
+  position: relative;
   flex: none;
   padding: var(--space-3) var(--space-8) var(--space-5);
+}
+.agent-scroll-button {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-circle);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  box-shadow: var(--shadow-control);
+  transform: translateX(-50%);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-scroll-button:not(.is-thinking) {
+  cursor: pointer;
+}
+.agent-scroll-button.is-thinking {
+  cursor: default;
+}
+.agent-scroll-button:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+.agent-scroll-button:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+}
+.agent-thinking-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+}
+.agent-thinking-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-circle);
+  background: currentColor;
+  animation: agent-dot-wave 1.15s ease-in-out infinite;
+}
+.agent-thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.agent-thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes agent-dot-wave {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
 }
 .agent-composer {
   display: flex;
@@ -3452,6 +3716,12 @@ function statusLabel(status: string): string {
 .agent-menu-item:hover {
   background: var(--color-fill-secondary);
 }
+.agent-menu-item:disabled {
+  background: transparent;
+  color: var(--color-muted);
+  cursor: default;
+  opacity: 0.55;
+}
 .agent-menu-item.danger {
   color: var(--color-danger);
 }
@@ -3619,7 +3889,8 @@ function statusLabel(status: string): string {
 }
 @media (prefers-reduced-motion: reduce) {
   .agent-running,
-  .agent-parse-spinner {
+  .agent-parse-spinner,
+  .agent-thinking-dots span {
     animation: none;
   }
   .agent-session,
@@ -3634,10 +3905,12 @@ function statusLabel(status: string): string {
   .agent-workspace-select,
   .agent-settings,
   .agent-model-trigger,
-  .agent-output-button,
+  .agent-message-action,
+  .agent-artifact,
   .agent-attachment-remove,
   .agent-send,
-  .agent-icon-button {
+  .agent-icon-button,
+  .agent-scroll-button {
     transition: none;
   }
 }

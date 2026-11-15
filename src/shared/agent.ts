@@ -36,6 +36,21 @@ export type AgentToolPart = {
   args: string
   status: AgentToolStatus
   output?: string
+  artifacts?: AgentArtifactView[]
+}
+
+export type AgentArtifactKind =
+  | 'document'
+  | 'audio'
+  | 'image'
+  | 'archive'
+  | 'other'
+
+export type AgentArtifactView = {
+  id: string
+  name: string
+  kind: AgentArtifactKind
+  size?: number
 }
 
 export type AgentPart = AgentTextPart | AgentToolPart
@@ -67,6 +82,8 @@ export type AgentAttachmentView = {
   id: string
   name: string
   size: number
+  /** True when the original source can still be saved locally. */
+  canSave?: boolean
 }
 
 export type AgentAttachmentPick = AgentAttachmentView & {
@@ -85,6 +102,8 @@ export type AgentAttachmentUpload = {
 }
 
 export type AgentAttachmentInput = AgentAttachmentPick & {
+  /** Original local path for later download/save. */
+  sourcePath?: string
   /** Extracted local text. */
   text?: string
   /** Files that need a DeepSeek Files API upload. */

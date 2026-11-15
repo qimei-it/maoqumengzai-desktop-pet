@@ -1,6 +1,12 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PDFDocument, StandardFonts } from 'pdf-lib'
@@ -12,6 +18,7 @@ let notes = ''
 let image = ''
 let dropped = ''
 let slowPdf = ''
+let saveDirectory = ''
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -21,10 +28,12 @@ const png = Buffer.from(
 test.beforeAll(async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-attach-e2e-'))
   const data = join(directory, 'data')
+  saveDirectory = join(directory, 'saved')
   notes = join(directory, 'notes.md')
   image = join(directory, 'photo.png')
   dropped = join(directory, 'dropped.md')
   await mkdir(data, { recursive: true })
+  await mkdir(saveDirectory, { recursive: true })
   await writeFile(notes, '# 附件\n本地文本内容。')
   await writeFile(image, png)
   await writeFile(dropped, '# 拖入\n拖入的附件内容。')
@@ -162,6 +171,29 @@ test('attachments use local text, upload images, and respect the Pro model', asy
   expect(chat!.body).toContain('file-api-e2e')
   expect(chat!.body).toContain('<attachment name=\\"notes.md\\">')
   expect(chat!.body).toContain('本地文本内容。')
+
+  await agent.evaluate(
+    (directory) =>
+      window.mqmz!.command({
+        type: 'settings-update',
+        patch: { agentAttachmentDir: directory },
+      }),
+    saveDirectory,
+  )
+  await agent.getByRole('button', { name: '保存附件 notes.md' }).click()
+  await expect
+    .poll(async () =>
+      (await readdir(saveDirectory)).some((name) =>
+        name.startsWith('notes'),
+      ),
+    )
+    .toBe(true)
+  const savedAttachment = (await readdir(saveDirectory)).find((name) =>
+    name.startsWith('notes'),
+  )!
+  expect(await readFile(join(saveDirectory, savedAttachment), 'utf8')).toBe(
+    '# 附件\n本地文本内容。',
+  )
 
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-model', model: 'deepseek-v4-pro' }),

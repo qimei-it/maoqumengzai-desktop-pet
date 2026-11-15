@@ -7,6 +7,7 @@ import type { AgentMode } from '../../shared/agent'
 import { archiveFormats, todoRepeats } from '../../shared/protocol'
 import type { ArchiveFormat, ConvertAction, TodoRepeat } from '../../shared/protocol'
 import type { RenameConfig } from '../../shared/rename'
+import { basename } from 'node:path'
 import type { ProviderToolDefinition } from './provider'
 import type {
   PanelTarget,
@@ -16,7 +17,11 @@ import type {
 } from '../services/contracts'
 import { runShell } from '../services/shell'
 
-export type ToolResult = { ok: boolean; text: string }
+export type ToolResult = {
+  ok: boolean
+  text: string
+  artifacts?: { name: string; path: string }[]
+}
 
 export type ToolContext = {
   workspace: string | null
@@ -304,7 +309,11 @@ export function createTools(services: Services): Record<string, AgentTool> {
         const id = text(args.fileId, 'fileId', 100)
         const saved = await call(services.shelf.saveCopy(id))
         if (!saved) return { ok: false, text: '已取消另存。' }
-        return { ok: true, text: `已另存到 ${saved.path}` }
+        return {
+          ok: true,
+          text: `已另存到 ${saved.path}`,
+          artifacts: [{ name: basename(saved.path), path: saved.path }],
+        }
       },
     },
     {
@@ -361,7 +370,16 @@ export function createTools(services: Services): Record<string, AgentTool> {
         const action = convertActionArg(args.action)
         const password = optionalText(args.password, 200)
         const summary = await call(services.convert.run(ids, action, password))
-        return { ok: true, text: formatConvert(summary) }
+        return {
+          ok: true,
+          text: formatConvert(summary),
+          artifacts: summary.outputs
+            .filter((output) => Boolean(output.path))
+            .map((output) => ({
+              name: output.name,
+              path: output.path!,
+            })),
+        }
       },
     },
     {
@@ -401,6 +419,13 @@ export function createTools(services: Services): Record<string, AgentTool> {
         return {
           ok: true,
           text: `已生成 ${summary.name}（${formatSize(summary.size)}）`,
+          ...(summary.path
+            ? {
+                artifacts: [
+                  { name: summary.name, path: summary.path },
+                ],
+              }
+            : {}),
         }
       },
     },

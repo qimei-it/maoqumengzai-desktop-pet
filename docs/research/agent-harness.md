@@ -46,7 +46,10 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 参考 Codex 与 DSH：左侧按“项目 / 未分组”分组会话；项目来自会话的工作区，未分组保留无工作区会话。
 - 右侧只有标题栏和消息区；底部输入框左侧依次是附件 `+`、对话工作区选择、`计划 / 执行`，右侧是模型与推理强度、发送。
 - 输入框占位为「让“{桌宠名}”来帮你工作」，不区分项目；空对话提示按当前会话是否属于项目切换，项目名使用 `.` 字符组成的虚线下划线。
-- 助手输出下方提供「保存」与「导出音频」：保存 Markdown 源格式到「设置 → 智能体 → 附件保存目录」（默认 `Downloads/maoqumengzai/agent`），音频使用系统本地语音引擎导出 WAV，不调用 DeepSeek TTS。
+- 助手输出下方提供图标「复制」：复制该条输出的 Markdown 原文到系统剪贴板并加入剪贴板历史；不再保存单条 Markdown，也不在本地导出 TTS 音频。
+- 会话菜单的「移动」和「删除」之间提供「保存为 Markdown」，文件名使用对话标题，保存到「设置 → 智能体 → 附件保存目录」（默认 `Downloads/maoqumengzai/agent`）。
+- 输出时默认跟随底部；用户向上滚动暂停跟随，滚回底部或点击按钮恢复。上滚时输入框上方的圆形按钮在输出中显示三点波浪，悬停变向下箭头；输出结束后直接显示向下箭头。
+- 用户附件和工具生成的文档提供保存按钮，默认复制到「附件保存目录」；保存来源记录在会话中，源文件缺失时提示。
 - 助手 Markdown 输出支持 Mermaid 11.17.2 懒加载渲染，只渲染完整代码块，失败回退源码。
 - 输入框左下角的 `+` 打开系统文件选择框；附件在输入框顶部以药丸显示，文件类型图标复用置物架素材。最多 8 个，文本单文件 12k 字符、整轮 30k 字符；纯文本上限 2 MB，文档/图片/压缩包 20 MB，音视频 200 MB。附件正文随该条消息发送，消息里只保留文件名。
 - 拖动文件到智能体面板可直接加入当前对话，拖入时显示“添加到当前对话”覆盖提示；拖动文件到桌宠并选择“智能体”会按文件路径直接新建未分组对话并挂载附件，不经过置物架。
@@ -160,6 +163,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 附件定向用例：`tests/e2e/agent-attachments.spec.ts` 用本地 mock 验证文本附件、图片 Files API 上传、聊天中的 `file` 内容块，以及切换 Pro 后移除上传类附件；并覆盖拖入智能体面板时的提示、附件药丸、解析进度与取消。
 - 解析超时用例：`tests/e2e/agent-attachment-timeout.spec.ts` 通过 `MQMZ_AGENT_PARSE_TIMEOUT_MS=300` 和本地 LibreOffice DOCX 验证超时后不产生附件草稿。
 - 桌宠投递用例：`tests/e2e/prototype.spec.ts` 的“dropping on 智能体”验证直接路径投递、不进入置物架、新建未分组对话并挂载附件。
+- 输出与滚动用例：`tests/e2e/agent-output.spec.ts` 覆盖 Mermaid、图标复制到系统剪贴板、会话“保存为 Markdown”、生成文件下载、手动上滚暂停跟随、回到底部按钮，以及输出中三点波浪与悬停箭头。
 - 附件真实联调（2026-11-15）：使用有效 DeepSeek Key，向 `deepseek-flash` 发送 1 张 PNG 与 1 段 16 kHz PCM WAV。Files API 返回 `file-api-...` 且写入 30 天过期时间；ASR 返回并注入“你好，这是语音测试。”；模型回答“红色”并复述语音内容；删除会话后本地文件引用清空。
 - 附件单元测试：`tests/unit/agent-attachment-pipeline.test.ts` 覆盖文本、PDF、扫描件、DOCX（本地 LibreOffice）、EPUB、图片、压缩包、PCM WAV、AIFF→16 kHz WAV（本地 FFmpeg）与不支持格式；`tests/unit/agent-files.test.ts` 覆盖 multipart 字段顺序、错误映射和 ASR 限制；`tests/unit/agent-runtime.test.ts` 覆盖上传历史、ASR 文本、Pro 拦截、上传失败降级和 30 天过期重传。
 - 单元测试：`tests/unit/agent-tools.test.ts`、`agent-runtime.test.ts`、`agent-store.test.ts` 覆盖权限矩阵、参数校验、审批/拒绝/取消、切会话取消、未知工具、持久化、项目迁移、shell 超时与截断。

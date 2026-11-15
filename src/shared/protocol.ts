@@ -56,8 +56,9 @@ export const channels = {
   agentAttachFiles: 'mqmz:agent:attach-files',
   agentOpenWithFiles: 'mqmz:agent:open-with-files',
   agentAttachmentCancel: 'mqmz:agent:attachments-cancel',
-  agentSaveOutput: 'mqmz:agent:save-output',
-  agentExportAudio: 'mqmz:agent:export-audio',
+  agentCopyOutput: 'mqmz:agent:copy-output',
+  agentSaveSession: 'mqmz:agent:save-session',
+  agentSaveSource: 'mqmz:agent:save-source',
   openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
   toastFit: 'mqmz:toast:fit',
@@ -820,14 +821,9 @@ export interface PrototypeApi {
   cancelAgentAttachmentParsing(): Promise<Result<void>>
   releaseAgentAttachment(id: string): Promise<Result<void>>
   pruneAgentAttachments(): Promise<Result<string[]>>
-  saveAgentOutput(input: {
-    text: string
-    title?: string
-  }): Promise<Result<string>>
-  exportAgentAudio(input: {
-    text: string
-    title?: string
-  }): Promise<Result<string>>
+  copyAgentOutput(text: string): Promise<Result<void>>
+  saveAgentSession(id: string): Promise<Result<string>>
+  saveAgentSource(id: string): Promise<Result<string>>
   openExternal(url: string): Promise<Result<void>>
   pickDirectory(title?: string): Promise<Result<string | null>>
   toastFit(width: number, height: number): void
