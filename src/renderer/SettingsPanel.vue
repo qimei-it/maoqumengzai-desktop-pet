@@ -16,7 +16,6 @@ import type {
 import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
-import { deepseekModelIds } from '../shared/deepseek'
 import { minimaxModelCatalog } from '../shared/minimax'
 import {
   defaultSettings,
@@ -131,7 +130,6 @@ const minimaxLatencyClass = computed(() => {
   if (latency <= 1200) return 'is-medium'
   return 'is-slow'
 })
-const supportedModels = new Set<string>(deepseekModelIds)
 const modelPreview = ref('')
 const modelsOpen = ref(false)
 watch(
@@ -1162,7 +1160,7 @@ function onEscape(): void {
                       :key="model"
                       :value="model"
                     >
-                      {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                      {{ model }}
                     </option>
                   </SelectField>
                 </div>
@@ -1283,7 +1281,7 @@ function onEscape(): void {
                   :key="model"
                   :value="model"
                 >
-                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                  {{ model }}
                 </option>
               </SelectField>
               <p v-else class="settings-error">{{ aiModelsError }}</p>
