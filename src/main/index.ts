@@ -10324,6 +10324,17 @@ function setupIpc(): void {
         else if (command.action === 'maximize' && owner.isResizable()) {
           if (owner.isMaximized()) owner.unmaximize()
           else owner.maximize()
+        } else if (command.action === 'toggle-default' && owner === askWindow) {
+          if (!owner.isResizable()) break
+          if (owner.isMaximized()) {
+            const next = agentDefaultBounds(
+              screen.getDisplayMatching(owner.getBounds()),
+            )
+            owner.unmaximize()
+            setTimeout(() => {
+              if (!owner.isDestroyed()) owner.setBounds(next)
+            }, 0)
+          } else owner.maximize()
         } else if (command.action === 'close') {
           if (isPanelWindow(owner)) closePanelWindow(owner)
           else owner.hide()
