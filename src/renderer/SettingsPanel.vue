@@ -991,60 +991,6 @@ function onEscape(): void {
           </template>
 
           <template v-else-if="section === 'ai'">
-            <div class="settings-row">
-              <span id="setting-ai-quota" class="settings-label"
-                >显示额度监控</span
-              >
-              <button
-                type="button"
-                class="settings-switch"
-                role="switch"
-                aria-labelledby="setting-ai-quota"
-                :aria-checked="settings.aiQuotaEnabled"
-                @click="toggle('aiQuotaEnabled')"
-              >
-                <span class="settings-switch-thumb" />
-              </button>
-            </div>
-            <div class="settings-row">
-              <span class="settings-label">额度刷新间隔</span>
-              <SegmentedControl
-                :model-value="settings.aiQuotaRefreshMinutes"
-                :options="aiQuotaRefreshOptions"
-                aria-label="额度刷新间隔"
-                @update="
-                  value => update({ aiQuotaRefreshMinutes: value as number })
-                "
-              />
-            </div>
-            <div class="settings-row">
-              <span class="settings-label"
-                >OpenAI 帐户<span class="settings-account-state"
-                  >（{{ openAiAccountStatus }}）</span
-                ></span
-              >
-              <span class="settings-inline">
-                <button
-                  type="button"
-                  class="settings-button"
-                  @click="emit('command', { type: 'ai-quota-choose-openai' })"
-                >
-                  选择登录
-                </button>
-                <button
-                  type="button"
-                  class="settings-button"
-                  @click="
-                    emit('command', {
-                      type: 'ai-quota-config',
-                      patch: { openaiPath: '' },
-                    })
-                  "
-                >
-                  自动检测
-                </button>
-              </span>
-            </div>
             <div
               class="settings-row"
               :class="{ 'settings-row-connected': editingKey }"
@@ -1135,20 +1081,29 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">额度状态</span>
+              <span class="settings-label">MiniMax API Key</span>
               <span class="settings-inline">
-                <span
-                  class="settings-quota-state"
-                  :class="`is-${quotaStatus.tone}`"
-                  :title="quotaStatus.title"
-                  >{{ quotaStatus.label }}</span
-                >
-                <button
-                  type="button"
-                  class="settings-button"
-                  @click="emit('command', { type: 'ai-quota-refresh' })"
-                >
-                  刷新
+                <span class="settings-value">未接入</span>
+                <button type="button" class="settings-button" disabled>
+                  添加
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">百炼 API Key</span>
+              <span class="settings-inline">
+                <span class="settings-value">未接入</span>
+                <button type="button" class="settings-button" disabled>
+                  添加
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">火山方舟 API Key</span>
+              <span class="settings-inline">
+                <span class="settings-value">未接入</span>
+                <button type="button" class="settings-button" disabled>
+                  添加
                 </button>
               </span>
             </div>
@@ -1177,6 +1132,78 @@ function onEscape(): void {
                   "
                 >
                   打开
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span id="setting-ai-quota" class="settings-label"
+                >显示额度监控</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-ai-quota"
+                :aria-checked="settings.aiQuotaEnabled"
+                @click="toggle('aiQuotaEnabled')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label"
+                >OpenAI 帐户<span class="settings-account-state"
+                  >（{{ openAiAccountStatus }}）</span
+                ></span
+              >
+              <span class="settings-inline">
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="emit('command', { type: 'ai-quota-choose-openai' })"
+                >
+                  选择登录
+                </button>
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="
+                    emit('command', {
+                      type: 'ai-quota-config',
+                      patch: { openaiPath: '' },
+                    })
+                  "
+                >
+                  自动检测
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">额度刷新间隔</span>
+              <SegmentedControl
+                :model-value="settings.aiQuotaRefreshMinutes"
+                :options="aiQuotaRefreshOptions"
+                aria-label="额度刷新间隔"
+                @update="
+                  value => update({ aiQuotaRefreshMinutes: value as number })
+                "
+              />
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">额度状态</span>
+              <span class="settings-inline">
+                <span
+                  class="settings-quota-state"
+                  :class="`is-${quotaStatus.tone}`"
+                  :title="quotaStatus.title"
+                  >{{ quotaStatus.label }}</span
+                >
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="emit('command', { type: 'ai-quota-refresh' })"
+                >
+                  刷新
                 </button>
               </span>
             </div>
