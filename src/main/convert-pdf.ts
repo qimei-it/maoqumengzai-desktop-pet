@@ -177,7 +177,7 @@ export async function pdfToText(
       pages.push(text.trimEnd())
     }
     const value = pages.join('\n\n').trim()
-    if (!value) throw new Error('PDF 没有可提取的文字。')
+    if (!value) throw new Error('这是扫描版 PDF，暂不支持 OCR。')
     if (signal?.aborted) throw abortError()
     return writeExclusive(
       outputDirectory(sourcePath, batch),
