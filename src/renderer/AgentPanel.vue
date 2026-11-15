@@ -117,6 +117,7 @@ const skillQuery = ref('')
 const skillBusy = ref(false)
 const skillError = ref('')
 const skillDetail = ref<AgentSkillDetail | null>(null)
+const skillSearchIndex = ref<Record<string, string>>({})
 const dropActive = ref(false)
 let dragDepth = 0
 let dropWatchdog: ReturnType<typeof setTimeout> | undefined
@@ -149,11 +150,16 @@ const skills = computed<AgentSkillView[]>(
 const filteredSkills = computed(() => {
   const query = skillQuery.value.trim().toLowerCase()
   if (!query) return skills.value
-  return skills.value.filter(
-    (skill) =>
-      skill.name.toLowerCase().includes(query) ||
-      skill.description.toLowerCase().includes(query),
-  )
+  return skills.value.filter((skill) => {
+    const searchable = [
+      skill.name,
+      skill.description,
+      skillSearchIndex.value[skill.id] ?? '',
+    ]
+      .join('\n')
+      .toLowerCase()
+    return searchable.includes(query)
+  })
 })
 const pinnedOpen = ref(true)
 const projectsOpen = ref(true)
@@ -187,6 +193,12 @@ watch(
     attachments.value = value ?? []
   },
   { immediate: true },
+)
+watch(
+  () => skills.value.map((skill) => skill.id).join('|'),
+  () => {
+    if (skillsOpen.value) void indexSkillContent()
+  },
 )
 const reasoning = computed<AgentReasoning>(
   () => agent.value?.reasoning ?? 'high',
@@ -625,6 +637,18 @@ function openSkills(): void {
   closeMenu()
   modelMenuOpen.value = false
   workspaceMenuOpen.value = false
+  void indexSkillContent()
+}
+async function indexSkillContent(
+  list: AgentSkillView[] = skills.value,
+): Promise<void> {
+  const entries = await Promise.all(
+    list.map(async (skill) => {
+      const result = await window.mqmz?.readAgentSkill(skill.id)
+      return [skill.id, result?.ok ? result.value.content : ''] as const
+    }),
+  )
+  skillSearchIndex.value = Object.fromEntries(entries)
 }
 async function refreshSkills(): Promise<void> {
   if (skillBusy.value) return
@@ -632,6 +656,7 @@ async function refreshSkills(): Promise<void> {
   skillError.value = ''
   const result = await window.mqmz?.refreshAgentSkills()
   if (!result?.ok) skillError.value = result?.error ?? '刷新技能失败。'
+  else await indexSkillContent(result.value)
   skillBusy.value = false
 }
 async function addSkill(): Promise<void> {
@@ -640,7 +665,10 @@ async function addSkill(): Promise<void> {
   skillError.value = ''
   const result = await window.mqmz?.addAgentSkill()
   if (!result?.ok) skillError.value = result?.error ?? '添加技能失败。'
-  else if (result.value) skillDetail.value = result.value
+  else if (result.value) {
+    skillDetail.value = result.value
+    void nextTick(() => indexSkillContent())
+  }
   skillBusy.value = false
 }
 async function openSkill(skill: AgentSkillView): Promise<void> {
@@ -679,7 +707,10 @@ async function removeSkill(): Promise<void> {
     skillError.value = result?.error ?? '卸载技能失败。'
     return
   }
-  if (result.value) skillDetail.value = null
+  if (result.value) {
+    skillDetail.value = null
+    void nextTick(() => indexSkillContent())
+  }
 }
 function closeSkillDetail(): void {
   skillDetail.value = null
@@ -1506,7 +1537,7 @@ function statusLabel(status: string): string {
               </button>
             </div>
             <p v-else-if="skills.length" class="agent-skills-empty">
-              没有匹配的技能
+              没有找到匹配的技能
             </p>
             <p v-else class="agent-skills-empty">
               还没有技能，点击“添加”导入技能包
@@ -4036,11 +4067,14 @@ function statusLabel(status: string): string {
 }
 .agent-skills-search {
   display: flex;
-  flex: 1;
+  flex: 0 1 320px;
   align-items: center;
   gap: var(--space-2);
+  width: 320px;
+  max-width: calc(100% - 116px);
   min-width: 0;
   min-height: 36px;
+  margin-right: auto;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);

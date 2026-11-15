@@ -161,6 +161,7 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 技能保存在 `userData/skills/`：每个技能一个目录，至少包含 `SKILL.md`；禁用状态保存在 `userData/mqmz.skills.json`，默认启用。
 - `SKILL.md` 支持 YAML frontmatter 的 `name`、`description`；缺失时用目录名和首段正文兜底，详情只展示去除 frontmatter 后的正文。
 - 技能页不显示「已安装」标题；顶部提供搜索、刷新和添加，列表两列展示图标、名称和描述，启用项显示勾选。
+- 搜索按技能名称、描述和 `SKILL.md` 正文提示词匹配；无匹配结果时显示「没有找到匹配的技能」。
 - 添加支持 `.md`/`.markdown` 和 ZIP、7Z、RAR、TAR、GZ、TGZ、BZ2、XZ 包；压缩包内按最浅层 `SKILL.md` 识别技能目录，限制 50 MB 输入、1000 项、200 MB 解压体积，并复用归档安全校验。
 - 点击卡片打开详情面板：右上角是启用/禁用开关和「在 Finder 中打开」，右下角是「卸载」和「关闭」，不提供右上角 X。
 - 当前版本只管理技能库；把已启用技能注入对话上下文/工具调用的能力留到后续接入。
