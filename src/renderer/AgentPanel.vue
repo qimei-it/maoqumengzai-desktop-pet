@@ -2275,6 +2275,11 @@ function statusLabel(status: string): string {
                     role="tablist"
                     :aria-label="`${group.category}筛选`"
                   >
+                    <span
+                      class="agent-skills-filter-thumb"
+                      :class="group.filter"
+                      aria-hidden="true"
+                    ></span>
                     <button
                       type="button"
                       role="tab"
@@ -5624,16 +5629,37 @@ function statusLabel(status: string): string {
   overflow: auto;
 }
 .agent-skills-filter {
-  display: flex;
+  position: relative;
+  display: grid;
   flex: none;
-  gap: 2px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 220px;
   padding: 2px;
   border-radius: var(--radius-pill);
   background: var(--color-fill-secondary);
 }
+.agent-skills-filter-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 3);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  pointer-events: none;
+  transition: transform var(--motion-normal) var(--ease-spring);
+}
+.agent-skills-filter-thumb.enabled {
+  transform: translateX(100%);
+}
+.agent-skills-filter-thumb.disabled {
+  transform: translateX(200%);
+}
 .agent-skills-filter button {
+  position: relative;
+  z-index: 1;
   min-height: 26px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
@@ -5642,7 +5668,6 @@ function statusLabel(status: string): string {
   font-size: var(--font-size-caption);
 }
 .agent-skills-filter button.active {
-  background: var(--color-surface);
   color: var(--color-ink);
 }
 .agent-skills-filter button:focus-visible {
@@ -5744,6 +5769,9 @@ function statusLabel(status: string): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+.agent-skill-group:first-of-type {
+  margin-top: var(--space-8);
 }
 .agent-skill-group + .agent-skill-group {
   margin-top: var(--space-6);
@@ -6206,6 +6234,9 @@ function statusLabel(status: string): string {
   .agent-mic,
   .agent-mic svg.is-spinning {
     animation: none;
+  }
+  .agent-skills-filter-thumb {
+    transition: none;
   }
   .agent-session,
   .agent-project-row,
