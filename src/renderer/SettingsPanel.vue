@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, QrCode, SixteenthNotes } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes } from '@lucide/vue'
 import { formatOpenAiAccountStatus } from '../shared/ai-quota'
 import type {
   AiTestState,
@@ -526,14 +526,6 @@ function onEscape(): void {
               >
                 <Plus :size="15" :stroke-width="2" aria-hidden="true" />
                 新建桌宠
-              </button>
-              <button
-                type="button"
-                class="settings-button pet-bind-button"
-                @click="emit('command', { type: 'profile-bind' })"
-              >
-                <QrCode :size="15" :stroke-width="2" aria-hidden="true" />
-                绑定小程序
               </button>
             </div>
             <div class="pet-grid">
@@ -1395,10 +1387,6 @@ function onEscape(): void {
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: var(--space-4);
-}
-.pet-create-button,
-.pet-bind-button {
-  gap: var(--space-2);
 }
 .pet-grid {
   display: grid;

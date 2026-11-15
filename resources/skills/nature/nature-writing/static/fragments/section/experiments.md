@@ -8,12 +8,12 @@ Each subsection has a claim-first opening, then data support.
 
 Depending on the paper, instantiate this as a discovery loop, a core-capability
 plus validation envelope, or a capability ladder. Load
-`../../../../nature-shared/core/nature-results-discussion.md` for the three
+`../../../shared/core/nature-results-discussion.md` for the three
 archetypes and the same-level-repetition test.
 
 ## Drafting rules
 
-- Load `../../../../nature-shared/core/main-text-discipline.md` before deciding
+- Load `../../../shared/core/main-text-discipline.md` before deciding
   which analyses enter the main text. Classify results by their function in the
   paper and build the shortest sufficient evidence chain.
 - Stay mainly in past tense.

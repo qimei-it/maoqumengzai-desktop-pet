@@ -2408,9 +2408,17 @@ function statusLabel(status: string): string {
                       />
                     </span>
                     <span class="agent-skill-text">
-                      <span class="agent-skill-name">{{
-                        skill.name
-                      }}</span>
+                      <span class="agent-skill-name-row">
+                        <span class="agent-skill-name">{{
+                          skill.name
+                        }}</span>
+                        <span
+                          v-if="skill.requires"
+                          class="agent-skill-requires"
+                          :title="skill.requires"
+                          >需配置</span
+                        >
+                      </span>
                       <span class="agent-skill-description">{{
                         skill.description
                       }}</span>
@@ -2477,6 +2485,12 @@ function statusLabel(status: string): string {
                     }}</span>
                   </h2>
                   <p>{{ skillDetail.description }}</p>
+                  <p
+                    v-if="skillDetail.requires"
+                    class="agent-skill-detail-requires"
+                  >
+                    依赖：{{ skillDetail.requires }}
+                  </p>
                 </div>
                 <div class="agent-skill-detail-actions">
                   <button
@@ -6074,12 +6088,35 @@ function statusLabel(status: string): string {
   gap: 2px;
   min-width: 0;
 }
+.agent-skill-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
 .agent-skill-name {
+  flex: 1;
   overflow: hidden;
   font-size: var(--font-size-label);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.agent-skill-requires {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.agent-skill-detail-requires {
+  margin: var(--space-1) 0 0;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  line-height: 1.5;
 }
 .agent-skill-description {
   overflow: hidden;

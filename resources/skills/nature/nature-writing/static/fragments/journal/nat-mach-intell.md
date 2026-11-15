@@ -3,7 +3,7 @@
 ## Read the shared contract first
 
 Open
-`../../../../nature-shared/journal-formats/nature-machine-intelligence.md`.
+`../../../shared/journal-formats/nature-machine-intelligence.md`.
 It is the canonical, stage-aware source for NMI content types, word/display
 limits, initial files, code/data policy and accepted-in-principle production
 rules.
@@ -11,17 +11,17 @@ rules.
 The notes below are the **drafting action layer** on top of those facts.
 
 For Results or Discussion drafting, also open
-`../../../../nature-shared/core/nature-results-discussion.md`. It records
+`../../../shared/core/nature-results-discussion.md`. It records
 corpus-derived Nature-style writing patterns, not official submission
 requirements.
 
 For Introduction drafting, also open
-`../../../../nature-shared/core/nature-introduction.md`. It records
+`../../../shared/core/nature-introduction.md`. It records
 corpus-derived Nature-style writing patterns, not official submission
 requirements.
 
 For abstract drafting, also open
-`../../../../nature-shared/core/nature-abstract.md`. It records corpus-derived
+`../../../shared/core/nature-abstract.md`. It records corpus-derived
 Nature-style writing patterns, not official submission requirements.
 
 ## Audience and fit

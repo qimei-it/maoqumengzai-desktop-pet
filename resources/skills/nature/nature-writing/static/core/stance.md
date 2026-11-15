@@ -8,7 +8,7 @@
 
 ## Reader workflow
 
-See `../../../nature-shared/core/reader-workflow.md` (loaded via manifest `always_load`) for the 5-step reader question sequence. Draft and revise so the paper answers those questions in order.
+See `../../shared/core/reader-workflow.md` (loaded via manifest `always_load`) for the 5-step reader question sequence. Draft and revise so the paper answers those questions in order.
 
 ## Claim discipline
 
@@ -26,6 +26,6 @@ Identify before writing:
 - **evidence**: figures, measurements, comparisons, datasets, statistics, or examples
 - **boundary**: where the claim stops
 - **target journal or word limit** if provided
-- **terminology**: on first contact with the material, extract the recurring methods, models, datasets, metrics, abbreviations, and notation into a Terminology Ledger and reuse the canonical forms across every section (see `../../../nature-shared/core/terminology-ledger.md`)
+- **terminology**: on first contact with the material, extract the recurring methods, models, datasets, metrics, abbreviations, and notation into a Terminology Ledger and reuse the canonical forms across every section (see `../../shared/core/terminology-ledger.md`)
 
 For a new section, identify the core claim, evidence, and boundary from the supplied material and task context. Follow the scoped alignment check in `workflow.md` (step 3b) when a material choice remains unresolved. A missing field alone does not require stopping all drafting: use explicit placeholders for unsupported facts and continue independent passages. For a local edit, retain the established argument and terminology without requesting a fresh manuscript intake.

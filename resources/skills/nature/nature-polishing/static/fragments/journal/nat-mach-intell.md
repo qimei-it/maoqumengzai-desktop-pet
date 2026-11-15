@@ -3,20 +3,20 @@
 ## Read the shared contract first
 
 Open
-`../../../../nature-shared/journal-formats/nature-machine-intelligence.md` for
+`../../../shared/journal-formats/nature-machine-intelligence.md` for
 the exact, stage-aware NMI facts. This fragment controls polishing decisions,
 not the submission numbers themselves.
 
 For Results or Discussion, also open
-`../../../../nature-shared/core/nature-results-discussion.md`. It is
+`../../../shared/core/nature-results-discussion.md`. It is
 corpus-derived Nature-style writing guidance, not an official NMI requirement.
 
 For Introduction polishing, also open
-`../../../../nature-shared/core/nature-introduction.md`. It is corpus-derived
+`../../../shared/core/nature-introduction.md`. It is corpus-derived
 Nature-style writing guidance, not an official NMI requirement.
 
 For abstract polishing, also open
-`../../../../nature-shared/core/nature-abstract.md`. It is corpus-derived
+`../../../shared/core/nature-abstract.md`. It is corpus-derived
 Nature-style writing guidance, not an official NMI requirement.
 
 ## Audience and stance

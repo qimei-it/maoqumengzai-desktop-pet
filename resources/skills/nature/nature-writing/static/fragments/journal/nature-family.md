@@ -24,5 +24,5 @@ Check the named journal's current article-type instructions and record the
 source and verification date before applying exact numbers.
 
 If the user actually means the flagship journal Nature, switch the journal axis
-to `nature` and load `../nature-shared/journal-formats/nature.md` through the
+to `nature` and load `shared/journal-formats/nature.md` through the
 manifest route.

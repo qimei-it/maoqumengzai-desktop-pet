@@ -15,7 +15,9 @@ describe('vendored research skills', () => {
       builtinRoot,
     )
     const list = store.list()
-    expect(list.length).toBe(714)
+    expect(list.length).toBe(709)
+    expect(new Set(list.map((item) => item.name)).size).toBe(list.length)
+    expect(list.some((item) => item.requires)).toBe(true)
     expect(new Set(list.map((item) => item.id)).size).toBe(list.length)
     for (const skill of list) {
       expect(skill.builtin).toBe(true)

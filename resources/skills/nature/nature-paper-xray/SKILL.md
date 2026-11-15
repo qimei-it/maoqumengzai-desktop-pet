@@ -37,7 +37,7 @@ The delivered artifact is a Markdown long-read. A section-by-section summary of 
 
 ## Paper-type adaptation
 
-Reading emphasis shifts with the paper type. Load `../nature-shared/core/paper-type-taxonomy.md` when the type is not obvious:
+Reading emphasis shifts with the paper type. Load `shared/core/paper-type-taxonomy.md` when the type is not obvious:
 
 - **algorithmic** — fair-comparison discipline dominates: are baselines tuned as hard as the proposal, and where does it fail?
 - **methods** — reproducibility dominates: would the protocol work in another lab, and what is left implicit?

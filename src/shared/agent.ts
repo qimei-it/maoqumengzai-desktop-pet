@@ -115,6 +115,8 @@ export type AgentSkillView = {
   /** Bundled with the app and read-only. */
   builtin: boolean
   enabled: boolean
+  /** External service, CLI or credential the skill expects. */
+  requires?: string
 }
 
 export type AgentSkillDetail = AgentSkillView & {

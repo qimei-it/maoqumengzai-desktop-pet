@@ -837,7 +837,15 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!admin) return { ok: false, text: '技能库尚未就绪。' }
       const target = String(args.target ?? '').trim()
       if (!target) return { ok: false, text: '缺少技能名称或 ID。' }
-      const skill = admin.find(target)
+      let skill
+      try {
+        skill = admin.find(target)
+      } catch {
+        return {
+          ok: true,
+          text: `技能“${target}”已经不在技能库中，无需卸载。`,
+        }
+      }
       if (skill.builtin)
         return { ok: false, text: '内置技能不能卸载，可以改为禁用。' }
       await admin.remove(skill.id)

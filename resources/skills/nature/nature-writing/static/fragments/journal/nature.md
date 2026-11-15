@@ -33,13 +33,13 @@ Broad, multi-disciplinary. A reader outside the immediate subfield must be able 
 ## Required companion reference
 
 For formatting, submission-package or readiness work, load
-`../../../../nature-shared/journal-formats/nature.md`. It is the canonical,
+`../../../shared/journal-formats/nature.md`. It is the canonical,
 stage-aware checklist for the current flagship Nature Article requirements.
 
 When the manuscript involves human or animal research, clinical research,
 reporting summaries, image integrity, structures, chemistry, taxonomy or
 provenance-sensitive samples, also load
-`../../../../nature-shared/core/research-compliance.md`.
+`../../../shared/core/research-compliance.md`.
 
 ## Things to flag rather than silently fix
 

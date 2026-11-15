@@ -44,7 +44,7 @@ Translate every extractable substantive block with these rules:
 
 Render inline expressions with `$...$` and display equations with `$$...$$`. Do not put equations in ordinary code spans or code fences. For low-confidence OCR, custom macros that the target renderer cannot support, or image-only formulae, follow `references/equation-handling.md`: show the original crop and an explicitly labelled best-effort transcription rather than raw or guessed LaTeX.
 
-If a sentence contains multiple claims, keep the translation readable but do not split away the original evidence chain. Build the Terminology Ledger (`../../../nature-shared/core/terminology-ledger.md`) as you translate so recurring terms stay consistent across the whole document.
+If a sentence contains multiple claims, keep the translation readable but do not split away the original evidence chain. Build the Terminology Ledger (`../../shared/core/terminology-ledger.md`) as you translate so recurring terms stay consistent across the whole document.
 
 ## 4. Extract and place figures and tables near the relevant discussion
 

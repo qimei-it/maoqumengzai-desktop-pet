@@ -15,7 +15,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/adaptyv",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ADAPTYV_API_KEY、FOUNDRY_API_TOKEN"
     },
     {
       "id": "builtin-k-dense-aeon",
@@ -31,7 +32,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/alphagenome",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ALPHAGENOME_API_KEY、ALPHA_GENOME_API_KEY"
     },
     {
       "id": "builtin-k-dense-analytical-method-validation",
@@ -79,7 +81,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/autoskill",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 SCREENPIPE_TOKEN、LM_API_TOKEN 等"
     },
     {
       "id": "builtin-k-dense-benchling-integration",
@@ -87,7 +90,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/benchling-integration",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 BENCHLING_API_KEY、BENCHLING_CLIENT_SECRET 等"
     },
     {
       "id": "builtin-k-dense-bgpt-paper-search",
@@ -111,7 +115,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/biopython",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 NCBI_API_KEY"
     },
     {
       "id": "builtin-k-dense-bioservices",
@@ -167,7 +172,8 @@
       "category": "论文科研",
       "defaultEnabled": true,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/citation-management",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 NCBI_API_KEY、OPENALEX_API_KEY"
     },
     {
       "id": "builtin-k-dense-clinical-decision-support",
@@ -215,7 +221,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/database-lookup",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 FRED_API_KEY、BEA_API_KEY 等"
     },
     {
       "id": "builtin-k-dense-datalad",
@@ -295,7 +302,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/esm",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ESM_API_KEY"
     },
     {
       "id": "builtin-k-dense-etetoolkit",
@@ -311,7 +319,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/exa-search",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 EXA_API_KEY"
     },
     {
       "id": "builtin-k-dense-experimental-design",
@@ -375,7 +384,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/generate-image",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-geniml",
@@ -399,7 +409,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/genomic-intelligence",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 GI_API_KEY"
     },
     {
       "id": "builtin-k-dense-geomaster",
@@ -479,7 +490,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/hypogenic",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENAI_API_KEY、ANTHROPIC_API_KEY"
     },
     {
       "id": "builtin-k-dense-hypothesis-generation",
@@ -503,7 +515,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/infographics",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-iso-standards-readiness",
@@ -551,7 +564,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/latex-posters",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-liteparse",
@@ -567,7 +581,8 @@
       "category": "论文科研",
       "defaultEnabled": true,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/literature-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY、PARALLEL_API_KEY"
     },
     {
       "id": "builtin-k-dense-mageck",
@@ -647,7 +662,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/modal",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 MODAL_TOKEN_SECRET、API_KEY"
     },
     {
       "id": "builtin-k-dense-molecular-dynamics",
@@ -695,7 +711,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/neuropixels-analysis",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ANTHROPIC_API_KEY"
     },
     {
       "id": "builtin-k-dense-nextflow",
@@ -727,7 +744,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/omero-integration",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OMERO_SESSION_KEY"
     },
     {
       "id": "builtin-k-dense-onekgpd",
@@ -751,7 +769,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/open-notebook",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPEN_NOTEBOOK_ENCRYPTION_KEY"
     },
     {
       "id": "builtin-k-dense-openpiv",
@@ -791,7 +810,8 @@
       "category": "论文科研",
       "defaultEnabled": true,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/paper-lookup",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 NCBI_API_KEY、S2_API_KEY 等"
     },
     {
       "id": "builtin-k-dense-paperclip",
@@ -799,7 +819,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/paperclip",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 PAPERCLIP_API_KEY"
     },
     {
       "id": "builtin-k-dense-paperzilla",
@@ -815,7 +836,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/parallel-web",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 PARALLEL_API_KEY"
     },
     {
       "id": "builtin-k-dense-pathml",
@@ -927,7 +949,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/protocolsio-integration",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 PROTOCOLS_IO_ACCESS_TOKEN"
     },
     {
       "id": "builtin-k-dense-pufferlib",
@@ -935,7 +958,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pufferlib",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 WANDB_API_KEY、NEPTUNE_API_TOKEN"
     },
     {
       "id": "builtin-k-dense-pybamm",
@@ -991,7 +1015,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pymatgen",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 MP_API_KEY"
     },
     {
       "id": "builtin-k-dense-pymc",
@@ -1047,7 +1072,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/pyzotero",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ZOTERO_API_KEY"
     },
     {
       "id": "builtin-k-dense-qiime2-amplicon",
@@ -1103,7 +1129,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/research-grants",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-research-lookup",
@@ -1111,7 +1138,8 @@
       "category": "论文科研",
       "defaultEnabled": true,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/research-lookup",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 PARALLEL_API_KEY、OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-rowan",
@@ -1119,7 +1147,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/rowan",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 ROWAN_API_KEY"
     },
     {
       "id": "builtin-k-dense-scanpy",
@@ -1151,7 +1180,8 @@
       "category": "论文科研",
       "defaultEnabled": true,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-critical-thinking",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-scientific-schematics",
@@ -1159,7 +1189,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-schematics",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-scientific-slides",
@@ -1167,7 +1198,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/scientific-slides",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 OPENROUTER_API_KEY"
     },
     {
       "id": "builtin-k-dense-scientific-visualization",
@@ -1295,7 +1327,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/tamarind",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 TAMARIND_API_KEY"
     },
     {
       "id": "builtin-k-dense-tellurium",
@@ -1311,7 +1344,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/tiledbvcf",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 TILEDB_REST_TOKEN"
     },
     {
       "id": "builtin-k-dense-timesfm-forecasting",
@@ -1343,7 +1377,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/k-dense-ai/scientific-agent-skills/tree/2d2065fb4520fa3f3f2bcf61cff26ec8b7eba4b5/skills/transformers",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 HF_HUB_DISABLE_IMPLICIT_TOKEN"
     },
     {
       "id": "builtin-k-dense-treatment-plans",
@@ -1471,7 +1506,8 @@
       "category": "论文科研",
       "defaultEnabled": false,
       "source": "https://github.com/Yuan1z0825/nature-skills/tree/7bff1d0539c0dfad6c30178bb93ce6dd8a5cebf8/skills/nature-image2ppt",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要配置 PADDLE_OCR_TOKEN"
     },
     {
       "id": "builtin-nature-nature-literature-pipeline",
@@ -1671,7 +1707,8 @@
       "category": "文档办公",
       "defaultEnabled": true,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/docx",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要 npm docx 与 pandoc"
     },
     {
       "id": "builtin-anthropic-frontend-design",
@@ -1711,7 +1748,8 @@
       "category": "文档办公",
       "defaultEnabled": true,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/pptx",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要 Python python-pptx"
     },
     {
       "id": "builtin-anthropic-skill-creator",
@@ -1759,7 +1797,8 @@
       "category": "文档办公",
       "defaultEnabled": true,
       "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/xlsx",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要 Python openpyxl"
     },
     {
       "id": "builtin-sentry-skill-scanner",
@@ -1959,7 +1998,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/amazon-analyse",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-amazon-listing-builder",
@@ -1967,7 +2007,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/amazon-listing-builder",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-category-selection",
@@ -1975,15 +2016,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/category-selection",
-      "license": "MIT (README)"
-    },
-    {
-      "id": "builtin-sorftime-keyword-research",
-      "dir": "sorftime/keyword-research",
-      "category": "电商运营",
-      "defaultEnabled": false,
-      "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/keyword-research",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-product-research",
@@ -1991,7 +2025,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/product-research",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-review-analysis",
@@ -1999,7 +2034,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/review-analysis",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-sellersprite-amazon-research",
@@ -2007,7 +2043,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/sellersprite-amazon-research",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-sif-amazon-research",
@@ -2015,7 +2052,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/sif-amazon-research",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-sorftime-xiyou-insight",
@@ -2023,7 +2061,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/liangdabiao/amazon-sorftime-research-MCP-skill/tree/cfdf288f868e2ed23bb1bbe73c37e4581bf88b87/SKILLS/skills/xiyou-insight",
-      "license": "MIT (README)"
+      "license": "MIT (README)",
+      "requires": "Sorftime MCP + API Key"
     },
     {
       "id": "builtin-academic-pptx-academic-pptx",
@@ -2039,7 +2078,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/android-native-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-buddy-sings",
@@ -2047,7 +2087,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/buddy-sings",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-flutter-dev",
@@ -2055,7 +2096,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/flutter-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-frontend-dev",
@@ -2063,7 +2105,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/frontend-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-fullstack-dev",
@@ -2071,7 +2114,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/fullstack-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-gif-sticker-maker",
@@ -2079,7 +2123,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/gif-sticker-maker",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-ios-application-dev",
@@ -2087,7 +2132,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/ios-application-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-docx",
@@ -2095,7 +2141,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-docx",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-multimodal-toolkit",
@@ -2103,7 +2150,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-multimodal-toolkit",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-music-gen",
@@ -2111,7 +2159,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-music-gen",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-music-playlist",
@@ -2119,7 +2168,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-music-playlist",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-pdf",
@@ -2127,7 +2177,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-pdf",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-minimax-xlsx",
@@ -2135,7 +2186,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/minimax-xlsx",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-pptx-generator",
@@ -2143,7 +2195,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/pptx-generator",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-react-native-dev",
@@ -2151,7 +2204,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/react-native-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-shader-dev",
@@ -2159,7 +2213,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/shader-dev",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-minimax-vision-analysis",
@@ -2167,7 +2222,8 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/MiniMax-AI/skills/tree/02853d885acb1abc157477ce00c4d98a8ed14a71/skills/vision-analysis",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "MiniMax API（部分技能）"
     },
     {
       "id": "builtin-uiux-banner-design",
@@ -2223,7 +2279,8 @@
       "category": "设计开发",
       "defaultEnabled": true,
       "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/tree/d643997c82e94742dd3bee43210b0198e8bbba3d/.claude/skills/ui-ux-pro-max",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要 Python 3 与技能脚本"
     },
     {
       "id": "builtin-impeccable-impeccable",
@@ -2239,7 +2296,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/figma",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-hyperframes",
@@ -2247,7 +2305,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-hyperframes-cli",
@@ -2255,7 +2314,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes-cli",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-hyperframes-registry",
@@ -2263,7 +2323,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/hyperframes-registry",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-media-use",
@@ -2271,7 +2332,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/media-use",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-remotion-to-hyperframes",
@@ -2279,7 +2341,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/remotion-to-hyperframes",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-reverse-any-video",
@@ -2287,7 +2350,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/reverse-any-video",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-slideshow",
@@ -2295,7 +2359,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/slideshow",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-hyperframes-style-sampling",
@@ -2303,7 +2368,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/heygen-com/hyperframes/tree/04202e8a4c2e7f334636bf1e3b07dd38c77e5b43/skills/style-sampling",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "HyperFrames CLI"
     },
     {
       "id": "builtin-baoyu-baoyu-article-illustrator",
@@ -2311,7 +2377,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-article-illustrator",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-comic",
@@ -2319,7 +2386,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-comic",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-compress-image",
@@ -2327,7 +2395,8 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-compress-image",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-cover-image",
@@ -2335,7 +2404,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-cover-image",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-danger-gemini-web",
@@ -2343,7 +2413,8 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-danger-gemini-web",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-danger-x-to-markdown",
@@ -2351,7 +2422,8 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-danger-x-to-markdown",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-diagram",
@@ -2359,7 +2431,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-diagram",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-electron-extract",
@@ -2367,7 +2440,8 @@
       "category": "通用工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-electron-extract",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-format-markdown",
@@ -2375,7 +2449,8 @@
       "category": "文档办公",
       "defaultEnabled": true,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-format-markdown",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-image-gen",
@@ -2383,7 +2458,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-image-gen",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-infographic",
@@ -2391,7 +2467,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-infographic",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-markdown-to-html",
@@ -2399,7 +2476,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-markdown-to-html",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-post-to-wechat",
@@ -2407,7 +2485,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-wechat",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-post-to-weibo",
@@ -2415,7 +2494,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-weibo",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-post-to-x",
@@ -2423,7 +2503,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-post-to-x",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-slide-deck",
@@ -2431,7 +2512,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-slide-deck",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-translate",
@@ -2439,7 +2521,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-translate",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-url-to-markdown",
@@ -2447,7 +2530,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-url-to-markdown",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-wechat-summary",
@@ -2455,7 +2539,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-wechat-summary",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-xhs-images",
@@ -2463,7 +2548,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-xhs-images",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-baoyu-baoyu-youtube-transcript",
@@ -2471,7 +2557,8 @@
       "category": "文档办公",
       "defaultEnabled": false,
       "source": "https://github.com/jimliu/baoyu-skills/tree/ca703c2d7c2c4399a1dc0cf82224f8551e05a96d/skills/baoyu-youtube-transcript",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "外部 API/CLI（按技能）"
     },
     {
       "id": "builtin-cheat-cheat-bump",
@@ -2599,7 +2686,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-autoplan",
@@ -2607,7 +2695,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/autoplan",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-benchmark",
@@ -2615,7 +2704,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/benchmark",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-benchmark-models",
@@ -2623,7 +2713,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/benchmark-models",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-browse",
@@ -2631,7 +2722,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/browse",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-browser-skills-hackernews-frontpage",
@@ -2639,7 +2731,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/browser-skills/hackernews-frontpage",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-canary",
@@ -2647,15 +2740,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/canary",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-gstack-capy-skill-gstack",
-      "dir": "gstack/capy-skill-gstack",
-      "category": "设计开发",
-      "defaultEnabled": false,
-      "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/capy/skill/gstack",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-careful",
@@ -2663,7 +2749,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/careful",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-codex",
@@ -2671,7 +2758,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/codex",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-context-restore",
@@ -2679,7 +2767,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/context-restore",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-context-save",
@@ -2687,7 +2776,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/context-save",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-cso",
@@ -2695,7 +2785,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/cso",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-design-consultation",
@@ -2703,7 +2794,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-consultation",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-design-html",
@@ -2711,7 +2803,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-html",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-design-motion",
@@ -2719,7 +2812,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-motion",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-design-review",
@@ -2727,7 +2821,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-design-shotgun",
@@ -2735,7 +2830,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/design-shotgun",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-deslop-shared-libs",
@@ -2743,7 +2839,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/deslop-shared-libs",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-devex-review",
@@ -2751,7 +2848,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/devex-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-diagram",
@@ -2759,7 +2857,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/diagram",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-document-generate",
@@ -2767,7 +2866,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/document-generate",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-document-release",
@@ -2775,7 +2875,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/document-release",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-eval-plan",
@@ -2783,7 +2884,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/eval-plan",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-freeze",
@@ -2791,7 +2893,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/freeze",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-gstack-upgrade",
@@ -2799,7 +2902,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/gstack-upgrade",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-guard",
@@ -2807,7 +2911,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/guard",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-health",
@@ -2815,7 +2920,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/health",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ios-clean",
@@ -2823,7 +2929,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-clean",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ios-design-review",
@@ -2831,7 +2938,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-design-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ios-fix",
@@ -2839,7 +2947,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-fix",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ios-qa",
@@ -2847,7 +2956,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-qa",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ios-sync",
@@ -2855,7 +2965,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ios-sync",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-land-and-deploy",
@@ -2863,7 +2974,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/land-and-deploy",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-landing-report",
@@ -2871,7 +2983,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/landing-report",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-learn",
@@ -2879,7 +2992,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/learn",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-make-pdf",
@@ -2887,7 +3001,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/make-pdf",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-modernize",
@@ -2895,7 +3010,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/modernize",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-office-hours",
@@ -2903,7 +3019,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/office-hours",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-open-gstack-browser",
@@ -2911,7 +3028,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/open-gstack-browser",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-openclaw-skills-gstack-openclaw-ceo-review",
@@ -2919,7 +3037,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-ceo-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-openclaw-skills-gstack-openclaw-office-hours",
@@ -2927,7 +3046,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-office-hours",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-openclaw-skills-gstack-openclaw-retro",
@@ -2935,7 +3055,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/openclaw/skills/gstack-openclaw-retro",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-pair-agent",
@@ -2943,7 +3064,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/pair-agent",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-plan-ceo-review",
@@ -2951,7 +3073,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-ceo-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-plan-design-review",
@@ -2959,7 +3082,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-design-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-plan-devex-review",
@@ -2967,7 +3091,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-devex-review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-plan-tune",
@@ -2975,7 +3100,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/plan-tune",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-qa",
@@ -2983,7 +3109,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qa",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-qa-only",
@@ -2991,7 +3118,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qa-only",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-qm-sandbox-skills-gstack-plan",
@@ -2999,7 +3127,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/qm/sandbox/skills/gstack-plan",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-retro",
@@ -3007,7 +3136,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/retro",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-review",
@@ -3015,7 +3145,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/review",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-runaway-stopper",
@@ -3023,7 +3154,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/runaway-stopper",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-scrape",
@@ -3031,7 +3163,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/scrape",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-setup-browser-cookies",
@@ -3039,7 +3172,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-browser-cookies",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-setup-deploy",
@@ -3047,7 +3181,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-deploy",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-setup-gbrain",
@@ -3055,7 +3190,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/setup-gbrain",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ship",
@@ -3063,7 +3199,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ship",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-skillify",
@@ -3071,7 +3208,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/skillify",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-spec",
@@ -3079,7 +3217,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/spec",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-sync-gbrain",
@@ -3087,7 +3226,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/sync-gbrain",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-test-audit",
@@ -3095,7 +3235,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/test-audit",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-ubicloud",
@@ -3103,7 +3244,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/ubicloud",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-unfreeze",
@@ -3111,7 +3253,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/unfreeze",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-verify",
@@ -3119,7 +3262,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/verify",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-gstack-write-skill",
@@ -3127,7 +3271,8 @@
       "category": "设计开发",
       "defaultEnabled": false,
       "source": "https://github.com/garrytan/gstack/tree/0326b144af36676d599dcf63a9fad9a870d22ed6/write-skill",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "gstack CLI"
     },
     {
       "id": "builtin-commerce-catalog-listings",
@@ -3279,14 +3424,6 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ad-creative",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-marketing-ads",
-      "dir": "marketing/ads",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/ads",
       "license": "MIT"
     },
     {
@@ -3642,14 +3779,6 @@
       "license": "MIT"
     },
     {
-      "id": "builtin-marketing-seo-audit",
-      "dir": "marketing/seo-audit",
-      "category": "内容创作",
-      "defaultEnabled": false,
-      "source": "https://github.com/coreyhaines31/marketingskills/tree/1f837447b20bb6f0e72d87b80ece1c221c362c7d/skills/seo-audit",
-      "license": "MIT"
-    },
-    {
       "id": "builtin-marketing-signup",
       "dir": "marketing/signup",
       "category": "内容创作",
@@ -3711,7 +3840,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-audit",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "claude-seo CLI"
     },
     {
       "id": "builtin-seo-seo-backlinks",
@@ -3727,7 +3857,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-bing",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 BING_WEBMASTER_API_KEY、INDEXNOW_KEY"
     },
     {
       "id": "builtin-seo-seo-cluster",
@@ -3807,7 +3938,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-seo/tree/468ed5b0d9e3249394783710e54abb02837e326b/skills/seo-google",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 GOOGLE_API_KEY"
     },
     {
       "id": "builtin-seo-seo-hreflang",
@@ -4935,7 +5067,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-shopify",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 SHOPIFY_ACCESS_TOKEN、SHIPBOB_API_TOKEN"
     },
     {
       "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-tiktok",
@@ -4943,7 +5076,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-tiktok",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 TIKTOK_APP_KEY、TIKTOK_APP_SECRET 等"
     },
     {
       "id": "builtin-nexscope-supply-chain-optimization-supply-chain-optimization-walmart",
@@ -4951,7 +5085,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/supply-chain-optimization/supply-chain-optimization-walmart",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 WALMART_CLIENT_SECRET"
     },
     {
       "id": "builtin-nexscope-synthetic-monitoring",
@@ -4967,14 +5102,6 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-creator-marketplace",
-      "license": "MIT"
-    },
-    {
-      "id": "builtin-nexscope-tiktok-influencer-marketing",
-      "dir": "nexscope/tiktok-influencer-marketing",
-      "category": "电商运营",
-      "defaultEnabled": false,
-      "source": "https://github.com/nexscope-ai/eCommerce-Skills/tree/c5ba892a1cc3178626577aed1dbde5e62a82f1ac/tiktok-influencer-marketing",
       "license": "MIT"
     },
     {
@@ -5223,7 +5350,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-account-audit",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-tiktok2-tiktok-ads-operator",
@@ -5231,7 +5359,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-ads-operator",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-tiktok2-tiktok-category-strategy",
@@ -5239,7 +5368,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-category-strategy",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-tiktok2-tiktok-growth-plan",
@@ -5247,7 +5377,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-growth-plan",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-tiktok2-tiktok-lead-generation-operator",
@@ -5255,7 +5386,8 @@
       "category": "电商运营",
       "defaultEnabled": false,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-lead-generation-operator",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-tiktok2-tiktok-shop-operator",
@@ -5263,7 +5395,8 @@
       "category": "电商运营",
       "defaultEnabled": true,
       "source": "https://github.com/aronhy/tiktok-agent-skills/tree/ef939f8fa1204af33a8fba3d8cda759d0596217b/skills/tiktok-shop-operator",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "TikTok/MCP 配置（部分技能）"
     },
     {
       "id": "builtin-aivideo-cinematic-giant-visual-prompts",
@@ -5287,7 +5420,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/multi-platform-content-collector",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "Topview API"
     },
     {
       "id": "builtin-topview-social-media-uploader",
@@ -5295,7 +5429,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/social-media-uploader",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "Topview API"
     },
     {
       "id": "builtin-topview-topview-skill",
@@ -5303,7 +5438,8 @@
       "category": "创意工具",
       "defaultEnabled": false,
       "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/topview-skill",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "Topview API"
     },
     {
       "id": "builtin-topview-video-script-writer",
@@ -5311,7 +5447,8 @@
       "category": "创意工具",
       "defaultEnabled": true,
       "source": "https://github.com/topviewai/codex-topview-ai/tree/8177472128c9144575b1015f5b658716a5017741/skills/video-script-writer",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "Topview API"
     },
     {
       "id": "builtin-ads-ads-amazon",
@@ -5527,7 +5664,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/AgriciDaniel/claude-ads/tree/fc3908e786c318776df89a3a098333da377364be/skills/ads-setup",
-      "license": "MIT"
+      "license": "MIT",
+      "requires": "需要配置 META_API_TOKEN"
     },
     {
       "id": "builtin-ads-ads-snapchat",
@@ -5623,7 +5761,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/content-writer",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要配置 INDEXNOW_KEY、BAIDU_PUSH_TOKEN"
     },
     {
       "id": "builtin-seogeo-seo-geo-implement-geo-content-optimizer",
@@ -5639,7 +5778,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/implement/page-play-builder",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要配置 INDEXNOW_KEY"
     },
     {
       "id": "builtin-seogeo-seo-geo-implement-serp-markup-builder",
@@ -5679,7 +5819,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/survey/serp-analysis",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要配置 FIRECRAWL_API_KEY"
     },
     {
       "id": "builtin-seogeo-seo-geo-tune-content-quality-auditor",
@@ -5711,7 +5852,8 @@
       "category": "内容创作",
       "defaultEnabled": false,
       "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/technical-seo-checker",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "requires": "需要配置 INDEXNOW_KEY、BAIDU_PUSH_TOKEN"
     }
   ]
 }

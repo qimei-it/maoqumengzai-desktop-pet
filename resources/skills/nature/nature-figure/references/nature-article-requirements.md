@@ -119,7 +119,7 @@ Do not send a main figure through the Extended Data file route or vice versa.
 - use scale bars instead of magnification factors
 
 For microscopy, gels, blots or other processed images, load the image-integrity
-section of `../../nature-shared/core/research-compliance.md`. Record raw-file
+section of `../shared/core/research-compliance.md`. Record raw-file
 provenance, crop, contrast, gamma, pseudocolour, stitching, lane rearrangement
 and processing software.
 

@@ -61,6 +61,7 @@ type BuiltinManifestEntry = {
   defaultEnabled?: boolean
   source?: string
   license?: string
+  requires?: string
 }
 
 type BuiltinManifest = {
@@ -363,6 +364,7 @@ export async function createSkillStore(
     category: skill.category,
     builtin: skill.builtin,
     enabled: enabledFor(skill),
+    ...(skill.requires ? { requires: skill.requires } : {}),
   })
 
   const refresh = async (): Promise<AgentSkillView[]> => {
@@ -386,6 +388,7 @@ export async function createSkillStore(
         isFile: false,
         content: parsed.body,
         defaultEnabled: entry.defaultEnabled !== false,
+        ...(entry.requires ? { requires: entry.requires } : {}),
       })
     }
     const entries = await readdir(root, { withFileTypes: true }).catch(() => [])

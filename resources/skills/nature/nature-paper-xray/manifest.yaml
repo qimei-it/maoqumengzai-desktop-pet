@@ -18,4 +18,4 @@ references:
     - condition: the request asks whether the results hold up, or the reading must state what the evidence does and does not support — numbers, baseline alignment, selection pressure, leakage, cost, scope
       path: references/evidence-boundary.md
     - condition: the paper type is unclear, or the reading emphasis must shift between algorithmic, methods, hypothesis, research, and review papers
-      path: ../nature-shared/core/paper-type-taxonomy.md
+      path: shared/core/paper-type-taxonomy.md

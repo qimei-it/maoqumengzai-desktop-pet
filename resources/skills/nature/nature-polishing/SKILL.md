@@ -48,7 +48,7 @@ Apply the loaded fragments in this priority order, matching the `paper type -> s
 If a paragraph's structural problem cannot be fixed without inventing content, flag it instead of papering over it.
 
 For Results, full-main-text compression, main-versus-SI allocation, or prose
-added during revision, load `../nature-shared/core/main-text-discipline.md`
+added during revision, load `shared/core/main-text-discipline.md`
 before sentence polishing. Classify each result, retain the shortest sufficient
 evidence chain, and require every addition to trigger a deletion or replacement
 check across the affected paragraph.
@@ -58,10 +58,10 @@ another Nature Portfolio title, load the matching shared Nature-style corpus
 guidance:
 
 - Results or Discussion →
-  `../nature-shared/core/nature-results-discussion.md`
+  `shared/core/nature-results-discussion.md`
 - Introduction or whole-manuscript narrative →
-  `../nature-shared/core/nature-introduction.md`
-- Abstract → `../nature-shared/core/nature-abstract.md`
+  `shared/core/nature-introduction.md`
+- Abstract → `shared/core/nature-abstract.md`
 
 Preserve claim escalation, the fast question funnel, Introduction–Results
 alignment, discovery-centred abstract compression, evidence-bound local
@@ -70,7 +70,7 @@ distilled from published NMI papers; treat them as corpus-derived guidance, not
 official policy, and obey the target journal's current rules when they differ.
 
 For any Discussion polish or restructuring job, also load
-`../nature-shared/core/discussion-argument-language.md`. Use its function labels
+`shared/core/discussion-argument-language.md`. Use its function labels
 to remove Results replay, repair the movement from specific findings to bounded
 implications, calibrate modal and reporting verbs to evidence strength, and make
 limitations and future work resolve named claim boundaries. Treat it as general
@@ -83,9 +83,9 @@ The files under `references/` are deep references, not defaults. Open them on de
 When the target is Nature Machine Intelligence and exact limits, availability
 sections, conference-extension disclosure or production checks affect the
 revision, load
-`../nature-shared/journal-formats/nature-machine-intelligence.md`.
+`shared/journal-formats/nature-machine-intelligence.md`.
 
-For a whole-manuscript consistency audit or evidence of drift across passages, load `../nature-shared/core/consistency-sweep.md`. Local follow-up edits require checking the affected terms, numbers, and claims, not restarting a full audit solely because this is another editing round. After corrections, recheck affected occurrences and dependent claims; broaden the sweep when new discrepancies warrant it.
+For a whole-manuscript consistency audit or evidence of drift across passages, load `shared/core/consistency-sweep.md`. Local follow-up edits require checking the affected terms, numbers, and claims, not restarting a full audit solely because this is another editing round. After corrections, recheck affected occurrences and dependent claims; broaden the sweep when new discrepancies warrant it.
 
 **Layout/typesetting (排版) requests are different.** If the user asks to fix
 *placement* rather than wording — loose/sparse pages, stranded headings, figures

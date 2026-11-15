@@ -10,7 +10,7 @@ Force every section to serve this sentence. If the sentence cannot be written, t
 
 ## 1b. Build the Terminology Ledger
 
-On first contact with the material, extract the recurring terms, abbreviations, notation, and proper names into a Terminology Ledger before drafting any prose. Lock the canonical forms and reuse them across every section. See `../../../nature-shared/core/terminology-ledger.md`.
+On first contact with the material, extract the recurring terms, abbreviations, notation, and proper names into a Terminology Ledger before drafting any prose. Lock the canonical forms and reuse them across every section. See `../../shared/core/terminology-ledger.md`.
 
 ## 2. Choose section architecture
 
@@ -26,7 +26,7 @@ If a paragraph carries two jobs, split it before drafting.
 
 When the task includes Results, a full manuscript, main-text compression, or
 main-versus-SI placement, load
-`../../../nature-shared/core/main-text-discipline.md`. Classify each result as
+`../../shared/core/main-text-discipline.md`. Classify each result as
 core discovery, necessary support, qualification, robustness, heterogeneity,
 provenance detail, alternative inference, or edge case. Build the shortest
 sufficient main-text evidence chain and record the destination of everything

@@ -47,7 +47,7 @@ mandatory-deposition routing, central-code review access, materials and
 structure-file checks.
 
 When the target is Nature Machine Intelligence, open
-`../nature-shared/journal-formats/nature-machine-intelligence.md`. Enforce a
+`shared/journal-formats/nature-machine-intelligence.md`. Enforce a
 Data Availability statement and a separate `Code availability` section after
 it and before references; check reviewer access, precise restrictions,
 repository/identifier quality and the Software Submission Checklist for newly

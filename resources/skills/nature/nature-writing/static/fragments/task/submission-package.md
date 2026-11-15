@@ -9,10 +9,10 @@ Use this task only before the first editorial decision. Read `references/submiss
 3. Record the submission stage. Do not apply accepted-in-principle production
    rules as initial-submission blockers.
 4. For the flagship journal Nature, load
-   `../../../../nature-shared/journal-formats/nature.md`; load the conditional
+   `../../../shared/journal-formats/nature.md`; load the conditional
    research-compliance reference when its applicability gate is triggered.
    For Nature Machine Intelligence, load
-   `../../../../nature-shared/journal-formats/nature-machine-intelligence.md`
+   `../../../shared/journal-formats/nature-machine-intelligence.md`
    and treat the cover letter, availability statements and central-code review
    access as initial-package checks.
 5. Build a deliverable matrix: required, optional, not applicable, or author input needed.

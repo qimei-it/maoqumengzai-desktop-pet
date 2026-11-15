@@ -51,7 +51,7 @@ Apply the loaded fragments in this priority order:
 For `task=manuscript`, use `core/workflow.md` at the requested scale. Plan the argument for a new section or substantial restructuring; a title, single paragraph, or local follow-up needs only the applicable evidence, wording, and consistency checks. Complete the requested prose unless a material unresolved decision blocks it or the user requested an outline for approval first.
 
 When drafting or restructuring Results, or compressing a full manuscript's main
-text, also load `../nature-shared/core/main-text-discipline.md` before building
+text, also load `shared/core/main-text-discipline.md` before building
 the paragraph map. Classify every result by function, allocate it across main
 text, captions, Methods/source data, and SI, then draft the shortest sufficient
 evidence chain. Do not equate a complete analysis record with a complete main
@@ -62,10 +62,10 @@ Intelligence, or another Nature Portfolio title, load the matching shared
 Nature-style corpus guidance for the section being drafted:
 
 - Results or Discussion →
-  `../nature-shared/core/nature-results-discussion.md`
+  `shared/core/nature-results-discussion.md`
 - Introduction or whole-manuscript narrative →
-  `../nature-shared/core/nature-introduction.md`
-- Abstract → `../nature-shared/core/nature-abstract.md`
+  `shared/core/nature-introduction.md`
+- Abstract → `shared/core/nature-abstract.md`
 
 Use these files for claim escalation, question-chain alignment,
 discovery-centred compression, and synthesis. They were initially distilled
@@ -74,7 +74,7 @@ present them as official policy, and let the target journal's current rules
 override them.
 
 For any Discussion drafting, restructuring, or section audit, also load
-`../nature-shared/core/discussion-argument-language.md`. Use it to select the
+`shared/core/discussion-argument-language.md`. Use it to select the
 opening anchor, control the reverse-funnel expansion, distinguish literature
 positioning from citation decoration, calibrate modal strength to evidence,
 and turn limitations and future work into claim-specific reasoning. This is
@@ -95,28 +95,28 @@ The files under `references/` are deep references and the example library, not d
 - The user asks for a self-review or rejection-risk audit → `references/paper-review.md`.
 - The user asks what belongs in the main text, captions, or SI; wants a shorter
   Results section; or is adding reviewer-driven explanation →
-  `../nature-shared/core/main-text-discipline.md`.
+  `shared/core/main-text-discipline.md`.
 - The user requests a complete first-submission package, templates, or a submission-readiness audit → `references/submission-package.md`.
 - The target is the flagship journal Nature and exact submission or formatting
-  requirements matter → `../nature-shared/journal-formats/nature.md`.
+  requirements matter → `shared/journal-formats/nature.md`.
 - The target is Nature Machine Intelligence and exact content-type, submission,
   data/code or production requirements matter →
-  `../nature-shared/journal-formats/nature-machine-intelligence.md`.
+  `shared/journal-formats/nature-machine-intelligence.md`.
 - Any Nature / Nature Portfolio target needs Results claim progression,
   evidence-bound interpretation, robustness placement, or Discussion synthesis
-  → `../nature-shared/core/nature-results-discussion.md`.
+  → `shared/core/nature-results-discussion.md`.
 - Any target needs a Discussion function chain, evidence-calibrated modal
   language, claim-specific limitations, non-redundant literature positioning,
   or uncertainty-driven future work →
-  `../nature-shared/core/discussion-argument-language.md`.
+  `shared/core/discussion-argument-language.md`.
 - Any Nature / Nature Portfolio target needs an Introduction funnel, exact gap,
   literature logic, question-first novelty, study roadmap, or alignment with
-  Results → `../nature-shared/core/nature-introduction.md`.
+  Results → `shared/core/nature-introduction.md`.
 - Any Nature / Nature Portfolio target needs abstract evidence-chain,
   main/supporting-claim, numeric-result, or final-payoff decisions →
-  `../nature-shared/core/nature-abstract.md`.
+  `shared/core/nature-abstract.md`.
 - The work involves regulated or specialist research compliance →
-  `../nature-shared/core/research-compliance.md`.
+  `shared/core/research-compliance.md`.
 
 ## Submission boundary
 

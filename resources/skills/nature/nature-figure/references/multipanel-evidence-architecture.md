@@ -3,7 +3,7 @@
 Use this reference when planning, restructuring, or auditing a manuscript
 figure with several labelled panels, or when mapping a Results evidence chain
 onto a sequence of figures. Read it together with the
-[Nature Results–Discussion corpus guidance](../../nature-shared/core/nature-results-discussion.md)
+[Nature Results–Discussion corpus guidance](../shared/core/nature-results-discussion.md)
 when figure order must mirror the manuscript's claim escalation.
 
 ## Contents

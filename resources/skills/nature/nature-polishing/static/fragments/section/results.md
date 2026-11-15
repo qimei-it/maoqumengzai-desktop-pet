@@ -3,14 +3,14 @@
 Results are the evidence chain that establishes and advances the paper's
 scientific claims.
 
-Load `../../../../nature-shared/core/nature-results-discussion.md` when the
+Load `../../../shared/core/nature-results-discussion.md` when the
 target is Nature / Nature Portfolio. Rebuild the section around a discovery
 loop, a core-capability validation envelope, or a capability ladder rather than
 an experiment inventory.
 
 Results writing should:
 
-- load `../../../../nature-shared/core/main-text-discipline.md` and classify
+- load `../../../shared/core/main-text-discipline.md` and classify
   every result before deciding its location
 - stay mainly in past tense
 - report what was observed, under what conditions, and with what quantitative support

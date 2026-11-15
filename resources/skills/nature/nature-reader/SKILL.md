@@ -50,7 +50,7 @@ Apply the loaded fragments in this priority order:
 3. Reading workflow (`core/workflow.md`) — the six-step source-map-first process.
 4. Output contract (`core/output-contract.md`) — required files and the pre-response verification checklist.
 
-Build the Terminology Ledger as you translate (`../nature-shared/core/terminology-ledger.md`); it becomes the `paper.md` recurring-term table and the `source_map.json` glossary.
+Build the Terminology Ledger as you translate (`shared/core/terminology-ledger.md`); it becomes the `paper.md` recurring-term table and the `source_map.json` glossary.
 
 If constraints prevent full processing, still create a draft reader and label missing pages, figures, or low-confidence crops in `translation_notes.md`. Do not switch to summary mode.
 

@@ -48,7 +48,7 @@ Apply the loaded fragments in this priority order:
 4. Workflow (`core/workflow.md`) — run the 9 steps end to end.
 5. Output and quality rules (`core/output-and-quality.md`) — deliverables, quality gates, fallbacks.
 
-Build the Terminology Ledger (`../nature-shared/core/terminology-ledger.md`) while reading the source, so model names, gene/protein names, datasets, metrics, and abbreviations stay identical across every slide and speaker note.
+Build the Terminology Ledger (`shared/core/terminology-ledger.md`) while reading the source, so model names, gene/protein names, datasets, metrics, and abbreviations stay identical across every slide and speaker note.
 
 When a deck is requested, the end product is a real `.pptx`, not only an outline or script. Do not fabricate results, numbers, or figure details.
 

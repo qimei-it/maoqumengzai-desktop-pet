@@ -1,6 +1,6 @@
 # Section: Discussion (writing)
 
-Load `../../../../nature-shared/core/discussion-argument-language.md` for the
+Load `../../../shared/core/discussion-argument-language.md` for the
 complete Discussion function chain, modality ladder, limitation logic, and
 sentence-function audit.
 
