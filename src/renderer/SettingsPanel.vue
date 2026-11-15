@@ -1098,6 +1098,16 @@ function onEscape(): void {
               :class="{ 'settings-row-connected': editingKey || modelsOpen }"
             >
               <span class="settings-label">DeepSeek API Key</span>
+              <input
+                v-if="editingKey"
+                v-model="apiKey"
+                class="settings-inline-input"
+                type="password"
+                autocomplete="off"
+                aria-label="DeepSeek API Key"
+                :placeholder="configured ? '替换 API Key' : 'API Key'"
+                @keydown.enter="saveAndTestKey"
+              />
               <span class="settings-inline">
                 <span
                   v-if="
@@ -1159,17 +1169,9 @@ function onEscape(): void {
             </div>
             <div
               v-if="editingKey"
-              class="settings-field"
+              class="settings-field settings-field-end"
               :class="{ 'settings-field-connected': modelsOpen }"
             >
-              <input
-                v-model="apiKey"
-                type="password"
-                autocomplete="off"
-                aria-label="DeepSeek API Key"
-                :placeholder="configured ? '替换 API Key' : 'API Key'"
-                @keydown.enter="saveAndTestKey"
-              />
               <button
                 type="button"
                 class="settings-button"
@@ -1231,6 +1233,18 @@ function onEscape(): void {
               }"
             >
               <span class="settings-label">MiniMax API Key</span>
+              <input
+                v-if="editingMiniMaxKey"
+                v-model="minimaxKey"
+                class="settings-inline-input"
+                type="password"
+                autocomplete="off"
+                aria-label="MiniMax API Key"
+                :placeholder="
+                  minimaxConfigured ? '替换 API Key' : 'API Key'
+                "
+                @keydown.enter="saveMiniMaxKey"
+              />
               <span class="settings-inline">
                 <span
                   v-if="minimaxTest.status === 'testing'"
@@ -1286,19 +1300,9 @@ function onEscape(): void {
             </div>
             <div
               v-if="editingMiniMaxKey"
-              class="settings-field"
+              class="settings-field settings-field-end"
               :class="{ 'settings-field-connected': minimaxModelsOpen }"
             >
-              <input
-                v-model="minimaxKey"
-                type="password"
-                autocomplete="off"
-                aria-label="MiniMax API Key"
-                :placeholder="
-                  minimaxConfigured ? '替换 API Key' : 'API Key'
-                "
-                @keydown.enter="saveMiniMaxKey"
-              />
               <button
                 type="button"
                 class="settings-button"
@@ -1915,6 +1919,24 @@ function onEscape(): void {
 .settings-switch[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
+}
+.settings-inline-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  outline: none;
+}
+.settings-inline-input:focus-visible {
+  border-color: var(--color-brand);
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
 }
 .settings-field {
   display: flex;
