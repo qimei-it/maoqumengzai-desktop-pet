@@ -5435,7 +5435,7 @@ function statusLabel(status: string): string {
   background: var(--color-fill-secondary);
 }
 .agent-approval-option[aria-checked='true'] {
-  background: var(--color-fill-secondary);
+  background: var(--color-brand-soft);
 }
 .agent-approval-option[aria-checked='true'] .agent-approval-label {
   font-weight: 600;
@@ -6183,7 +6183,7 @@ function statusLabel(status: string): string {
   min-width: 0;
 }
 .agent-skill-name {
-  flex: 1;
+  flex: 0 1 auto;
   overflow: hidden;
   font-size: var(--font-size-label);
   font-weight: 600;
