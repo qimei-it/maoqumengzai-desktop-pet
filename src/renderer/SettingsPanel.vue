@@ -2018,6 +2018,8 @@ function onEscape(): void {
 }
 .settings-field-end {
   justify-content: flex-end;
+  padding-left: 0;
+  padding-right: 0;
 }
 .settings-field input {
   flex: 1;
