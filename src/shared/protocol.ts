@@ -840,7 +840,7 @@ export interface PrototypeApi {
   saveAgentSession(id: string): Promise<Result<string>>
   saveAgentSource(id: string): Promise<Result<string>>
   refreshAgentSkills(): Promise<Result<AgentSkillView[]>>
-  addAgentSkill(): Promise<Result<AgentSkillDetail | null>>
+  addAgentSkill(): Promise<Result<AgentSkillDetail[]>>
   readAgentSkill(id: string): Promise<Result<AgentSkillDetail>>
   setAgentSkillEnabled(
     id: string,

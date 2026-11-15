@@ -5,7 +5,7 @@
 
 import { cp, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, extname, join } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative } from 'node:path'
 import { copyFile } from 'node:fs/promises'
 import type {
   AgentSkillDetail,
@@ -36,7 +36,7 @@ export type SkillStore = {
   list(): AgentSkillView[]
   refresh(): Promise<AgentSkillView[]>
   read(id: string): Promise<AgentSkillDetail>
-  install(sourcePath: string): Promise<AgentSkillDetail>
+  install(sourcePath: string): Promise<AgentSkillDetail[]>
   setEnabled(id: string, enabled: boolean): Promise<AgentSkillView>
   remove(id: string): Promise<boolean>
   directory(id: string): string | null
@@ -148,6 +148,41 @@ async function findSkillFile(root: string): Promise<string | null> {
   }
   found.sort((left, right) => left.depth - right.depth || left.path.localeCompare(right.path))
   return found[0]?.path ?? null
+}
+
+/** Finds separate skill roots inside a selected directory, ignoring nested assets. */
+async function findSkillRoots(root: string): Promise<string[]> {
+  const queue: { directory: string; depth: number }[] = [
+    { directory: root, depth: 0 },
+  ]
+  const found: { path: string; depth: number }[] = []
+  while (queue.length) {
+    const current = queue.shift()!
+    const entries = await readdir(current.directory, { withFileTypes: true }).catch(
+      () => [],
+    )
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) continue
+      const path = join(current.directory, entry.name)
+      if (entry.isFile() && skillFileName.test(entry.name)) {
+        found.push({ path, depth: current.depth })
+        continue
+      }
+      if (entry.isDirectory() && current.depth < 4 && entry.name !== '__MACOSX')
+        queue.push({ directory: path, depth: current.depth + 1 })
+    }
+  }
+  found.sort((left, right) => left.depth - right.depth || left.path.localeCompare(right.path))
+  const roots: string[] = []
+  for (const file of found) {
+    const directory = dirname(file.path)
+    const nested = roots.some((rootDirectory) => {
+      const rel = relative(rootDirectory, directory)
+      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+    })
+    if (!nested) roots.push(directory)
+  }
+  return roots
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -283,7 +318,39 @@ export async function createSkillStore(
     return { ...view(record), content: parsed.body }
   }
 
-  const install = async (sourcePath: string): Promise<AgentSkillDetail> => {
+  const installSkillDirectory = async (
+    source: string,
+    fallbackName: string,
+  ): Promise<AgentSkillDetail> => {
+    const skillFile = await findSkillFile(source)
+    if (!skillFile) throw new Error('目录里没有 SKILL.md。')
+    const parsed = await readSkillFile(skillFile, fallbackName)
+    const id = await uniqueDirectory(root, slug(parsed.name))
+    const directory = join(root, id)
+    try {
+      await copySkillSource(source, directory)
+      await refresh()
+      return await read(id)
+    } catch (error) {
+      await rm(directory, { recursive: true, force: true }).catch(() => {})
+      throw error
+    }
+  }
+
+  const install = async (
+    sourcePath: string,
+  ): Promise<AgentSkillDetail[]> => {
+    const info = await stat(sourcePath).catch(() => null)
+    if (info?.isDirectory()) {
+      const roots = await findSkillRoots(sourcePath)
+      if (!roots.length) throw new Error('目录里没有 SKILL.md。')
+      const details: AgentSkillDetail[] = []
+      for (const source of roots)
+        details.push(
+          await installSkillDirectory(source, basename(source)),
+        )
+      return details
+    }
     const extension = extname(sourcePath).toLowerCase()
     if (extension === '.md' || extension === '.markdown') {
       const content = await readFile(sourcePath, 'utf8')
@@ -298,14 +365,14 @@ export async function createSkillStore(
           mode: 0o600,
         })
         await refresh()
-        return await read(id)
+        return [await read(id)]
       } catch (error) {
         await rm(directory, { recursive: true, force: true }).catch(() => {})
         throw error
       }
     }
     if (!/\.(zip|7z|rar|tar|gz|tgz|bz2|xz)$/i.test(extension))
-      throw new Error('只支持 SKILL.md 或压缩包。')
+      throw new Error('只支持 SKILL.md、技能目录或压缩包。')
     const temporary = join(tmpdir(), `mqmz-skill-${Date.now()}-${Math.random()}`)
     await mkdir(temporary, { recursive: true })
     try {
@@ -314,18 +381,12 @@ export async function createSkillStore(
       const { folder } = await extractArchive(copy, importLimit)
       const skillFile = await findSkillFile(folder)
       if (!skillFile) throw new Error('压缩包里没有 SKILL.md。')
-      const source = dirname(skillFile)
-      const parsed = await readSkillFile(skillFile, basename(source))
-      const id = await uniqueDirectory(root, slug(parsed.name))
-      const directory = join(root, id)
-      try {
-        await copySkillSource(source, directory)
-        await refresh()
-        return await read(id)
-      } catch (error) {
-        await rm(directory, { recursive: true, force: true }).catch(() => {})
-        throw error
-      }
+      return [
+        await installSkillDirectory(
+          dirname(skillFile),
+          basename(dirname(skillFile)),
+        ),
+      ]
     } finally {
       await rm(temporary, { recursive: true, force: true }).catch(() => {})
     }

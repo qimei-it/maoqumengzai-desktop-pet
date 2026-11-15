@@ -665,8 +665,8 @@ async function addSkill(): Promise<void> {
   skillError.value = ''
   const result = await window.mqmz?.addAgentSkill()
   if (!result?.ok) skillError.value = result?.error ?? '添加技能失败。'
-  else if (result.value) {
-    skillDetail.value = result.value
+  else if (result.value.length) {
+    if (result.value.length === 1) skillDetail.value = result.value[0]
     void nextTick(() => indexSkillContent())
   }
   skillBusy.value = false
@@ -4074,7 +4074,8 @@ function statusLabel(status: string): string {
   max-width: calc(100% - 116px);
   min-width: 0;
   min-height: 36px;
-  margin-right: auto;
+  margin-left: auto;
+  margin-right: 0;
   padding: 0 var(--space-3);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-control);

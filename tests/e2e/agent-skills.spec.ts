@@ -8,6 +8,7 @@ import { waitForAppWindows } from './app-windows'
 let application: ElectronApplication
 let agent: Page
 let addedSkill = ''
+let importDirectory = ''
 
 function skill(name: string, description: string, body: string): string {
   return `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`
@@ -39,6 +40,17 @@ test.beforeAll(async () => {
   await writeFile(
     addedSkill,
     skill('New Skill', 'Added from the test.', '# New Skill\n\nNew body.'),
+  )
+  importDirectory = join(directory, 'import')
+  await mkdir(join(importDirectory, 'directory-one'), { recursive: true })
+  await mkdir(join(importDirectory, 'directory-two'), { recursive: true })
+  await writeFile(
+    join(importDirectory, 'directory-one', 'SKILL.md'),
+    skill('Directory One', 'First directory skill.', '# One'),
+  )
+  await writeFile(
+    join(importDirectory, 'directory-two', 'SKILL.md'),
+    skill('Directory Two', 'Second directory skill.', '# Two'),
   )
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -81,6 +93,7 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   expect(toolbarBox).toBeTruthy()
   expect(searchBox!.width).toBeLessThanOrEqual(340)
   expect(searchBox!.width).toBeLessThan(toolbarBox!.width - 100)
+  expect(searchBox!.x).toBeGreaterThan(toolbarBox!.x + 100)
   const cards = agent.locator('.agent-skill-card')
   await expect(cards).toHaveCount(2)
   const boxes = await cards.evaluateAll((elements) =>
@@ -147,6 +160,21 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   await added.getByRole('button', { name: '关闭' }).click()
   await expect(cards).toHaveCount(3)
 
+  await application.evaluate(({ dialog }, directory) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [directory],
+    })
+  }, importDirectory)
+  await agent.getByRole('button', { name: '添加', exact: true }).click()
+  await expect(cards).toHaveCount(5)
+  await expect(
+    agent.getByText('Directory One', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    agent.getByText('Directory Two', { exact: true }),
+  ).toBeVisible()
+
   await application.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({
       response: 1,
@@ -158,7 +186,7 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   await expect(banner).toBeVisible()
   await banner.getByRole('button', { name: '卸载' }).click()
   await expect(banner).toBeHidden()
-  await expect(cards).toHaveCount(2)
+  await expect(cards).toHaveCount(4)
   await expect(agent.getByText('Banner Design', { exact: true })).toHaveCount(0)
 
   await agent.getByRole('button', { name: '新建对话' }).click()

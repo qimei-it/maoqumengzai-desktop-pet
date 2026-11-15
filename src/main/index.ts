@@ -44,6 +44,7 @@ import type {
   AgentAttachmentPick,
   AgentMode,
   AgentPetProfile,
+  AgentSkillDetail,
   AgentSkillView,
 } from '../shared/agent'
 import { createAgentRuntime } from './agent/runtime'
@@ -8664,10 +8665,10 @@ function setupIpc(): void {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
       throw new Error('仅智能体窗口可以添加技能。')
-    if (!askWindow) return null
+    if (!askWindow) return []
     const result = await dialog.showOpenDialog(askWindow, {
       title: '添加技能',
-      properties: ['openFile'],
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
       filters: [
         {
           name: '技能包',
@@ -8686,12 +8687,18 @@ function setupIpc(): void {
         },
       ],
     })
-    if (result.canceled || !result.filePaths[0]) return null
-    const detail = await skillStore().install(result.filePaths[0])
+    if (result.canceled || !result.filePaths.length) return []
+    const details: AgentSkillDetail[] = []
+    for (const path of Array.from(new Set(result.filePaths)))
+      details.push(...(await skillStore().install(path)))
     agentSkills = skillStore().list()
     broadcast()
-    showToast(`已添加技能 ${detail.name}`)
-    return detail
+    showToast(
+      details.length === 1
+        ? `已添加技能 ${details[0].name}`
+        : `已添加 ${details.length} 个技能`,
+    )
+    return details
   })
   handle(channels.agentSkillRead, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)

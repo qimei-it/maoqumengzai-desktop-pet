@@ -29,7 +29,7 @@ describe('agent skill store', () => {
         '# Instructions\n\nUse the reference image.',
       ),
     )
-    const detail = await store.install(source)
+    const [detail] = await store.install(source)
     expect(detail).toMatchObject({
       name: 'Pet Views',
       description: 'Generate pet garment views.',
@@ -73,7 +73,7 @@ describe('agent skill store', () => {
         'my-skill/assets/note.txt': strToU8('asset'),
       }),
     )
-    const detail = await store.install(archive)
+    const [detail] = await store.install(archive)
     expect(detail.name).toBe('ZIP Skill')
     expect(detail.description).toBe('From an archive.')
     expect(await readFile(join(root, 'skills', detail.id, 'assets', 'note.txt'), 'utf8')).toBe(
@@ -92,6 +92,38 @@ describe('agent skill store', () => {
     await expect(store.install(archive)).rejects.toThrow('没有 SKILL.md')
   })
 
+  test('installs every skill inside a selected directory', async () => {
+    const root = await directory()
+    const store = await createSkillStore(
+      join(root, 'skills'),
+      join(root, 'mqmz.skills.json'),
+    )
+    const source = join(root, 'import')
+    await mkdir(join(source, 'one', 'assets'), { recursive: true })
+    await mkdir(join(source, 'two'), { recursive: true })
+    await writeFile(
+      join(source, 'one', 'SKILL.md'),
+      skillFile('Directory One', 'First directory skill.', 'one'),
+    )
+    await writeFile(join(source, 'one', 'assets', 'a.txt'), 'asset')
+    await writeFile(
+      join(source, 'two', 'SKILL.md'),
+      skillFile('Directory Two', 'Second directory skill.', 'two'),
+    )
+    const details = await store.install(source)
+    expect(details.map((item) => item.name)).toEqual([
+      'Directory One',
+      'Directory Two',
+    ])
+    expect(store.list()).toHaveLength(2)
+    expect(
+      await readFile(
+        join(root, 'skills', details[0].id, 'assets', 'a.txt'),
+        'utf8',
+      ),
+    ).toBe('asset')
+  })
+
   test('keeps duplicate skill names in separate folders', async () => {
     const root = await directory()
     const store = await createSkillStore(
@@ -102,8 +134,8 @@ describe('agent skill store', () => {
     const second = join(root, 'second.md')
     await writeFile(first, skillFile('Same Name', 'First.', 'first'))
     await writeFile(second, skillFile('Same Name', 'Second.', 'second'))
-    const one = await store.install(first)
-    const two = await store.install(second)
+    const [one] = await store.install(first)
+    const [two] = await store.install(second)
     expect(one.id).not.toBe(two.id)
     expect(store.list()).toHaveLength(2)
   })
