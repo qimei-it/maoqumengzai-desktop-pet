@@ -114,6 +114,14 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(groups.nth(2)).toContainText('暂无技能')
   await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
   await expect(agent.locator('.agent-skill-check')).toHaveCount(2)
+  await expect(agent.locator('.agent-skills-count')).toContainText(
+    '技能 3（已启用 2）',
+  )
+  const enabledTab = agent.getByRole('tab', { name: '已启用 2' })
+  await enabledTab.click()
+  await expect(agent.locator('.agent-skill-card')).toHaveCount(2)
+  await agent.getByRole('tab', { name: '全部' }).click()
+  await expect(agent.locator('.agent-skill-card')).toHaveCount(3)
 
   const beta = groups
     .nth(0)
@@ -130,6 +138,9 @@ test('groups built-in skills by category and keeps them read-only', async () => 
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
   await detail.getByRole('button', { name: '关闭' }).click()
   await expect(agent.locator('.agent-skill-check')).toHaveCount(3)
+  await expect(agent.locator('.agent-skills-count')).toContainText(
+    '技能 3（已启用 3）',
+  )
 
   const snapshot = await agent.evaluate(async () => {
     const result = await window.mqmz!.snapshot()

@@ -163,10 +163,14 @@ const sessions = computed(() => agent.value?.sessions ?? [])
 const skills = computed<AgentSkillView[]>(
   () => props.state?.agentSkills ?? [],
 )
+const enabledSkillCount = computed(
+  () => skills.value.filter((skill) => skill.enabled).length,
+)
 const filteredSkills = computed(() => {
   const query = skillQuery.value.trim().toLowerCase()
-  if (!query) return skills.value
   return skills.value.filter((skill) => {
+    if (skillFilter.value === 'enabled' && !skill.enabled) return false
+    if (!query) return true
     const searchable = [
       skill.name,
       skill.description,
@@ -178,6 +182,9 @@ const filteredSkills = computed(() => {
   })
 })
 const skillCategoryOrder = ['论文科研', '文档办公', '电商运营']
+const skillPreviewLimit = 12
+const skillFilter = ref<'all' | 'enabled'>('all')
+const expandedSkillCategories = ref<Record<string, boolean>>({})
 const skillGroups = computed(() => {
   const groups = new Map<string, AgentSkillView[]>()
   for (const category of [...skillCategoryOrder, '我的技能'])
@@ -191,13 +198,39 @@ const skillGroups = computed(() => {
   }
   const searching = Boolean(skillQuery.value.trim())
   return [...groups.entries()]
-    .map(([category, items]) => ({ category, items }))
+    .map(([category, items]) => {
+      const sorted = [...items].sort(
+        (left, right) =>
+          Number(right.enabled) - Number(left.enabled) ||
+          left.name.localeCompare(right.name, 'zh-CN'),
+      )
+      const expanded = expandedSkillCategories.value[category] === true
+      const cap =
+        !searching && skillFilter.value === 'all' && !expanded
+          ? skillPreviewLimit
+          : sorted.length
+      return {
+        category,
+        items: sorted,
+        visible: sorted.slice(0, cap),
+        hidden: Math.max(0, sorted.length - cap),
+        expanded,
+      }
+    })
     .filter(
       (group) =>
-        group.items.length ||
-        (!searching && skillCategoryOrder.includes(group.category)),
+        group.visible.length ||
+        (!searching &&
+          skillFilter.value === 'all' &&
+          skillCategoryOrder.includes(group.category)),
     )
 })
+function toggleSkillCategory(category: string): void {
+  expandedSkillCategories.value = {
+    ...expandedSkillCategories.value,
+    [category]: !expandedSkillCategories.value[category],
+  }
+}
 const pinnedOpen = ref(true)
 const projectsOpen = ref(true)
 const ungroupedOpen = ref(true)
@@ -2137,6 +2170,35 @@ function statusLabel(status: string): string {
 
         <template v-if="skillsOpen">
           <div class="agent-skills-page">
+            <div class="agent-skills-summary">
+              <span class="agent-skills-count">
+                技能 {{ skills.length }}（已启用 {{ enabledSkillCount }}）
+              </span>
+              <div
+                class="agent-skills-filter"
+                role="tablist"
+                aria-label="技能筛选"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="skillFilter === 'all'"
+                  :class="{ active: skillFilter === 'all' }"
+                  @click="skillFilter = 'all'"
+                >
+                  全部
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="skillFilter === 'enabled'"
+                  :class="{ active: skillFilter === 'enabled' }"
+                  @click="skillFilter = 'enabled'"
+                >
+                  已启用 {{ enabledSkillCount }}
+                </button>
+              </div>
+            </div>
             <div class="agent-skills-toolbar">
               <label class="agent-skills-search">
                 <Search
@@ -2208,11 +2270,11 @@ function statusLabel(status: string): string {
                   <span>{{ group.items.length }}</span>
                 </div>
                 <div
-                  v-if="group.items.length"
+                  v-if="group.visible.length"
                   class="agent-skills-grid"
                 >
                   <button
-                    v-for="skill in group.items"
+                    v-for="skill in group.visible"
                     :key="skill.id"
                     type="button"
                     class="agent-skill-card"
@@ -2244,10 +2306,28 @@ function statusLabel(status: string): string {
                   </button>
                 </div>
                 <p v-else class="agent-skills-empty">暂无技能</p>
+                <button
+                  v-if="group.hidden > 0 || (group.expanded && group.items.length > 12)"
+                  type="button"
+                  class="agent-skills-more"
+                  @click="toggleSkillCategory(group.category)"
+                >
+                  {{
+                    group.hidden > 0
+                      ? `显示全部 ${group.items.length} 个`
+                      : '收起'
+                  }}
+                </button>
               </section>
             </template>
             <p v-else-if="skillQuery.trim()" class="agent-skills-empty">
               没有找到匹配的技能
+            </p>
+            <p
+              v-else-if="skillFilter === 'enabled'"
+              class="agent-skills-empty"
+            >
+              还没有已启用的技能
             </p>
             <p v-else class="agent-skills-empty">
               还没有技能，点击“添加”导入技能包
@@ -5506,6 +5586,61 @@ function statusLabel(status: string): string {
   padding: var(--space-6) var(--space-8) var(--space-5);
   overflow: auto;
 }
+.agent-skills-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.agent-skills-count {
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.agent-skills-filter {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-fill-secondary);
+}
+.agent-skills-filter button {
+  min-height: 26px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-caption);
+}
+.agent-skills-filter button.active {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.agent-skills-filter button:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-skills-more {
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.agent-skills-more:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand-ink);
+}
+.agent-skills-more:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
 .agent-skills-toolbar {
   display: flex;
   align-items: center;
@@ -5598,6 +5733,11 @@ function statusLabel(status: string): string {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   margin-top: var(--space-5);
+}
+@media (min-width: 1100px) {
+  .agent-skills-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .agent-skill-card {
   display: flex;
