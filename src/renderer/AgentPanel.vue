@@ -182,14 +182,16 @@ const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
 const model = computed<DeepSeekModel>(
   () => agent.value?.model ?? 'deepseek-flash',
 )
-watch(model, async (value) => {
-  if (value !== 'deepseek-v4-pro') return
-  const result = await window.mqmz?.pruneAgentAttachments()
-  if (!result?.ok || !result.value.length) return
-  const removed = new Set(result.value)
-  attachments.value = attachments.value.filter(
-    (item) => !removed.has(item.id),
-  )
+const pendingFlashSend = ref(false)
+const proBlocked = computed(
+  () =>
+    model.value === 'deepseek-v4-pro' &&
+    attachments.value.some((item) => item.needsModelUpload),
+)
+watch(model, (value) => {
+  if (value !== 'deepseek-flash' || !pendingFlashSend.value) return
+  pendingFlashSend.value = false
+  void nextTick(() => send())
 })
 watch(
   [() => props.state?.agentDraftAttachments, busy],
@@ -257,6 +259,7 @@ const canSend = computed(
     !busy.value &&
     !parsing.value &&
     !pendingSend.value &&
+    !proBlocked.value &&
     configured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
@@ -806,7 +809,17 @@ function setMode(value: AgentMode): void {
 function setModel(value: DeepSeekModel): void {
   modelMenuOpen.value = false
   if (model.value === value) return
+  if (value !== 'deepseek-flash') pendingFlashSend.value = false
   emit('command', { type: 'agent-model', model: value })
+}
+function switchToFlashAndSend(): void {
+  if (busy.value || !draft.value.trim()) return
+  if (model.value === 'deepseek-flash') {
+    send()
+    return
+  }
+  pendingFlashSend.value = true
+  emit('command', { type: 'agent-model', model: 'deepseek-flash' })
 }
 function setReasoning(value: AgentReasoning): void {
   modelMenuOpen.value = false
@@ -2354,8 +2367,19 @@ function statusLabel(status: string): string {
               <span class="agent-usage">
                 {{ usage.input }} / {{ usage.output }} tokens
               </span>
+              <div v-if="proBlocked" class="agent-pro-hint">
+                <span>当前模型只支持文字附件</span>
+                <button
+                  type="button"
+                  class="agent-pro-switch"
+                  :disabled="busy || !draft.trim()"
+                  @click="switchToFlashAndSend"
+                >
+                  切换 Flash 继续
+                </button>
+              </div>
               <p
-                v-if="attachmentError || error || agent?.error"
+                v-else-if="attachmentError || error || agent?.error"
                 class="agent-error"
               >
                 {{ attachmentError || error || agent?.error }}
@@ -4060,6 +4084,35 @@ function statusLabel(status: string): string {
 }
 .agent-usage {
   flex: none;
+}
+.agent-pro-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.agent-pro-switch {
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+.agent-pro-switch:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-pro-switch:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.agent-pro-switch:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-error {
   margin: 0;

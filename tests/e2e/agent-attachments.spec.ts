@@ -230,6 +230,35 @@ test('attachments use local text, upload images, and respect the Pro model', asy
   )
 })
 
+test('keeps the draft when switching to the Pro model and can switch back', async () => {
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-flash' }),
+  )
+  await application.evaluate(({ dialog }, paths) => {
+    ;(globalThis as unknown as { __mqmzPick: string[] }).__mqmzPick = paths
+    dialog.showOpenDialog = async () =>
+      ({
+        canceled: false,
+        filePaths: (globalThis as unknown as { __mqmzPick: string[] })
+          .__mqmzPick,
+      })
+  }, [image])
+  await agent.getByLabel('添加附件').click()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await agent.getByLabel('给智能体发送指令').fill('保留草稿')
+  await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-model', model: 'deepseek-v4-pro' }),
+  )
+  await expect(agent.locator('.agent-pro-hint')).toBeVisible()
+  await expect(agent.locator('.agent-attachment')).toHaveCount(1)
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue('保留草稿')
+  await expect(agent.getByRole('button', { name: '发送' })).toBeDisabled()
+  await agent.getByRole('button', { name: '切换 Flash 继续' }).click()
+  await expect(agent.getByText('收到附件')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-attachment')).toHaveCount(0)
+  await expect(agent.locator('.agent-pro-hint')).toHaveCount(0)
+})
+
 test('dragging files into the agent panel shows a hint and attaches them', async () => {
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
@@ -348,7 +377,9 @@ test('failed uploads keep the draft and can be retried', async () => {
   await agent.getByRole('button', { name: '重试上传 photo.png' }).click()
   await expect(agent.locator('.agent-attachment.is-error')).toHaveCount(0)
   await agent.getByRole('button', { name: '发送' }).click()
-  await expect(agent.getByText('收到')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.getByText('收到', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  })
   expect(
     await application.evaluate(
       () =>
