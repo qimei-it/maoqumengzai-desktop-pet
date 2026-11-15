@@ -1021,6 +1021,51 @@ describe('agent runtime', () => {
     ).toBe(false)
   })
 
+  test('streams reasoning into a collapsible part', async () => {
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        options.onReasoning?.('先检查置物架')
+        options.onText?.('完成')
+        return {
+          text: '完成',
+          reasoning: '先检查置物架',
+          toolCalls: [],
+        }
+      },
+    })
+    await runtime.send('看看文件')
+    const message = runtime.state().messages.at(-1)
+    const reasoning = message?.parts.find(
+      (part) => part.type === 'reasoning',
+    )
+    expect(reasoning).toMatchObject({
+      type: 'reasoning',
+      text: '先检查置物架',
+    })
+  })
+
+  test('notes when the output stops at the length limit', async () => {
+    const { runtime } = await makeRuntime([], [], {
+      stream: async (_key, options) => {
+        options.onText?.('写到一半')
+        return {
+          text: '写到一半',
+          toolCalls: [],
+          finishReason: 'length',
+        }
+      },
+    })
+    await runtime.send('写长一点')
+    expect(runtime.state().messages.at(-1)?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+          text: '（输出达到长度上限，请继续指令让我接着写。）',
+        }),
+      ]),
+    )
+  })
+
   test('passes reasoning effort and echoes reasoning_content with tools', async () => {
     const seen: StreamOptions[] = []
     const { runtime } = await makeRuntime([], [], {

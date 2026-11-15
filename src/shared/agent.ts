@@ -28,6 +28,8 @@ export type AgentToolStatus =
 
 export type AgentTextPart = { type: 'text'; text: string }
 
+export type AgentReasoningPart = { type: 'reasoning'; text: string }
+
 export type AgentToolPart = {
   type: 'tool'
   id: string
@@ -53,7 +55,10 @@ export type AgentArtifactView = {
   size?: number
 }
 
-export type AgentPart = AgentTextPart | AgentToolPart
+export type AgentPart =
+  | AgentTextPart
+  | AgentReasoningPart
+  | AgentToolPart
 
 export const agentAttachmentKinds = [
   'text',

@@ -13,6 +13,7 @@ import type {
   AgentMode,
   AgentPetProfile,
   AgentReasoning,
+  AgentReasoningPart,
   AgentState,
   AgentTextPart,
   AgentToolPart,
@@ -802,6 +803,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       emit()
 
       let textPart: AgentTextPart | null = null
+      let reasoningPart: AgentReasoningPart | null = null
       let result: StreamResult | null = null
       const context = compactHistory(session.history, session.model)
       if (context.summarized) session.compacted = context.summarized
@@ -838,6 +840,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             current.text += delta
             emit()
           },
+          onReasoning: (delta) => {
+            if (!reasoningPart) {
+              reasoningPart = { type: 'reasoning', text: '' }
+              assistant.parts.push(reasoningPart)
+            }
+            if (reasoningPart.text.length >= 8_000) return
+            reasoningPart.text += delta.slice(
+              0,
+              8_000 - reasoningPart.text.length,
+            )
+            emit()
+          },
         })
       } catch (error) {
         if (signal.aborted) {
@@ -869,6 +883,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             text: '模型没有返回内容，请换个说法再试。',
           })
         }
+        if (result.finishReason === 'length')
+          assistant.parts.push({
+            type: 'text',
+            text: '（输出达到长度上限，请继续指令让我接着写。）',
+          })
+        else if (result.finishReason === 'content_filter')
+          assistant.parts.push({
+            type: 'text',
+            text: '（内容被安全策略截断。）',
+          })
         pushHistory(session, {
           role: 'assistant',
           content: text || '模型没有返回内容，请换个说法再试。',

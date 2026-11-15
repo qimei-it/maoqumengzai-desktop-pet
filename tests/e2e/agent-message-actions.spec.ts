@@ -105,3 +105,61 @@ test('edits and regenerates a turn', async () => {
     agent.locator('.agent-message').getByText('修改后的问题'),
   ).toBeVisible()
 })
+
+test('shows collapsed reasoning and the length limit note', async () => {
+  await application.evaluate(() => {
+    let replies = 0
+    globalThis.fetch = async (input: string | URL | Request) => {
+      if (!String(input).includes('/chat/completions'))
+        return new Response('{}', { status: 503 })
+      replies += 1
+      if (replies === 1)
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: '先分析一下问题。' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '带思考的回答' } }] })}`,
+            '',
+            `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      return new Response(
+        [
+          `data: ${JSON.stringify({ choices: [{ delta: { content: '未完待续' } }] })}`,
+          '',
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+          '',
+          'data: [DONE]',
+          '',
+          '',
+        ].join('\n'),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    }
+  })
+
+  await agent.getByLabel('给智能体发送指令').fill('需要思考')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.getByText('带思考的回答')).toBeVisible({
+    timeout: 15_000,
+  })
+  const reasoning = agent.locator('.agent-reasoning').last()
+  await expect(reasoning.getByText('思考过程')).toBeVisible()
+  await expect(reasoning.locator('.agent-reasoning-text')).toHaveCount(0)
+  await reasoning.getByRole('button').click()
+  await expect(reasoning.locator('.agent-reasoning-text')).toContainText(
+    '先分析一下问题。',
+  )
+
+  await agent.getByLabel('给智能体发送指令').fill('继续写')
+  await agent.getByRole('button', { name: '发送' }).click()
+  await expect(agent.getByText('未完待续')).toBeVisible({ timeout: 15_000 })
+  await expect(
+    agent.getByText('（输出达到长度上限，请继续指令让我接着写。）'),
+  ).toBeVisible()
+})

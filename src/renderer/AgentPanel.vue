@@ -179,6 +179,7 @@ const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
 const sessionQuery = ref('')
 const expandedTools = ref<Record<string, boolean>>({})
+const expandedReasoning = ref<Record<string, boolean>>({})
 const editingMessage = ref<{ id: string } | null>(null)
 const editDraft = ref('')
 const editInput = ref<HTMLTextAreaElement>()
@@ -583,6 +584,15 @@ async function copyOutput(message: AgentMessageView): Promise<void> {
   }, 1200)
 }
 
+function isReasoningOpen(id: string): boolean {
+  return expandedReasoning.value[id] === true
+}
+function toggleReasoning(id: string): void {
+  expandedReasoning.value = {
+    ...expandedReasoning.value,
+    [id]: !expandedReasoning.value[id],
+  }
+}
 function isToolExpanded(id: string): boolean {
   return expandedTools.value[id] === true
 }
@@ -2186,6 +2196,41 @@ function statusLabel(status: string): string {
                   <p v-else-if="part.type === 'text'" class="agent-text">
                     {{ part.text }}
                   </p>
+                  <div
+                    v-else-if="part.type === 'reasoning'"
+                    class="agent-reasoning"
+                  >
+                    <button
+                      type="button"
+                      class="agent-reasoning-head"
+                      :aria-expanded="isReasoningOpen(message.id)"
+                      :aria-label="
+                        isReasoningOpen(message.id)
+                          ? '收起思考过程'
+                          : '展开思考过程'
+                      "
+                      @click="toggleReasoning(message.id)"
+                    >
+                      <ChevronDown
+                        v-if="isReasoningOpen(message.id)"
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <ChevronRight
+                        v-else
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span>思考过程</span>
+                    </button>
+                    <pre
+                      v-if="isReasoningOpen(message.id)"
+                      class="agent-reasoning-text"
+                      >{{ part.text }}</pre
+                    >
+                  </div>
                   <div
                     v-else
                     class="agent-tool"
@@ -3895,6 +3940,44 @@ function statusLabel(status: string): string {
 }
 .agent-message-action svg {
   flex: none;
+}
+.agent-reasoning {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+.agent-reasoning-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-reasoning-head:hover {
+  color: var(--color-ink);
+}
+.agent-reasoning-head:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-reasoning-text {
+  max-height: 240px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .agent-tool {
   border: 1px solid var(--color-line);

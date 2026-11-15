@@ -69,6 +69,7 @@ export type StreamOptions = {
   temperature?: number
   signal: AbortSignal
   onText?: (delta: string) => void
+  onReasoning?: (delta: string) => void
 }
 
 const endpoint = 'https://api.deepseek.com/chat/completions'
@@ -210,6 +211,7 @@ export async function streamChat(
     if (!delta) return
     if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
       reasoning += delta.reasoning_content
+      options.onReasoning?.(delta.reasoning_content)
     }
     if (typeof delta.content === 'string' && delta.content) {
       text += delta.content
