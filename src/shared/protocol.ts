@@ -53,6 +53,8 @@ export const channels = {
   agentAttachments: 'mqmz:agent:attachments',
   agentAttachmentRemove: 'mqmz:agent:attachments-remove',
   agentAttachmentPrune: 'mqmz:agent:attachments-prune',
+  agentAttachFiles: 'mqmz:agent:attach-files',
+  agentOpenWithFiles: 'mqmz:agent:open-with-files',
   agentSaveOutput: 'mqmz:agent:save-output',
   agentExportAudio: 'mqmz:agent:export-audio',
   openExternal: 'mqmz:open-external',
@@ -443,6 +445,7 @@ export type Snapshot = {
   aiOpen: boolean
   ai: AiState
   agent: AgentState
+  agentDraftAttachments: AgentAttachmentPick[]
   agentMaximized: boolean
   aiQuota: AiQuotaState
   convertOpen: boolean
@@ -802,6 +805,10 @@ export interface PrototypeApi {
   pickAgentAttachments(): Promise<
     Result<{ added: AgentAttachmentPick[]; skipped: string[] }>
   >
+  attachAgentFiles(
+    files: File[],
+  ): Promise<Result<{ added: AgentAttachmentPick[]; skipped: string[] }>>
+  openAgentWithFiles(files: File[]): Promise<Result<void>>
   releaseAgentAttachment(id: string): Promise<Result<void>>
   pruneAgentAttachments(): Promise<Result<string[]>>
   saveAgentOutput(input: {

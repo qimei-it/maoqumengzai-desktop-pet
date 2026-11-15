@@ -95,6 +95,9 @@ const busy = computed(() => agent.value?.busy === true)
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
 const attachmentError = ref('')
+const dropActive = ref(false)
+let dragDepth = 0
+let dropWatchdog: ReturnType<typeof setTimeout> | undefined
 const outputBusy = ref<{ id: string; action: 'save' | 'audio' } | null>(
   null,
 )
@@ -130,6 +133,14 @@ watch(model, async (value) => {
     (item) => !removed.has(item.id),
   )
 })
+watch(
+  [() => props.state?.agentDraftAttachments, busy],
+  ([value, isBusy]) => {
+    if (isBusy) return
+    attachments.value = value ?? []
+  },
+  { immediate: true },
+)
 const reasoning = computed<AgentReasoning>(
   () => agent.value?.reasoning ?? 'high',
 )
@@ -248,7 +259,8 @@ function toggleProject(id: string): void {
 watch(
   () => agent.value?.sessionId,
   () => {
-    clearAttachments()
+    draft.value = ''
+    attachmentError.value = ''
     const session = activeSession.value
     if (session?.projectId)
       expanded.value = {
@@ -326,11 +338,82 @@ function removeAttachment(id: string): void {
   void window.mqmz!.releaseAgentAttachment(id)
 }
 
-function clearAttachments(): void {
-  for (const item of attachments.value)
-    void window.mqmz!.releaseAgentAttachment(item.id)
-  attachments.value = []
+const dropLabel = computed(() =>
+  busy.value ? '当前回复结束后再添加附件' : '添加到当前对话',
+)
+
+function hasFileDrag(event: DragEvent): boolean {
+  if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) return true
+  return Array.from(event.dataTransfer?.items ?? []).some(
+    (item) => item.kind === 'file',
+  )
+}
+
+function clearDropWatchdog(): void {
+  if (!dropWatchdog) return
+  clearTimeout(dropWatchdog)
+  dropWatchdog = undefined
+}
+
+function armDropWatchdog(): void {
+  clearDropWatchdog()
+  dropWatchdog = setTimeout(() => {
+    dropWatchdog = undefined
+    dragDepth = 0
+    dropActive.value = false
+  }, 700)
+}
+
+function onDragEnter(event: DragEvent): void {
+  if (!hasFileDrag(event)) return
+  event.preventDefault()
+  dragDepth += 1
+  dropActive.value = true
+  armDropWatchdog()
+  if (event.dataTransfer)
+    event.dataTransfer.dropEffect = busy.value ? 'none' : 'copy'
+}
+
+function onDragOver(event: DragEvent): void {
+  if (!dropActive.value) return
+  event.preventDefault()
+  armDropWatchdog()
+  if (event.dataTransfer)
+    event.dataTransfer.dropEffect = busy.value ? 'none' : 'copy'
+}
+
+function onDragLeave(): void {
+  if (!dropActive.value) return
+  dragDepth = Math.max(0, dragDepth - 1)
+  if (dragDepth === 0) {
+    clearDropWatchdog()
+    dropActive.value = false
+  }
+}
+
+async function onDrop(event: DragEvent): Promise<void> {
+  const files = [...(event.dataTransfer?.files ?? [])]
+  if (!hasFileDrag(event) && !files.length) return
+  event.preventDefault()
+  clearDropWatchdog()
+  dragDepth = 0
+  dropActive.value = false
+  if (!files.length) return
+  if (busy.value) {
+    attachmentError.value = '当前回复结束后再添加附件。'
+    return
+  }
   attachmentError.value = ''
+  const result = await window.mqmz!.attachAgentFiles(files)
+  if (!result.ok) {
+    attachmentError.value = result.error
+    return
+  }
+  const known = new Set(attachments.value.map((item) => item.id))
+  attachments.value = [
+    ...attachments.value,
+    ...result.value.added.filter((item) => !known.has(item.id)),
+  ]
 }
 
 function send(): void {
@@ -663,6 +746,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousedown', onDocumentMouseDown)
+  clearDropWatchdog()
 })
 
 const statusLabels: Record<string, string> = {
@@ -682,7 +766,13 @@ function statusLabel(status: string): string {
     class="agent-shell"
     :class="{ 'is-mac': mac, 'is-maximized': maximized }"
   >
-    <section class="agent-surface">
+    <section
+      class="agent-surface"
+      @dragenter="onDragEnter"
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
+      @drop="onDrop"
+    >
       <aside class="agent-side">
         <div
           class="agent-side-head"
@@ -1053,6 +1143,12 @@ function statusLabel(status: string): string {
             </button>
           </div>
         </header>
+        <div v-if="dropActive" class="agent-drop-hint" aria-hidden="true">
+          <div class="agent-drop-hint-inner">
+            <Plus :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>{{ dropLabel }}</span>
+          </div>
+        </div>
 
         <template v-if="!configured">
           <div class="agent-setup">
@@ -1117,8 +1213,11 @@ function statusLabel(status: string): string {
                 </button>
               </div>
             </div>
-            <p v-if="error || agent?.error" class="agent-error">
-              {{ error || agent?.error }}
+            <p
+              v-if="error || agent?.error || attachmentError"
+              class="agent-error"
+            >
+              {{ error || agent?.error || attachmentError }}
             </p>
           </div>
         </template>
@@ -2224,10 +2323,31 @@ function statusLabel(status: string): string {
   outline-offset: -2px;
 }
 .agent-main {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+.agent-drop-hint {
+  position: absolute;
+  inset: 56px var(--space-3) var(--space-3);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--color-brand);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--color-brand-soft) 92%, transparent);
+  color: var(--color-brand-ink);
+  pointer-events: none;
+}
+.agent-drop-hint-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-label);
+  font-weight: 650;
+  white-space: nowrap;
 }
 .agent-head {
   display: flex;

@@ -2471,9 +2471,11 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
     .evaluate((element) => element.remove());
 });
 
-test("dropping on 智能体 opens the DeepSeek setup", async () => {
+test("dropping on 智能体 creates an ungrouped chat with the file attached", async () => {
   const fixture = join(directory, "问答资料.txt");
   await writeFile(fixture, "这是一份用来提问的资料。");
+  const before = await lab.evaluate(() => window.mqmz!.snapshot());
+  const beforeCount = before.ok ? before.value.agent.sessions.length : 0;
   await dropOnPet(fixture, "ask");
   await expect
     .poll(async () => {
@@ -2481,14 +2483,34 @@ test("dropping on 智能体 opens the DeepSeek setup", async () => {
       return snapshot.ok ? snapshot.value.aiOpen : false;
     })
     .toBe(true);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      if (!snapshot.ok) return "";
+      const active = snapshot.value.agent.sessions.find(
+        (session) => session.id === snapshot.value.agent.sessionId,
+      );
+      return `${snapshot.value.agent.sessions.length}:${active?.projectId ?? "null"}`;
+    })
+    .toBe(`${beforeCount + 1}:null`);
+  const afterDrop = await lab.evaluate(() => window.mqmz!.snapshot());
+  expect(
+    afterDrop.ok
+      ? afterDrop.value.files.some((file) => file.name === "问答资料.txt")
+      : true,
+  ).toBe(false);
   await expect(
     ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
   await ask.getByLabel("DeepSeek API Key").fill("sk-ask-test");
   await ask.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(ask.getByLabel("对话模型")).toBeVisible();
-  await ask.getByLabel("对话模型").selectOption("deepseek-v4-pro");
+  await expect(ask.locator(".agent-attachment-name")).toContainText(
+    "问答资料.txt",
+  );
+  await ask.evaluate(() =>
+    window.mqmz!.command({ type: "agent-model", model: "deepseek-v4-pro" }),
+  );
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());

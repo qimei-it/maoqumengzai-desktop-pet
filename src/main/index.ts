@@ -789,6 +789,58 @@ const services = createServices({
 
 const agentDraftAttachments = new Map<string, PreparedAgentAttachment>()
 
+function clearAgentDrafts(): void {
+  if (!agentDraftAttachments.size) return
+  for (const item of agentDraftAttachments.values())
+    void releaseAgentAttachment(item)
+  agentDraftAttachments.clear()
+  broadcast()
+}
+
+async function addAgentAttachmentPaths(
+  paths: readonly string[],
+): Promise<{ added: AgentAttachmentPick[]; skipped: string[] }> {
+  const options = {
+    model: agent.state().model,
+    soffice: await libreOfficeExecutable(),
+    ffmpeg: await ffmpegExecutable(),
+  }
+  const existing = new Set(
+    [...agentDraftAttachments.values()].map((item) => item.sourcePath),
+  )
+  let total = [...agentDraftAttachments.values()].reduce(
+    (sum, item) => sum + (item.text?.length ?? 0),
+    0,
+  )
+  const added: AgentAttachmentPick[] = []
+  const skipped: string[] = []
+  for (const path of paths) {
+    if (agentDraftAttachments.size >= agentAttachmentLimit) break
+    if (existing.has(path)) continue
+    const remaining = agentAttachmentTotalChars - total
+    const prepared = await prepareAgentAttachment(path, remaining, options)
+    if ('skipped' in prepared) {
+      skipped.push(`${basename(path)}：${prepared.skipped}`)
+      continue
+    }
+    const attachment = prepared.attachment
+    agentDraftAttachments.set(attachment.id, attachment)
+    existing.add(path)
+    total += attachment.text?.length ?? 0
+    added.push(agentAttachmentPick(attachment))
+  }
+  if (skipped.length)
+    showToast(
+      skipped.length === 1
+        ? `未添加 ${skipped[0]}`
+        : `已跳过 ${skipped.slice(0, 2).join('；')}${
+            skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
+          }`,
+    )
+  if (added.length) broadcast()
+  return { added, skipped }
+}
+
 function safeOutputName(value: string | undefined): string {
   const name = (value ?? '')
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
@@ -991,6 +1043,9 @@ function snapshot(): Snapshot {
     aiOpen: windowVisible(askWindow),
     ai: aiState(),
     agent: agent.state(),
+    agentDraftAttachments: [...agentDraftAttachments.values()].map(
+      agentAttachmentPick,
+    ),
     agentMaximized: !!askWindow && !askWindow.isDestroyed() && askWindow.isMaximized(),
     aiQuota,
     convertOpen: windowVisible(convertWindow),
@@ -8465,44 +8520,23 @@ function setupIpc(): void {
       properties: ['openFile', 'multiSelections'],
     })
     if (result.canceled) return { added: [], skipped: [] }
-    const options = {
-      model: agent.state().model,
-      soffice: await libreOfficeExecutable(),
-      ffmpeg: await ffmpegExecutable(),
-    }
-    const existing = new Set(
-      [...agentDraftAttachments.values()].map((item) => item.sourcePath),
-    )
-    let total = [...agentDraftAttachments.values()].reduce(
-      (sum, item) => sum + (item.text?.length ?? 0),
-      0,
-    )
-    const added: AgentAttachmentPick[] = []
-    const skipped: string[] = []
-    for (const path of result.filePaths) {
-      if (agentDraftAttachments.size >= agentAttachmentLimit) break
-      if (existing.has(path)) continue
-      const remaining = agentAttachmentTotalChars - total
-      const prepared = await prepareAgentAttachment(path, remaining, options)
-      if ('skipped' in prepared) {
-        skipped.push(`${basename(path)}：${prepared.skipped}`)
-        continue
-      }
-      const attachment = prepared.attachment
-      agentDraftAttachments.set(attachment.id, attachment)
-      existing.add(path)
-      total += attachment.text?.length ?? 0
-      added.push(agentAttachmentPick(attachment))
-    }
-    if (skipped.length)
-      showToast(
-        skipped.length === 1
-          ? `未添加 ${skipped[0]}`
-          : `已跳过 ${skipped.slice(0, 2).join('；')}${
-              skipped.length > 2 ? ` 等 ${skipped.length} 个文件` : ''
-            }`,
-      )
-    return { added, skipped }
+    return addAgentAttachmentPaths(result.filePaths)
+  })
+  handle(channels.agentAttachFiles, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以添加附件。')
+    return addAgentAttachmentPaths(pathsSchema.parse(payload))
+  })
+  handle(channels.agentOpenWithFiles, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window !== pet)
+      throw new Error('仅桌面宠物可以投递文件。')
+    const paths = pathsSchema.parse(payload)
+    clearAgentDrafts()
+    agent.newSession()
+    openAgentPanel()
+    await addAgentAttachmentPaths(paths)
   })
   handle(channels.agentAttachmentPrune, 'either', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -8516,8 +8550,10 @@ function setupIpc(): void {
       void releaseAgentAttachment(item)
       removed.push(id)
     }
-    if (removed.length)
+    if (removed.length) {
       showToast('已移除需要上传解析的附件：当前模型只支持文字')
+      broadcast()
+    }
     return removed
   })
   handle(channels.agentAttachmentRemove, 'either', (event, payload) => {
@@ -8527,7 +8563,10 @@ function setupIpc(): void {
     const id = z.string().uuid().parse(payload)
     const item = agentDraftAttachments.get(id)
     agentDraftAttachments.delete(id)
-    if (item) void releaseAgentAttachment(item)
+    if (item) {
+      void releaseAgentAttachment(item)
+      broadcast()
+    }
   })
   handle(channels.agentSaveOutput, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -8954,9 +8993,31 @@ function setupIpc(): void {
       case 'lyrics':
         void toggleLyrics()
         break
-      case 'ai-open':
+      case 'ai-open': {
+        const ids = command.fileIds ?? []
+        if (!ids.length) {
+          openAgentPanel()
+          break
+        }
+        const paths = ids
+          .map((id) => files.get(id))
+          .filter((file) => file?.kind === 'file')
+          .map((file) => file!.path)
+        if (!paths.length) {
+          showToast('附件已不在置物架')
+          openAgentPanel()
+          break
+        }
+        clearAgentDrafts()
+        agent.newSession()
         openAgentPanel()
+        void addAgentAttachmentPaths(paths).catch((error) => {
+          showToast(
+            error instanceof Error ? error.message : '添加附件失败。',
+          )
+        })
         break
+      }
       case 'agent-open':
         openAgentPanel()
         break
@@ -8973,12 +9034,16 @@ function setupIpc(): void {
         void agent
           .send(command.prompt, attachments)
           .then(async () => {
+            if (agent.state().error) {
+              broadcast()
+              return
+            }
             for (const id of ids) agentDraftAttachments.delete(id)
             await Promise.all(attachments.map(releaseAgentAttachment))
+            broadcast()
           })
           .catch((error) => {
-            for (const id of ids) agentDraftAttachments.delete(id)
-            void Promise.all(attachments.map(releaseAgentAttachment))
+            broadcast()
             showToast(
               error instanceof Error ? error.message : '智能体执行失败。',
             )
@@ -8995,9 +9060,11 @@ function setupIpc(): void {
         agent.deny(command.id)
         break
       case 'agent-session-new':
+        clearAgentDrafts()
         agent.newSession()
         break
       case 'agent-project-new':
+        clearAgentDrafts()
         agent.newSessionIn(command.projectId)
         break
       case 'agent-project-create': {
@@ -9045,9 +9112,11 @@ function setupIpc(): void {
         agent.moveSession(command.id, command.projectId)
         break
       case 'agent-session-select':
+        if (command.id !== agent.state().sessionId) clearAgentDrafts()
         agent.select(command.id)
         break
       case 'agent-session-delete':
+        if (command.id === agent.state().sessionId) clearAgentDrafts()
         agent.remove(command.id)
         break
       case 'agent-mode':

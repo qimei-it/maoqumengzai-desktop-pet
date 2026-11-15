@@ -2,6 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { channels } from '../shared/protocol'
 import type { PrototypeApi, Result, Snapshot } from '../shared/protocol'
 
+function localFilePaths(files: File[]): string[] {
+  if (!Array.isArray(files) || files.length === 0 || files.length > 32)
+    throw new Error('invalid file list')
+  const paths = files.map((file) => webUtils.getPathForFile(file))
+  if (paths.some((path) => !path)) throw new Error('missing local path')
+  return paths
+}
+
 const api: PrototypeApi = {
   bridgeStatus: {
     sandboxed: process.sandboxed,
@@ -15,11 +23,7 @@ const api: PrototypeApi = {
   selectEntry: () => ipcRenderer.invoke(channels.selectEntry),
   receiveFiles: (files) => {
     try {
-      if (!Array.isArray(files) || files.length === 0 || files.length > 32)
-        throw new Error()
-      const paths = files.map((file) => webUtils.getPathForFile(file))
-      if (paths.some((path) => !path)) throw new Error()
-      return ipcRenderer.invoke(channels.receiveFiles, paths)
+      return ipcRenderer.invoke(channels.receiveFiles, localFilePaths(files))
     } catch {
       return Promise.resolve({
         ok: false,
@@ -36,6 +40,32 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.mailAttachments),
   pickAgentAttachments: () =>
     ipcRenderer.invoke(channels.agentAttachments),
+  attachAgentFiles: (files) => {
+    try {
+      return ipcRenderer.invoke(
+        channels.agentAttachFiles,
+        localFilePaths(files),
+      )
+    } catch {
+      return Promise.resolve({
+        ok: false,
+        error: '只接受实际拖入的本地文件，每次最多 32 个。',
+      })
+    }
+  },
+  openAgentWithFiles: (files) => {
+    try {
+      return ipcRenderer.invoke(
+        channels.agentOpenWithFiles,
+        localFilePaths(files),
+      )
+    } catch {
+      return Promise.resolve({
+        ok: false,
+        error: '只接受实际拖入的本地文件，每次最多 32 个。',
+      })
+    }
+  },
   releaseAgentAttachment: (id) =>
     ipcRenderer.invoke(channels.agentAttachmentRemove, id),
   pruneAgentAttachments: () =>

@@ -635,6 +635,13 @@ function transferNotice(
 async function applyDrop(files: File[], action: DropAction): Promise<void> {
   await attemptDrop(async () => {
     if (!api) throw new Error("请在 Electron 中验证本地文件操作。");
+    // The agent action is a direct hand-off: files become attachments in a
+    // fresh chat without passing through the shelf.
+    if (action === "ask") {
+      const result = await api.openAgentWithFiles(files);
+      if (!result.ok) throw new Error(result.error);
+      return;
+    }
     const batch = await receiveBatch(files);
     const ids = batch?.fileIds ?? [];
     const folders = batch?.folders ?? [];
@@ -739,11 +746,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
       return;
     }
 
-    if (action === "ask") {
-      state.value = unwrap(
-        await api.command({ type: "ai-open", fileIds: ids }),
-      );
-    } else if (action === "convert") {
+    if (action === "convert") {
       state.value = unwrap(
         await api.command({ type: "convert-open", fileIds: ids }),
       );
