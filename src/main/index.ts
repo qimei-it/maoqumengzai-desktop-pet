@@ -7962,7 +7962,7 @@ function bubbleTick(): void {
     showBubble()
   }
 }
-const lyricsCacheVersion = 2
+const lyricsCacheVersion = 3
 function normalizeLyricsState(state: LyricsState): LyricsState {
   return {
     ...state,

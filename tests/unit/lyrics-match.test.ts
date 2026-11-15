@@ -89,3 +89,26 @@ describe('LRCLIB lyric selection', () => {
     ).toBeUndefined()
   })
 })
+
+describe('romanized track suffixes', () => {
+  test('prefers a synced candidate with a romanized suffix', () => {
+    const chosen = pickLyricsCandidate(
+      { title: '衝撃', artist: '安藤裕子', duration: 182 },
+      [
+        {
+          trackName: '衝撃',
+          artistName: '安藤裕子',
+          duration: 182,
+          plainLyrics: 'plain',
+        },
+        {
+          trackName: '衝撃 - Shogeki',
+          artistName: 'Yuko Ando',
+          duration: 181.6,
+          syncedLyrics: '[00:01.00]line',
+        },
+      ],
+    )
+    expect(chosen?.syncedLyrics).toBe('[00:01.00]line')
+  })
+})

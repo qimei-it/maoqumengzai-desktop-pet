@@ -22,6 +22,13 @@ function normalize(value: string | undefined): string {
     .replace(/[\s\-_/.,，。·:：'"“”‘’]/g, '')
 }
 
+function titleScore(query: string, candidate: string): number {
+  const normalized = normalize(candidate)
+  if (normalized === query) return 0
+  const base = normalize(candidate.replace(/\s+-\s+.*$/, ''))
+  return base === query ? 1 : -1
+}
+
 function artistScore(query: string, candidate: string): number {
   if (!query || !candidate) return 0
   if (query === candidate) return 100
@@ -38,7 +45,8 @@ export function pickLyricsCandidate(
   if (!title) return undefined
   let best: { score: number; candidate: LyricsCandidate } | undefined
   for (const candidate of candidates) {
-    if (normalize(candidate.trackName) !== title) continue
+    const titleMatch = titleScore(title, candidate.trackName ?? '')
+    if (titleMatch < 0) continue
     const hasSynced = Boolean(candidate.syncedLyrics?.trim())
     const hasPlain = Boolean(candidate.plainLyrics?.trim())
     if (!hasSynced && !hasPlain && !candidate.instrumental) continue
@@ -55,6 +63,7 @@ export function pickLyricsCandidate(
       if (durationDelta === undefined || durationDelta > 5) continue
     }
     let score = hasSynced ? 1000 : 0
+    score -= titleMatch
     score += artistMatch
     if (durationDelta !== undefined) {
       if (durationDelta <= 2) score += 30
