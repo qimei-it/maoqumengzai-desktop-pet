@@ -158,6 +158,12 @@ function testDraftMiniMaxKey(): void {
   if (!value || minimaxTest.value.status === 'testing') return
   emit('command', { type: 'minimax-test', apiKey: value })
 }
+function testAndPullMiniMaxModels(): void {
+  const value = minimaxKey.value.trim()
+  if (!value) return
+  emit('command', { type: 'minimax-test', apiKey: value })
+  emit('command', { type: 'minimax-models', apiKey: value })
+}
 function saveMiniMaxKey(): void {
   const value = minimaxKey.value.trim()
   if (!value) return
@@ -1260,23 +1266,56 @@ function onEscape(): void {
             <div
               class="settings-row"
               :class="{
-                'settings-row-connected': editingMiniMaxKey || minimaxModelsOpen,
+                'settings-row-connected':
+                  editingMiniMaxKey || minimaxModelsOpen,
+                'settings-row-editing': editingMiniMaxKey,
               }"
             >
               <span class="settings-label">MiniMax</span>
-              <input
-                v-if="editingMiniMaxKey"
-                v-model="minimaxKey"
-                class="settings-inline-input"
-                type="password"
-                autocomplete="off"
-                aria-label="MiniMax API Key"
-                :placeholder="
-                  minimaxConfigured ? '替换 API Key' : 'API Key'
-                "
-                @keydown.enter="saveMiniMaxKey"
-              />
-              <span class="settings-inline">
+              <template v-if="editingMiniMaxKey">
+                <div class="settings-key-fields">
+                  <input
+                    v-model="minimaxKey"
+                    class="settings-inline-input settings-key-input"
+                    type="password"
+                    autocomplete="off"
+                    aria-label="MiniMax API Key"
+                    :placeholder="
+                      minimaxConfigured ? '替换 API Key' : 'API Key'
+                    "
+                    @keydown.enter="saveMiniMaxKey"
+                  />
+                  <SelectField
+                    :model-value="minimaxModelPreview"
+                    aria-label="MiniMax 可用模型"
+                    title="测试后显示当前 Key 可用模型"
+                    wide
+                    @update:model-value="
+                      value => (minimaxModelPreview = value)
+                    "
+                  >
+                    <option value="" disabled>模型列表</option>
+                    <option
+                      v-for="model in minimaxModels"
+                      :key="model"
+                      :value="model"
+                    >
+                      {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
+                    </option>
+                  </SelectField>
+                </div>
+                <button
+                  type="button"
+                  class="settings-button"
+                  :disabled="
+                    !minimaxKey.trim() || minimaxTest.status === 'testing'
+                  "
+                  @click="testAndPullMiniMaxModels"
+                >
+                  测试
+                </button>
+              </template>
+              <span v-else class="settings-inline">
                 <span
                   v-if="minimaxTest.status === 'testing'"
                   class="ai-latency"
@@ -1295,7 +1334,7 @@ function onEscape(): void {
                   >测试失败</span
                 >
                 <button
-                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  v-if="minimaxConfigured"
                   type="button"
                   class="settings-button"
                   :disabled="minimaxTest.status === 'testing'"
@@ -1304,7 +1343,7 @@ function onEscape(): void {
                   测试延迟
                 </button>
                 <button
-                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  v-if="minimaxConfigured"
                   type="button"
                   class="settings-button"
                   @click="toggleMiniMaxModels"
@@ -1312,7 +1351,7 @@ function onEscape(): void {
                   模型列表
                 </button>
                 <button
-                  v-if="!editingMiniMaxKey && minimaxConfigured"
+                  v-if="minimaxConfigured"
                   type="button"
                   class="settings-button danger"
                   @click="deleteMiniMaxKey"
@@ -1320,7 +1359,7 @@ function onEscape(): void {
                   删除
                 </button>
                 <button
-                  v-if="!editingMiniMaxKey && !minimaxConfigured"
+                  v-if="!minimaxConfigured"
                   type="button"
                   class="settings-button primary"
                   @click="addMiniMaxKey"
@@ -1332,56 +1371,30 @@ function onEscape(): void {
             <div
               v-if="editingMiniMaxKey"
               class="settings-field settings-field-end"
-              :class="{ 'settings-field-connected': minimaxModelsOpen }"
             >
-              <SelectField
-                v-if="minimaxModelsOpen && minimaxModels.length"
-                :model-value="minimaxModelPreview"
-                aria-label="MiniMax 可用模型"
-                title="仅查看，不会切换当前模型"
-                min-width="200px"
-                @update:model-value="
-                  value => (minimaxModelPreview = value)
-                "
+              <span
+                v-if="minimaxTest.status === 'testing'"
+                class="ai-latency"
+                >测试中…</span
               >
-                <option
-                  v-for="model in minimaxModels"
-                  :key="model"
-                  :value="model"
-                >
-                  {{ model }}{{ supportedModels.has(model) ? '（已支持）' : '（未适配）' }}
-                </option>
-              </SelectField>
-              <p
-                v-else-if="minimaxModelsOpen && minimaxModelsError"
-                class="settings-error settings-model-error"
+              <span
+                v-else-if="minimaxTest.status === 'ok'"
+                class="ai-latency"
+                :class="minimaxLatencyClass"
+                >{{ minimaxTest.latencyMs }} ms</span
               >
-                {{ minimaxModelsError }}
-              </p>
+              <span
+                v-else-if="minimaxTest.status === 'error'"
+                class="ai-latency is-slow"
+                :title="minimaxTest.error"
+                >测试失败</span
+              >
               <button
                 type="button"
                 class="settings-button"
                 @click="cancelMiniMaxKey"
               >
                 取消
-              </button>
-              <button
-                type="button"
-                class="settings-button"
-                :disabled="
-                  !minimaxKey.trim() || minimaxTest.status === 'testing'
-                "
-                @click="testDraftMiniMaxKey"
-              >
-                测试
-              </button>
-              <button
-                type="button"
-                class="settings-button"
-                :disabled="!minimaxKey.trim()"
-                @click="toggleMiniMaxModels"
-              >
-                模型列表
               </button>
               <button
                 type="button"
