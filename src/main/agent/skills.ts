@@ -130,7 +130,7 @@ function parseSkill(
       if (!match) continue
       const key = match[1].toLowerCase()
       let value = match[2]
-      if (key === 'description' && /^[|>]\s*$/.test(value.trim())) {
+      if (key === 'description' && /^[|>][+-]?\s*$/.test(value.trim())) {
         const continuation: string[] = []
         for (let next = index + 1; next < lines.length; next += 1) {
           if (!/^\s+/.test(lines[next])) break

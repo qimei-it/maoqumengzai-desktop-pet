@@ -1616,6 +1616,182 @@
       "defaultEnabled": true,
       "source": "https://github.com/blader/humanizer/tree/b48c832f0f809c1b5658edbb838c2521b72f2413",
       "license": "MIT"
+    },
+    {
+      "id": "builtin-anthropic-academy-guide",
+      "dir": "anthropic/academy-guide",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/academy-guide",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-algorithmic-art",
+      "dir": "anthropic/algorithmic-art",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/algorithmic-art",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-brand-guidelines",
+      "dir": "anthropic/brand-guidelines",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/brand-guidelines",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-canvas-design",
+      "dir": "anthropic/canvas-design",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/canvas-design",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-claude-api",
+      "dir": "anthropic/claude-api",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/claude-api",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-discernment-nudge",
+      "dir": "anthropic/discernment-nudge",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/discernment-nudge",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-docx",
+      "dir": "anthropic/docx",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/docx",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-frontend-design",
+      "dir": "anthropic/frontend-design",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/frontend-design",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-internal-comms",
+      "dir": "anthropic/internal-comms",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/internal-comms",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-mcp-builder",
+      "dir": "anthropic/mcp-builder",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/mcp-builder",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-pdf",
+      "dir": "anthropic/pdf",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/pdf",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-pptx",
+      "dir": "anthropic/pptx",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/pptx",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-skill-creator",
+      "dir": "anthropic/skill-creator",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/skill-creator",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-slack-gif-creator",
+      "dir": "anthropic/slack-gif-creator",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/slack-gif-creator",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-theme-factory",
+      "dir": "anthropic/theme-factory",
+      "category": "文档办公",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/theme-factory",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-web-artifacts-builder",
+      "dir": "anthropic/web-artifacts-builder",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/web-artifacts-builder",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-webapp-testing",
+      "dir": "anthropic/webapp-testing",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/webapp-testing",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-anthropic-xlsx",
+      "dir": "anthropic/xlsx",
+      "category": "文档办公",
+      "defaultEnabled": true,
+      "source": "https://github.com/anthropics/skills/tree/1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064/skills/xlsx",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-sentry-skill-scanner",
+      "dir": "sentry/skill-scanner",
+      "category": "通用工具",
+      "defaultEnabled": true,
+      "source": "https://github.com/getsentry/skills/tree/a582c51ee29d0f35e6ac321340796f77d43da733/skills/skill-scanner",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "builtin-vercel-find-skills",
+      "dir": "vercel/find-skills",
+      "category": "通用工具",
+      "defaultEnabled": true,
+      "source": "https://github.com/vercel-labs/skills/tree/b716f9dc2ba36b6aa8f0080615e5a3a6caeac63b/skills/find-skills",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-web-search-web-search",
+      "dir": "web-search/web-search",
+      "category": "通用工具",
+      "defaultEnabled": true,
+      "source": "https://github.com/yejinlei/web-search-skill/tree/00b2ab6b694f9f0100d4679e9765034fe108a7ac",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-ego-ego-browser",
+      "dir": "ego/ego-browser",
+      "category": "通用工具",
+      "defaultEnabled": false,
+      "source": "https://github.com/citrolabs/ego-lite/tree/bacaece43900e8ca68eea3b6f1663835ea38df9e/skills/ego-browser",
+      "license": "MIT"
     }
   ]
 }

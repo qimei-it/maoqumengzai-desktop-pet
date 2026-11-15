@@ -181,7 +181,12 @@ const filteredSkills = computed(() => {
     return searchable.includes(query)
   })
 })
-const skillCategoryOrder = ['论文科研', '文档办公', '电商运营']
+const skillCategoryOrder = [
+  '通用工具',
+  '论文科研',
+  '文档办公',
+  '电商运营',
+]
 const skillPreviewLimit = 12
 const skillFilter = ref<'all' | 'enabled'>('all')
 const expandedSkillCategories = ref<Record<string, boolean>>({})

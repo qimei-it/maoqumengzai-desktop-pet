@@ -58,13 +58,18 @@ FFmpeg 当前可选源为 `ispysoftware/agentdvr-ffmpeg-build` 的 LGPL v3 构�
 
 ## Bundled skills
 
-`resources/skills` 内置论文科研类 Agent Skills，来源、固定 commit 与许可证见 `resources/skills/SOURCES.md`，许可证原文保存在 `resources/skills/licenses/`。
+`resources/skills` 内置论文科研、文档办公与通用工具类 Agent Skills，来源、固定 commit 与许可证见 `resources/skills/SOURCES.md`，许可证原文保存在 `resources/skills/licenses/`。
 
 | 来源 | 许可 | 数量 | 说明 |
 | --- | --- | --- | --- |
 | k-dense-ai/scientific-agent-skills | MIT | 177 | 仅文本与代码文件，排除二进制模板、图片与媒体 |
 | Yuan1z0825/nature-skills | Apache-2.0 | 24 | 仅文本与代码文件，排除二进制模板、图片与媒体 |
 | blader/humanizer | MIT | 1 | 单 Skill 仓库 |
+| anthropics/skills | Apache-2.0 | 18 | 逐 Skill 许可；无许可的 doc-coauthoring 未内置 |
+| getsentry/skills | Apache-2.0 | 1 | skill-scanner |
+| vercel-labs/skills | MIT | 1 | find-skills |
+| yejinlei/web-search-skill | MIT | 1 | web-search |
+| citrolabs/ego-lite | MIT | 1 | ego-browser |
 
 Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY-NC 4.0）因非商业许可暂未内置；paper-qa 仓库不含 `SKILL.md`，未作为 Skill 内置。
 

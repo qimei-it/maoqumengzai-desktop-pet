@@ -15,3 +15,13 @@ These built-in skills are vendored from the upstream repositories below at the p
 ## Vendored content
 
 Only text and code files up to 512 KB (SKILL.md up to 2 MB) are copied; binary templates, images, fonts and media are excluded. Each skill stays read-only in the app and can be enabled or disabled by the user.
+
+## General tools and office skills (2026-11-15)
+
+- https://github.com/anthropics/skills @ `1780c5e5a552fd4d1c9d6a7b0cab26b0c2bef064` (Apache-2.0, shared license at `licenses/anthropic-Apache-2.0.txt`; unlicensed `doc-coauthoring` excluded)
+- https://github.com/getsentry/skills @ `a582c51ee29d0f35e6ac321340796f77d43da733` (Apache-2.0)
+- https://github.com/vercel-labs/skills @ `b716f9dc2ba36b6aa8f0080615e5a3a6caeac63b` (MIT)
+- https://github.com/yejinlei/web-search-skill @ `00b2ab6b694f9f0100d4679e9765034fe108a7ac` (MIT)
+- https://github.com/citrolabs/ego-lite @ `bacaece43900e8ca68eea3b6f1663835ea38df9e` (MIT)
+
+The Anthropic document skills include Apache-2.0 `LICENSE.txt` inside each skill; only text and code files are vendored.
