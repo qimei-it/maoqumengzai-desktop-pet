@@ -530,6 +530,25 @@ watch(
   { deep: true },
 )
 watch(
+  attachmentPreviews,
+  (previews) => {
+    const el = composerInput.value
+    if (!el) return
+    for (const chip of el.querySelectorAll('.agent-input-reference')) {
+      if (chip.querySelector('.agent-input-reference-thumb')) continue
+      const id = chip.getAttribute('data-reference-id')
+      const preview = id ? previews[id] : ''
+      if (!preview) continue
+      const image = document.createElement('img')
+      image.className = 'agent-input-reference-thumb'
+      image.src = preview
+      image.alt = ''
+      chip.prepend(image)
+    }
+  },
+  { deep: true },
+)
+watch(
   () => skills.value.map((skill) => skill.id).join('|'),
   () => {
     if (skillsOpen.value) void indexSkillContent()
@@ -1417,7 +1436,18 @@ function insertMention(item: AgentAttachmentPick): void {
   chip.className = 'agent-input-reference'
   chip.contentEditable = 'false'
   chip.dataset.referenceId = item.id
-  chip.textContent = referenceLabel(item)
+  const preview = attachmentPreviews.value[item.id]
+  if (preview) {
+    const image = document.createElement('img')
+    image.className = 'agent-input-reference-thumb'
+    image.src = preview
+    image.alt = ''
+    chip.append(image)
+  }
+  const label = document.createElement('span')
+  label.className = 'agent-input-reference-label'
+  label.textContent = referenceLabel(item)
+  chip.append(label)
   range.insertNode(chip)
   range.setStartAfter(chip)
   const space = document.createTextNode(' ')
@@ -6054,20 +6084,30 @@ function statusLabel(status: string): string {
   content: attr(data-placeholder);
   pointer-events: none;
 }
-.agent-input-reference {
+.agent-input :deep(.agent-input-reference) {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
+  gap: 4px;
+  min-height: 24px;
   margin: 0 2px;
-  padding: 0 7px;
+  padding: 0 8px 0 3px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-fill-secondary);
-  color: var(--color-brand-ink);
+  color: var(--color-ink);
   font-size: var(--font-size-label);
-  font-weight: 600;
-  line-height: 20px;
-  vertical-align: baseline;
+  line-height: 22px;
+  vertical-align: middle;
   white-space: nowrap;
+}
+.agent-input :deep(.agent-input-reference-thumb) {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  object-fit: cover;
+}
+.agent-input :deep(.agent-input-reference-label) {
+  font-weight: 600;
 }
 .agent-mention-menu {
   position: fixed;
