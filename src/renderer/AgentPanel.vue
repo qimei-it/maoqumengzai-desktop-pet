@@ -7464,14 +7464,17 @@ function statusLabel(status: string): string {
   cursor: default;
 }
 .agent-send.stop {
-  border-color: var(--color-line);
-  background: var(--color-surface);
-  color: var(--color-ink);
+  border-color: var(--color-brand-ink);
+  background: var(--color-brand-ink);
+  color: var(--color-on-brand);
+}
+.agent-send.stop svg {
+  fill: currentColor;
 }
 .agent-send.stop:hover {
-  border-color: var(--color-danger);
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
 }
 .agent-composer-meta {
   display: flex;
