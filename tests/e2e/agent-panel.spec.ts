@@ -795,6 +795,15 @@ test('pet profile section exposes the create entry', async () => {
     )
     .hover()
   await expect(wizard.getByRole('tooltip')).toHaveCSS('opacity', '1')
+  const nameInput = wizard.getByLabel('桌宠名字')
+  await nameInput.fill('麻薯')
+  await expect(
+    wizard.getByText('已经有同名桌宠，请换一个。'),
+  ).toBeVisible()
+  await nameInput.fill('团子')
+  await expect(
+    wizard.getByText('已经有同名桌宠，请换一个。'),
+  ).toHaveCount(0)
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
 })

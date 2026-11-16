@@ -468,6 +468,7 @@ export type PetCreateState = {
   poses: PetCreatePose[]
   busy: boolean
   volcanoReady: boolean
+  existingNames: string[]
   error?: string
 }
 export type AiState = {

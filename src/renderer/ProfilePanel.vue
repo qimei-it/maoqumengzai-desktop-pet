@@ -2,6 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { Check, PawPrint } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
+import {
+  normalizePetName,
+  petNameConflict,
+  petNameConflictError,
+} from '../shared/pet-name'
 import PanelHeader from './PanelHeader.vue'
 import catBase from './assets/pet/ragdoll/base.png'
 
@@ -18,8 +23,22 @@ const styleName = computed(
   () => props.state?.petAssets?.styleName ?? '默认',
 )
 const species = computed(() => (props.state?.petAssets ? '自定义' : '布偶猫'))
+const currentName = computed(() => props.state?.settings.petName ?? '')
+const existingNames = computed(
+  () => props.state?.petCreate.existingNames ?? [],
+)
+const nameConflict = computed(() => {
+  if (!value.value) return false
+  const others = existingNames.value.filter(
+    (item) => normalizePetName(item) !== normalizePetName(currentName.value),
+  )
+  return petNameConflict(value.value, others)
+})
 const canSave = computed(
-  () => value.value.length > 0 && value.value !== props.state?.settings.petName,
+  () =>
+    value.value.length > 0 &&
+    value.value !== currentName.value &&
+    !nameConflict.value,
 )
 
 watch(
@@ -72,6 +91,10 @@ function close(): void {
               type="text"
               maxlength="20"
               aria-label="宠物名字"
+              :aria-invalid="nameConflict"
+              :aria-describedby="
+                nameConflict ? 'profile-name-conflict' : undefined
+              "
               @keydown.enter.prevent="save"
             />
             <button
@@ -97,6 +120,14 @@ function close(): void {
       </div>
 
       <p v-if="saved" class="profile-notice" role="status">名字已保存</p>
+      <p
+        v-if="nameConflict"
+        id="profile-name-conflict"
+        class="profile-error"
+        role="alert"
+      >
+        {{ petNameConflictError }}
+      </p>
       <p v-if="error" class="profile-error" role="alert">{{ error }}</p>
     </section>
   </main>

@@ -123,6 +123,7 @@ import {
 } from '../shared/pet-style'
 import {
   cleanupPetDrafts,
+  listPetRecords,
   loadPetRecord,
   petRecordFor,
   petsRoot,
@@ -130,6 +131,11 @@ import {
   type PetAssets as SavedPetAssets,
   type PetRecord,
 } from './pet-store'
+import {
+  normalizePetName,
+  petNameConflict,
+  petNameConflictError,
+} from '../shared/pet-name'
 import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
 import {
   emptyAiQuotaProvider,
@@ -580,6 +586,7 @@ let volcanoModels: string[] | undefined
 let volcanoModelsError: string | undefined
 let activePet: PetRecord | undefined
 let activePetAssets: SavedPetAssets | undefined
+let petNames: string[] = []
 type PetDraftPhoto = { id: string; name: string; path: string; url: string }
 type PetDraftPose = {
   id: PetPoseId
@@ -1515,6 +1522,11 @@ function aiState(): AiState {
     },
   }
 }
+function currentPetNames(): string[] {
+  const names = [...petNames]
+  if (!activePet) names.push(settings.petName)
+  return [...new Set(names)]
+}
 function petCreateState(): PetCreateState {
   const style = getPetStyle()
   const poses = (petDraft?.poses ??
@@ -1538,6 +1550,7 @@ function petCreateState(): PetCreateState {
     })),
     busy: Boolean(petDraft?.running),
     volcanoReady: Boolean(volcanoKey),
+    existingNames: currentPetNames(),
     ...(petDraft?.error ? { error: petDraft.error } : {}),
   }
 }
@@ -2145,6 +2158,8 @@ async function startPetCreate(name: string): Promise<void> {
   if (!draft.photos.length) throw new Error('请先添加至少一张宠物照片。')
   const trimmed = name.trim()
   if (!trimmed) throw new Error('请输入桌宠名字。')
+  if (petNameConflict(trimmed, currentPetNames()))
+    throw new Error(petNameConflictError)
   draft.name = trimmed
   const remaining = draft.poses.filter((pose) => pose.status !== 'done')
   if (!remaining.length) {
@@ -2240,6 +2255,8 @@ async function savePetCreate(): Promise<void> {
   if (draft.poses.some((pose) => pose.status !== 'done'))
     throw new Error('还有状态没有生成完成。')
   if (!draft.name.trim()) throw new Error('请输入桌宠名字。')
+  if (petNameConflict(draft.name, currentPetNames()))
+    throw new Error(petNameConflictError)
   const root = petsRoot(dataRoot)
   const style = getPetStyle()
   const record = petRecordFor(
@@ -2260,8 +2277,14 @@ async function savePetCreate(): Promise<void> {
   await rename(draft.directory, finalDirectory)
   activePet = record
   activePetAssets = registerPetAssets(root, record)
+  petNames = [
+    ...petNames.filter(
+      (name) => normalizePetName(name) !== normalizePetName(record.name),
+    ),
+    record.name,
+  ]
   petDraft = undefined
-  await updateSettings({ petId: record.id, petName: record.name })
+  await updateSettings({ petId: record.id, petName: record.name }, false)
   broadcast()
   showToast('桌宠已切换')
 }
@@ -2269,7 +2292,7 @@ async function savePetCreate(): Promise<void> {
 async function useDefaultPet(): Promise<void> {
   activePet = undefined
   activePetAssets = undefined
-  await updateSettings({ petId: '', petName: '麻薯' })
+  await updateSettings({ petId: '', petName: '麻薯' }, false)
   broadcast()
   showToast('已恢复默认形象')
 }
@@ -5766,9 +5789,22 @@ function closeSettings(): void {
   settingsWindow?.hide()
   broadcast()
 }
-async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
+async function updateSettings(
+  patch: Partial<SettingsState>,
+  syncPetName = true,
+): Promise<void> {
   if (patch.musicAiEnabled === true && !aiKey)
     throw new Error('请先在 API Key 设置中配置 DeepSeek API Key。')
+  if (syncPetName && patch.petName) {
+    const others = activePet
+      ? petNames.filter(
+          (name) =>
+            normalizePetName(name) !== normalizePetName(settings.petName),
+        )
+      : petNames
+    if (petNameConflict(patch.petName, others))
+      throw new Error(petNameConflictError)
+  }
   const previous = { ...settings }
   const scaleChanged = patch.scale !== undefined && patch.scale !== settings.scale
   if (scaleChanged) setPetScale(patch.scale!)
@@ -5787,13 +5823,18 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
     screenshotSince = Date.now()
     screenshotSeen.clear()
   }
-  if (patch.petName && activePet) {
+  if (syncPetName && patch.petName && activePet) {
     const updated = { ...activePet, name: settings.petName }
     await writeFile(
       join(petsRoot(dataRoot), activePet.id, 'pet.json'),
       JSON.stringify(updated, null, 2),
     ).catch(() => {})
     activePet = updated
+    petNames = petNames.map((name) =>
+      normalizePetName(name) === normalizePetName(previous.petName)
+        ? settings.petName
+        : name,
+    )
     if (activePetAssets)
       activePetAssets = { ...activePetAssets, name: updated.name }
   }
@@ -12561,6 +12602,9 @@ else {
           activePetAssets = registerPetAssets(petsRoot(dataRoot), record)
         }
       }
+      petNames = (await listPetRecords(petsRoot(dataRoot))).map(
+        (record) => record.name,
+      )
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)

@@ -10,6 +10,10 @@ import {
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import type { PetPoseId } from '../shared/pet-style'
+import {
+  petNameConflict,
+  petNameConflictError,
+} from '../shared/pet-name'
 
 const props = defineProps<{ state?: Snapshot }>()
 const emit = defineEmits<{ command: [Command] }>()
@@ -23,9 +27,14 @@ const busy = computed(() => create.value?.busy === true)
 const photos = computed(() => create.value?.photos ?? [])
 const poses = computed(() => create.value?.poses ?? [])
 const volcanoReady = computed(() => create.value?.volcanoReady === true)
+const existingNames = computed(() => create.value?.existingNames ?? [])
+const nameConflict = computed(() =>
+  petNameConflict(name.value, existingNames.value),
+)
 const canStart = computed(
   () =>
     Boolean(name.value.trim()) &&
+    !nameConflict.value &&
     photos.value.length > 0 &&
     volcanoReady.value &&
     !busy.value,
@@ -162,8 +171,17 @@ function save(): void {
               maxlength="20"
               placeholder="给桌宠起个名字"
               aria-label="桌宠名字"
+              :aria-invalid="nameConflict"
+              :aria-describedby="nameConflict ? 'pet-name-conflict' : undefined"
               @keydown.enter.prevent="start"
             />
+            <span
+              v-if="nameConflict"
+              id="pet-name-conflict"
+              class="pet-wizard-error"
+              role="alert"
+              >{{ petNameConflictError }}</span
+            >
           </label>
 
           <p v-if="!volcanoReady" class="pet-wizard-error" role="alert">
