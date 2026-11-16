@@ -9165,6 +9165,76 @@ function setupIpc(): void {
     const error = await shell.openPath(source.path)
     if (error) throw new Error(error)
   })
+  handle(channels.agentSourceDirectory, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以打开文件目录。')
+    const id = z.string().uuid().parse(payload)
+    const source = agent.source(id)
+    if (!source) throw new Error('文件记录不存在。')
+    const info = await lstat(source.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('源文件已不在。')
+    const error = await shell.openPath(dirname(source.path))
+    if (error) throw new Error(error)
+  })
+  handle(channels.agentSaveMediaAs, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以保存文件。')
+    const ids = z.array(z.string().uuid()).min(1).max(20).parse(payload)
+    const sources = ids.map((id) => {
+      const source = agent.source(id)
+      if (!source) throw new Error('文件记录不存在。')
+      return source
+    })
+    for (const source of sources) {
+      const info = await lstat(source.path).catch(() => null)
+      if (!info?.isFile()) throw new Error('源文件已不在。')
+    }
+    if (sources.length === 1) {
+      const source = sources[0]
+      const extension = extname(source.name).replace(/^\./, '')
+      const saved = await dialog.showSaveDialog(askWindow, {
+        defaultPath: join(app.getPath('downloads'), source.name),
+        ...(extension
+          ? {
+              filters: [
+                { name: extension.toUpperCase(), extensions: [extension] },
+              ],
+            }
+          : {}),
+      })
+      if (saved.canceled || !saved.filePath) return null
+      if (resolve(saved.filePath) === resolve(source.path))
+        return [saved.filePath]
+      await mkdir(dirname(saved.filePath), { recursive: true })
+      await copyFile(source.path, saved.filePath)
+      showToast(`已保存 ${basename(saved.filePath)}`)
+      return [saved.filePath]
+    }
+    const folder = await dialog.showOpenDialog(askWindow, {
+      title: '选择保存文件夹',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (folder.canceled || !folder.filePaths[0]) return null
+    const saved: string[] = []
+    for (const source of sources) {
+      const extension = extname(source.name)
+      const stem = safeOutputName(
+        basename(source.name, extension) || 'agent-file',
+      )
+      saved.push(
+        await copyExclusive(
+          folder.filePaths[0],
+          (attempt) =>
+            `${stem}${extension}${attempt === 1 ? '' : ` (${attempt})`}`,
+          source.path,
+        ),
+      )
+    }
+    showToast(`已保存 ${saved.length} 个文件`)
+    return saved
+  })
   handle(channels.agentRevealSource, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)

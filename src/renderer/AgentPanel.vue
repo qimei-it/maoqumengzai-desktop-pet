@@ -65,6 +65,8 @@ import {
   maxAgentNameChars,
   type AgentApprovalMode,
   type AgentAttachmentPick,
+  type AgentMediaPart,
+  type AgentMediaView,
   type AgentMessageView,
   type AgentMode,
   type AgentProjectView,
@@ -951,6 +953,62 @@ function mediaKindLabel(kind: 'image' | 'video' | 'audio'): string {
   if (kind === 'image') return '图片'
   if (kind === 'video') return '视频'
   return '音频'
+}
+
+const mediaSelections = ref<Record<string, number>>({})
+function mediaKey(messageId: string, index: number): string {
+  return `${messageId}:${index}`
+}
+function doneMediaItems(part: AgentMediaPart): AgentMediaView[] {
+  return part.items.filter(
+    (item) => item.url && (item.status ?? 'done') === 'done',
+  )
+}
+function mediaSelectedIndex(key: string, total: number): number {
+  return Math.min(
+    Math.max(0, mediaSelections.value[key] ?? 0),
+    Math.max(0, total - 1),
+  )
+}
+function selectMediaItem(key: string, index: number): void {
+  mediaSelections.value = { ...mediaSelections.value, [key]: index }
+}
+function selectedMediaView(
+  part: AgentMediaPart,
+  key: string,
+): AgentMediaView | undefined {
+  const items = doneMediaItems(part)
+  return items[mediaSelectedIndex(key, items.length)]
+}
+function mediaPartOf(message: AgentMessageView): AgentMediaPart | undefined {
+  return message.parts.find(
+    (part): part is AgentMediaPart => part.type === 'media',
+  )
+}
+function mediaDirectory(part: AgentMediaPart): string {
+  return doneMediaItems(part).find((item) => item.directory)?.directory ?? ''
+}
+async function openMediaDirectory(part: AgentMediaPart): Promise<void> {
+  const item = doneMediaItems(part)[0]
+  if (!item) return
+  const result = await window.mqmz?.openAgentSourceDirectory(item.id)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '打开文件目录失败。'
+}
+async function saveMediaAs(part: AgentMediaPart): Promise<void> {
+  const ids = doneMediaItems(part).map((item) => item.id)
+  if (!ids.length) return
+  const result = await window.mqmz?.saveAgentMediaAs(ids)
+  if (!result?.ok)
+    attachmentError.value = result?.error ?? '保存文件失败。'
+}
+function mediaReady(message: AgentMessageView): boolean {
+  const part = mediaPartOf(message)
+  return Boolean(part && doneMediaItems(part).length)
+}
+function saveMediaMessage(message: AgentMessageView): void {
+  const part = mediaPartOf(message)
+  if (part) void saveMediaAs(part)
 }
 
 function removeAttachment(id: string): void {
@@ -2944,18 +3002,16 @@ function statusLabel(status: string): string {
                     :data-status="part.status"
                   >
                     <div
-                      v-if="part.items.length"
+                      v-if="part.status === 'running' && part.items.length"
                       class="agent-media-grid"
                       :data-kind="part.items[0]?.kind"
                     >
                       <figure
                         v-for="item in part.items"
                         :key="item.id"
-                        class="agent-media-item"
-                        :data-status="item.status ?? 'done'"
+                        class="agent-media-item is-running"
                       >
                         <div
-                          v-if="(item.status ?? 'done') === 'running'"
                           class="agent-media-placeholder"
                           :data-kind="item.kind"
                           role="status"
@@ -2970,85 +3026,144 @@ function statusLabel(status: string): string {
                             />
                           </span>
                         </div>
-                        <template v-else-if="item.url">
-                          <div class="agent-media-head">
-                            <button
-                              type="button"
-                              class="agent-media-reveal"
-                              :aria-label="`${mediaDownloadLabel(item.kind)} ${item.name}`"
-                              @click="revealSource(item.id)"
-                            >
-                              <ImageIcon
-                                v-if="item.kind === 'image'"
-                                :size="14"
-                                :stroke-width="2"
-                                aria-hidden="true"
-                              />
-                              <Film
-                                v-else-if="item.kind === 'video'"
-                                :size="14"
-                                :stroke-width="2"
-                                aria-hidden="true"
-                              />
-                              <AudioLines
-                                v-else
-                                :size="14"
-                                :stroke-width="2"
-                                aria-hidden="true"
-                              />
-                              <span>{{ mediaDownloadLabel(item.kind) }}</span>
-                              <span
-                                v-if="item.directory || item.path"
-                                class="agent-media-path"
-                                role="tooltip"
-                              >
-                                {{ item.directory || item.path }}
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              class="agent-media-save-as"
-                              :aria-label="`另存为 ${item.name}`"
-                              :title="`另存为 ${item.name}`"
-                              @click="saveSourceAs(item.id)"
-                            >
-                              <Download
-                                :size="14"
-                                :stroke-width="2"
-                                aria-hidden="true"
-                              />
-                            </button>
-                          </div>
-                          <div class="agent-media-frame">
-                            <img
-                              v-if="item.kind === 'image'"
-                              :src="item.url"
-                              :alt="item.name"
-                              loading="lazy"
-                            />
-                            <video
-                              v-else-if="item.kind === 'video'"
-                              :src="item.url"
-                              controls
-                              preload="metadata"
-                            ></video>
-                            <audio
-                              v-else
-                              :src="item.url"
-                              controls
-                              preload="metadata"
-                            ></audio>
-                          </div>
-                        </template>
-                        <p v-else class="agent-media-failed">
-                          {{ item.error || '生成失败' }}
-                        </p>
                       </figure>
                     </div>
-                    <p
-                      v-if="part.text && part.status !== 'running'"
-                      class="agent-media-note"
-                    >
+                    <template v-else-if="doneMediaItems(part).length">
+                      <button
+                        type="button"
+                        class="agent-media-download"
+                        :aria-label="`${mediaDownloadLabel(part.items[0]?.kind ?? 'image')}，打开保存目录`"
+                        @click="openMediaDirectory(part)"
+                      >
+                        <ImageIcon
+                          v-if="(part.items[0]?.kind ?? 'image') === 'image'"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <Film
+                          v-else-if="part.items[0]?.kind === 'video'"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <AudioLines
+                          v-else
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span>{{
+                          mediaDownloadLabel(part.items[0]?.kind ?? 'image')
+                        }}</span>
+                        <span
+                          v-if="mediaDirectory(part)"
+                          class="agent-media-path"
+                          role="tooltip"
+                        >
+                          {{ mediaDirectory(part) }}
+                        </span>
+                      </button>
+                      <div class="agent-media-preview-row">
+                        <div
+                          class="agent-media-preview"
+                          :data-kind="part.items[0]?.kind"
+                        >
+                          <img
+                            v-if="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.kind === 'image'
+                            "
+                            :src="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.url
+                            "
+                            :alt="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.name
+                            "
+                            loading="lazy"
+                          />
+                          <video
+                            v-else-if="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.kind === 'video'
+                            "
+                            :src="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.url
+                            "
+                            controls
+                            preload="metadata"
+                          ></video>
+                          <audio
+                            v-else
+                            :src="
+                              selectedMediaView(
+                                part,
+                                mediaKey(message.id, index),
+                              )?.url
+                            "
+                            controls
+                            preload="metadata"
+                          ></audio>
+                        </div>
+                        <div
+                          v-if="
+                            (part.items[0]?.kind ?? 'image') === 'image' &&
+                            doneMediaItems(part).length > 1
+                          "
+                          class="agent-media-thumbs"
+                          aria-label="选择图片"
+                        >
+                          <button
+                            v-for="(item, itemIndex) in doneMediaItems(part)"
+                            :key="item.id"
+                            type="button"
+                            class="agent-media-thumb"
+                            :class="{
+                              active:
+                                mediaSelectedIndex(
+                                  mediaKey(message.id, index),
+                                  doneMediaItems(part).length,
+                                ) === itemIndex,
+                            }"
+                            :aria-label="`查看第 ${itemIndex + 1} 张图片`"
+                            :aria-pressed="
+                              mediaSelectedIndex(
+                                mediaKey(message.id, index),
+                                doneMediaItems(part).length,
+                              ) === itemIndex
+                            "
+                            @click="
+                              selectMediaItem(
+                                mediaKey(message.id, index),
+                                itemIndex,
+                              )
+                            "
+                          >
+                            <img :src="item.url" :alt="item.name" />
+                          </button>
+                        </div>
+                      </div>
+                      <p
+                        v-if="part.text"
+                        class="agent-media-note"
+                      >
+                        {{ part.text }}
+                      </p>
+                    </template>
+                    <p v-else-if="part.text" class="agent-media-note">
                       {{ part.text }}
                     </p>
                   </div>
@@ -3273,6 +3388,26 @@ function statusLabel(status: string): string {
                     @click="startEdit(message)"
                   >
                     <PenLine
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+                <div
+                  v-if="
+                    message.role === 'assistant' && mediaReady(message)
+                  "
+                  class="agent-message-actions agent-message-actions-media"
+                >
+                  <button
+                    type="button"
+                    class="agent-message-action"
+                    aria-label="另存为"
+                    title="另存为"
+                    @click="saveMediaMessage(message)"
+                  >
+                    <Download
                       :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -6434,24 +6569,14 @@ function statusLabel(status: string): string {
   position: relative;
   min-width: 0;
   margin: 0;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  background: transparent;
 }
-.agent-media-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 34px;
-  padding: 4px 6px 4px 10px;
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
-}
-.agent-media-reveal {
+.agent-media-download {
   position: relative;
   display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: 6px;
-  min-width: 0;
   min-height: 24px;
   padding: 0;
   border: 0;
@@ -6461,17 +6586,16 @@ function statusLabel(status: string): string {
   font-size: var(--font-size-label);
   text-align: left;
 }
-.agent-media-reveal > svg {
+.agent-media-download > svg {
   flex: none;
   width: 14px;
   height: 14px;
 }
-.agent-media-reveal:hover > span:not(.agent-media-path) {
+.agent-media-download:hover > span:not(.agent-media-path) {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.agent-media-reveal:focus-visible,
-.agent-media-save-as:focus-visible {
+.agent-media-download:focus-visible {
   outline: var(--mqmz-focus-ring);
   outline-offset: 1px;
 }
@@ -6497,55 +6621,85 @@ function statusLabel(status: string): string {
     opacity var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
 }
-.agent-media-reveal:hover .agent-media-path,
-.agent-media-reveal:focus-visible .agent-media-path {
+.agent-media-download:hover .agent-media-path,
+.agent-media-download:focus-visible .agent-media-path {
   opacity: 1;
   transform: translateY(0);
 }
-.agent-media-save-as {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  min-height: 26px;
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-muted);
-  transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+.agent-media-preview-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 100%;
 }
-.agent-media-save-as:hover {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-}
-.agent-media-frame {
-  overflow: hidden;
-  border-top: 1px solid var(--color-line);
-  border-radius: 0 0 var(--radius-card) var(--radius-card);
-}
-.agent-media-frame img,
-.agent-media-frame video {
+.agent-media-preview {
   display: block;
-  width: 100%;
-  max-height: 360px;
+  width: fit-content;
+  max-width: min(100%, 560px);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-muted);
+}
+.agent-media-preview img,
+.agent-media-preview video {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 420px;
   background: var(--color-surface-muted);
   object-fit: contain;
 }
-.agent-media-frame audio {
+.agent-media-preview[data-kind='audio'] {
+  width: min(100%, 560px);
+  padding: var(--space-2);
+}
+.agent-media-preview audio {
   display: block;
   width: 100%;
-  padding: var(--space-2);
+}
+.agent-media-thumbs {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 420px;
+  overflow-y: auto;
+}
+.agent-media-thumb {
+  width: 72px;
+  height: 72px;
+  min-height: 72px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.agent-media-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.agent-media-thumb:hover {
+  border-color: var(--color-brand);
+}
+.agent-media-thumb.active {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+.agent-media-thumb:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .agent-media-placeholder {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: calc(var(--radius-card) - 1px);
+  border-radius: var(--radius-card);
   background-color: var(--color-surface-muted);
   background-image: radial-gradient(
     var(--color-line) 1px,
@@ -7550,7 +7704,7 @@ function statusLabel(status: string): string {
   .agent-settings,
   .agent-model-trigger,
   .agent-media-path,
-  .agent-media-save-as,
+  .agent-media-thumb,
   .agent-generation-segment-thumb,
   .agent-generation-slider-fill,
   .agent-generation-slider-thumb,
