@@ -5728,7 +5728,7 @@ function statusLabel(status: string): string {
   gap: var(--space-2);
   min-height: 34px;
   margin: -10px -10px 0 -12px;
-  padding: 5px 12px 5px var(--space-4);
+  padding: 5px 12px 5px var(--space-2);
   border-bottom: 1px solid var(--color-line);
   border-radius: calc(var(--radius-stage) - 1px)
     calc(var(--radius-stage) - 1px) 0 0;
@@ -6342,15 +6342,19 @@ function statusLabel(status: string): string {
   align-items: center;
   gap: 5px;
   min-height: 24px;
-  padding: 0;
+  padding: 0 var(--space-2);
   border: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-muted);
   font: inherit;
   font-size: var(--font-size-label);
-  transition: color var(--motion-fast) var(--ease-standard);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
 .agent-generation-trigger:hover {
+  background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }
 .agent-generation-trigger:focus-visible {
@@ -6601,7 +6605,7 @@ function statusLabel(status: string): string {
 }
 .agent-media-path {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 0;
   z-index: 40;
   width: max-content;
@@ -6616,7 +6620,7 @@ function statusLabel(status: string): string {
   overflow-wrap: anywhere;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(-2px);
+  transform: translateY(2px);
   transition:
     opacity var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
