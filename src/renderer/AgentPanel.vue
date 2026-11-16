@@ -342,6 +342,7 @@ const composerInput = ref<HTMLElement>()
 const composing = ref(false)
 const mentionOpen = ref(false)
 const mentionIndex = ref(0)
+const mentionPosition = ref({ left: 12, bottom: 160 })
 let mentionRange: Range | undefined
 const archivedOpen = ref(false)
 const draftName = ref('')
@@ -1372,6 +1373,27 @@ function saveMentionRange(): void {
   mentionRange = selection.getRangeAt(0).cloneRange()
 }
 
+function positionMentionMenu(): void {
+  const el = composerInput.value
+  const selection = window.getSelection()
+  let rect: DOMRect | undefined
+  if (selection?.rangeCount && el?.contains(selection.anchorNode)) {
+    rect = selection.getRangeAt(0).getBoundingClientRect()
+  }
+  if (!rect || (!rect.width && !rect.height))
+    rect = el?.getBoundingClientRect()
+  const menuWidth = 360
+  const left = Math.max(
+    12,
+    Math.min(rect?.left ?? 12, window.innerWidth - menuWidth - 12),
+  )
+  const bottom = Math.max(
+    8,
+    window.innerHeight - (rect?.top ?? window.innerHeight - 160) + 6,
+  )
+  mentionPosition.value = { left, bottom }
+}
+
 function closeMention(): void {
   mentionOpen.value = false
   mentionIndex.value = 0
@@ -1473,6 +1495,7 @@ function onComposerKeydown(event: KeyboardEvent): void {
     saveMentionRange()
     mentionOpen.value = true
     mentionIndex.value = 0
+    positionMentionMenu()
     return
   }
   if (event.key === 'Enter' && !event.shiftKey) {
@@ -3950,6 +3973,10 @@ function statusLabel(status: string): string {
               <div
                 v-if="mentionOpen"
                 class="agent-mention-menu"
+                :style="{
+                  left: `${mentionPosition.left}px`,
+                  bottom: `${mentionPosition.bottom}px`,
+                }"
                 role="listbox"
                 aria-label="插入参考素材"
               >
@@ -6043,10 +6070,8 @@ function statusLabel(status: string): string {
   white-space: nowrap;
 }
 .agent-mention-menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 12px;
-  z-index: 40;
+  position: fixed;
+  z-index: 80;
   display: flex;
   flex-direction: column;
   width: min(360px, calc(100% - 24px));
