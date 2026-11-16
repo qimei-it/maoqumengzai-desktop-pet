@@ -429,11 +429,8 @@ function rangeStyle(
   min: number,
   max: number,
 ): Record<string, string> {
-  const percent = Math.max(
-    0,
-    Math.min(100, ((value - min) / (max - min)) * 100),
-  )
-  return { '--range-fill': `${percent}%` }
+  const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)))
+  return { '--range-ratio': String(ratio) }
 }
 function generationPayload(): GenerationParams {
   return JSON.parse(JSON.stringify(generationParams.value)) as GenerationParams
@@ -3719,6 +3716,10 @@ function statusLabel(status: string): string {
                             class="agent-generation-slider-fill"
                             aria-hidden="true"
                           ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <input
                             v-model.number="generationParams.video.duration"
                             class="agent-generation-range"
@@ -3785,6 +3786,10 @@ function statusLabel(status: string): string {
                             class="agent-generation-slider-fill"
                             aria-hidden="true"
                           ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <input
                             v-model.number="generationParams.image.count"
                             class="agent-generation-range"
@@ -3822,6 +3827,10 @@ function statusLabel(status: string): string {
                         >
                           <span
                             class="agent-generation-slider-fill"
+                            aria-hidden="true"
+                          ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
                             aria-hidden="true"
                           ></span>
                           <input
@@ -3999,19 +4008,11 @@ function statusLabel(status: string): string {
                     v-else
                     type="submit"
                     class="agent-send"
-                    :class="{ 'is-voice': !draft.trim() }"
                     :disabled="!canSend"
-                    :aria-label="draft.trim() ? '发送' : '语音输入'"
-                    :title="draft.trim() ? '发送' : '语音输入'"
+                    aria-label="发送"
+                    title="发送"
                   >
                     <ArrowUp
-                      v-if="draft.trim()"
-                      :size="15"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                    <AudioLines
-                      v-else
                       :size="15"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -6247,8 +6248,8 @@ function statusLabel(status: string): string {
 }
 .agent-generation-slider::before {
   position: absolute;
-  right: 0;
-  left: 0;
+  right: 7px;
+  left: 7px;
   height: 4px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-line);
@@ -6256,12 +6257,41 @@ function statusLabel(status: string): string {
 }
 .agent-generation-slider-fill {
   position: absolute;
-  left: 0;
-  width: var(--range-fill, 0%);
+  left: 7px;
+  width: calc((100% - 14px) * var(--range-ratio, 0));
   height: 4px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-brand);
   transition: width var(--motion-normal) var(--ease-spring);
+}
+.agent-generation-slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: calc(7px + (100% - 14px) * var(--range-ratio, 0));
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-brand);
+  border-radius: var(--radius-circle);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition:
+    left var(--motion-normal) var(--ease-spring),
+    transform var(--motion-fast) var(--ease-spring);
+}
+.agent-generation-slider:hover .agent-generation-slider-thumb {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+.agent-generation-slider:has(.agent-generation-range:active)
+  .agent-generation-slider-thumb {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+.agent-generation-slider:has(.agent-generation-range:focus-visible)
+  .agent-generation-slider-thumb {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
 }
 .agent-generation-range {
   position: relative;
@@ -6280,25 +6310,14 @@ function statusLabel(status: string): string {
   width: 14px;
   height: 14px;
   margin-top: -5px;
-  border: 2px solid var(--color-brand);
+  border: 0;
   border-radius: var(--radius-circle);
   appearance: none;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-control);
-  transition: transform var(--motion-fast) var(--ease-spring);
-}
-.agent-generation-range:hover::-webkit-slider-thumb {
-  transform: scale(1.12);
-}
-.agent-generation-range:active::-webkit-slider-thumb {
-  transform: scale(1.2);
+  background: transparent;
+  box-shadow: none;
 }
 .agent-generation-range:focus-visible {
   outline: none;
-}
-.agent-generation-range:focus-visible::-webkit-slider-thumb {
-  outline: var(--mqmz-focus-ring);
-  outline-offset: 2px;
 }
 .agent-media {
   display: flex;
