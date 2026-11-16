@@ -49,7 +49,6 @@ import {
   Square,
   SquareArrowOutUpRight,
   Trash2,
-  Volume2,
   Wrench,
   X,
 } from '@lucide/vue'
@@ -318,7 +317,6 @@ const dialog = ref<DialogState | null>(null)
 const confirm = ref<ConfirmState | null>(null)
 const sessionQuery = ref('')
 const expandedTools = ref<Record<string, boolean>>({})
-const speakingId = ref<string | null>(null)
 const recording = ref(false)
 const transcribing = ref(false)
 let voiceRecorder:
@@ -617,6 +615,37 @@ const canSend = computed(
     modelConfigured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
+const contextTokens = computed(() => agent.value?.contextTokens ?? 0)
+const isTextModel = computed(() => currentModel.value?.kind === 'text')
+function formatCompactNumber(value: number): string {
+  if (value >= 1_000_000) {
+    const scaled = value / 1_000_000
+    return `${Number.isInteger(scaled) ? scaled.toFixed(0) : scaled.toFixed(1)}M`
+  }
+  if (value >= 1_000) {
+    const scaled = value / 1_000
+    return `${Number.isInteger(scaled) ? scaled.toFixed(0) : scaled.toFixed(1)}K`
+  }
+  return String(value)
+}
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value)
+}
+const contextWindowLabel = computed(() =>
+  formatCompactNumber(currentModel.value?.contextWindow ?? 0),
+)
+const contextPercent = computed(() => {
+  const window = currentModel.value?.contextWindow ?? 0
+  if (!window) return 0
+  return Math.min(
+    100,
+    Math.max(0, Math.round((contextTokens.value / window) * 100)),
+  )
+})
+const tokenUsageLabel = computed(() => {
+  if (!isTextModel.value || !currentModel.value?.contextWindow) return ''
+  return `${contextWindowLabel.value} (${contextPercent.value}%) 输入：${formatTokenCount(usage.value.input)} tokens 输出：${formatTokenCount(usage.value.output)} tokens`
+})
 
 const ungrouped = computed(() =>
   sortSessions(
@@ -1162,20 +1191,6 @@ async function onDrop(event: DragEvent): Promise<void> {
   ]
 }
 
-async function toggleSpeak(message: AgentMessageView): Promise<void> {
-  if (speakingId.value === message.id) {
-    speakingId.value = null
-    await window.mqmz?.stopAgentSpeech()
-    return
-  }
-  const text = assistantText(message)
-  if (!text) return
-  speakingId.value = message.id
-  const result = await window.mqmz?.speakAgentText(text)
-  if (speakingId.value === message.id) speakingId.value = null
-  if (!result?.ok)
-    attachmentError.value = result?.error ?? '朗读失败。'
-}
 
 function resampleVoice(
   input: Float32Array,
@@ -2196,7 +2211,6 @@ onMounted(() => {
 onUnmounted(() => {
   releaseVoiceRecorder()
   recording.value = false
-  void window.mqmz?.stopAgentSpeech()
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('mousedown', onDocumentMouseDown)
   clearDropWatchdog()
@@ -3602,31 +3616,6 @@ function statusLabel(status: string): string {
                 >
                   <template v-if="message.role === 'assistant'">
                     <button
-                      v-if="!busy"
-                      type="button"
-                      class="agent-message-action"
-                      :aria-label="
-                        speakingId === message.id ? '停止朗读' : '朗读'
-                      "
-                      :title="
-                        speakingId === message.id ? '停止朗读' : '朗读'
-                      "
-                      @click="toggleSpeak(message)"
-                    >
-                      <Square
-                        v-if="speakingId === message.id"
-                        :size="12"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                      <Volume2
-                        v-else
-                        :size="14"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                    </button>
-                    <button
                       type="button"
                       class="agent-message-action"
                       :aria-label="
@@ -4553,9 +4542,18 @@ function statusLabel(status: string): string {
               </div>
             </form>
             <div class="agent-composer-meta">
-              <span class="agent-usage">
-                {{ usage.input }} / {{ usage.output }} tokens
+              <span
+                v-if="tokenUsageLabel"
+                class="agent-usage"
+              >
+                {{ tokenUsageLabel }}
               </span>
+              <span
+                v-else
+                class="agent-usage agent-usage-placeholder"
+                aria-hidden="true"
+                >&nbsp;</span
+              >
               <div v-if="proBlocked" class="agent-pro-hint">
                 <span>当前模型只支持文字附件</span>
                 <button
@@ -7251,7 +7249,11 @@ function statusLabel(status: string): string {
   font-size: var(--font-size-caption);
 }
 .agent-usage {
+  display: inline-block;
   flex: none;
+  min-height: 18px;
+  line-height: 18px;
+  white-space: nowrap;
 }
 .agent-pro-hint {
   display: flex;

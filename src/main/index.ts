@@ -85,7 +85,6 @@ import {
   deleteAgentFile,
   transcribeAgentAudio,
 } from './agent/files'
-import { speak, stopSpeaking } from './agent/tts'
 import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
@@ -9272,21 +9271,6 @@ function setupIpc(): void {
     await copyFile(source.path, saved.filePath)
     showToast(`已保存 ${basename(saved.filePath)}`)
     return saved.filePath
-  })
-  handle(channels.agentSpeech, 'either', async (event, payload) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!askWindow || window !== askWindow)
-      throw new Error('仅智能体窗口可以朗读。')
-    const text = z.string().trim().min(1).max(4_000).parse(payload)
-    await speak(text).done
-    return null
-  })
-  handle(channels.agentSpeechStop, 'either', (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!askWindow || window !== askWindow)
-      throw new Error('仅智能体窗口可以停止朗读。')
-    stopSpeaking()
-    return null
   })
   handle(channels.agentVoiceTranscribe, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)

@@ -96,10 +96,6 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.agentRevealSource, id),
   exportAgentDiagram: (kind, data) =>
     ipcRenderer.invoke(channels.agentDiagramExport, { kind, data }),
-  speakAgentText: (text) =>
-    ipcRenderer.invoke(channels.agentSpeech, text),
-  stopAgentSpeech: () =>
-    ipcRenderer.invoke(channels.agentSpeechStop),
   transcribeAgentVoice: (data) =>
     ipcRenderer.invoke(channels.agentVoiceTranscribe, data),
   refreshAgentSkills: () =>

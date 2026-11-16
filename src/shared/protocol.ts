@@ -79,8 +79,6 @@ export const channels = {
   agentSourceDirectory: 'mqmz:agent:source-directory',
   agentRevealSource: 'mqmz:agent:reveal-source',
   agentDiagramExport: 'mqmz:agent:diagram-export',
-  agentSpeech: 'mqmz:agent:speech',
-  agentSpeechStop: 'mqmz:agent:speech-stop',
   agentVoiceTranscribe: 'mqmz:agent:voice-transcribe',
   agentSkillsRefresh: 'mqmz:agent:skills-refresh',
   agentSkillInstall: 'mqmz:agent:skill-install',
@@ -902,8 +900,6 @@ export interface PrototypeApi {
     kind: 'svg' | 'png',
     data: string,
   ): Promise<Result<string | null>>
-  speakAgentText(text: string): Promise<Result<void>>
-  stopAgentSpeech(): Promise<Result<void>>
   transcribeAgentVoice(data: Uint8Array): Promise<Result<string>>
   refreshAgentSkills(): Promise<Result<AgentSkillView[]>>
   addAgentSkill(): Promise<Result<AgentSkillDetail[]>>

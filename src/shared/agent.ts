@@ -269,6 +269,8 @@ export type AgentState = {
   messages: AgentMessageView[]
   approval: AgentApproval | null
   usage: AgentUsage
+  /** Tokens used by the latest text request (input + output). */
+  contextTokens: number
   /** Older messages folded into the context summary for this session. */
   contextCompacted?: number
   /** Offers a retry or continue action for the last turn. */
@@ -290,4 +292,5 @@ export const agentEmptyState: AgentState = {
   messages: [],
   approval: null,
   usage: { input: 0, output: 0 },
+  contextTokens: 0,
 }

@@ -69,6 +69,8 @@ export type StoredSession = {
   /** Tools approved for the rest of this session. */
   allowedTools?: string[]
   usage: AgentUsage
+  /** Tokens used by the latest text request (input + output). */
+  contextTokens?: number
   /** Number of older messages folded into the context summary. */
   compacted?: number
   /** Last generation request so retry/regenerate reuses its parameters. */
@@ -243,6 +245,9 @@ function parseSession(value: unknown): StoredSession | null {
       input: typeof usage.input === 'number' ? usage.input : 0,
       output: typeof usage.output === 'number' ? usage.output : 0,
     },
+    ...(typeof value.contextTokens === 'number' && value.contextTokens > 0
+      ? { contextTokens: value.contextTokens }
+      : {}),
     ...(typeof value.compacted === 'number' && value.compacted > 0
       ? { compacted: Math.min(value.compacted, maxHistoryEntries) }
       : {}),

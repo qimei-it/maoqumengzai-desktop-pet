@@ -145,7 +145,7 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
 
   const before = await agent.evaluate(() => window.mqmz!.snapshot())
   const count = before.ok ? before.value.agent.sessions.length : 0
-  await agent.getByRole('button', { name: '新建对话', exact: true }).click()
+  await agent.locator('.agent-new-chat').first().click()
   await expect
     .poll(async () => {
       const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())

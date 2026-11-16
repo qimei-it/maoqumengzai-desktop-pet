@@ -1576,6 +1576,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (result.usage) {
         session.usage.input += result.usage.input
         session.usage.output += result.usage.output
+        session.contextTokens =
+          result.usage.input + result.usage.output
       }
       session.updatedAt = now()
 
@@ -2066,6 +2068,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         messages: session?.ui.slice(-80) ?? [],
         approval: pending?.info ?? null,
         usage: session?.usage ?? { input: 0, output: 0 },
+        contextTokens: session?.contextTokens ?? 0,
         ...(session?.compacted
           ? { contextCompacted: session.compacted }
           : {}),
@@ -2477,6 +2480,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       session.sources = []
       session.title = '新会话'
       session.usage = { input: 0, output: 0 }
+      session.contextTokens = 0
       delete session.compacted
       session.updatedAt = now()
       errorText = undefined

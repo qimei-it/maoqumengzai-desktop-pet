@@ -10,6 +10,8 @@ export type AgentModelInfo = {
   kind: AgentModelKind
   /** Whether the model exposes a reasoning-effort setting. */
   reasoning: boolean
+  /** Text context window in tokens; omitted for generation models. */
+  contextWindow?: number
 }
 
 export const agentModels: readonly AgentModelInfo[] = [
@@ -19,6 +21,7 @@ export const agentModels: readonly AgentModelInfo[] = [
     provider: 'deepseek',
     kind: 'text',
     reasoning: true,
+    contextWindow: 1_048_576,
   },
   {
     id: 'deepseek-v4-pro',
@@ -26,6 +29,7 @@ export const agentModels: readonly AgentModelInfo[] = [
     provider: 'deepseek',
     kind: 'text',
     reasoning: true,
+    contextWindow: 1_048_576,
   },
   {
     id: 'MiniMax-M3.1-Flash',
@@ -33,6 +37,7 @@ export const agentModels: readonly AgentModelInfo[] = [
     provider: 'minimax',
     kind: 'text',
     reasoning: true,
+    contextWindow: 1_000_000,
   },
   {
     id: 'MiniMax-M3',
@@ -40,6 +45,7 @@ export const agentModels: readonly AgentModelInfo[] = [
     provider: 'minimax',
     kind: 'text',
     reasoning: false,
+    contextWindow: 1_000_000,
   },
   {
     id: 'MiniMax-H3',
