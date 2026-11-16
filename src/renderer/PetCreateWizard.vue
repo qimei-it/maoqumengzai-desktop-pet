@@ -114,12 +114,12 @@ function save(): void {
               <span
                 class="pet-wizard-info"
                 tabindex="0"
-                aria-label="最多添加 4 张同一只宠物的照片，建议 2–4 张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。"
+                aria-label="最多添加 4 张同一只宠物的照片，建议 2–4 张，可一次选择多张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。"
               >
                 <Info :size="13" :stroke-width="2" aria-hidden="true" />
                 <span class="pet-wizard-tooltip" role="tooltip">
                   最多添加 4 张同一只宠物的照片，建议 2–4
-                  张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。
+                  张，可一次选择多张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。
                 </span>
               </span>
             </span>
@@ -378,7 +378,7 @@ function save(): void {
 .pet-wizard-photos {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 14px;
 }
 .pet-wizard-photo,
 .pet-wizard-add {
