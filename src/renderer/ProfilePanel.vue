@@ -7,6 +7,7 @@ import {
   ref,
   watch,
 } from 'vue'
+import { ChevronLeft, ChevronRight } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   normalizePetName,
@@ -86,6 +87,12 @@ function goTo(index: number): void {
   if (!length) return
   currentPose.value = ((index % length) + length) % length
   resetAuto()
+}
+function previousPose(): void {
+  goTo(currentPose.value - 1)
+}
+function nextPose(): void {
+  goTo(currentPose.value + 1)
 }
 function onMotionChange(event: MediaQueryListEvent): void {
   reduceMotion.value = event.matches
@@ -287,6 +294,36 @@ function close(): void {
               />
             </Transition>
           </div>
+          <button
+            type="button"
+            class="profile-preview profile-preview-prev"
+            aria-label="上一张"
+            title="上一张"
+            @pointerdown.stop
+            @pointerup.stop
+            @click.stop="previousPose"
+          >
+            <ChevronLeft
+              :size="28"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            class="profile-preview profile-preview-next"
+            aria-label="下一张"
+            title="下一张"
+            @pointerdown.stop
+            @pointerup.stop
+            @click.stop="nextPose"
+          >
+            <ChevronRight
+              :size="28"
+              :stroke-width="2"
+              aria-hidden="true"
+            />
+          </button>
         </div>
         <div class="profile-pose-dots" role="tablist" aria-label="桌宠状态">
           <button
@@ -369,6 +406,7 @@ function close(): void {
   flex-direction: column;
 }
 .profile-portrait {
+  position: relative;
   display: grid;
   place-items: center;
   height: 236px;
@@ -381,6 +419,42 @@ function close(): void {
 }
 .profile-portrait.is-dragging {
   cursor: grabbing;
+}
+.profile-preview {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-brand-ink);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.profile-preview-prev {
+  left: 8px;
+}
+.profile-preview-next {
+  right: 8px;
+}
+.profile-preview:hover,
+.profile-preview:focus-visible {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-pressed);
+}
+.profile-preview:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .profile-pose-stage {
   display: grid;
@@ -532,7 +606,8 @@ function close(): void {
 @media (prefers-reduced-motion: reduce) {
   .profile-pose-enter-active,
   .profile-pose-leave-active,
-  .profile-pose-dot::before {
+  .profile-pose-dot::before,
+  .profile-preview {
     transition: none;
   }
 }
