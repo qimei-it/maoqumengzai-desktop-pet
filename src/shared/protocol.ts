@@ -25,6 +25,7 @@ import type {
 } from './mail'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
+import type { PetPoseId } from './pet-style'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type {
   AgentApprovalMode,
@@ -88,6 +89,7 @@ export const channels = {
   agentSkillRemove: 'mqmz:agent:skill-remove',
   aiVerify: 'mqmz:ai:verify',
   minimaxVerify: 'mqmz:minimax:verify',
+  volcanoVerify: 'mqmz:volcano:verify',
   openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
   toastFit: 'mqmz:toast:fit',
@@ -439,6 +441,35 @@ export type AiProviderState = {
   models?: string[]
   modelsError?: string
 }
+export type PetAssets = {
+  id: string
+  name: string
+  styleName: string
+  poses: Record<PetPoseId, string>
+}
+export type PetCreateStep = 'edit' | 'generating' | 'preview'
+export type PetCreatePhoto = {
+  id: string
+  name: string
+  url: string
+}
+export type PetCreatePose = {
+  id: PetPoseId
+  label: string
+  status: 'pending' | 'generating' | 'done' | 'error'
+  url?: string
+  error?: string
+}
+export type PetCreateState = {
+  open: boolean
+  step: PetCreateStep
+  name: string
+  photos: PetCreatePhoto[]
+  poses: PetCreatePose[]
+  busy: boolean
+  volcanoReady: boolean
+  error?: string
+}
 export type AiState = {
   configured: boolean
   busy: boolean
@@ -448,6 +479,7 @@ export type AiState = {
   models?: string[]
   modelsError?: string
   minimax: AiProviderState
+  volcano: AiProviderState
 }
 export type LocalEngineState = {
   status: 'missing' | 'ready' | 'error'
@@ -515,6 +547,8 @@ export type Snapshot = {
   profileOpen: boolean
   clipboardOpen: boolean
   clipboard: ClipboardState
+  petAssets?: PetAssets
+  petCreate: PetCreateState
   shelfFolders: string[]
   shelfInvalidCount: number
   engines: {
@@ -561,6 +595,10 @@ export type Command =
   | { type: 'minimax-config'; apiKey: string; test?: boolean }
   | { type: 'minimax-test'; apiKey?: string }
   | { type: 'minimax-delete' }
+  | { type: 'volcano-config'; apiKey: string; test?: boolean }
+  | { type: 'volcano-test'; apiKey?: string }
+  | { type: 'volcano-models'; apiKey?: string }
+  | { type: 'volcano-delete' }
   | { type: 'ai-quota-refresh' }
   | {
       type: 'ai-quota-config'
@@ -630,6 +668,15 @@ export type Command =
   | { type: 'agent-keys' }
   | { type: 'profile-create' }
   | { type: 'profile-bind' }
+  | { type: 'pet-create-open' }
+  | { type: 'pet-create-close' }
+  | { type: 'pet-create-pick-photos' }
+  | { type: 'pet-create-remove-photo'; id: string }
+  | { type: 'pet-create-start'; name: string }
+  | { type: 'pet-create-retry'; pose: PetPoseId }
+  | { type: 'pet-create-cancel' }
+  | { type: 'pet-create-save' }
+  | { type: 'pet-default' }
   | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
   | { type: 'convert-start'; action: ConvertAction; password?: string }
@@ -914,6 +961,7 @@ export interface PrototypeApi {
   removeAgentSkill(id: string): Promise<Result<boolean>>
   verifyAgentKey(apiKey: string): Promise<Result<void>>
   verifyMiniMaxKey(apiKey: string): Promise<Result<void>>
+  verifyVolcanoKey(apiKey: string): Promise<Result<void>>
   openExternal(url: string): Promise<Result<void>>
   pickDirectory(title?: string): Promise<Result<string | null>>
   toastFit(width: number, height: number): void

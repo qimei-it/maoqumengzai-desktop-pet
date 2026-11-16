@@ -766,10 +766,9 @@ test('pet profile section exposes the create entry', async () => {
     settings.getByRole('button', { name: '绑定小程序', exact: true }),
   ).toHaveCount(0)
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
-  await expect
-    .poll(async () => {
-      const snapshot = await settings.evaluate(() => window.mqmz!.snapshot())
-      return snapshot.ok ? snapshot.value.toast : ''
-    })
-    .toBe('新建桌宠即将开放')
+  const wizard = settings.getByRole('dialog', { name: '新建桌宠' })
+  await expect(wizard).toBeVisible()
+  await expect(wizard.getByText('麻薯柔和水彩')).toBeVisible()
+  await wizard.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(wizard).toHaveCount(0)
 })

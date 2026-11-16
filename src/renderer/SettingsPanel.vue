@@ -17,6 +17,8 @@ import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import { minimaxModelCatalog } from '../shared/minimax'
+import { resolveVolcanoImageModel } from '../shared/volcano'
+import PetCreateWizard from './PetCreateWizard.vue'
 import {
   defaultSettings,
   musicBarStyleLabels,
@@ -82,6 +84,12 @@ const verifyingMiniMaxKey = ref(false)
 const editingMiniMaxKey = ref(false)
 const minimaxModelsOpen = ref(false)
 const minimaxModelPreview = ref('')
+const volcanoKey = ref('')
+const volcanoKeyError = ref('')
+const verifyingVolcanoKey = ref(false)
+const editingVolcanoKey = ref(false)
+const volcanoModelsOpen = ref(false)
+const volcanoModelPreview = ref('')
 const wheelEditor = ref<'hover' | 'file' | null>(null)
 
 const settings = computed<SettingsState>(
@@ -102,8 +110,15 @@ const clipboardConfig = computed<ClipboardConfig>(
   () => props.state?.clipboard ?? clipboardDefaults,
 )
 const themes = themeIds.map((id) => ({ id, label: themeLabels[id] }))
+const activePetCover = computed(
+  () => props.state?.petAssets?.poses.base ?? catBase,
+)
 const petProfiles = computed(() => [
-  { id: 'ragdoll', name: settings.value.petName, cover: catBase },
+  {
+    id: props.state?.petAssets?.id ?? 'ragdoll',
+    name: settings.value.petName,
+    cover: activePetCover.value,
+  },
 ])
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const aiQuota = computed(() => props.state?.aiQuota)
@@ -127,6 +142,27 @@ const minimaxModelsVisible = computed(() => {
 })
 const minimaxLatencyClass = computed(() => {
   const latency = minimaxTest.value.latencyMs ?? 0
+  if (latency <= 400) return 'is-fast'
+  if (latency <= 1200) return 'is-medium'
+  return 'is-slow'
+})
+const volcano = computed(() => props.state?.ai.volcano)
+const volcanoConfigured = computed(() => volcano.value?.configured === true)
+const volcanoTest = computed<AiTestState>(
+  () => volcano.value?.test ?? { status: 'idle' },
+)
+const volcanoModels = computed(() => volcano.value?.models ?? [])
+const volcanoModelsError = computed(() => volcano.value?.modelsError)
+const volcanoVerifiedKey = ref('')
+const volcanoModelsVisible = computed(() => {
+  if (editingVolcanoKey.value) {
+    const key = volcanoKey.value.trim()
+    return Boolean(key) && key === volcanoVerifiedKey.value
+  }
+  return volcanoConfigured.value
+})
+const volcanoLatencyClass = computed(() => {
+  const latency = volcanoTest.value.latencyMs ?? 0
   if (latency <= 400) return 'is-fast'
   if (latency <= 1200) return 'is-medium'
   return 'is-slow'
@@ -158,11 +194,13 @@ function cancelMiniMaxKey(): void {
 function deleteMiniMaxKey(): void {
   emit('command', { type: 'minimax-delete' })
 }
-function openProviderKeys(provider: 'deepseek' | 'minimax'): void {
+function openProviderKeys(provider: 'deepseek' | 'minimax' | 'volcano'): void {
   void window.mqmz?.openExternal(
     provider === 'deepseek'
       ? 'https://platform.deepseek.com/api_keys'
-      : 'https://platform.minimax.cn/console/keys',
+      : provider === 'minimax'
+        ? 'https://platform.minimax.cn/console/keys'
+        : 'https://console.volcengine.com/ark/region:cn-beijing/apiKey',
   )
 }
 function testSavedMiniMaxKey(): void {
@@ -202,6 +240,52 @@ function toggleMiniMaxModels(): void {
   modelsOpen.value = false
   minimaxModelsOpen.value = true
 }
+function addVolcanoKey(): void {
+  volcanoKey.value = ''
+  editingVolcanoKey.value = true
+}
+function cancelVolcanoKey(): void {
+  editingVolcanoKey.value = false
+  volcanoKey.value = ''
+}
+function deleteVolcanoKey(): void {
+  emit('command', { type: 'volcano-delete' })
+}
+function testSavedVolcanoKey(): void {
+  if (!volcanoConfigured.value || volcanoTest.value.status === 'testing') return
+  emit('command', { type: 'volcano-test' })
+}
+function testDraftVolcanoKey(): void {
+  const value = volcanoKey.value.trim()
+  if (!value || volcanoTest.value.status === 'testing') return
+  emit('command', { type: 'volcano-test', apiKey: value })
+  emit('command', { type: 'volcano-models', apiKey: value })
+}
+async function saveVolcanoKey(): Promise<void> {
+  const value = volcanoKey.value.trim()
+  if (!value || verifyingVolcanoKey.value) return
+  volcanoKeyError.value = ''
+  verifyingVolcanoKey.value = true
+  const result = await window.mqmz?.verifyVolcanoKey(value)
+  verifyingVolcanoKey.value = false
+  if (!result?.ok) {
+    volcanoKeyError.value = result?.error ?? 'API Key 验证失败。'
+    return
+  }
+  emit('command', { type: 'volcano-config', apiKey: value, test: false })
+  volcanoKey.value = ''
+  editingVolcanoKey.value = false
+}
+function toggleVolcanoModels(): void {
+  if (volcanoModelsOpen.value) {
+    volcanoModelsOpen.value = false
+    return
+  }
+  modelsOpen.value = false
+  minimaxModelsOpen.value = false
+  volcanoModelsOpen.value = true
+  emit('command', { type: 'volcano-models' })
+}
 watch(editingMiniMaxKey, (value) => {
   if (!value) minimaxModelsOpen.value = false
 })
@@ -231,6 +315,37 @@ watch(
       )
     )
       minimaxModelPreview.value = minimaxModelCatalog[0]
+  },
+  { immediate: true },
+)
+watch(editingVolcanoKey, (value) => {
+  if (!value) volcanoModelsOpen.value = false
+})
+watch(volcanoConfigured, (value) => {
+  if (!value) volcanoModelsOpen.value = false
+})
+watch(
+  () => volcanoTest.value.status,
+  (status) => {
+    if (status === 'ok' && editingVolcanoKey.value)
+      volcanoVerifiedKey.value = volcanoKey.value.trim()
+    if (status === 'error') volcanoVerifiedKey.value = ''
+  },
+)
+watch(volcanoKey, (value) => {
+  volcanoKeyError.value = ''
+  if (
+    editingVolcanoKey.value &&
+    value.trim() !== volcanoVerifiedKey.value
+  )
+    volcanoModelsOpen.value = false
+})
+watch(
+  volcanoModels,
+  (models) => {
+    if (!models.includes(volcanoModelPreview.value))
+      volcanoModelPreview.value =
+        resolveVolcanoImageModel(models) ?? models[0] ?? ''
   },
   { immediate: true },
 )
@@ -503,6 +618,7 @@ function close(): void {
   emit('command', { type: 'settings-close' })
 }
 function onEscape(): void {
+  if (props.state?.petCreate.open) return
   if (wheelEditor.value) {
     wheelEditor.value = null
     return
@@ -556,7 +672,7 @@ function onEscape(): void {
             :min="minWheelActions"
             :max="maxWheelActions"
             single-line
-            :pet-image="catBase"
+            :pet-image="activePetCover"
             @update="updateHoverWheel"
             @close="wheelEditor = null"
           />
@@ -571,7 +687,7 @@ function onEscape(): void {
             :min="minWheelActions"
             :max="maxWheelActions"
             single-line
-            :pet-image="catBase"
+            :pet-image="activePetCover"
             @update="updateFileWheel"
             @close="wheelEditor = null"
           />
@@ -621,7 +737,7 @@ function onEscape(): void {
                   :labels="hoverLabels"
                   :label-size="11"
                   single-line
-                  :pet-image="catBase"
+                  :pet-image="activePetCover"
                   aria-label="悬停轮盘预览"
                 />
               </section>
@@ -651,7 +767,7 @@ function onEscape(): void {
                   :labels="sliceLabelColumns"
                   :label-size="11"
                   single-line
-                  :pet-image="catBase"
+                  :pet-image="activePetCover"
                   aria-label="文件轮盘预览"
                 />
               </section>
@@ -727,6 +843,14 @@ function onEscape(): void {
 
           <template v-else-if="section === 'profile'">
             <div class="pet-head">
+              <button
+                v-if="state?.petAssets"
+                type="button"
+                class="settings-button"
+                @click="emit('command', { type: 'pet-default' })"
+              >
+                恢复默认
+              </button>
               <button
                 type="button"
                 class="settings-button pet-create-button"
@@ -1518,6 +1642,204 @@ function onEscape(): void {
                 </option>
               </SelectField>
             </div>
+            <div
+              class="settings-row"
+              :class="{
+                'settings-row-connected':
+                  editingVolcanoKey || volcanoModelsOpen,
+                'settings-row-editing': editingVolcanoKey,
+              }"
+            >
+              <span class="settings-label settings-provider-label"
+                >火山方舟</span
+              >
+              <template v-if="editingVolcanoKey">
+                <div class="settings-key-fields">
+                  <input
+                    v-model="volcanoKey"
+                    class="settings-inline-input settings-key-input"
+                    type="password"
+                    autocomplete="off"
+                    aria-label="火山方舟 API Key"
+                    :placeholder="
+                      volcanoConfigured ? '替换 API Key' : 'API Key'
+                    "
+                    @input="volcanoKeyError = ''"
+                    @keydown.enter="saveVolcanoKey"
+                  />
+                  <SelectField
+                    :model-value="
+                      volcanoModelsVisible
+                        ? volcanoModelPreview || volcanoModels[0] || ''
+                        : ''
+                    "
+                    aria-label="火山方舟可用模型"
+                    title="测试后显示当前 Key 可用模型"
+                    wide
+                    @update:model-value="
+                      value => (volcanoModelPreview = value)
+                    "
+                  >
+                    <option value="" disabled>模型列表</option>
+                    <template v-if="volcanoModelsVisible">
+                      <option
+                        v-for="model in volcanoModels"
+                        :key="model"
+                        :value="model"
+                      >
+                        {{ model }}
+                      </option>
+                    </template>
+                  </SelectField>
+                </div>
+                <button
+                  type="button"
+                  class="settings-button"
+                  :disabled="
+                    !volcanoKey.trim() || volcanoTest.status === 'testing'
+                  "
+                  @click="testDraftVolcanoKey"
+                >
+                  测试
+                </button>
+              </template>
+              <span v-else class="settings-inline">
+                <span
+                  v-if="volcanoTest.status === 'testing'"
+                  class="ai-latency"
+                  >测试中…</span
+                >
+                <span
+                  v-else-if="volcanoTest.status === 'ok'"
+                  class="ai-latency"
+                  :class="volcanoLatencyClass"
+                  >{{ volcanoTest.latencyMs }} ms</span
+                >
+                <span
+                  v-else-if="volcanoTest.status === 'error'"
+                  class="ai-latency is-slow"
+                  :title="volcanoTest.error"
+                  >测试失败</span
+                >
+                <button
+                  v-if="volcanoConfigured"
+                  type="button"
+                  class="settings-button"
+                  :disabled="volcanoTest.status === 'testing'"
+                  @click="testSavedVolcanoKey"
+                >
+                  延迟测试
+                </button>
+                <button
+                  v-if="volcanoConfigured"
+                  type="button"
+                  class="settings-button"
+                  @click="toggleVolcanoModels"
+                >
+                  模型列表
+                </button>
+                <button
+                  v-if="volcanoConfigured"
+                  type="button"
+                  class="settings-button danger"
+                  @click="deleteVolcanoKey"
+                >
+                  删除
+                </button>
+                <button
+                  v-if="!volcanoConfigured"
+                  type="button"
+                  class="settings-button primary"
+                  @click="addVolcanoKey"
+                >
+                  添加
+                </button>
+              </span>
+            </div>
+            <div
+              v-if="editingVolcanoKey"
+              class="settings-field settings-field-end"
+            >
+              <button
+                type="button"
+                class="settings-key-link"
+                @click="openProviderKeys('volcano')"
+              >
+                <span>获取 API Key</span>
+                <SquareArrowOutUpRight
+                  :size="13"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
+              <span v-if="volcanoKeyError" class="settings-key-error">{{
+                volcanoKeyError
+              }}</span>
+              <span
+                v-if="volcanoTest.status === 'testing'"
+                class="ai-latency"
+                >测试中…</span
+              >
+              <span
+                v-else-if="volcanoTest.status === 'ok'"
+                class="ai-latency"
+                :class="volcanoLatencyClass"
+                >{{ volcanoTest.latencyMs }} ms</span
+              >
+              <span
+                v-else-if="volcanoTest.status === 'error'"
+                class="ai-latency is-slow"
+                :title="volcanoTest.error"
+                >测试失败</span
+              >
+              <button
+                type="button"
+                class="settings-button"
+                @click="cancelVolcanoKey"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="settings-button primary"
+                :disabled="!volcanoKey.trim() || verifyingVolcanoKey"
+                @click="saveVolcanoKey"
+              >
+                添加
+              </button>
+            </div>
+            <div
+              v-if="
+                !editingVolcanoKey &&
+                volcanoModelsOpen &&
+                volcanoModelsVisible
+              "
+              class="settings-model-list"
+            >
+              <SelectField
+                v-if="volcanoModels.length"
+                :model-value="
+                  volcanoModelPreview || volcanoModels[0]
+                "
+                aria-label="火山方舟可用模型"
+                title="仅查看，不会切换当前模型"
+                min-width="240px"
+                @update:model-value="
+                  value => (volcanoModelPreview = value)
+                "
+              >
+                <option
+                  v-for="model in volcanoModels"
+                  :key="model"
+                  :value="model"
+                >
+                  {{ model }}
+                </option>
+              </SelectField>
+              <p v-else class="settings-error">
+                {{ volcanoModelsError || '暂无可用模型。' }}
+              </p>
+            </div>
             <div class="settings-row">
               <span class="settings-label">附件保存目录</span>
               <span class="settings-inline settings-path-inline">
@@ -1643,6 +1965,7 @@ function onEscape(): void {
         </div>
       </div>
     </section>
+    <PetCreateWizard :state="state" @command="emit('command', $event)" />
   </main>
 </template>
 

@@ -202,7 +202,7 @@ const donutLabels = computed<Record<string, readonly string[]>>(() =>
   donutMode.value === "hover" ? hoverLabels : sliceLabelColumns,
 );
 type PetPose = "base" | "blink" | "lifted" | "music" | "ponder" | "focus";
-const poseSources: Record<PetPose, string> = {
+const defaultPoseSources: Record<PetPose, string> = {
   base: catBase,
   blink: catBlink,
   lifted: catLifted,
@@ -210,6 +210,10 @@ const poseSources: Record<PetPose, string> = {
   ponder: catPonder,
   focus: catFocus,
 };
+const poseSources = computed<Record<PetPose, string>>(() => ({
+  ...defaultPoseSources,
+  ...(state.value?.petAssets?.poses ?? {}),
+}));
 const petName = computed(() => state.value?.settings.petName || "麻薯");
 const petPose = ref<PetPose>("base");
 const focusActive = computed(() => {
@@ -224,7 +228,7 @@ const displayPose = computed<PetPose>(() => {
   if (state.value?.music.playing) return "music";
   return petPose.value;
 });
-const poseSrc = computed(() => poseSources[displayPose.value]);
+const poseSrc = computed(() => poseSources.value[displayPose.value]);
 const toast = ref("");
 const toastTextEl = ref<HTMLElement | null>(null);
 const wheelHint = ref("");
@@ -1526,7 +1530,7 @@ onUnmounted(() => {
             width: `${petSprite.width * markerScale}px`,
             height: `${petSprite.height * markerScale}px`,
           }"
-          alt="可拖动的布偶猫桌宠"
+          alt="可拖动的桌宠"
           draggable="false"
           @load="updateMask"
           @pointerdown="pointerDown"

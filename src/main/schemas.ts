@@ -16,6 +16,7 @@ import {
   petScales,
   themeIds,
 } from '../shared/settings'
+import { petPoseIds } from '../shared/pet-style'
 import {
   hoverActions,
   maxWheelActions,
@@ -192,6 +193,30 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('minimax-delete'),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('volcano-config'),
+      apiKey: z.string().min(1).max(400),
+      test: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('volcano-test'),
+      apiKey: z.string().min(1).max(400).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('volcano-models'),
+      apiKey: z.string().min(1).max(400).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('volcano-delete'),
     })
     .strict(),
   z
@@ -1066,6 +1091,30 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('agent-keys') }).strict(),
   z.object({ type: z.literal('profile-create') }).strict(),
   z.object({ type: z.literal('profile-bind') }).strict(),
+  z.object({ type: z.literal('pet-create-open') }).strict(),
+  z.object({ type: z.literal('pet-create-close') }).strict(),
+  z.object({ type: z.literal('pet-create-pick-photos') }).strict(),
+  z
+    .object({
+      type: z.literal('pet-create-remove-photo'),
+      id: z.string().min(1).max(80),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('pet-create-start'),
+      name: z.string().trim().min(1).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('pet-create-retry'),
+      pose: z.enum(petPoseIds),
+    })
+    .strict(),
+  z.object({ type: z.literal('pet-create-cancel') }).strict(),
+  z.object({ type: z.literal('pet-create-save') }).strict(),
+  z.object({ type: z.literal('pet-default') }).strict(),
 ])
 export const pathsSchema = z.array(z.string().min(1).max(4096)).min(1).max(32)
 export const fileIdSchema = fileId

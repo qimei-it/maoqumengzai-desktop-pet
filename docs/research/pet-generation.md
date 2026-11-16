@@ -1,0 +1,113 @@
+# 自定义桌宠形象生成
+
+日期：2026-11-16。
+状态：macOS 已用真实火山方舟 Key 完成透明 PNG 与 6 状态整套生成验证；Windows 未验证。
+
+## Provider
+
+- 设置入口：设置 → 智能体 → 火山方舟。
+- 密钥：沿用 `mqmz.provider-keys.json`，与 MiniMax 一样使用系统加密存储，不下发到渲染进程。
+- Key 校验：`GET https://ark.cn-beijing.volces.com/api/v3/models`，无 Key 返回 401，校验不消耗生图额度。
+- 桌宠生图：`POST https://ark.cn-beijing.volces.com/api/v3/images/generations`。
+- 固定模型：`doubao-seedream-5-5-261028`。
+- 火山方舟只用于桌宠形象，不进入 Agent 模型菜单。
+
+首次使用前需要在火山方舟控制台开通 Doubao-Seedream-5.5。未开通时接口返回 `has not activated the model`，客户端会提示到控制台开通。
+
+## 透明输出
+
+固定请求参数：
+
+```json
+{
+  "size": "1K",
+  "output_format": "png",
+  "background": "transparent",
+  "response_format": "b64_json",
+  "watermark": false
+}
+```
+
+Seedream 5.5 支持文生 RGBA 和图生 RGBA，输入参考图不需要自带透明通道。Seedream 5.0 Flash 的文生图不支持 RGBA，图生图要求输入图本身带透明通道，因此不能直接用普通宠物照片生成透明基础形象。
+
+真实验证结果：
+
+- 返回图片：1024×1024 PNG，真实 Alpha，可见区域约 7%–8% 留白。
+- `data[].background` 返回 `transparent`。
+- 透明边缘在深色、浅色背景上正常，无明显白边。
+- 归一化后：448×448，底部锚点固定在 430/448，左右居中。
+- 单张生成到预览约 8–16 秒；6 状态整套约 60–70 秒。
+
+## 风格包
+
+内置唯一风格：`src/shared/pet-styles/mqmz-watercolor.json`。
+
+- id：`mqmz-watercolor`
+- 名称：麻薯柔和水彩
+- 状态：`base / blink / focus / lifted / music / ponder`
+- `base` 使用用户照片作为参考；其余状态以基础形象为唯一参考。
+- 提示词已改成通用宠物，不再写死布偶猫的蓝眼睛、奶白色和浅棕重点色。
+- `blink` 按“只闭眼，其余不变”派生。
+- `focus` 合并了前腿与前爪同色修正。
+- 不生成 `look-left`、`curious`；`music-notes` 仍是独立 APNG 浮层。
+
+## 本地处理
+
+代码：
+
+- `src/main/pet-generator.ts`：Ark 参考图编码、透明校验、生成请求。
+- `src/main/pet-image.ts`：真实 Alpha 检查、透明边界、448 归一化、底部锚点。
+- `src/main/pet-store.ts`：`userData/pets/<id>/` 存取与素材注册。
+- `src/renderer/PetCreateWizard.vue`：新建桌宠向导。
+
+生成流程：
+
+1. 选择 1–4 张宠物照片，填写名字。
+2. 整套生成前确认一次费用。
+3. 生成 `base`，校验 1024×1024 与真实 Alpha。
+4. 用 `base` 生成其余 5 个状态。
+5. 每张保存原始 1024 PNG 到 `source/`，并输出 448 PNG。
+6. 全部成功后预览；保存后才切换当前桌宠。
+
+单张重新生成单独确认。基础形象重生成会重置其余状态，避免新旧基础形象混用。
+
+## 存储与隐私
+
+```text
+userData/pets/<id>/
+  pet.json
+  base.png
+  blink.png
+  focus.png
+  lifted.png
+  music.png
+  ponder.png
+  source/
+    base.png
+    ...
+```
+
+- `pet.json` 记录名字、风格、模型、创建时间和六个状态文件名。
+- 参考照片只保留在临时目录，保存或放弃时删除；应用异常退出后，下次启动清理 `.draft-*` 目录。
+- 照片会重新编码为 JPEG，去除原始元数据。
+- 当前素材通过本地 `mqmz-media://source/...` 加载，不经过网络。
+- 旧桌宠目录保留，便于后续做档案切换。
+
+## 已验证
+
+- 火山方舟 Key 添加、延迟测试、模型列表、删除。
+- Seedream 5.5 文生透明 PNG。
+- 用一张不透明参考照片生成基础形象，再生成其余 5 个状态。
+- 六个状态角色一致、透明背景、448×448、底部锚点。
+- 保存后桌宠窗口切换为自定义形象，重启后仍保持。
+- 设置页宠物档案与桌宠窗口读取同一套素材。
+- 新建桌宠向导、关闭与本地保存。
+- 「恢复默认」入口已实现，可切回内置麻薯形象。
+
+## 未验证
+
+- Windows x64 的窗口显示、透明边缘和拖拽锚点。
+- 不同宠物种类（狗、兔等）的一致性。
+- 多套形象切换界面与旧素材清理。
+- 云端积分、资源包、任务编排和账号归属。
+- Agent 技能自主创建桌宠。

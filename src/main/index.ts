@@ -42,6 +42,7 @@ import { basename, delimiter, dirname, extname, isAbsolute, join, relative, reso
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import sharp from 'sharp'
 import { channels } from '../shared/protocol'
 import { isGenerationModel } from '../shared/agent-models'
 import {
@@ -60,7 +61,8 @@ import {
   createAgentRuntime,
   type AgentSkillPrompt,
 } from './agent/runtime'
-import { resolveMediaPath } from './agent/media-registry'
+import { mediaUrl } from '../shared/media'
+import { registerMediaPath, resolveMediaPath } from './agent/media-registry'
 import { streamChat } from './agent/provider'
 import {
   createSkillStore,
@@ -104,6 +106,30 @@ import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
 import { clearProviderKey, loadProviderKey, saveProviderKey } from './provider-keys'
 import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
 import { testMiniMaxConnection } from '../shared/minimax'
+import {
+  listVolcanoModels,
+  resolveVolcanoImageModel,
+  testVolcanoConnection,
+} from '../shared/volcano'
+import {
+  generatePetPose,
+} from './pet-generator'
+import { normalizePetImage } from './pet-image'
+import {
+  getPetStyle,
+  getPetStyleState,
+  petPoseIds,
+  type PetPoseId,
+} from '../shared/pet-style'
+import {
+  cleanupPetDrafts,
+  loadPetRecord,
+  petRecordFor,
+  petsRoot,
+  registerPetAssets,
+  type PetAssets as SavedPetAssets,
+  type PetRecord,
+} from './pet-store'
 import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
 import {
   emptyAiQuotaProvider,
@@ -195,6 +221,7 @@ import type {
   LocalFile,
   LyricsState,
   MusicState,
+  PetCreateState,
   ReceivedBatch,
   RenameFile,
   RenameOutcome,
@@ -546,6 +573,35 @@ let aiModelsError: string | undefined
 let minimaxKey: string | undefined
 let minimaxTest: AiTestState = { status: 'idle' }
 let minimaxTestToken = 0
+let volcanoKey: string | undefined
+let volcanoTest: AiTestState = { status: 'idle' }
+let volcanoTestToken = 0
+let volcanoModels: string[] | undefined
+let volcanoModelsError: string | undefined
+let activePet: PetRecord | undefined
+let activePetAssets: SavedPetAssets | undefined
+type PetDraftPhoto = { id: string; name: string; path: string; url: string }
+type PetDraftPose = {
+  id: PetPoseId
+  label: string
+  status: 'pending' | 'generating' | 'done' | 'error'
+  url?: string
+  error?: string
+}
+type PetDraft = {
+  id: string
+  directory: string
+  name: string
+  model?: string
+  step: 'edit' | 'generating' | 'preview'
+  photos: PetDraftPhoto[]
+  poses: PetDraftPose[]
+  running: boolean
+  cancelled: boolean
+  runToken: number
+  error?: string
+}
+let petDraft: PetDraft | undefined
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
@@ -1265,6 +1321,8 @@ function snapshot(): Snapshot {
     profileOpen: windowVisible(profileWindow),
     clipboardOpen: windowVisible(clipboardWindow),
     clipboard: clipboardState(),
+    ...(activePetAssets ? { petAssets: activePetAssets } : {}),
+    petCreate: petCreateState(),
     shelfFolders: windowVisible(settingsWindow) ? screenshotFolders : [],
     shelfInvalidCount,
     engines: {
@@ -1448,6 +1506,38 @@ function aiState(): AiState {
       configured: Boolean(minimaxKey),
       test: { ...minimaxTest },
     },
+    volcano: {
+      configured: Boolean(volcanoKey),
+      test: { ...volcanoTest },
+      ...(volcanoModels ? { models: volcanoModels } : {}),
+      ...(volcanoModelsError ? { modelsError: volcanoModelsError } : {}),
+    },
+  }
+}
+function petCreateState(): PetCreateState {
+  const style = getPetStyle()
+  const poses = (petDraft?.poses ??
+    style.states.map((state) => ({
+      id: state.id,
+      label: state.label,
+      status: 'pending' as const,
+    }))) as PetDraftPose[]
+  return {
+    open: Boolean(petDraft),
+    step: petDraft?.step ?? 'edit',
+    name: petDraft?.name ?? '',
+    photos:
+      petDraft?.photos.map(({ id, name, url }) => ({ id, name, url })) ?? [],
+    poses: poses.map((pose) => ({
+      id: pose.id,
+      label: pose.label,
+      status: pose.status,
+      ...(pose.url ? { url: pose.url } : {}),
+      ...(pose.error ? { error: pose.error } : {}),
+    })),
+    busy: Boolean(petDraft?.running),
+    volcanoReady: Boolean(volcanoKey),
+    ...(petDraft?.error ? { error: petDraft.error } : {}),
   }
 }
 function pushAiMessage(
@@ -1763,6 +1853,424 @@ async function testMiniMax(draftKey?: string): Promise<void> {
     }
   }
   broadcast()
+}
+async function configureVolcano(
+  apiKey: string,
+  test = false,
+): Promise<void> {
+  const key = apiKey.trim()
+  if (key.length < 10) throw new Error('API Key 太短，请检查后重试。')
+  if (!/^[\x21-\x7e]+$/.test(key)) throw new Error('API Key 含有无效字符。')
+  await saveProviderKey('volcano', key)
+  volcanoKey = key
+  volcanoTest = test ? { status: 'testing' } : { status: 'idle' }
+  volcanoTestToken += 1
+  volcanoModels = undefined
+  volcanoModelsError = undefined
+  broadcast()
+  if (test) void testVolcano()
+}
+async function deleteVolcanoKey(): Promise<void> {
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '删除火山方舟 API Key',
+    message: '确定删除已保存的火山方舟 API Key？',
+    detail: '删除后需要重新添加并测试 API Key。',
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  await clearProviderKey('volcano')
+  volcanoKey = undefined
+  volcanoTest = { status: 'idle' }
+  volcanoTestToken += 1
+  volcanoModels = undefined
+  volcanoModelsError = undefined
+  broadcast()
+}
+async function testVolcano(draftKey?: string): Promise<void> {
+  const key = draftKey?.trim() || volcanoKey
+  if (!key) {
+    volcanoTest = { status: 'error', error: '请先添加火山方舟 API Key。' }
+    broadcast()
+    return
+  }
+  const token = ++volcanoTestToken
+  volcanoTest = { status: 'testing' }
+  broadcast()
+  try {
+    const latencyMs = await testVolcanoConnection(key)
+    if (token !== volcanoTestToken) return
+    volcanoTest = { status: 'ok', latencyMs }
+  } catch (error) {
+    if (token !== volcanoTestToken) return
+    volcanoTest = {
+      status: 'error',
+      error: error instanceof Error ? error.message : '连接测试失败。',
+    }
+  }
+  broadcast()
+}
+async function loadVolcanoModels(draftKey?: string): Promise<void> {
+  const key = draftKey?.trim() || volcanoKey
+  if (!key) {
+    volcanoModels = undefined
+    volcanoModelsError = '请先添加火山方舟 API Key。'
+    broadcast()
+    return
+  }
+  volcanoModelsError = undefined
+  try {
+    volcanoModels = await listVolcanoModels(key)
+  } catch (error) {
+    volcanoModels = undefined
+    volcanoModelsError =
+      error instanceof Error ? error.message : '拉取模型失败。'
+  }
+  broadcast()
+}
+async function openPetCreate(): Promise<void> {
+  if (petDraft) {
+    broadcast()
+    return
+  }
+  const id = randomUUID()
+  const directory = join(petsRoot(dataRoot), `.draft-${id}`)
+  await mkdir(join(directory, 'photos'), { recursive: true })
+  await mkdir(join(directory, 'source'), { recursive: true })
+  const style = getPetStyle()
+  petDraft = {
+    id,
+    directory,
+    name: '',
+    step: 'edit',
+    photos: [],
+    poses: style.states.map((state) => ({
+      id: state.id,
+      label: state.label,
+      status: 'pending',
+    })),
+    running: false,
+    cancelled: false,
+    runToken: 0,
+  }
+  broadcast()
+}
+
+async function pickPetPhotos(): Promise<void> {
+  const draft = petDraft
+  if (!draft) throw new Error('请先打开新建桌宠。')
+  if (draft.running) throw new Error('正在生成，请稍候。')
+  const remaining = 4 - draft.photos.length
+  if (remaining <= 0) throw new Error('最多添加 4 张照片。')
+  const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+    title: '选择宠物照片',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      {
+        name: '图片',
+        extensions: ['png', 'jpg', 'jpeg', 'webp', 'heic', 'heif'],
+      },
+    ],
+  })
+  if (result.canceled) return
+  const failures: string[] = []
+  for (const path of result.filePaths.slice(0, remaining)) {
+    try {
+      const info = await stat(path)
+      if (!info.isFile()) continue
+      if (info.size > 30 * 1024 * 1024) throw new Error('文件超过 30MB')
+      const jpeg = await sharp(await readFile(path))
+        .rotate()
+        .resize({
+          width: 1024,
+          height: 1024,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: 90 })
+        .toBuffer()
+      const photoId = randomUUID()
+      const destination = join(draft.directory, 'photos', `${photoId}.jpg`)
+      await writeFile(destination, jpeg)
+      const key = `pet-photo-${photoId}`
+      registerMediaPath(key, destination)
+      draft.photos.push({
+        id: photoId,
+        name: basename(path),
+        path: destination,
+        url: mediaUrl(key),
+      })
+    } catch {
+      failures.push(basename(path))
+    }
+  }
+  draft.error = failures.length
+    ? `无法读取：${failures.join('、')}`
+    : undefined
+  broadcast()
+}
+
+async function removePetPhoto(id: string): Promise<void> {
+  const draft = petDraft
+  if (!draft) return
+  if (draft.running) throw new Error('正在生成，请稍候。')
+  const index = draft.photos.findIndex((photo) => photo.id === id)
+  if (index < 0) return
+  const [photo] = draft.photos.splice(index, 1)
+  if (photo) await unlink(photo.path).catch(() => {})
+  draft.error = undefined
+  broadcast()
+}
+
+async function resolvePetModel(): Promise<string> {
+  const models = await listVolcanoModels(volcanoKey ?? '').catch(() => undefined)
+  return (
+    (models ? resolveVolcanoImageModel(models) : undefined) ??
+    getPetStyle().source.model
+  )
+}
+
+async function clearPetDraftOutputs(draft: PetDraft): Promise<void> {
+  for (const pose of draft.poses) {
+    pose.status = 'pending'
+    pose.error = undefined
+    pose.url = undefined
+    await rm(join(draft.directory, `${pose.id}.png`), { force: true }).catch(
+      () => {},
+    )
+    await rm(join(draft.directory, 'source', `${pose.id}.png`), {
+      force: true,
+    }).catch(() => {})
+  }
+  draft.model = undefined
+}
+
+async function generateDraftPose(
+  draft: PetDraft,
+  id: PetPoseId,
+  token: number,
+): Promise<void> {
+  const style = getPetStyle()
+  const state = getPetStyleState(style, id)
+  const pose = draft.poses.find((item) => item.id === id)
+  if (!state || !pose) throw new Error('未知的桌宠状态。')
+  if (token !== draft.runToken || draft.cancelled) return
+  const references =
+    id === 'base'
+      ? await Promise.all(draft.photos.map((photo) => readFile(photo.path)))
+      : [await readFile(join(draft.directory, 'source', 'base.png'))]
+  if (token !== draft.runToken || draft.cancelled) return
+  const result = await generatePetPose({
+    apiKey: volcanoKey ?? '',
+    model: draft.model ?? (await resolvePetModel()),
+    prompt: state.prompt,
+    references,
+  })
+  if (token !== draft.runToken || draft.cancelled) return
+  if (result.analysis.width !== 1024 || result.analysis.height !== 1024)
+    throw new Error(
+      `生成图片尺寸为 ${result.analysis.width}×${result.analysis.height}，应为 1024×1024。`,
+    )
+  const normalized = await normalizePetImage(result.buffer)
+  if (token !== draft.runToken || draft.cancelled) return
+  const rawPath = join(draft.directory, 'source', `${id}.png`)
+  const assetPath = join(draft.directory, `${id}.png`)
+  await mkdir(dirname(rawPath), { recursive: true })
+  await writeFile(rawPath, result.buffer)
+  await writeFile(assetPath, normalized.buffer)
+  const key = `pet-draft-${draft.id}-${id}`
+  registerMediaPath(key, assetPath)
+  draft.model = result.model ?? draft.model
+  pose.status = 'done'
+  pose.error = undefined
+  pose.url = mediaUrl(key)
+  broadcast()
+}
+
+async function runPetDraft(
+  draft: PetDraft,
+  only?: PetPoseId[],
+): Promise<void> {
+  const token = ++draft.runToken
+  draft.running = true
+  draft.cancelled = false
+  draft.step = 'generating'
+  draft.error = undefined
+  broadcast()
+  try {
+    draft.model = draft.model ?? (await resolvePetModel())
+    const order: PetPoseId[] = only ?? [
+      'base',
+      ...petPoseIds.filter((id) => id !== 'base'),
+    ]
+    for (const id of order) {
+      if (token !== draft.runToken || draft.cancelled) break
+      const pose = draft.poses.find((item) => item.id === id)
+      if (!pose || pose.status === 'done') continue
+      pose.status = 'generating'
+      pose.error = undefined
+      broadcast()
+      try {
+        await generateDraftPose(draft, id, token)
+      } catch (error) {
+        if (token !== draft.runToken) break
+        pose.status = 'error'
+        pose.error =
+          error instanceof Error ? error.message : '生成失败，请重试。'
+        draft.error = `${pose.label}生成失败`
+        if (id === 'base') break
+      }
+      broadcast()
+    }
+  } finally {
+    if (token === draft.runToken) {
+      draft.running = false
+      const complete = draft.poses.every((pose) => pose.status === 'done')
+      draft.step = complete ? 'preview' : 'generating'
+      if (complete) draft.error = undefined
+      broadcast()
+    }
+  }
+}
+
+async function startPetCreate(name: string): Promise<void> {
+  const draft = petDraft
+  if (!draft) throw new Error('请先打开新建桌宠。')
+  if (draft.running) return
+  if (!volcanoKey) throw new Error('请先在设置中添加火山方舟 API Key。')
+  if (!draft.photos.length) throw new Error('请先添加至少一张宠物照片。')
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('请输入桌宠名字。')
+  draft.name = trimmed
+  const remaining = draft.poses.filter((pose) => pose.status !== 'done')
+  if (!remaining.length) {
+    draft.step = 'preview'
+    broadcast()
+    return
+  }
+  const needsBase = draft.poses.some(
+    (pose) => pose.id === 'base' && pose.status !== 'done',
+  )
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'question',
+    title: needsBase ? '生成桌宠形象' : '继续生成桌宠形象',
+    message: `将生成 ${remaining.length} 个状态，会消耗火山方舟额度。`,
+    detail: '完成后可以先预览，确认保存后才会切换桌宠。',
+    buttons: ['取消', '开始生成'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  await runPetDraft(draft)
+}
+
+async function retryPetPose(poseId: PetPoseId): Promise<void> {
+  const draft = petDraft
+  if (!draft) throw new Error('请先打开新建桌宠。')
+  if (draft.running) throw new Error('正在生成，请稍候。')
+  if (!volcanoKey) throw new Error('请先添加火山方舟 API Key。')
+  const pose = draft.poses.find((item) => item.id === poseId)
+  if (!pose) throw new Error('未知的桌宠状态。')
+  const isBase = poseId === 'base'
+  const resetOthers =
+    isBase && draft.poses.some((item) => item.id !== 'base' && item.status === 'done')
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'question',
+    title: isBase ? '重新生成基础形象' : `重新生成「${pose.label}」`,
+    message: isBase
+      ? '会重新生成基础形象，并重置其余状态。'
+      : '会重新生成这一张状态，消耗火山方舟额度。',
+    detail: resetOthers
+      ? '重置后的其余状态需要再次点击继续生成。'
+      : '生成完成后可以直接预览。',
+    buttons: ['取消', '重新生成'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  if (resetOthers) await clearPetDraftOutputs(draft)
+  pose.status = 'pending'
+  pose.error = undefined
+  pose.url = undefined
+  await rm(join(draft.directory, `${pose.id}.png`), { force: true }).catch(
+    () => {},
+  )
+  await rm(join(draft.directory, 'source', `${pose.id}.png`), {
+    force: true,
+  }).catch(() => {})
+  draft.step = 'generating'
+  draft.error = undefined
+  await runPetDraft(draft, resetOthers ? ['base'] : [poseId])
+}
+
+async function cancelPetCreate(): Promise<void> {
+  const draft = petDraft
+  if (!draft) return
+  const wasRunning = draft.running
+  draft.runToken += 1
+  draft.cancelled = true
+  draft.running = false
+  draft.step = 'edit'
+  draft.error = undefined
+  await clearPetDraftOutputs(draft)
+  broadcast()
+  if (wasRunning) showToast('已停止生成')
+}
+
+async function closePetCreate(): Promise<void> {
+  const draft = petDraft
+  if (!draft) return
+  draft.runToken += 1
+  draft.cancelled = true
+  petDraft = undefined
+  broadcast()
+  await rm(draft.directory, { recursive: true, force: true }).catch(() => {})
+}
+
+async function savePetCreate(): Promise<void> {
+  const draft = petDraft
+  if (!draft) throw new Error('请先打开新建桌宠。')
+  if (draft.running) throw new Error('正在生成，请稍候。')
+  if (draft.poses.some((pose) => pose.status !== 'done'))
+    throw new Error('还有状态没有生成完成。')
+  if (!draft.name.trim()) throw new Error('请输入桌宠名字。')
+  const root = petsRoot(dataRoot)
+  const style = getPetStyle()
+  const record = petRecordFor(
+    draft.id,
+    draft.name.trim(),
+    style,
+    draft.model ?? getPetStyle().source.model,
+    Date.now(),
+  )
+  await rm(join(draft.directory, 'photos'), { recursive: true, force: true })
+  await writeFile(
+    join(draft.directory, 'pet.json'),
+    JSON.stringify(record, null, 2),
+  )
+  await mkdir(root, { recursive: true })
+  const finalDirectory = join(root, draft.id)
+  await rm(finalDirectory, { recursive: true, force: true })
+  await rename(draft.directory, finalDirectory)
+  activePet = record
+  activePetAssets = registerPetAssets(root, record)
+  petDraft = undefined
+  await updateSettings({ petId: record.id, petName: record.name })
+  broadcast()
+  showToast('桌宠已切换')
+}
+
+async function useDefaultPet(): Promise<void> {
+  activePet = undefined
+  activePetAssets = undefined
+  await updateSettings({ petId: '', petName: '麻薯' })
+  broadcast()
+  showToast('已恢复默认形象')
 }
 async function testAiConnection(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || aiKey
@@ -2948,6 +3456,7 @@ function closeRename(): void {
 }
 function settingsState(): SettingsState {
   return {
+    petId: settings.petId,
     petName: settings.petName,
     theme: settings.theme,
     scale: settings.scale,
@@ -5275,6 +5784,16 @@ async function updateSettings(patch: Partial<SettingsState>): Promise<void> {
   ) {
     screenshotSince = Date.now()
     screenshotSeen.clear()
+  }
+  if (patch.petName && activePet) {
+    const updated = { ...activePet, name: settings.petName }
+    await writeFile(
+      join(petsRoot(dataRoot), activePet.id, 'pet.json'),
+      JSON.stringify(updated, null, 2),
+    ).catch(() => {})
+    activePet = updated
+    if (activePetAssets)
+      activePetAssets = { ...activePetAssets, name: updated.name }
   }
   if (!settings.statusBubbles) hideToast()
   if (!settings.musicBubbles) hideBubble()
@@ -9574,6 +10093,10 @@ function setupIpc(): void {
       'minimax-config',
       'minimax-test',
       'minimax-delete',
+      'volcano-config',
+      'volcano-test',
+      'volcano-models',
+      'volcano-delete',
       'extract-audio',
       'convert-open',
       'convert-start',
@@ -9723,6 +10246,15 @@ function setupIpc(): void {
       'agent-keys',
       'profile-create',
       'profile-bind',
+      'pet-create-open',
+      'pet-create-close',
+      'pet-create-pick-photos',
+      'pet-create-remove-photo',
+      'pet-create-start',
+      'pet-create-retry',
+      'pet-create-cancel',
+      'pet-create-save',
+      'pet-default',
     ]
     if (
       command.type.startsWith('agent-') &&
@@ -10016,10 +10548,37 @@ function setupIpc(): void {
         await shell.openExternal('https://platform.deepseek.com/api_keys')
         break
       case 'profile-create':
-        showToast('新建桌宠即将开放')
+        await openPetCreate()
         break
       case 'profile-bind':
         showToast('小程序绑定即将开放')
+        break
+      case 'pet-create-open':
+        await openPetCreate()
+        break
+      case 'pet-create-close':
+        await closePetCreate()
+        break
+      case 'pet-create-pick-photos':
+        await pickPetPhotos()
+        break
+      case 'pet-create-remove-photo':
+        await removePetPhoto(command.id)
+        break
+      case 'pet-create-start':
+        await startPetCreate(command.name)
+        break
+      case 'pet-create-retry':
+        await retryPetPose(command.pose)
+        break
+      case 'pet-create-cancel':
+        await cancelPetCreate()
+        break
+      case 'pet-create-save':
+        await savePetCreate()
+        break
+      case 'pet-default':
+        await useDefaultPet()
         break
       case 'ai-close':
         closeAsk()
@@ -10077,6 +10636,18 @@ function setupIpc(): void {
         break
       case 'minimax-delete':
         await deleteMiniMaxKey()
+        break
+      case 'volcano-config':
+        await configureVolcano(command.apiKey, command.test)
+        break
+      case 'volcano-test':
+        void testVolcano(command.apiKey)
+        break
+      case 'volcano-models':
+        void loadVolcanoModels(command.apiKey)
+        break
+      case 'volcano-delete':
+        await deleteVolcanoKey()
         break
       case 'ai-models': {
         const key = command.apiKey?.trim() || aiKey
@@ -10693,6 +11264,13 @@ function setupIpc(): void {
       throw new Error('仅设置窗口可以验证 API Key。')
     const key = z.string().trim().min(10).max(400).parse(payload)
     await testMiniMaxConnection(key)
+  })
+  handle(channels.volcanoVerify, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!settingsWindow || window !== settingsWindow)
+      throw new Error('仅设置窗口可以验证 API Key。')
+    const key = z.string().trim().min(10).max(400).parse(payload)
+    await testVolcanoConnection(key)
   })
   handle(channels.openExternal, 'either', async (_event, payload) => {
     const value = z.string().trim().min(1).max(4096).parse(payload)
@@ -11958,6 +12536,17 @@ else {
           ...settings,
           agentAttachmentDir: agentAttachmentDirectory(),
         }
+      await cleanupPetDrafts(petsRoot(dataRoot))
+      if (settings.petId) {
+        const record = await loadPetRecord(
+          petsRoot(dataRoot),
+          settings.petId,
+        )
+        if (record) {
+          activePet = record
+          activePetAssets = registerPetAssets(petsRoot(dataRoot), record)
+        }
+      }
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
@@ -12048,6 +12637,7 @@ else {
       applyDockIcon()
       aiKey = await loadStoredKey()
       minimaxKey = await loadProviderKey('minimax')
+      volcanoKey = await loadProviderKey('volcano')
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,

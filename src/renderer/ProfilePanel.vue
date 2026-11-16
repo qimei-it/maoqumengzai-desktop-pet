@@ -11,6 +11,13 @@ const emit = defineEmits<{ command: [command: Command] }>()
 const name = ref(props.state?.settings.petName ?? '麻薯')
 const saved = ref(false)
 const value = computed(() => name.value.trim())
+const cover = computed(
+  () => props.state?.petAssets?.poses.base ?? catBase,
+)
+const styleName = computed(
+  () => props.state?.petAssets?.styleName ?? '默认',
+)
+const species = computed(() => (props.state?.petAssets ? '自定义' : '布偶猫'))
 const canSave = computed(
   () => value.value.length > 0 && value.value !== props.state?.settings.petName,
 )
@@ -50,7 +57,7 @@ function close(): void {
       />
 
       <div class="profile-portrait">
-        <img :src="catBase" :alt="name || '麻薯'" draggable="false" />
+        <img :src="cover" :alt="name || '麻薯'" draggable="false" />
       </div>
 
       <div class="profile-body">
@@ -81,11 +88,11 @@ function close(): void {
         </div>
         <div class="profile-row">
           <span class="profile-label">品种</span>
-          <span class="profile-value">布偶猫</span>
+          <span class="profile-value">{{ species }}</span>
         </div>
         <div class="profile-row">
           <span class="profile-label">形象</span>
-          <span class="profile-value">默认</span>
+          <span class="profile-value">{{ styleName }}</span>
         </div>
       </div>
 

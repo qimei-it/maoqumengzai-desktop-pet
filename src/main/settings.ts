@@ -104,6 +104,7 @@ function migrateSettings(value: Settings): Settings {
 const settingsSchema = z
   .object({
     version: z.literal(1),
+    petId: z.string().trim().max(80).default(''),
     petName: z.string().trim().min(1).max(20).default('麻薯'),
     theme: z.enum(themeIds),
     scale: z.union(petScales.map((value) => z.literal(value))),

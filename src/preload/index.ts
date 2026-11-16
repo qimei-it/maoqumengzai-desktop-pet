@@ -113,6 +113,8 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.aiVerify, apiKey),
   verifyMiniMaxKey: (apiKey) =>
     ipcRenderer.invoke(channels.minimaxVerify, apiKey),
+  verifyVolcanoKey: (apiKey) =>
+    ipcRenderer.invoke(channels.volcanoVerify, apiKey),
   openExternal: (url) => ipcRenderer.invoke(channels.openExternal, url),
   pickDirectory: (title?: string) =>
     ipcRenderer.invoke(channels.pickDirectory, title),

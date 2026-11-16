@@ -33,6 +33,7 @@ export const themeLabels: Record<ThemeId, string> = {
 
 export type Settings = {
   version: 1
+  petId: string
   petName: string
   theme: ThemeId
   scale: PetScale
@@ -59,6 +60,7 @@ export type SettingsState = Omit<Settings, 'version'>
 
 export const defaultSettings: Settings = {
   version: 1,
+  petId: '',
   petName: '麻薯',
   theme: 'default',
   scale: 1,
