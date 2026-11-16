@@ -1,6 +1,5 @@
 /** Mail preferences stored beside the local mail database. */
 import { readFile, rename, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { z } from 'zod'
 import {
   mailSyncOptions,
@@ -23,19 +22,19 @@ const schema = z
   })
   .strict()
 
-export function defaultMailConfig(downloads: string): MailConfig {
+export function defaultMailConfig(attachmentDir: string): MailConfig {
   return {
     syncMinutes: 15,
     notify: true,
     unreadBadge: true,
-    attachmentDir: join(downloads, 'maoqumengzai', 'attachments'),
+    attachmentDir,
     retentionDays: 90,
   }
 }
 
 export async function loadMailConfig(
   path: string,
-  downloads: string,
+  defaultAttachmentDir: string,
 ): Promise<MailConfig> {
   try {
     const stored = schema.parse(JSON.parse(await readFile(path, 'utf8')))
@@ -51,7 +50,7 @@ export async function loadMailConfig(
       retentionDays: stored.retentionDays,
     }
   } catch {
-    return defaultMailConfig(downloads)
+    return defaultMailConfig(defaultAttachmentDir)
   }
 }
 

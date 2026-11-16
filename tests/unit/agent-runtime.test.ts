@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   createAgentRuntime,
   type AgentSkillPrompt,
 } from '../../src/main/agent/runtime'
+import { saveAgentStore } from '../../src/main/agent/store'
 import type {
   StreamOptions,
   StreamResult,
@@ -51,6 +52,7 @@ async function makeRuntime(
     getVolcanoKey?: () => string | undefined
     getPetProfile?: () => import('../../src/shared/agent').AgentPetProfile
     volcanoStream?: typeof import('../../src/main/agent/volcano-provider').streamVolcanoChat
+    seedStore?: (path: string) => Promise<void>
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -85,6 +87,7 @@ async function makeRuntime(
       ? { getSkillAdmin: override.getSkillAdmin }
       : {}),
   })
+  if (override?.seedStore) await override.seedStore(storePath)
   await runtime.load()
   runtime.newSession()
   return { runtime, storePath, streamCalls: script.calls }
@@ -600,6 +603,73 @@ describe('agent runtime', () => {
     await runtime.send('你好')
     expect(system).toContain('名字：团子')
     expect(system).toContain('种类：狗')
+  })
+
+  test('relocates stored media paths when the attachment directory moves', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'mqmz-relocate-'))
+    const oldDir = join(base, 'old')
+    const newDir = join(base, 'new')
+    const oldPath = join(oldDir, '2026-11-16', 'seed', 'cat.png')
+    await mkdir(dirname(oldPath), { recursive: true })
+    await writeFile(oldPath, 'img')
+    const session = {
+      id: 'seed-session',
+      title: '旧会话',
+      mode: 'build' as const,
+      model: 'deepseek-flash' as const,
+      reasoning: 'high' as const,
+      workspace: null,
+      projectId: null,
+      pinned: false,
+      createdAt: 1,
+      updatedAt: 1,
+      ui: [
+        {
+          id: 'msg',
+          role: 'assistant' as const,
+          parts: [
+            {
+              type: 'media' as const,
+              status: 'done' as const,
+              items: [
+                {
+                  id: 'media-id',
+                  name: 'cat.png',
+                  kind: 'image' as const,
+                  path: oldPath,
+                  directory: dirname(oldPath),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      history: [],
+      sources: [
+        {
+          id: 'media-id',
+          name: 'cat.png',
+          path: oldPath,
+          kind: 'artifact' as const,
+        },
+      ],
+      usage: { input: 0, output: 0 },
+    }
+    const { runtime } = await makeRuntime([], [], {
+      seedStore: (path) =>
+        saveAgentStore(path, { sessions: [session], projects: [] }),
+    })
+    runtime.select('seed-session')
+    const mediaPath = () => {
+      const part = runtime.state().messages[0]?.parts[0]
+      return part?.type === 'media' ? part.items[0]?.path : undefined
+    }
+    expect(mediaPath()).toBe(oldPath)
+    await runtime.relocateMedia(oldDir, newDir)
+    const moved = join(newDir, '2026-11-16', 'seed', 'cat.png')
+    expect(mediaPath()).toBe(moved)
+    expect(runtime.source('media-id')?.path).toBe(moved)
+    await rm(base, { recursive: true, force: true })
   })
 
   test('aborts a turn when an upload fails and marks the attachment', async () => {

@@ -417,11 +417,9 @@ describe('mail unread total', () => {
 
 describe('mail config', () => {
   test('uses the requested attachment directory by default', () => {
-    const downloads = join('/tmp', 'Downloads')
-    const config = defaultMailConfig(downloads)
-    expect(config.attachmentDir).toBe(
-      join(downloads, 'maoqumengzai', 'attachments'),
-    )
+    const attachments = join('/tmp', 'mqmz-desktop', 'mail-files')
+    const config = defaultMailConfig(attachments)
+    expect(config.attachmentDir).toBe(attachments)
     expect(config.syncMinutes).toBe(15)
     expect(config.retentionDays).toBe(90)
   })
@@ -429,18 +427,18 @@ describe('mail config', () => {
   test('round-trips config and falls back on malformed files', async () => {
     const directory = await tempDirectory()
     const path = join(directory, 'mail.json')
-    const downloads = join(directory, 'Downloads')
+    const attachments = join(directory, 'mqmz-desktop', 'mail-files')
     const config = {
-      ...defaultMailConfig(downloads),
+      ...defaultMailConfig(attachments),
       syncMinutes: 5,
       notify: false,
       retentionDays: 30,
     }
     await saveMailConfig(path, config)
-    expect(await loadMailConfig(path, downloads)).toEqual(config)
+    expect(await loadMailConfig(path, attachments)).toEqual(config)
     await writeFile(path, '{broken', 'utf8')
-    expect(await loadMailConfig(path, downloads)).toEqual(
-      defaultMailConfig(downloads),
+    expect(await loadMailConfig(path, attachments)).toEqual(
+      defaultMailConfig(attachments),
     )
   })
 })

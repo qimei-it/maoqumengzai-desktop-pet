@@ -2,7 +2,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { readFile, rename, writeFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { mediaUrl } from '../../shared/media'
 import type {
   AgentApprovalMode,
   AgentAttachmentKind,
@@ -361,6 +362,182 @@ export async function loadAgentStore(path: string): Promise<AgentStore> {
 }
 
 let queue = Promise.resolve()
+
+function relativeToBase(value: string, base: string): string | null {
+  const normalizedValue = value.replace(/\\/g, '/')
+  const normalizedBase = base.replace(/\\/g, '/').replace(/\/+$/, '')
+  if (normalizedValue === normalizedBase) return ''
+  if (!normalizedValue.startsWith(`${normalizedBase}/`)) return null
+  return normalizedValue.slice(normalizedBase.length + 1)
+}
+
+function rewriteStoredPath(
+  value: string | undefined,
+  oldBase: string,
+  newBase: string,
+  renames: Map<string, string>,
+): string | undefined {
+  if (!value) return value
+  const rel = relativeToBase(value, oldBase)
+  if (rel === null) return value
+  const mapped = renames.get(rel) ?? rel
+  return mapped === '' ? newBase : join(newBase, ...mapped.split('/'))
+}
+
+/** Rewrites every stored path below a storage root, including renamed imports. */
+export function relocateSessionPaths(
+  session: StoredSession,
+  oldBase: string,
+  newBase: string,
+  renames: Map<string, string> = new Map(),
+): void {
+  for (const file of session.files ?? []) {
+    const path = rewriteStoredPath(file.path, oldBase, newBase, renames)
+    if (path) file.path = path
+  }
+  for (const source of session.sources ?? []) {
+    const path = rewriteStoredPath(source.path, oldBase, newBase, renames)
+    if (path) source.path = path
+  }
+  for (const reference of session.lastGeneration?.references ?? [])
+    reference.path =
+      rewriteStoredPath(reference.path, oldBase, newBase, renames) ??
+      reference.path
+  for (const message of session.ui) {
+    for (const part of message.parts) {
+      if (part.type !== 'media') continue
+      for (const item of part.items) {
+        item.path = rewriteStoredPath(item.path, oldBase, newBase, renames)
+        item.directory = item.path
+          ? dirname(item.path)
+          : rewriteStoredPath(
+              item.directory,
+              oldBase,
+              newBase,
+              renames,
+            )
+      }
+      for (const reference of part.generation?.references ?? [])
+        reference.path =
+          rewriteStoredPath(reference.path, oldBase, newBase, renames) ??
+          reference.path
+    }
+  }
+}
+
+/** Whether a session still points at a file under the given directory. */
+export function sessionReferencesPath(
+  session: StoredSession,
+  base: string,
+): boolean {
+  const hit = (value: string | undefined) =>
+    Boolean(value && relativeToBase(value, base) !== null)
+  return (
+    (session.files ?? []).some((file) => hit(file.path)) ||
+    (session.sources ?? []).some((source) => hit(source.path)) ||
+    (session.lastGeneration?.references ?? []).some((item) =>
+      hit(item.path),
+    ) ||
+    session.ui.some((message) =>
+      message.parts.some(
+        (part) =>
+          part.type === 'media' &&
+          (part.items.some((item) => hit(item.path)) ||
+            (part.generation?.references ?? []).some((item) =>
+              hit(item.path),
+            )),
+      ),
+    )
+  )
+}
+
+/** Rewrites an agent store on disk before the runtime loads it. */
+export async function relocateAgentStoreFile(
+  path: string,
+  oldBase: string,
+  newBase: string,
+  renames: Map<string, string> = new Map(),
+): Promise<void> {
+  const store = await loadAgentStore(path)
+  for (const session of store.sessions)
+    relocateSessionPaths(session, oldBase, newBase, renames)
+  await saveAgentStore(path, store)
+}
+
+const legacyGeneratedPrefix = 'mqmz-media://generated/'
+
+function legacyGeneratedName(url: string | undefined): string | undefined {
+  if (!url?.startsWith(legacyGeneratedPrefix)) return undefined
+  try {
+    return decodeURIComponent(url.slice(legacyGeneratedPrefix.length))
+  } catch {
+    return undefined
+  }
+}
+
+/** Whether the store still uses the retired flat generated-media folder. */
+export function storeReferencesLegacyGenerated(
+  store: AgentStore,
+  base: string,
+): boolean {
+  return store.sessions.some(
+    (session) =>
+      sessionReferencesPath(session, base) ||
+      session.ui.some((message) =>
+        message.parts.some(
+          (part) =>
+            part.type === 'media' &&
+            part.items.some((item) =>
+              Boolean(legacyGeneratedName(item.url)),
+            ),
+        ),
+      ),
+  )
+}
+
+function migrateLegacyGeneratedSession(
+  session: StoredSession,
+  oldBase: string,
+  newBase: string,
+  renames: Map<string, string>,
+): void {
+  for (const message of session.ui) {
+    for (const part of message.parts) {
+      if (part.type !== 'media') continue
+      for (const item of part.items) {
+        const name = legacyGeneratedName(item.url)
+        if (!name) continue
+        const mapped = renames.get(name) ?? name
+        const path = join(newBase, ...mapped.split('/'))
+        item.path = path
+        item.directory = dirname(path)
+        item.url = mediaUrl(item.id)
+        session.sources ??= []
+        if (!session.sources.some((source) => source.id === item.id))
+          session.sources.unshift({
+            id: item.id,
+            name: item.name || basename(path),
+            path,
+            kind: 'artifact',
+          })
+      }
+    }
+  }
+  relocateSessionPaths(session, oldBase, newBase, renames)
+}
+
+/** Moves legacy flat generated media into the agent store's file tree. */
+export async function migrateLegacyGeneratedStore(
+  path: string,
+  oldBase: string,
+  newBase: string,
+  renames: Map<string, string> = new Map(),
+): Promise<void> {
+  const store = await loadAgentStore(path)
+  for (const session of store.sessions)
+    migrateLegacyGeneratedSession(session, oldBase, newBase, renames)
+  await saveAgentStore(path, store)
+}
 
 export async function saveAgentStore(
   path: string,

@@ -134,6 +134,20 @@ import {
   type PetRecord,
 } from './pet-store'
 import {
+  loadAgentStore,
+  migrateLegacyGeneratedStore,
+  relocateAgentStoreFile,
+  storeReferencesLegacyGenerated,
+} from './agent/store'
+import {
+  copyDirectoryContents,
+  countFiles,
+  isSamePath,
+  pathsOverlap,
+  renameMap,
+  rollbackCopy,
+} from './storage-migration'
+import {
   normalizePetName,
   petNameConflict,
   petNameConflictError,
@@ -429,9 +443,115 @@ let tray: Tray | undefined
 let scale = 1
 let settings: Settings = { ...defaultSettings }
 function agentAttachmentDirectory(): string {
-  return (
-    settings.agentAttachmentDir ||
-    join(app.getPath('downloads'), 'maoqumengzai', 'agent')
+  return settings.agentAttachmentDir || join(dataRoot, 'agent-files')
+}
+function mailFilesDirectory(): string {
+  return join(dataRoot, 'mail-files')
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  return realpath(path).catch(() => resolve(path))
+}
+
+async function confirmStorageMove(
+  title: string,
+  message: string,
+  detail: string,
+): Promise<boolean> {  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'question',
+    title,
+    message,
+    detail,
+    buttons: ['取消', '迁移'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true,
+  })
+  return choice.response === 1
+}
+
+/** Moves agent media and rewrites every stored path before switching settings. */
+async function changeAgentAttachmentDir(next: string): Promise<void> {
+  const current = agentAttachmentDirectory()
+  if (!isAbsolute(next)) throw new Error('请选择有效的目录。')
+  const from = await canonicalPath(current)
+  const to = await canonicalPath(next)
+  if (isSamePath(from, to)) return
+  if (pathsOverlap(from, to))
+    throw new Error('新目录不能是当前目录或其子目录。')
+  if (agent.state().busy) throw new Error('正在执行，请稍后再改。')
+  const count = await countFiles(current)
+  if (
+    count &&
+    !(await confirmStorageMove(
+      '迁移附件目录',
+      `将把 ${count} 个文件迁移到新目录。`,
+      '迁移完成后旧目录会被清空。',
+    ))
+  )
+    return
+  const copied = await copyDirectoryContents(current, next)
+  try {
+    await agent.relocateMedia(current, next, copied.renamed)
+    await updateSettings({ agentAttachmentDir: next })
+  } catch (error) {
+    await agent
+      .relocateMedia(
+        next,
+        current,
+        copied.renamed.map(({ from, to }) => ({ from: to, to: from })),
+      )
+      .catch(() => {})
+    await rollbackCopy(copied.created)
+    throw error
+  }
+  if (!copied.skipped)
+    await rm(current, { recursive: true, force: true })
+  const total = copied.copied + copied.identical
+  showToast(
+    copied.skipped
+      ? `已迁移 ${total} 个文件，${copied.skipped} 个符号链接未迁移`
+      : total
+        ? `已迁移 ${total} 个文件`
+        : '附件保存目录已更新',
+  )
+}
+
+/** Moves saved mail attachments before switching the configured folder. */
+async function changeMailAttachmentDir(next: string): Promise<void> {
+  const current = mailConfig.attachmentDir || mailFilesDirectory()
+  if (!isAbsolute(next)) throw new Error('请选择有效的目录。')
+  const from = await canonicalPath(current)
+  const to = await canonicalPath(next)
+  if (isSamePath(from, to)) return
+  if (pathsOverlap(from, to))
+    throw new Error('新目录不能是当前目录或其子目录。')
+  const count = await countFiles(current)
+  if (
+    count &&
+    !(await confirmStorageMove(
+      '迁移邮件附件',
+      `将把 ${count} 个附件迁移到新目录。`,
+      '迁移完成后旧目录会被清空。',
+    ))
+  )
+    return
+  const copied = await copyDirectoryContents(current, next)
+  try {
+    await updateMailConfig({ attachmentDir: next })
+  } catch (error) {
+    await rollbackCopy(copied.created)
+    throw error
+  }
+  if (!copied.skipped)
+    await rm(current, { recursive: true, force: true })
+  const total = copied.copied + copied.identical
+  showToast(
+    copied.skipped
+      ? `已迁移 ${total} 个附件，${copied.skipped} 个符号链接未迁移`
+      : total
+        ? `已迁移 ${total} 个附件`
+        : '附件保存目录已更新',
   )
 }
 
@@ -475,7 +595,7 @@ let libreOfficeVersion: string | undefined
 let libreOfficeError: string | undefined
 let builtinHealth: Record<string, BuiltinEngineHealth> = {}
 let mailDb: MailDatabase | undefined
-let mailConfig: MailConfig = defaultMailConfig(app.getPath('downloads'))
+let mailConfig: MailConfig = defaultMailConfig(join(dataRoot, 'mail-files'))
 let mailBusy = false
 let mailSyncing = false
 let mailError: string | undefined
@@ -741,6 +861,86 @@ const agentSkillScansPath = join(dataRoot, 'mqmz.skill-scans.json')
 let agentSkillStore: SkillStore | undefined
 let agentSkillAdmin: SkillAdmin | undefined
 let agentSkills: AgentSkillView[] = []
+
+function legacyDownloadsDirectory(kind: 'agent' | 'attachments'): string {
+  return join(app.getPath('downloads'), 'maoqumengzai', kind)
+}
+
+async function removeEmptyParent(path: string): Promise<void> {
+  const parent = dirname(path)
+  const entries = await readdir(parent).catch(() => null)
+  if (entries && entries.length === 0)
+    await rm(parent, { recursive: false, force: true }).catch(() => {})
+}
+
+/** Moves the old Downloads storage into the data root before the agent loads. */
+async function migrateLegacyAgentStorage(): Promise<void> {
+  const target = join(dataRoot, 'agent-files')
+  const legacy = legacyDownloadsDirectory('agent')
+  await mkdir(target, { recursive: true })
+  const configured = settings.agentAttachmentDir
+  if (configured && !isSamePath(configured, legacy)) return
+  if (!(await pathExists(legacy))) {
+    settings = { ...settings, agentAttachmentDir: target }
+    await saveSettingsFile(settingsPath, settings)
+    return
+  }
+  const copied = await copyDirectoryContents(legacy, target)
+  await relocateAgentStoreFile(
+    agentPath,
+    legacy,
+    target,
+    renameMap(copied),
+  )
+  settings = { ...settings, agentAttachmentDir: target }
+  await saveSettingsFile(settingsPath, settings)
+  if (!copied.skipped) {
+    await rm(legacy, { recursive: true, force: true })
+    await removeEmptyParent(legacy)
+  }
+}
+
+/** Drops the pre-0.1 generated-media folder after preserving any references. */
+async function cleanupLegacyGenerated(): Promise<void> {
+  const directory = join(dataRoot, 'generated')
+  if (!(await pathExists(directory))) return
+  const store = await loadAgentStore(agentPath)
+  if (!storeReferencesLegacyGenerated(store, directory)) {
+    await rm(directory, { recursive: true, force: true })
+    return
+  }
+  const target = join(dataRoot, 'agent-files', 'legacy')
+  const copied = await copyDirectoryContents(directory, target)
+  await migrateLegacyGeneratedStore(
+    agentPath,
+    directory,
+    target,
+    renameMap(copied),
+  )
+  if (!copied.skipped)
+    await rm(directory, { recursive: true, force: true })
+}
+
+/** Moves saved mail attachments from Downloads into the data root. */
+async function migrateLegacyMailStorage(): Promise<void> {
+  const target = mailFilesDirectory()
+  const legacy = legacyDownloadsDirectory('attachments')
+  await mkdir(target, { recursive: true })
+  if (mailConfig.attachmentDir && !isSamePath(mailConfig.attachmentDir, legacy))
+    return
+  if (!(await pathExists(legacy))) {
+    mailConfig = { ...mailConfig, attachmentDir: target }
+    await saveMailConfig(mailConfigPath, mailConfig)
+    return
+  }
+  const copied = await copyDirectoryContents(legacy, target)
+  mailConfig = { ...mailConfig, attachmentDir: target }
+  await saveMailConfig(mailConfigPath, mailConfig)
+  if (!copied.skipped) {
+    await rm(legacy, { recursive: true, force: true })
+    await removeEmptyParent(legacy)
+  }
+}
 
 const services = createServices({
   shelfFiles: () =>
@@ -5665,8 +5865,7 @@ async function chooseMailAttachmentDir(): Promise<void> {
   })
   const path = result.filePaths[0]
   if (result.canceled || !path) return
-  await updateMailConfig({ attachmentDir: path })
-  showToast('附件保存目录已更新')
+  await changeMailAttachmentDir(path)
 }
 async function openMailAttachmentDir(): Promise<void> {
   await mkdir(mailConfig.attachmentDir, { recursive: true })
@@ -10960,8 +11159,7 @@ function setupIpc(): void {
         )
         const path = result.filePaths[0]
         if (!result.canceled && path) {
-          await updateSettings({ agentAttachmentDir: path })
-          showToast('附件保存目录已更新')
+          await changeAgentAttachmentDir(path)
         }
         break
       }
@@ -12718,11 +12916,12 @@ else {
       await mkdir(dataRoot, { recursive: true })
       const loadedSettings = await loadSettingsFile(settingsPath)
       settings = loadedSettings.settings
-      if (!settings.agentAttachmentDir)
-        settings = {
-          ...settings,
-          agentAttachmentDir: agentAttachmentDirectory(),
-        }
+      try {
+        await migrateLegacyAgentStorage()
+        await cleanupLegacyGenerated()
+      } catch (error) {
+        console.error('storage migration failed', error)
+      }
       await cleanupPetDrafts(petsRoot(dataRoot))
       if (settings.petId) {
         const record = await loadPetRecord(
@@ -12786,8 +12985,13 @@ else {
       mailDb = new MailDatabase(mailDbPath)
       mailConfig = await loadMailConfig(
         mailConfigPath,
-        app.getPath('downloads'),
+        mailFilesDirectory(),
       )
+      try {
+        await migrateLegacyMailStorage()
+      } catch (error) {
+        console.error('mail storage migration failed', error)
+      }
       await pruneMailCache()
       void refreshMailCacheSize()
       void updateMailBadge()
@@ -12849,7 +13053,6 @@ else {
           settings.aiQuotaEnabled &&
           (cachedOpenAi.configured || cachedDeepSeek.configured),
       }
-      mkdirSync(agentGenerationDir, { recursive: true })
       protocol.handle(mediaScheme, async (request) => {
         try {
           const url = new URL(request.url)

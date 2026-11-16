@@ -52,6 +52,7 @@ import {
   maxHistoryEntries,
   maxSessionMessages,
   maxAgentSessions,
+  relocateSessionPaths,
   saveAgentStore,
   type StoredFileRef,
   type StoredProject,
@@ -185,6 +186,12 @@ export type AgentRuntime = {
   setModel(model: AgentModelId): void
   /** Switches the active session to a model whose provider has a saved key. */
   syncModelWithKeys(): void
+  /** Rewrites stored media paths after the attachment directory moved. */
+  relocateMedia(
+    from: string,
+    to: string,
+    renames?: Array<{ from: string; to: string }>,
+  ): Promise<void>
   setGenerationModel(
     kind: 'image' | 'video' | 'speech',
     model: AgentModelId,
@@ -3251,6 +3258,29 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!changed) return
       session.updatedAt = now()
       persist()
+      emit()
+    },
+    async relocateMedia(from, to, renames = []) {
+      if (busy) throw new Error('正在执行，请稍后再改。')
+      const map = new Map(
+        renames.map((item) => [
+          item.from.split('\\').join('/'),
+          item.to.split('\\').join('/'),
+        ]),
+      )
+      for (const session of sessions) {
+        relocateSessionPaths(session, from, to, map)
+        for (const source of session.sources ?? [])
+          registerMediaPath(source.id, source.path)
+        for (const message of session.ui)
+          for (const part of message.parts) {
+            if (part.type !== 'media') continue
+            for (const item of part.items)
+              if (item.path) registerMediaPath(item.id, item.path)
+          }
+        session.updatedAt = now()
+      }
+      await saveAgentStore(deps.storePath, { sessions, projects })
       emit()
     },
     setGenerationModel(
