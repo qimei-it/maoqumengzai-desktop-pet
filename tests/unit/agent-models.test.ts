@@ -35,8 +35,16 @@ describe('agent model catalog', () => {
 
   test('classifies text and generation models', () => {
     expect(isTextModel('MiniMax-M3.1-Flash')).toBe(true)
+    expect(isTextModel('doubao-seed-2-1-pro-260915')).toBe(true)
     expect(isTextModel('Doubao-Seedream-5.5')).toBe(false)
     expect(isGenerationModel('Doubao-Seedream-5.5')).toBe(true)
-    expect(isGenerationModel('MiniMax-M3.1-Flash')).toBe(false)
+    expect(isGenerationModel('doubao-seed-2-1-pro-260915')).toBe(false)
+    expect(modelInfo('doubao-seed-2-1-pro-260915')).toMatchObject({
+      label: 'Doubao Seed 2.1 Pro',
+      provider: 'volcano',
+      kind: 'text',
+      reasoning: true,
+      contextWindow: 1_048_576,
+    })
   })
 })

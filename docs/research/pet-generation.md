@@ -10,7 +10,7 @@
 - Key 校验：`GET https://ark.cn-beijing.volces.com/api/v3/models`，无 Key 返回 401，校验不消耗生图额度。
 - 桌宠生图：`POST https://ark.cn-beijing.volces.com/api/v3/images/generations`。
 - 固定模型：`doubao-seedream-5-5-261028`。
-- 火山方舟只用于桌宠形象，不进入 Agent 模型菜单。
+- 火山方舟同时作为 Agent 供应商：文本模型 `doubao-seed-2-1-pro-260915`（Doubao Seed 2.1 Pro），图像模型 Doubao Seedream 5.5。
 
 首次使用前需要在火山方舟控制台开通 Doubao-Seedream-5.5。未开通时接口返回 `has not activated the model`，客户端会提示到控制台开通。
 
@@ -76,7 +76,7 @@ Seedream 5.5 支持文生 RGBA 和图生 RGBA，输入参考图不需要自带�
 
 ## 智能体接入
 
-- 智能体模型菜单分为「对话模型」和「图像模型」。
+- 智能体模型菜单按供应商分组，只对当前选择模型打勾。
 - 选择 Doubao Seedream 5.5 只改变 `image_generate` 使用的图像模型，不切换对话模式，输入框内容仍交给文本模型。
 - `image_generate` 使用当前会话选择或设置中的默认图像模型；Seedream 只支持单张、1K/2K、png/jpeg。
 - 生成桌宠形象始终使用 Doubao Seedream 5.5，不受默认图像模型影响。

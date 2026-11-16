@@ -46,6 +46,10 @@ async function makeRuntime(
     loadSkills?: () => Promise<AgentSkillPrompt[]>
     readSkillFile?: (name: string, path: string) => Promise<string>
     getSkillAdmin?: () => import('../../src/main/agent/skill-admin').SkillAdmin
+    getKey?: () => string | undefined
+    getMiniMaxKey?: () => string | undefined
+    getVolcanoKey?: () => string | undefined
+    volcanoStream?: typeof import('../../src/main/agent/volcano-provider').streamVolcanoChat
   },
 ) {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-runtime-'))
@@ -54,12 +58,21 @@ async function makeRuntime(
   const runtime = createAgentRuntime({
     services: makeServices(calls),
     storePath,
-    getKey: () => 'test-key',
+    getKey: override?.getKey ?? (() => 'test-key'),
     getSettings: () => ({ ...defaultSettings }),
     getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
     broadcast: () => {},
     stream: override?.stream ?? script.stream,
     ...(override?.titleStream ? { titleStream: override.titleStream } : {}),
+    ...(override?.getMiniMaxKey
+      ? { getMiniMaxKey: override.getMiniMaxKey }
+      : {}),
+    ...(override?.getVolcanoKey
+      ? { getVolcanoKey: override.getVolcanoKey }
+      : {}),
+    ...(override?.volcanoStream
+      ? { volcanoStream: override.volcanoStream }
+      : {}),
     ...(override?.files ? { files: override.files } : {}),
     ...(override?.loadSkills ? { loadSkills: override.loadSkills } : {}),
     ...(override?.readSkillFile
@@ -521,6 +534,54 @@ describe('agent runtime', () => {
     expect(state.selectedModel).toBe('deepseek-v4-pro')
     expect(state.model).toBe('deepseek-v4-pro')
     expect(state.imageModel).toBe('MiniMax-H3-Image')
+  })
+
+  test('starts on the Volcano text model when only Ark is configured', async () => {
+    const keys: {
+      deepseek?: string
+      volcano?: string
+    } = { volcano: 'ark-key' }
+    const { runtime } = await makeRuntime([], [], {
+      getKey: () => keys.deepseek,
+      getVolcanoKey: () => keys.volcano,
+    })
+    let state = runtime.state()
+    expect(state.configured).toBe(true)
+    expect(state.model).toBe('doubao-seed-2-1-pro-260915')
+    expect(state.selectedModel).toBe('doubao-seed-2-1-pro-260915')
+    keys.deepseek = 'ds-key'
+    runtime.syncModelWithKeys()
+    expect(runtime.state().model).toBe('doubao-seed-2-1-pro-260915')
+    keys.volcano = undefined
+    runtime.syncModelWithKeys()
+    state = runtime.state()
+    expect(state.model).toBe('deepseek-flash')
+    expect(state.selectedModel).toBe('deepseek-flash')
+  })
+
+  test('routes text turns to the Volcano stream', async () => {
+    let arkCalls = 0
+    const { runtime } = await makeRuntime([], [], {
+      getKey: () => undefined,
+      getVolcanoKey: () => 'ark-key',
+      volcanoStream: async (_key, options) => {
+        arkCalls += 1
+        options.onText?.('你好')
+        return { text: '你好', toolCalls: [] }
+      },
+    })
+    await runtime.send('你好')
+    expect(arkCalls).toBe(1)
+    expect(runtime.state().error).toBeUndefined()
+    const text = runtime
+      .state()
+      .messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'text' ? [part.text] : [],
+        ),
+      )
+      .join('')
+    expect(text).toContain('你好')
   })
 
   test('aborts a turn when an upload fails and marks the attachment', async () => {

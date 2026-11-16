@@ -26,8 +26,12 @@ import type {
 } from '../../shared/agent'
 import { maxAgentNameChars } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
-import type { AgentModelId } from '../../shared/agent-models'
-import { isMiniMaxModel, isTextModel, modelInfo } from '../../shared/agent-models'
+import type { AgentModelId, AgentProvider } from '../../shared/agent-models'
+import {
+  agentTextModels,
+  isTextModel,
+  modelInfo,
+} from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { defaultGenerationParams, normalizeGenerationParams } from '../../shared/generation'
 import { mediaUrl } from '../../shared/media'
@@ -39,6 +43,7 @@ import {
 import { registerMediaPath } from './media-registry'
 import { generationOutputDir } from './output-path'
 import { streamMiniMaxChat } from './minimax-provider'
+import { streamVolcanoChat } from './volcano-provider'
 import { rewriteMiniMaxSpeechScript } from './minimax-api'
 import type { SettingsState } from '../../shared/settings'
 import {
@@ -121,6 +126,8 @@ export type AgentRuntimeDeps = {
   titleStream?: typeof streamChat
   /** MiniMax text streaming; injectable for tests. */
   minimaxStream?: typeof streamMiniMaxChat
+  /** Volcengine Ark text streaming; injectable for tests. */
+  volcanoStream?: typeof streamVolcanoChat
   getMiniMaxKey?(): string | undefined
   getVolcanoKey?(): string | undefined
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
@@ -176,6 +183,8 @@ export type AgentRuntime = {
   setMode(mode: AgentMode): void
   setApprovalMode(mode: AgentApprovalMode): void
   setModel(model: AgentModelId): void
+  /** Switches the active session to a model whose provider has a saved key. */
+  syncModelWithKeys(): void
   setGenerationModel(
     kind: 'image' | 'video' | 'speech',
     model: AgentModelId,
@@ -586,6 +595,39 @@ function artifactKind(name: string): AgentArtifactKind {
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const stream = deps.stream ?? streamChat
   const minimaxStream = deps.minimaxStream ?? streamMiniMaxChat
+  const volcanoStream = deps.volcanoStream ?? streamVolcanoChat
+  type ChatStream = (
+    apiKey: string,
+    options: Parameters<typeof streamChat>[1],
+  ) => ReturnType<typeof streamChat>
+  function streamForModel(model: AgentModelId): ChatStream {
+    const provider = modelInfo(model)?.provider
+    if (provider === 'minimax') return minimaxStream
+    if (provider === 'volcano') return volcanoStream
+    return stream
+  }
+  function providerKey(provider: AgentProvider | undefined): string | undefined {
+    if (provider === 'minimax') return deps.getMiniMaxKey?.()
+    if (provider === 'volcano') return deps.getVolcanoKey?.()
+    return deps.getKey()
+  }
+  function missingKeyMessage(provider: AgentProvider | undefined): string {
+    if (provider === 'minimax') return '请先在设置中配置 MiniMax API Key。'
+    if (provider === 'volcano') return '请先添加火山方舟 API Key。'
+    return '请先配置 DeepSeek API Key。'
+  }
+  function textModelFor(provider: AgentProvider): AgentModelId | undefined {
+    return agentTextModels.find((model) => model.provider === provider)?.id
+  }
+  function availableChatModel(): AgentModelId | undefined {
+    if (deps.getKey()) return textModelFor('deepseek')
+    if (deps.getMiniMaxKey?.()) return textModelFor('minimax')
+    if (deps.getVolcanoKey?.()) return textModelFor('volcano')
+    return undefined
+  }
+  function modelKeyAvailable(model: AgentModelId): boolean {
+    return Boolean(providerKey(modelInfo(model)?.provider))
+  }
   const files: AgentFilesClient = deps.files ?? {
     upload: (apiKey, path, purpose, signal) =>
       uploadAgentFile(apiKey, path, purpose, { signal }),
@@ -1361,8 +1403,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async run(args, ctx) {
       const task = String(args.task ?? '').trim().slice(0, 1_000)
       if (!task) return { ok: false, text: '缺少子 Agent 任务。' }
-      const key = deps.getKey()
-      if (!key) return { ok: false, text: '请先配置 DeepSeek API Key。' }
       const messages: ProviderMessage[] = [
         {
           role: 'system',
@@ -1378,10 +1418,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       ]
       let summary = ''
       const subModel = ctx.model ?? deps.getSettings().aiModel
-      const subMiniMax = isMiniMaxModel(subModel)
-      const subKey = subMiniMax ? deps.getMiniMaxKey?.() : key
-      const subStream = subMiniMax ? minimaxStream : stream
-      if (!subKey) return { ok: false, text: '请先配置对应模型的 API Key。' }
+      const subProvider = modelInfo(subModel)?.provider
+      const subKey = providerKey(subProvider)
+      const subStream = streamForModel(subModel)
+      if (!subKey)
+        return { ok: false, text: missingKeyMessage(subProvider) }
       for (let step = 0; step < 4; step += 1) {
         if (ctx.signal.aborted) throw new Error('已停止。')
         ctx.onProgress?.(`第 ${step + 1} 步：分析任务`)
@@ -1500,13 +1541,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
   function defaultChatModel(): AgentModelId {
     const configured = deps.getSettings().agentDefaultChatModel
-    if (configured) return configured
+    if (configured && modelKeyAvailable(configured)) return configured
     const active = activeSession()
-    if (active && isTextModel(active.model)) return active.model
-    const recent = sessions.find((session) => isTextModel(session.model))
+    if (active && isTextModel(active.model) && modelKeyAvailable(active.model))
+      return active.model
+    const recent = sessions.find(
+      (session) =>
+        isTextModel(session.model) && modelKeyAvailable(session.model),
+    )
     if (recent) return recent.model
-    if (deps.getMiniMaxKey?.()) return 'MiniMax-M3.1-Flash'
-    return 'deepseek-flash'
+    return availableChatModel() ?? configured ?? 'deepseek-flash'
   }
 
   function removeRemoteFile(key: string, id: string): void {
@@ -1697,7 +1741,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       }
     }
 
-    if (isMiniMaxModel(session.model)) {
+    if (modelInfo(session.model)?.provider !== 'deepseek') {
       for (const item of attachments) delete item.uploadError
       const media = attachments.filter(
         (item) =>
@@ -1934,15 +1978,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     generation?: GenerationParams,
   ): Promise<void> {
     await refreshFileRefs(session, key, signal).catch(() => {})
-    const usingMiniMax = isMiniMaxModel(session.model)
-    const activeKey = usingMiniMax ? deps.getMiniMaxKey?.() : key
-    const activeStream = usingMiniMax ? minimaxStream : stream
-    if (!activeKey)
-      throw new Error(
-        usingMiniMax
-          ? '请先在设置中配置 MiniMax API Key。'
-          : '请先配置 DeepSeek API Key。',
-      )
+    const provider = modelInfo(session.model)?.provider
+    const activeKey = providerKey(provider) ?? key
+    const activeStream = streamForModel(session.model)
+    if (!activeKey) throw new Error(missingKeyMessage(provider))
     const skills = await (deps.loadSkills?.() ?? Promise.resolve([])).catch(
       () => [],
     )
@@ -2642,7 +2681,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const session = activeSession()
       const retryLabel = retryLabelFor(session)
       return {
-        configured: Boolean(deps.getKey() || deps.getMiniMaxKey?.()),
+        configured: Boolean(
+          deps.getKey() || deps.getMiniMaxKey?.() || deps.getVolcanoKey?.(),
+        ),
         busy,
         sessions: sessions.map((item) => ({
           id: item.id,
@@ -2717,14 +2758,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         )
         return
       }
-      const usingMiniMax = isMiniMaxModel(session.model)
-      const key = usingMiniMax ? deps.getMiniMaxKey?.() : deps.getKey()
-      if (!key)
-        throw new Error(
-          usingMiniMax
-            ? '请先在设置中配置 MiniMax API Key。'
-            : '请先配置 DeepSeek API Key。',
-        )
+      const provider = modelInfo(session.model)?.provider
+      const key = providerKey(provider)
+      if (!key) throw new Error(missingKeyMessage(provider))
       const files = attachments.slice(0, 8)
       if (
         session.model === 'deepseek-v4-pro' &&
@@ -2798,7 +2834,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         if (session.title === '新会话') {
           const fallback = sessionTitle(value)
           session.title = fallback
-          scheduleTitle(session, fallback, value, key, signal)
+          if (provider === 'deepseek')
+            scheduleTitle(session, fallback, value, key, signal)
         }
         session.updatedAt = now()
         emit()
@@ -2859,8 +2896,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         )
         return
       }
-      const key = deps.getKey()
-      if (!key) throw new Error('请先配置 DeepSeek API Key。')
+      const provider = modelInfo(session.model)?.provider
+      const key = providerKey(provider)
+      if (!key) throw new Error(missingKeyMessage(provider))
       if (!session.history.length)
         throw new Error('没有可以继续的内容。')
       const tail = session.ui[session.ui.length - 1]
@@ -2916,8 +2954,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           return
         }
       }
-      const key = deps.getKey()
-      if (!key) throw new Error('请先配置 DeepSeek API Key。')
+      const provider = modelInfo(session.model)?.provider
+      const key = providerKey(provider)
+      if (!key) throw new Error(missingKeyMessage(provider))
       const historyIndex = session.history.findLastIndex(
         (message) => message.role === 'user',
       )
@@ -3190,6 +3229,26 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (session.model === model && session.selectedModel === model) return
       session.model = model
       session.selectedModel = model
+      session.updatedAt = now()
+      persist()
+      emit()
+    },
+    syncModelWithKeys() {
+      if (busy) return
+      const session = activeSession()
+      if (!session) return
+      const fallback = availableChatModel()
+      if (!fallback) return
+      let changed = false
+      if (!modelKeyAvailable(session.model)) {
+        session.model = fallback
+        changed = true
+      }
+      if (!modelKeyAvailable(session.selectedModel ?? session.model)) {
+        session.selectedModel = fallback
+        changed = true
+      }
+      if (!changed) return
       session.updatedAt = now()
       persist()
       emit()

@@ -147,12 +147,12 @@ const configured = computed(() => agent.value?.configured === true)
 const aiTest = computed<AiTestState>(
   () => props.state?.ai.test ?? { status: 'idle' },
 )
-const aiTestLatencyClass = computed(() => {
-  const latency = aiTest.value.latencyMs ?? 0
+function latencyClass(test: AiTestState): string {
+  const latency = test.latencyMs ?? 0
   if (latency <= 400) return 'is-fast'
   if (latency <= 1200) return 'is-medium'
   return 'is-slow'
-})
+}
 const busy = computed(() => agent.value?.busy === true)
 const attachmentProgress = computed(
   () => props.state?.agentAttachmentProgress,
@@ -188,6 +188,7 @@ let pendingDraftHtml = ''
 let pendingDraftAttachments: AgentAttachmentPick[] = []
 const retryingAttachmentId = ref<string | null>(null)
 const keyDraft = ref('')
+const setupProvider = ref<AgentProvider>('deepseek')
 const list = ref<HTMLElement>()
 const listInner = ref<HTMLElement>()
 const composer = ref<HTMLElement>()
@@ -418,6 +419,25 @@ const minimaxConfigured = computed(
 const volcanoConfigured = computed(
   () => props.state?.ai.volcano.configured === true,
 )
+const chatAvailable = computed(
+  () => configured.value || minimaxConfigured.value || volcanoConfigured.value,
+)
+const setupProviders: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
+function toggleSetupProvider(provider: AgentProvider): void {
+  setupProvider.value = setupProvider.value === provider ? 'deepseek' : provider
+}
+function providerConfigured(provider: AgentProvider): boolean {
+  if (provider === 'minimax') return minimaxConfigured.value
+  if (provider === 'volcano') return volcanoConfigured.value
+  return configured.value
+}
+function providerTest(provider: AgentProvider): AiTestState {
+  if (provider === 'minimax')
+    return props.state?.ai.minimax.test ?? { status: 'idle' }
+  if (provider === 'volcano')
+    return props.state?.ai.volcano.test ?? { status: 'idle' }
+  return aiTest.value
+}
 const settings = computed(() => props.state?.settings)
 const defaultChatModelMissing = computed(
   () => agent.value?.defaultChatModelMissing === true,
@@ -2121,19 +2141,35 @@ function deny(id: string): void {
 function approveSame(id: string): void {
   emit('command', { type: 'agent-approve-same', id })
 }
-function saveKey(): void {
+function saveKey(provider: AgentProvider = 'deepseek'): void {
   const apiKey = keyDraft.value.trim()
   if (!apiKey) return
-  emit('command', { type: 'agent-config', apiKey })
+  if (provider === 'minimax')
+    emit('command', { type: 'minimax-config', apiKey })
+  else if (provider === 'volcano')
+    emit('command', { type: 'volcano-config', apiKey })
+  else emit('command', { type: 'agent-config', apiKey })
   keyDraft.value = ''
 }
-function getKey(): void {
-  emit('command', { type: 'agent-keys' })
+function getKey(provider: AgentProvider = 'deepseek'): void {
+  if (provider === 'deepseek') {
+    emit('command', { type: 'agent-keys' })
+    return
+  }
+  void window.mqmz?.openExternal(
+    provider === 'minimax'
+      ? 'https://platform.minimax.cn/console/keys'
+      : 'https://console.volcengine.com/ark/region:cn-beijing/apiKey',
+  )
 }
-function testDraftKey(): void {
+function testDraftKey(provider: AgentProvider = 'deepseek'): void {
   const apiKey = keyDraft.value.trim()
-  if (!apiKey || aiTest.value.status === 'testing') return
-  emit('command', { type: 'ai-test', apiKey })
+  if (!apiKey || providerTest(provider).status === 'testing') return
+  if (provider === 'minimax')
+    emit('command', { type: 'minimax-test', apiKey })
+  else if (provider === 'volcano')
+    emit('command', { type: 'volcano-test', apiKey })
+  else emit('command', { type: 'ai-test', apiKey })
 }
 
 function openMenu(
@@ -3342,67 +3378,98 @@ function statusLabel(status: string): string {
           </div>
         </template>
 
-        <template v-else-if="!configured">
+        <template v-else-if="!chatAvailable">
           <div class="agent-setup">
-            <h2>连接 DeepSeek</h2>
-            <input
-              v-model="keyDraft"
-              class="agent-key-input"
-              type="password"
-              placeholder="API Key"
-              aria-label="DeepSeek API Key"
-              @keydown.enter.prevent="saveKey"
-            />
-            <div class="agent-setup-actions">
-              <button
-                type="button"
-                class="agent-text-button agent-get-key"
-                @click="getKey"
+            <h2>连接模型供应商</h2>
+            <div class="agent-provider-list">
+              <div
+                v-for="provider in setupProviders"
+                :key="provider"
+                class="agent-provider"
               >
-                获取 API Key
-                <SquareArrowOutUpRight
-                  class="agent-external-icon"
-                  :size="14"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </button>
-              <div class="agent-setup-buttons">
-                <span
-                  v-if="aiTest.status === 'testing'"
-                  class="agent-latency"
-                  >测试中…</span
-                >
-                <span
-                  v-else-if="aiTest.status === 'ok'"
-                  class="agent-latency"
-                  :class="aiTestLatencyClass"
-                  >{{ aiTest.latencyMs }} ms</span
-                >
-                <span
-                  v-else-if="aiTest.status === 'error'"
-                  class="agent-latency is-slow"
-                  :title="aiTest.error"
-                  >测试失败</span
-                >
                 <button
                   type="button"
-                  class="agent-button agent-test-key"
-                  :disabled="
-                    !keyDraft.trim() || aiTest.status === 'testing'
-                  "
-                  @click="testDraftKey"
+                  class="agent-provider-head"
+                  :aria-expanded="setupProvider === provider"
+                  @click="toggleSetupProvider(provider)"
                 >
-                  测试延迟
+                  <span class="agent-provider-name">{{
+                    agentProviderLabels[provider]
+                  }}</span>
+                  <span class="agent-provider-action">{{
+                    providerConfigured(provider)
+                      ? '已连接'
+                      : setupProvider === provider
+                        ? '收起'
+                        : '添加'
+                  }}</span>
                 </button>
-                <button
-                  type="button"
-                  class="agent-button primary agent-save-key"
-                  :disabled="!keyDraft.trim()"
-                  @click="saveKey"
+                <div
+                  v-if="setupProvider === provider"
+                  class="agent-provider-form"
                 >
-                  保存
-                </button>
+                  <input
+                    v-model="keyDraft"
+                    class="agent-key-input"
+                    type="password"
+                    placeholder="API Key"
+                    :aria-label="`${agentProviderLabels[provider]} API Key`"
+                    @keydown.enter.prevent="saveKey(provider)"
+                  />
+                  <div class="agent-setup-actions">
+                    <button
+                      type="button"
+                      class="agent-text-button agent-get-key"
+                      @click="getKey(provider)"
+                    >
+                      获取 API Key
+                      <SquareArrowOutUpRight
+                        class="agent-external-icon"
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <div class="agent-setup-buttons">
+                      <span
+                        v-if="providerTest(provider).status === 'testing'"
+                        class="agent-latency"
+                        >测试中…</span
+                      >
+                      <span
+                        v-else-if="providerTest(provider).status === 'ok'"
+                        class="agent-latency"
+                        :class="latencyClass(providerTest(provider))"
+                        >{{ providerTest(provider).latencyMs }} ms</span
+                      >
+                      <span
+                        v-else-if="providerTest(provider).status === 'error'"
+                        class="agent-latency is-slow"
+                        :title="providerTest(provider).error"
+                        >测试失败</span
+                      >
+                      <button
+                        type="button"
+                        class="agent-button agent-test-key"
+                        :disabled="
+                          !keyDraft.trim() ||
+                          providerTest(provider).status === 'testing'
+                        "
+                        @click="testDraftKey(provider)"
+                      >
+                        测试延迟
+                      </button>
+                      <button
+                        type="button"
+                        class="agent-button primary agent-save-key"
+                        :disabled="!keyDraft.trim()"
+                        @click="saveKey(provider)"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <p
@@ -7780,6 +7847,57 @@ function statusLabel(status: string): string {
   font-size: var(--font-size-section);
   font-weight: 650;
 }
+.agent-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.agent-provider {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+.agent-provider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+.agent-provider-head:hover {
+  background: var(--color-fill-secondary);
+}
+.agent-provider-action {
+  flex: none;
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.agent-provider-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 12px 12px;
+  animation: agent-provider-open var(--motion-normal) var(--ease-spring);
+}
+@keyframes agent-provider-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 .agent-key-input {
   min-height: 40px;
   padding: 0 12px;
@@ -8508,7 +8626,8 @@ function statusLabel(status: string): string {
   .agent-parse-spinner,
   .agent-thinking-dots span,
   .agent-attachment-retry svg.is-spinning,
-  .agent-media-spinner svg.is-spinning {
+  .agent-media-spinner svg.is-spinning,
+  .agent-provider-form {
     animation: none;
   }
   .agent-media-placeholder::after {

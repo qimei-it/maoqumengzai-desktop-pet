@@ -8,7 +8,8 @@
 - [x] 图像生成：MiniMax-H3-Image 文生图与图生图，接入智能体输入框。
 - [x] 视频生成：MiniMax-H3 异步任务、轮询、取消、下载与预览。
 - [x] 语音生成：speech-2.8-hd / speech-2.8-turbo 同步语音合成。
-- [x] 文本生成：MiniMax-M3.1-Flash / MiniMax-M3 已进入 Agent 模型菜单；百炼不进入首发版本，火山方舟只用于桌宠形象生成。
+- [x] 文本生成：MiniMax-M3.1-Flash / MiniMax-M3 与火山方舟 Doubao Seed 2.1 Pro 已进入 Agent 模型菜单；百炼不进入首发版本。
+- [ ] 火山方舟 Doubao Seed 2.1 Pro 真实 Key 对话验收：2026-11-16 已确认请求到达 Ark，返回 `has not activated the model` 并显示中文提示；待控制台开通后复测成功回复。
 - [x] 将图像、视频、语音生成接入对应内置 Skill，并完成真实 Key 验收。
 
 ## 自定义桌宠（2026-11-16）

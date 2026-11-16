@@ -49,8 +49,15 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
     window.mqmz!.command({ type: 'agent-open' }),
   )
   await expect(
-    agent.getByRole('heading', { name: '连接 DeepSeek', exact: true }),
+    agent.getByRole('heading', {
+      name: '连接模型供应商',
+      exact: true,
+    }),
   ).toBeVisible()
+  const providers = agent.locator('.agent-provider-head')
+  await expect(providers).toHaveCount(3)
+  await expect(providers.nth(1)).toContainText('MiniMax')
+  await expect(providers.nth(2)).toContainText('火山方舟')
   const keyInput = agent.getByLabel('DeepSeek API Key')
   const getKeyButton = agent.getByRole('button', { name: '获取 API Key' })
   const testButton = agent.getByRole('button', { name: '测试延迟' })
@@ -770,6 +777,9 @@ test('agent model menu separates dialogue and image models', async () => {
   }
   await expect(
     menu.getByText('Doubao Seedream 5.5', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    menu.getByText('Doubao Seed 2.1 Pro', { exact: true }),
   ).toBeVisible()
   await expect(
     menu.locator(

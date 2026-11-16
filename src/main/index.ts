@@ -1787,6 +1787,7 @@ async function configureAi(
     await updateSettings({ musicAiEnabled: true })
   void refreshAiQuota()
   broadcast()
+  agent.syncModelWithKeys()
   if (test) void testAiConnection()
 }
 async function clearAi(): Promise<void> {
@@ -1802,6 +1803,7 @@ async function clearAi(): Promise<void> {
   if (settings.musicAiEnabled) await updateSettings({ musicAiEnabled: false })
   void refreshAiQuota()
   broadcast()
+  agent.syncModelWithKeys()
 }
 async function deleteAiKey(): Promise<void> {
   const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
@@ -1829,6 +1831,7 @@ async function configureMiniMax(
   minimaxTest = test ? { status: 'testing' } : { status: 'idle' }
   minimaxTestToken += 1
   broadcast()
+  agent.syncModelWithKeys()
   if (test) void testMiniMax()
 }
 async function deleteMiniMaxKey(): Promise<void> {
@@ -1848,6 +1851,7 @@ async function deleteMiniMaxKey(): Promise<void> {
   minimaxTest = { status: 'idle' }
   minimaxTestToken += 1
   broadcast()
+  agent.syncModelWithKeys()
 }
 async function testMiniMax(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || minimaxKey
@@ -1886,6 +1890,7 @@ async function configureVolcano(
   volcanoModels = undefined
   volcanoModelsError = undefined
   broadcast()
+  agent.syncModelWithKeys()
   if (test) void testVolcano()
 }
 async function deleteVolcanoKey(): Promise<void> {
@@ -1907,6 +1912,7 @@ async function deleteVolcanoKey(): Promise<void> {
   volcanoModels = undefined
   volcanoModelsError = undefined
   broadcast()
+  agent.syncModelWithKeys()
 }
 async function testVolcano(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || volcanoKey
@@ -12775,6 +12781,7 @@ else {
       aiKey = await loadStoredKey()
       minimaxKey = await loadProviderKey('minimax')
       volcanoKey = await loadProviderKey('volcano')
+      agent.syncModelWithKeys()
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,

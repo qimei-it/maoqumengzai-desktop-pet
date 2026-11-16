@@ -48,6 +48,14 @@ export const agentModels: readonly AgentModelInfo[] = [
     contextWindow: 1_000_000,
   },
   {
+    id: 'doubao-seed-2-1-pro-260915',
+    label: 'Doubao Seed 2.1 Pro',
+    provider: 'volcano',
+    kind: 'text',
+    reasoning: true,
+    contextWindow: 1_048_576,
+  },
+  {
     id: 'MiniMax-H3',
     label: 'MiniMax-H3',
     provider: 'minimax',
