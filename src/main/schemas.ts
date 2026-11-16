@@ -191,12 +191,6 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
-      type: z.literal('minimax-models'),
-      apiKey: z.string().min(1).max(400).optional(),
-    })
-    .strict(),
-  z
-    .object({
       type: z.literal('minimax-delete'),
     })
     .strict(),

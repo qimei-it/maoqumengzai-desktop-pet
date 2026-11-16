@@ -558,7 +558,6 @@ export type Command =
   | { type: 'ai-models'; apiKey?: string }
   | { type: 'minimax-config'; apiKey: string; test?: boolean }
   | { type: 'minimax-test'; apiKey?: string }
-  | { type: 'minimax-models'; apiKey?: string }
   | { type: 'minimax-delete' }
   | { type: 'ai-quota-refresh' }
   | {

@@ -113,17 +113,11 @@ const minimaxConfigured = computed(() => minimax.value?.configured === true)
 const minimaxTest = computed<AiTestState>(
   () => minimax.value?.test ?? { status: 'idle' },
 )
-const minimaxModels = computed(() => minimax.value?.models ?? [])
-const minimaxModelsError = computed(() => minimax.value?.modelsError)
-const minimaxVerifiedKey = ref('')
-const minimaxModelsVisible = computed(() => {
-  if (minimaxTest.value.status !== 'ok') return false
-  if (editingMiniMaxKey.value) {
-    const key = minimaxKey.value.trim()
-    return Boolean(key) && key === minimaxVerifiedKey.value
-  }
-  return minimaxConfigured.value
-})
+const minimaxModelsVisible = computed(
+  () =>
+    minimaxConfigured.value ||
+    (editingMiniMaxKey.value && Boolean(minimaxKey.value.trim())),
+)
 const minimaxLatencyClass = computed(() => {
   const latency = minimaxTest.value.latencyMs ?? 0
   if (latency <= 400) return 'is-fast'
@@ -193,31 +187,11 @@ function toggleMiniMaxModels(): void {
   modelsOpen.value = false
   minimaxModelsOpen.value = true
 }
-watch(
-  minimaxModels,
-  (models) => {
-    if (!models.includes(minimaxModelPreview.value))
-      minimaxModelPreview.value = models[0] ?? ''
-  },
-  { immediate: true },
-)
 watch(editingMiniMaxKey, (value) => {
   if (!value) minimaxModelsOpen.value = false
 })
 watch(minimaxConfigured, (value) => {
   if (!value) minimaxModelsOpen.value = false
-})
-watch(
-  () => minimaxTest.value.status,
-  (status) => {
-    if (status === 'ok' && editingMiniMaxKey.value)
-      minimaxVerifiedKey.value = minimaxKey.value.trim()
-    if (status === 'error') minimaxVerifiedKey.value = ''
-  },
-)
-watch(minimaxKey, (value) => {
-  if (editingMiniMaxKey.value && value.trim() !== minimaxVerifiedKey.value)
-    minimaxModelsOpen.value = false
 })
 watch(
   minimaxModelsVisible,
@@ -1401,7 +1375,6 @@ function onEscape(): void {
                   v-if="minimaxConfigured"
                   type="button"
                   class="settings-button"
-                  :disabled="minimaxTest.status !== 'ok'"
                   @click="toggleMiniMaxModels"
                 >
                   模型列表

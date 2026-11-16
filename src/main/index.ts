@@ -103,7 +103,7 @@ import {
 import { clearStoredKey, loadStoredKey, saveStoredKey } from './ai-key'
 import { clearProviderKey, loadProviderKey, saveProviderKey } from './provider-keys'
 import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
-import { listMiniMaxModels, testMiniMaxConnection } from '../shared/minimax'
+import { testMiniMaxConnection } from '../shared/minimax'
 import { loadAiQuotaCache, saveAiQuotaCache } from './ai-quota-store'
 import {
   emptyAiQuotaProvider,
@@ -546,8 +546,6 @@ let aiModelsError: string | undefined
 let minimaxKey: string | undefined
 let minimaxTest: AiTestState = { status: 'idle' }
 let minimaxTestToken = 0
-let minimaxModels: string[] | undefined
-let minimaxModelsError: string | undefined
 let convertBusy = false
 let convertFiles: ConvertFile[] = []
 let convertTargets: ConvertTarget[] = []
@@ -1449,8 +1447,6 @@ function aiState(): AiState {
     minimax: {
       configured: Boolean(minimaxKey),
       test: { ...minimaxTest },
-      ...(minimaxModels ? { models: minimaxModels } : {}),
-      ...(minimaxModelsError ? { modelsError: minimaxModelsError } : {}),
     },
   }
 }
@@ -1724,8 +1720,6 @@ async function configureMiniMax(
   minimaxKey = key
   minimaxTest = test ? { status: 'testing' } : { status: 'idle' }
   minimaxTestToken += 1
-  minimaxModels = undefined
-  minimaxModelsError = undefined
   broadcast()
   if (test) void testMiniMax()
 }
@@ -1745,8 +1739,6 @@ async function deleteMiniMaxKey(): Promise<void> {
   minimaxKey = undefined
   minimaxTest = { status: 'idle' }
   minimaxTestToken += 1
-  minimaxModels = undefined
-  minimaxModelsError = undefined
   broadcast()
 }
 async function testMiniMax(draftKey?: string): Promise<void> {
@@ -9581,7 +9573,6 @@ function setupIpc(): void {
       'ai-models',
       'minimax-config',
       'minimax-test',
-      'minimax-models',
       'minimax-delete',
       'extract-audio',
       'convert-open',
@@ -10084,25 +10075,6 @@ function setupIpc(): void {
       case 'minimax-test':
         void testMiniMax(command.apiKey)
         break
-      case 'minimax-models': {
-        const key = command.apiKey?.trim() || minimaxKey
-        if (!key) {
-          minimaxModels = undefined
-          minimaxModelsError = '请先添加 MiniMax API Key。'
-          broadcast()
-          break
-        }
-        minimaxModelsError = undefined
-        try {
-          minimaxModels = await listMiniMaxModels(key)
-        } catch (error) {
-          minimaxModels = undefined
-          minimaxModelsError =
-            error instanceof Error ? error.message : '拉取模型失败。'
-        }
-        broadcast()
-        break
-      }
       case 'minimax-delete':
         await deleteMiniMaxKey()
         break

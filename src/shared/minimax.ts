@@ -1,4 +1,4 @@
-/** MiniMax OpenAI-compatible model discovery and connection test. */
+/** MiniMax OpenAI-compatible connection test. */
 
 export const minimaxBaseUrl = 'https://api.minimax.cn/v1'
 export const minimaxModelsEndpoint = `${minimaxBaseUrl}/models`
@@ -42,13 +42,13 @@ async function requestModels(
       throw new Error('MiniMax 请求过于频繁，请稍后再试。')
     if (response.status >= 500)
       throw new Error('MiniMax 服务暂时不可用，请稍后重试。')
-    throw new Error(`MiniMax 模型列表请求失败（${response.status}）。`)
+    throw new Error(`MiniMax 连接测试请求失败（${response.status}）。`)
   }
   const data = (await response.json().catch(() => null)) as {
     data?: unknown
   } | null
   if (!data || !Array.isArray(data.data))
-    throw new Error('MiniMax 模型列表返回了无效数据。')
+    throw new Error('MiniMax 连接测试返回了无效数据。')
   return data.data
     .map((item) =>
       item && typeof item === 'object' && 'id' in item
@@ -56,13 +56,6 @@ async function requestModels(
         : '',
     )
     .filter(Boolean)
-}
-
-export async function listMiniMaxModels(
-  apiKey: string,
-  options: Options = {},
-): Promise<string[]> {
-  return requestModels(apiKey, options)
 }
 
 export async function testMiniMaxConnection(
