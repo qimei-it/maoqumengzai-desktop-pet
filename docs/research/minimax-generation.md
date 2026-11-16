@@ -1,0 +1,57 @@
+# MiniMax 多模态接入
+
+日期：2026-11-16。首个公开版本只接入 MiniMax，百炼与火山方舟顺延到后续版本。
+
+## 调用入口
+
+- 文本、图像、视频、语音模型都从智能体输入框的模型菜单选择，不再单独做创作面板。
+- 选中文本模型时，输入框下方不显示额外参数；只有模型支持推理强度时才显示「推理强度」。
+- 选中图像、视频、语音模型时，输入框下方显示一行生成参数，点开后展开设置。
+- 同一个输入框既接收文本提示词，也接收参考附件；生成结果直接回到会话里预览。
+
+## 参数
+
+| 类型 | 参数 |
+| --- | --- |
+| 文本 | `MiniMax-M3.1-Flash` 支持 `low / medium / high / xhigh / max`；`MiniMax-M3` 不显示推理强度 |
+| 图像 | 输出尺寸 `1K / 2K / 4K`、画面比例、输出格式、生成数量 1–10 |
+| 视频 | 清晰度 `768P / 2K`、画面比例、时长 4–15 秒 |
+| 语音 | 音色、语速 0.5–2、情绪、输出格式 `MP3 / WAV` |
+
+MiniMax 视频 V2 默认生成音频，没有开关参数，因此界面不提供「生成音频」开关，避免出现无效设置。
+
+## 接口
+
+- 文本：`POST https://api.minimax.cn/v1/chat/completions`
+  - OpenAI 兼容格式，使用 `tools` + `tool_calls`，保留 `reasoning_content` 以维持多轮工具调用。
+  - `MiniMax-M3.1-Flash` 强制开启 thinking，只能调 `reasoning_effort`。
+  - `MiniMax-M3` 在关闭推理时传 `thinking: { type: "disabled" }`。
+- 图像：`POST /v1/images/generations`；有参考图时用 `POST /v1/images/edits`。
+  - 参考图先通过 `POST /v1/files/upload`（`purpose=image_generation_input`）上传，再用 `mm_file://{file_id}` 引用。
+- 视频：`POST /v2/video_generation` 创建任务，`GET /v2/query/video_generation/{task_id}` 轮询。
+  - 参考图/视频/音频通过 `purpose=video_generation_input` 上传后以 `mm_file://{file_id}` 引用。
+  - 单张图 + 无其他参考素材时作为首帧；两张图作为首尾帧；其余图片、视频、音频作为多模态参考素材。
+  - 停止按钮会调用 `DELETE /v2/video_generation/{task_id}` 尝试取消排队任务；已在运行的任务按官方限制无法取消。
+- 语音：`POST /v1/t2a_v2`，非流式，返回 hex 音频后写入本地文件。
+
+## 本地文件
+
+- 生成结果保存在 `userData/generated`，命名带时间戳与随机后缀。
+- 渲染进程通过自定义协议 `mqmz-media://generated/<文件名>` 预览图片、视频与音频，协议只允许访问该目录。
+- 生成文件同时登记为会话来源，可继续使用「保存 / 打开」。
+
+## 真实验证
+
+2026-11-16 使用真实 MiniMax Key 在 macOS 应用内验证：
+
+- 文本：`MiniMax-M3.1-Flash` 流式回复正常；`tool_calls` 调用 `todo_list` 后返回「待办数量：2」。
+- 图像：`MiniMax-H3-Image` 1K 文生图成功，生成文件通过 `mqmz-media://` 在会话内显示（1248×832）。
+- 语音：`speech-2.8-hd` 合成成功，音频可播放（约 4.6 秒）。
+- 视频：`MiniMax-H3` 768P / 16:9 / 4 秒任务成功，视频可播放（约 4.46 秒）。
+- 图像编辑、局部失败提示、队列取消未做真实付费验证。
+
+## 失败处理
+
+- Key 无效、余额不足、限流、内容审核失败和网络错误统一显示为面板提示，不写进消息正文。
+- 图像部分成功时保留成功结果，并在结果下方列出失败项。
+- 语音合成不支持附件；图像只接受图片参考；视频只接受图片、视频、音频参考。
