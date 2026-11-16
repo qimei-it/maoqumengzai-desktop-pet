@@ -78,6 +78,7 @@ test('restores per-session generation model overrides', async () => {
     sessions: [
       {
         ...session(1),
+        selectedModel: 'Doubao-Seedream-5.5',
         imageModel: 'Doubao-Seedream-5.5',
         videoModel: 'MiniMax-H3',
         audioModel: 'speech-2.8-turbo',
@@ -87,6 +88,7 @@ test('restores per-session generation model overrides', async () => {
   })
   const loaded = await loadAgentStore(path)
   expect(loaded.sessions[0]).toMatchObject({
+    selectedModel: 'Doubao-Seedream-5.5',
     imageModel: 'Doubao-Seedream-5.5',
     videoModel: 'MiniMax-H3',
     audioModel: 'speech-2.8-turbo',

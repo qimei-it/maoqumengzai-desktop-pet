@@ -255,6 +255,7 @@ function newSession(
     mode: 'build',
     approvalMode: 'ask',
     model,
+    selectedModel: model,
     reasoning: 'high',
     workspace,
     projectId,
@@ -1047,19 +1048,30 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         }
       const params = normalizeGenerationParams({
         image: {
-          count: toolNumber(args.count, 1, 10, '生成数量', 1),
-          area: toolChoice(args.area, ['1K', '2K', '4K'], '输出尺寸', '2K'),
+          count: toolNumber(
+            args.count,
+            1,
+            10,
+            '生成数量',
+            (ctx.generation?.image ?? defaultGenerationParams.image).count,
+          ),
+          area: toolChoice(
+            args.area,
+            ['1K', '2K', '4K'],
+            '输出尺寸',
+            (ctx.generation?.image ?? defaultGenerationParams.image).area,
+          ),
           ratio: toolChoice(
             args.ratio,
             ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
             '画面比例',
-            'auto',
+            (ctx.generation?.image ?? defaultGenerationParams.image).ratio,
           ),
           format: toolChoice(
             args.format,
             ['jpeg', 'png', 'webp'],
             '输出格式',
-            'jpeg',
+            (ctx.generation?.image ?? defaultGenerationParams.image).format,
           ),
         },
       })
@@ -1158,14 +1170,21 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             args.resolution,
             ['768P', '2K'],
             '清晰度',
-            '768P',
+            (ctx.generation?.video ?? defaultGenerationParams.video)
+              .resolution,
           ),
-          duration: toolNumber(args.duration, 4, 15, '视频时长', 5),
+          duration: toolNumber(
+            args.duration,
+            4,
+            15,
+            '视频时长',
+            (ctx.generation?.video ?? defaultGenerationParams.video).duration,
+          ),
           ratio: toolChoice(
             args.ratio,
             ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
             '画面比例',
-            '16:9',
+            (ctx.generation?.video ?? defaultGenerationParams.video).ratio,
           ),
         },
       })
@@ -1247,15 +1266,31 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         return { ok: false, text: '语音生成工具不接受参考附件。' }
       const params = normalizeGenerationParams({
         speech: {
-          voiceId: args.voice_id,
-          speed: toolNumber(args.speed, 0.5, 2, '语速', 1),
+          voiceId:
+            typeof args.voice_id === 'string' && args.voice_id.trim()
+              ? args.voice_id
+              : (ctx.generation?.speech ?? defaultGenerationParams.speech)
+                  .voiceId,
+          speed: toolNumber(
+            args.speed,
+            0.5,
+            2,
+            '语速',
+            (ctx.generation?.speech ?? defaultGenerationParams.speech).speed,
+          ),
           emotion: toolChoice(
             args.emotion,
             ['', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm'],
             '情绪',
-            '',
+            (ctx.generation?.speech ?? defaultGenerationParams.speech)
+              .emotion,
           ),
-          format: toolChoice(args.format, ['mp3', 'wav'], '输出格式', 'mp3'),
+          format: toolChoice(
+            args.format,
+            ['mp3', 'wav'],
+            '输出格式',
+            (ctx.generation?.speech ?? defaultGenerationParams.speech).format,
+          ),
         },
       })
       const outcome = await runAgentGeneration({
@@ -1794,6 +1829,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     argsText: string,
     signal: AbortSignal,
     references: GenerationReference[] = [],
+    generation?: GenerationParams,
     onProgress?: (output: string) => void,
   ): Promise<{
     allowed: boolean
@@ -1860,6 +1896,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(deps.backupRoot ? { backupRoot: deps.backupRoot } : {}),
         ...(onProgress ? { onProgress } : {}),
         references,
+        ...(generation ? { generation } : {}),
         bindWorkspace: (path: string) => {
           if (session.projectId)
             throw new Error(
@@ -1894,6 +1931,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     key: string,
     signal: AbortSignal,
     references: GenerationReference[] = [],
+    generation?: GenerationParams,
   ): Promise<void> {
     await refreshFileRefs(session, key, signal).catch(() => {})
     const usingMiniMax = isMiniMaxModel(session.model)
@@ -2126,6 +2164,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           call.arguments || '{}',
           signal,
           references,
+          generation,
           (progress) => {
             if (signal.aborted) return
             if (part.status === 'awaiting') part.status = 'running'
@@ -2458,6 +2497,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         JSON.stringify(generation.args),
         signal,
         generation.references ?? [],
+        undefined,
         (progress) => {
           if (signal.aborted) return
           part.text = progress
@@ -2632,6 +2672,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         mode: session?.mode ?? 'build',
         approvalMode: session?.approvalMode ?? 'ask',
         model: session?.model ?? defaultChatModel(),
+        selectedModel:
+          session?.selectedModel ?? session?.model ?? defaultChatModel(),
         ...(session?.imageModel ? { imageModel: session.imageModel } : {}),
         ...(session?.videoModel ? { videoModel: session.videoModel } : {}),
         ...(session?.audioModel ? { audioModel: session.audioModel } : {}),
@@ -2769,6 +2811,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
               ? [{ path: file.sourcePath, kind: file.kind }]
               : [],
           ),
+          generation,
         )
       } catch (error) {
         if (!signal.aborted) {
@@ -3144,8 +3187,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     setModel(model: AgentModelId) {
       if (busy) return
       const session = ensureSession()
-      if (session.model === model) return
+      if (session.model === model && session.selectedModel === model) return
       session.model = model
+      session.selectedModel = model
       session.updatedAt = now()
       persist()
       emit()
@@ -3158,9 +3202,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const info = modelInfo(model)
       if (!info || info.kind !== kind) return
       const session = ensureSession()
-      if (kind === 'image' && session.imageModel === model) return
-      if (kind === 'video' && session.videoModel === model) return
-      if (kind === 'speech' && session.audioModel === model) return
+      if (session.selectedModel === model) return
+      session.selectedModel = model
+      session.model = defaultChatModel()
       if (kind === 'image') session.imageModel = model
       else if (kind === 'video') session.videoModel = model
       else session.audioModel = model

@@ -771,6 +771,19 @@ test('agent model menu separates dialogue and image models', async () => {
   await expect(
     menu.getByText('Doubao Seedream 5.5', { exact: true }),
   ).toBeVisible()
+  await expect(
+    menu.locator(
+      '.agent-model-option:has(.agent-model-kind)[aria-checked="true"]',
+    ),
+  ).toHaveCount(1)
+  await expect(menu.locator('.agent-model-session')).toHaveCount(0)
+  const defaultPill = menu.locator('.agent-model-default').first()
+  await expect(defaultPill).toBeVisible()
+  expect(
+    await defaultPill.evaluate((node) =>
+      node.nextElementSibling?.classList.contains('agent-model-kind'),
+    ),
+  ).toBe(true)
   await agent.locator('.agent-model-trigger').click()
 })
 

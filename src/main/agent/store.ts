@@ -59,6 +59,7 @@ export type StoredSession = {
   mode: AgentMode
   approvalMode?: AgentApprovalMode
   model: AgentModelId
+  selectedModel?: AgentModelId
   imageModel?: AgentModelId
   videoModel?: AgentModelId
   audioModel?: AgentModelId
@@ -224,6 +225,11 @@ function parseSession(value: unknown): StoredSession | null {
         ? value.approvalMode
         : 'ask',
     model: isGenerationModel(value.model) ? 'deepseek-flash' : value.model,
+    selectedModel: isAgentModelId(value.selectedModel)
+      ? value.selectedModel
+      : isGenerationModel(value.model)
+        ? 'deepseek-flash'
+        : value.model,
     ...(imageModel ? { imageModel } : {}),
     ...(videoModel ? { videoModel } : {}),
     ...(audioModel ? { audioModel } : {}),

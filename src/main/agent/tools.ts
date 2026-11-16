@@ -4,6 +4,7 @@
  */
 
 import type { AgentAttachmentKind, AgentMode } from '../../shared/agent'
+import type { GenerationParams } from '../../shared/generation'
 import { archiveFormats, todoRepeats } from '../../shared/protocol'
 import type { ArchiveFormat, ConvertAction, TodoRepeat } from '../../shared/protocol'
 import type { RenameConfig } from '../../shared/rename'
@@ -72,6 +73,8 @@ export type ToolContext = {
   onProgress?: (output: string) => void
   /** Media attached to the current user turn, used by generation tools. */
   references?: Array<{ path: string; kind: AgentAttachmentKind }>
+  /** User-selected generation parameters for this turn. */
+  generation?: GenerationParams
 }
 
 export type AgentTool = {

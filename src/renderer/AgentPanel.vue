@@ -361,19 +361,25 @@ const approvalMode = computed<AgentApprovalMode>(
 const model = computed<AgentModelId>(
   () => agent.value?.model ?? 'deepseek-flash',
 )
+const selectedModel = computed<AgentModelId>(
+  () => agent.value?.selectedModel ?? agent.value?.model ?? 'deepseek-flash',
+)
 const currentModel = computed(() => modelInfo(model.value))
-const modelReasoning = computed(() => currentModel.value?.reasoning === true)
+const selectedModelInfo = computed(() => modelInfo(selectedModel.value))
+const modelReasoning = computed(
+  () => selectedModelInfo.value?.reasoning === true,
+)
 const reasoningLevels = computed(() =>
-  model.value === 'MiniMax-M3.1-Flash'
+  selectedModel.value === 'MiniMax-M3.1-Flash'
     ? agentReasoningLevels.filter((level) => level !== 'off')
     : agentReasoningLevels,
 )
 const reasoningLabel = computed(() =>
-  model.value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off'
+  selectedModel.value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off'
     ? agentReasoningLabels.low
     : agentReasoningLabels[reasoning.value],
 )
-const generationKind = computed(() => currentModel.value?.kind ?? 'text')
+const generationKind = computed(() => selectedModelInfo.value?.kind ?? 'text')
 const showGenerationParams = computed(
   () => generationKind.value !== 'text',
 )
@@ -413,25 +419,6 @@ const volcanoConfigured = computed(
   () => props.state?.ai.volcano.configured === true,
 )
 const settings = computed(() => props.state?.settings)
-const sessionImageModel = computed(() => agent.value?.imageModel)
-const sessionVideoModel = computed(() => agent.value?.videoModel)
-const sessionAudioModel = computed(() => agent.value?.audioModel)
-const defaultImageModel = computed(() => settings.value?.aiImageModel || undefined)
-const defaultVideoModel = computed(
-  () => settings.value?.agentDefaultVideoModel || undefined,
-)
-const defaultAudioModel = computed(
-  () => settings.value?.agentDefaultAudioModel || undefined,
-)
-const imageModel = computed(
-  () => sessionImageModel.value ?? defaultImageModel.value,
-)
-const videoModel = computed(
-  () => sessionVideoModel.value ?? defaultVideoModel.value,
-)
-const audioModel = computed(
-  () => sessionAudioModel.value ?? defaultAudioModel.value,
-)
 const defaultChatModelMissing = computed(
   () => agent.value?.defaultChatModelMissing === true,
 )
@@ -457,9 +444,6 @@ function modelKindLabel(kind: AgentModelKind): string {
   if (kind === 'video') return '视频'
   if (kind === 'speech') return '音频'
   return '文本'
-}
-function effectiveModelLabel(id: AgentModelId | undefined): string {
-  return id ? agentModelLabels[id] ?? id : '未设置'
 }
 const modelConfigured = computed(() => {
   const provider = currentModel.value?.provider
@@ -688,7 +672,7 @@ const canSend = computed(
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
 const contextTokens = computed(() => agent.value?.contextTokens ?? 0)
-const isTextModel = computed(() => currentModel.value?.kind === 'text')
+const isTextModel = computed(() => selectedModelInfo.value?.kind === 'text')
 function formatCompactNumber(value: number): string {
   if (value >= 1_000_000) {
     const scaled = value / 1_000_000
@@ -2048,7 +2032,7 @@ function selectApprovalMode(value: AgentApprovalMode): void {
 function setModel(value: AgentModelId): void {
   if (modelInfo(value)?.kind !== 'text') return
   modelMenuOpen.value = false
-  if (model.value === value) return
+  if (selectedModel.value === value) return
   if (value !== 'deepseek-flash') pendingFlashSend.value = false
   if (value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off')
     emit('command', { type: 'agent-reasoning', reasoning: 'low' })
@@ -2059,21 +2043,11 @@ function setGenerationModel(
   value: AgentModelId,
 ): void {
   modelMenuOpen.value = false
-  const current =
-    kind === 'image'
-      ? imageModel.value
-      : kind === 'video'
-        ? videoModel.value
-        : audioModel.value
-  if (current === value) return
+  if (selectedModel.value === value) return
   emit('command', { type: 'agent-generation-model', kind, model: value })
 }
 function isModelSelected(item: AgentModelInfo): boolean {
-  if (item.kind === 'text') return model.value === item.id
-  if (item.kind === 'image') return imageModel.value === item.id
-  if (item.kind === 'video') return videoModel.value === item.id
-  if (item.kind === 'speech') return audioModel.value === item.id
-  return false
+  return selectedModel.value === item.id
 }
 function isDefaultModel(item: AgentModelInfo): boolean {
   if (item.kind === 'text')
@@ -4693,7 +4667,7 @@ function statusLabel(status: string): string {
                       :disabled="busy"
                       :aria-expanded="modelMenuOpen"
                       aria-haspopup="menu"
-                      :aria-label="`选择模型，对话 ${agentModelLabels[model]}，图像 ${effectiveModelLabel(imageModel)}${
+                      :aria-label="`选择模型，当前 ${agentModelLabels[selectedModel]}${
                         modelReasoning
                           ? `，推理强度${reasoningLabel}`
                           : ''
@@ -4701,7 +4675,7 @@ function statusLabel(status: string): string {
                       @click="modelMenuOpen = !modelMenuOpen"
                     >
                       <span class="agent-model-name">
-                        {{ agentModelLabels[model] }}
+                        {{ agentModelLabels[selectedModel] }}
                       </span>
                       <span v-if="modelReasoning" class="agent-model-effort">
                         {{ reasoningLabel }}

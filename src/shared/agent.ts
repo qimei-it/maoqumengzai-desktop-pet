@@ -272,6 +272,7 @@ export type AgentState = {
   mode: AgentMode
   approvalMode: AgentApprovalMode
   model: AgentModelId
+  selectedModel: AgentModelId
   imageModel?: AgentModelId
   videoModel?: AgentModelId
   audioModel?: AgentModelId
@@ -299,6 +300,7 @@ export const agentEmptyState: AgentState = {
   mode: 'build',
   approvalMode: 'ask',
   model: 'deepseek-flash',
+  selectedModel: 'deepseek-flash',
   reasoning: 'high',
   workspace: null,
   messages: [],

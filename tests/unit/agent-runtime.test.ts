@@ -506,6 +506,23 @@ describe('agent runtime', () => {
     ).rejects.toThrow('当前模型只支持文字附件')
   })
 
+  test('keeps one selected model and falls back to the default chat model', async () => {
+    const { runtime } = await makeRuntime([], [])
+    expect(runtime.state().selectedModel).toBe(
+      defaultSettings.agentDefaultChatModel,
+    )
+    runtime.setGenerationModel('image', 'MiniMax-H3-Image')
+    let state = runtime.state()
+    expect(state.selectedModel).toBe('MiniMax-H3-Image')
+    expect(state.imageModel).toBe('MiniMax-H3-Image')
+    expect(state.model).toBe(defaultSettings.agentDefaultChatModel)
+    runtime.setModel('deepseek-v4-pro')
+    state = runtime.state()
+    expect(state.selectedModel).toBe('deepseek-v4-pro')
+    expect(state.model).toBe('deepseek-v4-pro')
+    expect(state.imageModel).toBe('MiniMax-H3-Image')
+  })
+
   test('aborts a turn when an upload fails and marks the attachment', async () => {
     let streamed = false
     const { runtime } = await makeRuntime([], [], {
