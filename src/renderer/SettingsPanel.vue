@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes, SquareArrowOutUpRight } from '@lucide/vue'
 import {
   formatOpenAiAccountStatus,
   formatQuotaClock,
@@ -156,6 +156,13 @@ function cancelMiniMaxKey(): void {
 }
 function deleteMiniMaxKey(): void {
   emit('command', { type: 'minimax-delete' })
+}
+function openProviderKeys(provider: 'deepseek' | 'minimax'): void {
+  void window.mqmz?.openExternal(
+    provider === 'deepseek'
+      ? 'https://platform.deepseek.com/api_keys'
+      : 'https://platform.minimax.cn/console/keys',
+  )
 }
 function testSavedMiniMaxKey(): void {
   if (!minimaxConfigured.value || minimaxTest.value.status === 'testing') return
@@ -1233,6 +1240,18 @@ function onEscape(): void {
               </span>
             </div>
             <div v-if="editingKey" class="settings-field settings-field-end">
+              <button
+                type="button"
+                class="settings-key-link"
+                @click="openProviderKeys('deepseek')"
+              >
+                <span>获取 API Key</span>
+                <SquareArrowOutUpRight
+                  :size="13"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
               <span
                 v-if="aiTest.status === 'testing'"
                 class="ai-latency"
@@ -1409,6 +1428,18 @@ function onEscape(): void {
               v-if="editingMiniMaxKey"
               class="settings-field settings-field-end"
             >
+              <button
+                type="button"
+                class="settings-key-link"
+                @click="openProviderKeys('minimax')"
+              >
+                <span>获取 API Key</span>
+                <SquareArrowOutUpRight
+                  :size="13"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
               <span
                 v-if="minimaxTest.status === 'testing'"
                 class="ai-latency"
@@ -2058,6 +2089,30 @@ function onEscape(): void {
   justify-content: flex-end;
   padding-left: 0;
   padding-right: 0;
+}
+.settings-key-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+.settings-key-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.settings-key-link:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.settings-key-link > svg {
+  flex: none;
 }
 .settings-row-editing {
   gap: 8px;

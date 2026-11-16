@@ -115,7 +115,7 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
 
   await modelTrigger.click()
   await agent
-    .getByRole('menuitemradio', { name: 'DeepSeek-V4-Pro', exact: true })
+    .getByRole('menuitemradio', { name: /DeepSeek-V4-Pro/ })
     .click()
   await expect
     .poll(async () => {

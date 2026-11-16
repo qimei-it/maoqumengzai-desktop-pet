@@ -955,6 +955,13 @@ function mediaKindLabel(kind: 'image' | 'video' | 'audio'): string {
   return '音频'
 }
 
+function modelKindLabel(kind: 'text' | 'image' | 'video' | 'speech' | undefined): string {
+  if (kind === 'image') return '图像'
+  if (kind === 'video') return '视频'
+  if (kind === 'speech') return '音频'
+  return '文本'
+}
+
 const mediaSelections = ref<Record<string, number>>({})
 function mediaKey(messageId: string, index: number): string {
   return `${messageId}:${index}`
@@ -4126,7 +4133,12 @@ function statusLabel(status: string): string {
                           class="agent-model-check-space"
                           aria-hidden="true"
                         ></span>
-                        <span>{{ agentModelLabels[id] }}</span>
+                        <span class="agent-model-option-label">{{
+                          agentModelLabels[id]
+                        }}</span>
+                        <span class="agent-model-kind">{{
+                          modelKindLabel(modelInfo(id)?.kind)
+                        }}</span>
                       </button>
                       <p class="agent-model-group">MiniMax</p>
                       <button
@@ -4155,7 +4167,12 @@ function statusLabel(status: string): string {
                           class="agent-model-check-space"
                           aria-hidden="true"
                         ></span>
-                        <span>{{ item.label }}</span>
+                        <span class="agent-model-option-label">{{
+                          item.label
+                        }}</span>
+                        <span class="agent-model-kind">{{
+                          modelKindLabel(item.kind)
+                        }}</span>
                       </button>
                       <template v-if="modelReasoning">
                         <div class="agent-model-divider"></div>
@@ -6317,6 +6334,24 @@ function statusLabel(status: string): string {
 }
 .agent-model-option > svg {
   flex: none;
+}
+.agent-model-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-model-kind {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-fill-secondary);
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  line-height: 18px;
 }
 .agent-model-check-space {
   flex: none;

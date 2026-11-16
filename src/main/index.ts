@@ -12078,7 +12078,6 @@ else {
       applyDockIcon()
       aiKey = await loadStoredKey()
       minimaxKey = await loadProviderKey('minimax')
-      if (minimaxKey) void testMiniMax()
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,
