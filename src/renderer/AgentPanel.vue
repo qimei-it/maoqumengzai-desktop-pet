@@ -472,16 +472,16 @@ function onVoiceChange(event: Event): void {
 const generationLabel = computed(() => {
   const params = generationParams.value
   if (generationKind.value === 'image')
-    return `${params.image.area} · ${
+    return `${params.image.area} / ${
       params.image.ratio === 'auto' ? '自动比例' : params.image.ratio
-    } · ${params.image.count} 张`
+    } / ${params.image.count} 张`
   if (generationKind.value === 'video')
-    return `${params.video.resolution} · ${params.video.ratio} · ${params.video.duration} 秒`
+    return `${params.video.resolution} / ${params.video.ratio} / ${params.video.duration} 秒`
   if (generationKind.value === 'speech') {
     const voice =
       speechVoices.find((item) => item.id === params.speech.voiceId)?.label ??
       params.speech.voiceId
-    return `${voice} · ${params.speech.speed.toFixed(1)}x`
+    return `${voice} / ${params.speech.speed.toFixed(1)}x`
   }
   return ''
 })
