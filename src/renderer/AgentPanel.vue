@@ -3252,7 +3252,6 @@ function statusLabel(status: string): string {
                   </button>
                 </div>
               </header>
-              <p v-if="skillError" class="agent-error">{{ skillError }}</p>
               <div class="agent-skill-detail-content">
                 <MarkdownView
                   v-if="skillDetail.content"
@@ -3263,6 +3262,11 @@ function statusLabel(status: string): string {
                 </p>
               </div>
               <footer class="agent-skill-detail-foot">
+                <span
+                  v-if="skillError"
+                  class="agent-error agent-skill-detail-error"
+                  >{{ skillError }}</span
+                >
                 <button
                   v-if="!skillDetail.builtin"
                   type="button"
@@ -5126,14 +5130,12 @@ function statusLabel(status: string): string {
             </div>
           </template>
 
-          <p
-            v-if="dialogNameOverLimit || dialogError"
-            class="agent-error agent-dialog-error"
-          >
-            {{ dialogNameOverLimit ? dialogNameLimitHint : dialogError }}
-          </p>
-
           <footer class="agent-modal-foot">
+            <span
+              v-if="dialogNameOverLimit || dialogError"
+              class="agent-error agent-dialog-error"
+              >{{ dialogNameOverLimit ? dialogNameLimitHint : dialogError }}</span
+            >
             <button
               v-if="dialog.kind === 'edit-project'"
               type="button"
@@ -8116,6 +8118,14 @@ function statusLabel(status: string): string {
   gap: var(--space-2);
   margin-top: var(--space-4);
 }
+.agent-skill-detail-error {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .agent-skill-switch {
   position: relative;
   flex: none;
@@ -8320,8 +8330,13 @@ function statusLabel(status: string): string {
   white-space: nowrap;
 }
 .agent-dialog-error {
-  margin: var(--space-3) 0 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .agent-modal-foot {
   display: flex;

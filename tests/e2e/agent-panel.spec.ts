@@ -785,10 +785,15 @@ test('pet profile section exposes the create entry', async () => {
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
   const wizard = settings.getByRole('dialog', { name: '新建桌宠' })
   await expect(wizard).toBeVisible()
+  await settings.waitForTimeout(300)
   await expect(wizard.getByText('麻薯柔和水彩')).toHaveCount(0)
   await expect(
     wizard.getByRole('button', { name: '关闭', exact: true }),
   ).toHaveCount(0)
+  await expect(
+    wizard.getByText('请先添加火山方舟 API Key。'),
+  ).toBeVisible()
+  const initialBox = await wizard.boundingBox()
   await wizard
     .getByLabel(
       '最多添加 4 张同一只宠物的照片，建议 2–4 张，可一次选择多张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。',
@@ -800,10 +805,15 @@ test('pet profile section exposes the create entry', async () => {
   await expect(
     wizard.getByText('已经有同名桌宠，请换一个。'),
   ).toBeVisible()
+  const conflictBox = await wizard.boundingBox()
+  expect(conflictBox?.height).toBe(initialBox?.height)
   await nameInput.fill('团子')
   await expect(
     wizard.getByText('已经有同名桌宠，请换一个。'),
   ).toHaveCount(0)
+  await expect(
+    wizard.getByText('请先添加火山方舟 API Key。'),
+  ).toBeVisible()
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
 })

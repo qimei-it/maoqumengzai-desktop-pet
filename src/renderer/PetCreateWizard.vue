@@ -31,6 +31,15 @@ const existingNames = computed(() => create.value?.existingNames ?? [])
 const nameConflict = computed(() =>
   petNameConflict(name.value, existingNames.value),
 )
+const footerError = computed(() => {
+  if (step.value === 'edit') {
+    if (nameConflict.value) return petNameConflictError
+    if (!volcanoReady.value) return '请先添加火山方舟 API Key。'
+    return create.value?.error ?? ''
+  }
+  if (step.value === 'generating') return create.value?.error ?? ''
+  return ''
+})
 const canStart = computed(
   () =>
     Boolean(name.value.trim()) &&
@@ -176,22 +185,12 @@ function save(): void {
               @keydown.enter.prevent="start"
             />
           </label>
-
-          <p v-if="!volcanoReady" class="pet-wizard-error" role="alert">
-            请先在设置 → 智能体添加火山方舟 API Key。
-          </p>
-          <p v-else-if="create?.error" class="pet-wizard-error" role="alert">
-            {{ create.error }}
-          </p>
         </div>
 
         <div v-else class="pet-wizard-body">
           <div class="pet-wizard-progress">
             <span>{{ doneCount }} / {{ poses.length }}</span>
           </div>
-          <p v-if="create?.error" class="pet-wizard-error" role="alert">
-            {{ create.error }}
-          </p>
           <div class="pet-wizard-grid">
             <div
               v-for="pose in poses"
@@ -247,14 +246,19 @@ function save(): void {
         </div>
 
         <footer class="pet-wizard-foot">
+          <span
+            v-if="footerError"
+            :id="
+              step === 'edit' && nameConflict
+                ? 'pet-name-conflict'
+                : undefined
+            "
+            class="pet-wizard-foot-error"
+            role="alert"
+            :title="footerError"
+            >{{ footerError }}</span
+          >
           <template v-if="step === 'edit'">
-            <span
-              v-if="nameConflict"
-              id="pet-name-conflict"
-              class="pet-wizard-foot-error"
-              role="alert"
-              >{{ petNameConflictError }}</span
-            >
             <button type="button" class="settings-button" @click="close">
               取消
             </button>
@@ -474,11 +478,6 @@ function save(): void {
 .pet-wizard-input:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 1px;
-}
-.pet-wizard-error {
-  margin: 0;
-  color: var(--color-danger);
-  font-size: var(--font-size-label);
 }
 .pet-wizard-progress {
   display: flex;

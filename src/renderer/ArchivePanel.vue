@@ -77,6 +77,8 @@ function start(): void {
         @close="close"
       />
 
+      <p v-if="error" class="archive-error" role="alert">{{ error }}</p>
+
       <div class="archive-content panel-scroll">
         <div v-if="!outcome" class="archive-files">
           <div
@@ -184,8 +186,6 @@ function start(): void {
       >
         {{ busy ? '正在打包…' : '开始打包' }}
       </button>
-
-      <p v-if="error" class="archive-error" role="alert">{{ error }}</p>
     </section>
   </main>
 </template>
