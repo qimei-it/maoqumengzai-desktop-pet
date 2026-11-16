@@ -20,7 +20,7 @@ export const deepseekModelLabels: Record<DeepSeekModel, string> = {
 type RequestOptions = {
   endpoint?: string
   timeoutMs?: number
-  model?: DeepSeekModel
+  model?: import('./agent-models').AgentModelId
   temperature?: number
   maxTokens?: number
   json?: boolean

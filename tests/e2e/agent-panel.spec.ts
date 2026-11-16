@@ -656,7 +656,7 @@ test('agent sidebar settings opens the 智能体 section', async () => {
   await expect(navItem).toBeVisible()
   await expect(navItem.locator('svg')).toHaveClass(/lucide-cpu-ai/)
   await expect(
-    settings.getByText('DeepSeek API Key', { exact: true }).first(),
+    settings.getByText('DeepSeek', { exact: true }).first(),
   ).toBeVisible()
 })
 
@@ -699,6 +699,7 @@ test('composer grows to 75% of the conversation pane', async () => {
     })
 
   await expect(agent.locator('.agent-main')).toBeVisible()
+  await expect(agent.locator('.agent-composer')).toBeVisible()
   const original = await readBounds()
   expect(await ratio()).toBeGreaterThan(0.9)
   const initialWidths = await widths()

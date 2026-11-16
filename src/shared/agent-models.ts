@@ -1,0 +1,95 @@
+/** Models exposed by the agent composer and their generation capabilities. */
+
+export type AgentProvider = 'deepseek' | 'minimax'
+export type AgentModelKind = 'text' | 'image' | 'video' | 'speech'
+
+export type AgentModelInfo = {
+  id: string
+  label: string
+  provider: AgentProvider
+  kind: AgentModelKind
+  /** Whether the model exposes a reasoning-effort setting. */
+  reasoning: boolean
+}
+
+export const agentModels: readonly AgentModelInfo[] = [
+  {
+    id: 'deepseek-flash',
+    label: 'DeepSeek-V4.1-Flash',
+    provider: 'deepseek',
+    kind: 'text',
+    reasoning: true,
+  },
+  {
+    id: 'deepseek-v4-pro',
+    label: 'DeepSeek-V4-Pro',
+    provider: 'deepseek',
+    kind: 'text',
+    reasoning: true,
+  },
+  {
+    id: 'MiniMax-M3.1-Flash',
+    label: 'MiniMax M3.1 Flash',
+    provider: 'minimax',
+    kind: 'text',
+    reasoning: true,
+  },
+  {
+    id: 'MiniMax-M3',
+    label: 'MiniMax M3',
+    provider: 'minimax',
+    kind: 'text',
+    reasoning: false,
+  },
+  {
+    id: 'MiniMax-H3',
+    label: 'MiniMax H3 视频',
+    provider: 'minimax',
+    kind: 'video',
+    reasoning: false,
+  },
+  {
+    id: 'MiniMax-H3-Image',
+    label: 'MiniMax H3 图片',
+    provider: 'minimax',
+    kind: 'image',
+    reasoning: false,
+  },
+  {
+    id: 'speech-2.8-hd',
+    label: 'MiniMax 语音 HD',
+    provider: 'minimax',
+    kind: 'speech',
+    reasoning: false,
+  },
+  {
+    id: 'speech-2.8-turbo',
+    label: 'MiniMax 语音 Turbo',
+    provider: 'minimax',
+    kind: 'speech',
+    reasoning: false,
+  },
+] as const
+
+export type AgentModelId = (typeof agentModels)[number]['id']
+
+export const agentModelLabels: Record<string, string> = Object.fromEntries(
+  agentModels.map((model) => [model.id, model.label]),
+)
+
+export function modelInfo(id: string): AgentModelInfo | undefined {
+  return agentModels.find((model) => model.id === id)
+}
+
+export function isAgentModelId(value: unknown): value is AgentModelId {
+  return typeof value === 'string' && agentModels.some((model) => model.id === value)
+}
+
+export function isMiniMaxModel(id: string): boolean {
+  return modelInfo(id)?.provider === 'minimax'
+}
+
+export function isGenerationModel(id: string): boolean {
+  const kind = modelInfo(id)?.kind
+  return kind === 'image' || kind === 'video' || kind === 'speech'
+}

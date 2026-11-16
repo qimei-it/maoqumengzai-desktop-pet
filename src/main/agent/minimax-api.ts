@@ -10,6 +10,7 @@ const apiBase = 'https://api.minimax.cn'
 const imageEndpoint = `${apiBase}/v1/images/generations`
 const videoCreateEndpoint = `${apiBase}/v2/video_generation`
 const videoQueryEndpoint = `${apiBase}/v2/query/video_generation`
+const videoTaskEndpoint = `${apiBase}/v2/video_generation`
 const speechEndpoint = `${apiBase}/v1/t2a_v2`
 const fileUploadEndpoint = `${apiBase}/v1/files/upload`
 const chatEndpoint = `${apiBase}/v1/chat/completions`
@@ -152,20 +153,18 @@ export type MiniMaxImageResult = {
   usage?: Record<string, unknown>
 }
 
-export async function generateMiniMaxImage(
-  apiKey: string,
-  request: {
-    prompt: string
-    model?: 'MiniMax-H3-Image' | 'MiniMax-H3-Image-Highspeed'
-    count?: number
-    size?: string
-    aspectRatio?: string
-    area?: '1K' | '2K' | '4K'
-    outputFormat?: 'png' | 'jpeg' | 'webp'
-    responseFormat?: 'url' | 'b64_json'
-  },
-  options: RequestOptions = {},
-): Promise<MiniMaxImageResult> {
+type ImageRequestOptions = {
+  model?: 'MiniMax-H3-Image' | 'MiniMax-H3-Image-Highspeed'
+  prompt: string
+  count?: number
+  size?: string
+  aspectRatio?: string
+  area?: '1K' | '2K' | '4K'
+  outputFormat?: 'png' | 'jpeg' | 'webp'
+  responseFormat?: 'url' | 'b64_json'
+}
+
+function imageBody(request: ImageRequestOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: request.model ?? 'MiniMax-H3-Image',
     prompt: request.prompt,
@@ -178,12 +177,12 @@ export async function generateMiniMaxImage(
     if (request.aspectRatio) body.aspect_ratio = request.aspectRatio
     if (request.area) body.area = request.area
   }
-  const response = await apiRequest(
-    imageEndpoint,
-    apiKey,
-    { method: 'POST', body: JSON.stringify(body) },
-    { ...options, timeoutMs: options.timeoutMs ?? 600_000 },
-  )
+  return body
+}
+
+async function parseImageResponse(
+  response: Response,
+): Promise<MiniMaxImageResult> {
   const data = await json<{
     data?: Array<{
       url?: string
@@ -206,6 +205,41 @@ export async function generateMiniMaxImage(
     ...(data.usage ? { usage: data.usage } : {}),
     ...(data.request_id ? { requestId: data.request_id } : {}),
   }
+}
+
+export async function generateMiniMaxImage(
+  apiKey: string,
+  request: ImageRequestOptions,
+  options: RequestOptions = {},
+): Promise<MiniMaxImageResult> {
+  const response = await apiRequest(
+    imageEndpoint,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(imageBody(request)) },
+    { ...options, timeoutMs: options.timeoutMs ?? 600_000 },
+  )
+  return parseImageResponse(response)
+}
+
+/** Image editing accepts public URLs, mm_file:// ids or data URIs. */
+export async function editMiniMaxImage(
+  apiKey: string,
+  request: ImageRequestOptions & { images: string[] },
+  options: RequestOptions = {},
+): Promise<MiniMaxImageResult> {
+  if (!request.images.length || request.images.length > 16)
+    throw new Error('图片编辑需要 1 到 16 张参考图。')
+  const body = {
+    ...imageBody(request),
+    images: request.images.map((url) => ({ image_url: url })),
+  }
+  const response = await apiRequest(
+    `${apiBase}/v1/images/edits`,
+    apiKey,
+    { method: 'POST', body: JSON.stringify(body) },
+    { ...options, timeoutMs: options.timeoutMs ?? 600_000 },
+  )
+  return parseImageResponse(response)
 }
 
 export type MiniMaxVideoContent =
@@ -238,8 +272,8 @@ export async function createMiniMaxVideo(
     firstFrameUrl?: string
     lastFrameUrl?: string
     referenceImageUrls?: string[]
-    referenceVideoUrl?: string
-    referenceAudioUrl?: string
+    referenceVideoUrls?: string[]
+    referenceAudioUrls?: string[]
   },
   options: RequestOptions = {},
 ): Promise<{ taskId: string }> {
@@ -264,16 +298,16 @@ export async function createMiniMaxVideo(
       image_url: { url },
       role: 'reference_image',
     })
-  if (request.referenceVideoUrl)
+  for (const url of request.referenceVideoUrls ?? [])
     content.push({
       type: 'video_url',
-      video_url: { url: request.referenceVideoUrl },
+      video_url: { url },
       role: 'reference_video',
     })
-  if (request.referenceAudioUrl)
+  for (const url of request.referenceAudioUrls ?? [])
     content.push({
       type: 'audio_url',
-      audio_url: { url: request.referenceAudioUrl },
+      audio_url: { url },
       role: 'reference_audio',
     })
   const response = await apiRequest(
@@ -347,6 +381,22 @@ export async function queryMiniMaxVideo(
     ...(task.ratio ? { ratio: task.ratio } : {}),
     ...(task.usage ? { usage: task.usage } : {}),
   }
+}
+
+/** Cancels a queued task, or deletes a finished record. */
+export async function cancelMiniMaxVideo(
+  apiKey: string,
+  taskId: string,
+  options: RequestOptions = {},
+): Promise<'cancelled' | 'deleted'> {
+  const response = await apiRequest(
+    `${videoTaskEndpoint}/${encodeURIComponent(taskId)}`,
+    apiKey,
+    { method: 'DELETE' },
+    { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
+  )
+  const data = await json<{ action?: 'cancelled' | 'deleted' }>(response)
+  return data.action === 'cancelled' ? 'cancelled' : 'deleted'
 }
 
 export async function waitForMiniMaxVideo(

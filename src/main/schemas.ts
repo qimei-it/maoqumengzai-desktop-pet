@@ -9,7 +9,7 @@ import {
   todoListColors,
   todoRepeats,
 } from '../shared/protocol'
-import { deepseekModelIds } from '../shared/deepseek'
+import { isAgentModelId, type AgentModelId } from '../shared/agent-models'
 import {
   musicAiDailyLimits,
   musicBarStyles,
@@ -388,7 +388,9 @@ export const commandSchema = z.discriminatedUnion('type', [
           shelfClipboardImages: z.boolean().optional(),
           shelfScreenshotBubble: z.boolean().optional(),
           shelfMaxRecords: z.number().int().min(50).max(500).optional(),
-          aiModel: z.enum(deepseekModelIds).optional(),
+          aiModel: z
+            .custom<AgentModelId>((value) => isAgentModelId(value))
+            .optional(),
           aiQuotaEnabled: z.boolean().optional(),
           aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
           aiQuotaOpenAIPath: z.string().max(1024).optional(),
@@ -865,7 +867,59 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('agent-send'),
       prompt: z.string().trim().min(1).max(8000),
-      attachmentIds: z.array(z.string().uuid()).max(8).optional(),
+      attachmentIds: z.array(z.string().uuid()).max(16).optional(),
+      generation: z
+        .object({
+          image: z
+            .object({
+              count: z.number().int().min(1).max(10),
+              area: z.enum(['1K', '2K', '4K']),
+              ratio: z.enum([
+                'auto',
+                '21:9',
+                '16:9',
+                '4:3',
+                '1:1',
+                '3:4',
+                '9:16',
+              ]),
+              format: z.enum(['jpeg', 'png', 'webp']),
+            })
+            .strict(),
+          video: z
+            .object({
+              resolution: z.enum(['480P', '768P', '2K']),
+              duration: z.number().int().min(4).max(15),
+              ratio: z.enum([
+                '21:9',
+                '16:9',
+                '4:3',
+                '1:1',
+                '3:4',
+                '9:16',
+              ]),
+            })
+            .strict(),
+          speech: z
+            .object({
+              voiceId: z.string().min(1).max(120),
+              speed: z.number().min(0.5).max(2),
+              emotion: z.enum([
+                '',
+                'happy',
+                'sad',
+                'angry',
+                'fearful',
+                'disgusted',
+                'surprised',
+                'calm',
+              ]),
+              format: z.enum(['mp3', 'wav']),
+            })
+            .strict(),
+        })
+        .strict()
+        .optional(),
     })
     .strict(),
   z.object({ type: z.literal('agent-retry') }).strict(),
@@ -987,7 +1041,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('agent-model'),
-      model: z.enum(deepseekModelIds),
+      model: z.custom<AgentModelId>((value) => isAgentModelId(value)),
     })
     .strict(),
   z

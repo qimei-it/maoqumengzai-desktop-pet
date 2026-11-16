@@ -1,6 +1,6 @@
 /** Shared agent types for the main-process harness and the panel view. */
 
-import type { DeepSeekModel } from './deepseek'
+import type { AgentModelId } from './agent-models'
 
 export const agentModes = ['plan', 'build'] as const
 export type AgentMode = (typeof agentModes)[number]
@@ -71,10 +71,34 @@ export type AgentArtifactView = {
   size?: number
 }
 
+export type AgentMediaKind = 'image' | 'video' | 'audio'
+
+export type AgentMediaView = {
+  id: string
+  name: string
+  kind: AgentMediaKind
+  /** Streamable address served by the app's local media protocol. */
+  url: string
+  size?: number
+  width?: number
+  height?: number
+  durationSeconds?: number
+}
+
+export type AgentMediaStatus = 'running' | 'done' | 'error'
+
+export type AgentMediaPart = {
+  type: 'media'
+  status: AgentMediaStatus
+  text?: string
+  items: AgentMediaView[]
+}
+
 export type AgentPart =
   | AgentTextPart
   | AgentReasoningPart
   | AgentToolPart
+  | AgentMediaPart
 
 export const agentAttachmentKinds = [
   'text',
@@ -232,7 +256,7 @@ export type AgentState = {
   sessionId: string | null
   mode: AgentMode
   approvalMode: AgentApprovalMode
-  model: DeepSeekModel
+  model: AgentModelId
   reasoning: AgentReasoning
   workspace: string | null
   messages: AgentMessageView[]

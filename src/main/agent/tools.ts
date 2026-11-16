@@ -60,7 +60,7 @@ export type ToolResult = {
 export type ToolContext = {
   workspace: string | null
   signal: AbortSignal
-  model?: 'deepseek-flash' | 'deepseek-v4-pro'
+  model?: import('../../shared/agent-models').AgentModelId
   reasoning?: 'off' | 'low' | 'high' | 'max'
   /** Recoverable backup directory for file writes. */
   backupRoot?: string

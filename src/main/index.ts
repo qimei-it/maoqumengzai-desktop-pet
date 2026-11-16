@@ -12,6 +12,7 @@ import {
   net,
   Notification,
   powerMonitor,
+  protocol,
   screen,
   session,
   shell,
@@ -42,6 +43,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
+import { mediaHost, mediaScheme } from '../shared/media'
 import type {
   AgentApprovalMode,
   AgentAttachmentPick,
@@ -348,6 +350,17 @@ mkdirSync(dataRoot, { recursive: true })
 mkdirSync(join(dataRoot, 'session'), { recursive: true })
 app.setPath('userData', dataRoot)
 app.setPath('sessionData', join(dataRoot, 'session'))
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: mediaScheme,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+    },
+  },
+])
 
 let pet: BrowserWindow
 let pocket: BrowserWindow
@@ -631,6 +644,7 @@ const mailSecretsPath = join(dataRoot, 'mqmz.mail.secrets.json')
 const clipboardDirectory = join(dataRoot, 'clipboard')
 const bellyDirectory = join(dataRoot, 'belly')
 const agentPath = join(dataRoot, 'mqmz.agent.json')
+const agentGenerationDir = join(dataRoot, 'generated')
 const agentWindowPath = join(dataRoot, 'mqmz.agent-window.json')
 const agentSkillsRoot = join(dataRoot, 'skills')
 const agentSkillsIndexPath = join(dataRoot, 'mqmz.skills.json')
@@ -1082,7 +1096,9 @@ async function loadEnabledSkillPrompts(): Promise<AgentSkillPrompt[]> {
 const agent = createAgentRuntime({
   services,
   storePath: agentPath,
+  generationDir: agentGenerationDir,
   getKey: () => aiKey,
+  getMiniMaxKey: () => minimaxKey,
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
@@ -9785,7 +9801,7 @@ function setupIpc(): void {
             (item): item is PreparedAgentAttachment => Boolean(item),
           )
         void agent
-          .send(command.prompt, attachments)
+          .send(command.prompt, attachments, command.generation)
           .then(async () => {
             if (agent.state().error) {
               broadcast()
@@ -11961,6 +11977,27 @@ else {
           settings.aiQuotaEnabled &&
           (cachedOpenAi.configured || cachedDeepSeek.configured),
       }
+      mkdirSync(agentGenerationDir, { recursive: true })
+      protocol.handle(mediaScheme, async (request) => {
+        try {
+          const url = new URL(request.url)
+          const decoded = decodeURIComponent(url.pathname)
+          const name = basename(decoded)
+          if (
+            url.hostname !== mediaHost ||
+            !name ||
+            decoded.replace(/^\/+/, '') !== name ||
+            name.startsWith('.')
+          )
+            return new Response('Not found', { status: 404 })
+          const file = resolve(agentGenerationDir, name)
+          if (dirname(file) !== agentGenerationDir)
+            return new Response('Not found', { status: 404 })
+          return await net.fetch(pathToFileURL(file).toString())
+        } catch {
+          return new Response('Not found', { status: 404 })
+        }
+      })
       await createWindows()
       scheduleAiQuotaRefresh()
       setTimeout(() => {

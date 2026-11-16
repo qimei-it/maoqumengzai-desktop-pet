@@ -6,7 +6,7 @@ import {
   type DropAction,
   type HoverAction,
 } from './donut'
-import type { DeepSeekModel } from './deepseek'
+import type { AgentModelId } from './agent-models'
 
 export const themeIds = ['default', 'halloween', 'christmas'] as const
 export type ThemeId = (typeof themeIds)[number]
@@ -46,7 +46,7 @@ export type Settings = {
   shelfClipboardImages: boolean
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
-  aiModel: DeepSeekModel
+  aiModel: AgentModelId
   aiQuotaEnabled: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string

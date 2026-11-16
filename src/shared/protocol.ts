@@ -8,8 +8,9 @@ import type {
   AgentState,
   AgentAttachmentPick,
 } from './agent'
-import type { DeepSeekModel } from './deepseek'
+import type { AgentModelId } from './agent-models'
 import type { FfmpegEngineState } from './ffmpeg'
+import type { GenerationParams } from './generation'
 import type { FocusSession, WaterEntry } from './focus'
 import type { AiQuotaState } from './ai-quota'
 import type {
@@ -571,7 +572,12 @@ export type Command =
   | { type: 'ai-keys' }
   | { type: 'agent-open' }
   | { type: 'agent-close' }
-  | { type: 'agent-send'; prompt: string; attachmentIds?: string[] }
+  | {
+      type: 'agent-send'
+      prompt: string
+      attachmentIds?: string[]
+      generation?: GenerationParams
+    }
   | { type: 'agent-retry' }
   | { type: 'agent-message-regenerate' }
   | { type: 'agent-message-edit'; id: string; prompt: string }
@@ -613,7 +619,7 @@ export type Command =
   | { type: 'agent-session-clear'; id: string }
   | { type: 'agent-mode'; mode: AgentMode }
   | { type: 'agent-approval-mode'; mode: AgentApprovalMode }
-  | { type: 'agent-model'; model: DeepSeekModel }
+  | { type: 'agent-model'; model: AgentModelId }
   | { type: 'agent-reasoning'; reasoning: AgentReasoning }
   | { type: 'agent-workspace'; projectId: string | null }
   | { type: 'agent-config'; apiKey: string }

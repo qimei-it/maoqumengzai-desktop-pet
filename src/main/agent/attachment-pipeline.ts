@@ -34,7 +34,7 @@ import type {
   AgentAttachmentPick,
   AgentAttachmentUpload,
 } from '../../shared/agent'
-import type { DeepSeekModel } from '../../shared/deepseek'
+import type { AgentModelId } from '../../shared/agent-models'
 import { fileExtension } from '../../shared/file-kinds'
 import { extractArchive } from '../archive-zip'
 import { officeCsvBuffer, officePdfBuffer } from '../convert-office'
@@ -165,7 +165,7 @@ const ebookExtensions = new Set(['epub', 'mobi', 'azw3'])
 const visionImageExtensions = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif'])
 
 export type AttachmentEngineOptions = {
-  model: DeepSeekModel
+  model: AgentModelId
   soffice: string | null
   ffmpeg: string | null
   signal?: AbortSignal

@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto'
 import { realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, isAbsolute } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import type {
   AgentApproval,
   AgentApprovalMode,
@@ -11,6 +11,7 @@ import type {
   AgentArtifactView,
   AgentAttachmentInput,
   AgentAttachmentView,
+  AgentMediaPart,
   AgentMessageView,
   AgentMode,
   AgentPetProfile,
@@ -23,7 +24,17 @@ import type {
 } from '../../shared/agent'
 import { maxAgentNameChars } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
-import type { DeepSeekModel } from '../../shared/deepseek'
+import type { AgentModelId } from '../../shared/agent-models'
+import { isMiniMaxModel } from '../../shared/agent-models'
+import type { GenerationParams } from '../../shared/generation'
+import { defaultGenerationParams, normalizeGenerationParams } from '../../shared/generation'
+import { mediaUrl } from '../../shared/media'
+import {
+  generationKindForModel,
+  runMiniMaxGeneration,
+  type GenerationReference,
+} from './generation'
+import { streamMiniMaxChat } from './minimax-provider'
 import type { SettingsState } from '../../shared/settings'
 import {
   loadAgentStore,
@@ -91,6 +102,8 @@ export type AgentSkillPrompt = {
 export type AgentRuntimeDeps = {
   services: Services
   storePath: string
+  /** Folder for generated images, videos and audio. */
+  generationDir?: string
   getKey(): string | undefined
   getSettings(): SettingsState
   getPetProfile(): AgentPetProfile
@@ -99,6 +112,9 @@ export type AgentRuntimeDeps = {
   stream?: typeof streamChat
   /** Title generation client; omitted in tests to keep scripted streams intact. */
   titleStream?: typeof streamChat
+  /** MiniMax text streaming; injectable for tests. */
+  minimaxStream?: typeof streamMiniMaxChat
+  getMiniMaxKey?(): string | undefined
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
@@ -116,7 +132,11 @@ export type AgentRuntimeDeps = {
 export type AgentRuntime = {
   load(): Promise<void>
   state(): AgentState
-  send(prompt: string, attachments?: AgentAttachmentInput[]): Promise<void>
+  send(
+    prompt: string,
+    attachments?: AgentAttachmentInput[],
+    generation?: GenerationParams,
+  ): Promise<void>
   /** Continues the last turn after an error, stop or tool-step limit. */
   retry(): Promise<void>
   /** Re-runs the last turn from its user message. */
@@ -146,7 +166,7 @@ export type AgentRuntime = {
   remove(id: string): void
   setMode(mode: AgentMode): void
   setApprovalMode(mode: AgentApprovalMode): void
-  setModel(model: DeepSeekModel): void
+  setModel(model: AgentModelId): void
   setReasoning(reasoning: AgentReasoning): void
   setWorkspace(projectId: string | null): void
   /** Resolve a saved attachment or artifact source for download. */
@@ -176,7 +196,7 @@ function now(): number {
 }
 
 function newSession(
-  model: DeepSeekModel,
+  model: AgentModelId,
   projectId: string | null = null,
   workspace: string | null = null,
 ): StoredSession {
@@ -315,7 +335,7 @@ function summarizeOlder(messages: ProviderMessage[]): string {
 /** Caps the request context and folds older turns into a compact summary. */
 function compactHistory(
   history: ProviderMessage[],
-  model: DeepSeekModel,
+  model: AgentModelId,
 ): CompactedHistory {
   let chars = 0
   let boundary = history.length
@@ -345,7 +365,7 @@ function compactHistory(
 /** Keeps recent context and never starts on an orphan tool result. */
 function trimHistory(
   history: ProviderMessage[],
-  model: DeepSeekModel,
+  model: AgentModelId,
 ): ProviderMessage[] {
   const recent = history.slice(-maxShellHistory)
   while (recent.length && recent[0].role === 'tool') recent.shift()
@@ -491,6 +511,7 @@ function artifactKind(name: string): AgentArtifactKind {
 
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const stream = deps.stream ?? streamChat
+  const minimaxStream = deps.minimaxStream ?? streamMiniMaxChat
   const files: AgentFilesClient = deps.files ?? {
     upload: (apiKey, path, purpose, signal) =>
       uploadAgentFile(apiKey, path, purpose, { signal }),
@@ -949,11 +970,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         { role: 'user', content: task },
       ]
       let summary = ''
+      const subModel = ctx.model ?? deps.getSettings().aiModel
+      const subMiniMax = isMiniMaxModel(subModel)
+      const subKey = subMiniMax ? deps.getMiniMaxKey?.() : key
+      const subStream = subMiniMax ? minimaxStream : stream
+      if (!subKey) return { ok: false, text: '请先配置对应模型的 API Key。' }
       for (let step = 0; step < 4; step += 1) {
         if (ctx.signal.aborted) throw new Error('已停止。')
         ctx.onProgress?.(`第 ${step + 1} 步：分析任务`)
-        const result = await stream(key, {
-          model: ctx.model ?? deps.getSettings().aiModel,
+        const result = await subStream(subKey, {
+          model: subModel,
           reasoning: ctx.reasoning ?? 'low',
           messages,
           tools: subagentDefinitions,
@@ -1451,6 +1477,15 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     signal: AbortSignal,
   ): Promise<void> {
     await refreshFileRefs(session, key, signal).catch(() => {})
+    const usingMiniMax = isMiniMaxModel(session.model)
+    const activeKey = usingMiniMax ? deps.getMiniMaxKey?.() : key
+    const activeStream = usingMiniMax ? minimaxStream : stream
+    if (!activeKey)
+      throw new Error(
+        usingMiniMax
+          ? '请先在设置中配置 MiniMax API Key。'
+          : '请先配置 DeepSeek API Key。',
+      )
     const skills = await (deps.loadSkills?.() ?? Promise.resolve([])).catch(
       () => [],
     )
@@ -1471,7 +1506,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (context.summarized) session.compacted = context.summarized
       else delete session.compacted
       try {
-        result = await stream(key, {
+        result = await activeStream(activeKey, {
           model: session.model,
           reasoning: session.reasoning,
           messages: [
@@ -1687,6 +1722,168 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     persist()
   }
 
+  const generationDir =
+    deps.generationDir ?? join(dirname(deps.storePath), 'generated')
+
+  async function runGenerationTurn(
+    session: StoredSession,
+    key: string,
+    prompt: string,
+    params: GenerationParams,
+    attachments: AgentAttachmentInput[],
+    appendUser: boolean,
+  ): Promise<void> {
+    const fallback = session.lastGeneration
+    const normalized = normalizeGenerationParams(params ?? defaultGenerationParams)
+    const references: GenerationReference[] = attachments.length
+      ? attachments.flatMap((item) =>
+          item.sourcePath
+            ? [{ path: item.sourcePath, kind: item.kind }]
+            : [],
+        )
+      : (fallback?.references ?? [])
+    if (session.model === 'speech-2.8-hd' || session.model === 'speech-2.8-turbo') {
+      if (references.length) throw new Error('语音合成不需要参考附件。')
+    }
+    errorText = undefined
+    busy = true
+    controller = new AbortController()
+    const signal = controller.signal
+    const assistantId = randomUUID()
+    session.lastGeneration = { prompt, params: normalized, references }
+    try {
+      if (appendUser) {
+        for (const item of attachments) {
+          if (!item.sourcePath) continue
+          rememberSource(session, {
+            id: item.id,
+            name: item.name,
+            path: item.sourcePath,
+            kind: 'attachment',
+          })
+        }
+        pushUi(session, {
+          id: randomUUID(),
+          role: 'user',
+          parts: [{ type: 'text', text: prompt }],
+          ...(attachments.length
+            ? {
+                attachments: attachments.map(
+                  ({ id, name, size, sourcePath }) => ({
+                    id,
+                    name,
+                    size,
+                    ...(sourcePath ? { canSave: true } : {}),
+                  }),
+                ),
+              }
+            : {}),
+        })
+        pushHistory(session, {
+          role: 'user',
+          content: `[${session.model}] ${prompt}`,
+        })
+        if (session.title === '新会话') {
+          const title = sessionTitle(prompt)
+          session.title = title
+          const titleKey = deps.getKey()
+          if (titleKey)
+            scheduleTitle(session, title, prompt, titleKey, signal)
+        }
+        session.updatedAt = now()
+        emit()
+      }
+      const assistant: AgentMessageView = {
+        id: assistantId,
+        role: 'assistant',
+        parts: [
+          {
+            type: 'media',
+            status: 'running',
+            text: '正在准备生成…',
+            items: [],
+          } satisfies AgentMediaPart,
+        ],
+      }
+      pushUi(session, assistant)
+      emit()
+      const outcome = await runMiniMaxGeneration({
+        apiKey: key,
+        model: session.model,
+        prompt,
+        params: normalized,
+        references,
+        outputDir: generationDir,
+        signal,
+        onProgress: (text) => {
+          if (signal.aborted) return
+          const part = assistant.parts[0]
+          if (part?.type === 'media') part.text = text
+          emit()
+        },
+      })
+      if (signal.aborted) throw new Error('已取消。')
+      const part = assistant.parts[0]
+      if (part?.type !== 'media') throw new Error('生成结果丢失。')
+      part.status = 'done'
+      part.text = outcome.warnings.length
+        ? outcome.warnings.join('；')
+        : undefined
+      part.items = outcome.items.map((item) => {
+        const id = randomUUID()
+        rememberSource(session, {
+          id,
+          name: item.name,
+          path: item.path,
+          kind: 'artifact',
+        })
+        return {
+          id,
+          name: item.name,
+          kind: item.kind,
+          url: mediaUrl(item.name),
+          ...(item.size ? { size: item.size } : {}),
+          ...(item.width ? { width: item.width } : {}),
+          ...(item.height ? { height: item.height } : {}),
+          ...(item.durationSeconds
+            ? { durationSeconds: item.durationSeconds }
+            : {}),
+        }
+      })
+      pushHistory(session, {
+        role: 'assistant',
+        content: `已生成 ${outcome.items.length} 个文件：${outcome.items
+          .map((item) => item.name)
+          .join('、')}`,
+      })
+      session.updatedAt = now()
+      persist()
+      emit()
+    } catch (error) {
+      const index = session.ui.findIndex(
+        (message) =>
+          message.id === assistantId &&
+          message.role === 'assistant',
+      )
+      if (index >= 0) session.ui.splice(index, 1)
+      if (!signal.aborted) {
+        errorText = errorMessage(error, '生成失败，请稍后重试。')
+      } else {
+        pushUi(session, {
+          id: randomUUID(),
+          role: 'assistant',
+          parts: [{ type: 'text', text: '已停止。' }],
+        })
+      }
+    } finally {
+      busy = false
+      controller = null
+      session.updatedAt = now()
+      persist()
+      emit()
+    }
+  }
+
   function retryLabelFor(session: StoredSession | undefined): '重试' | '继续' | undefined {
     if (busy || !session?.history.length) return undefined
     const last = session.history[session.history.length - 1]
@@ -1749,7 +1946,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const session = activeSession()
       const retryLabel = retryLabelFor(session)
       return {
-        configured: Boolean(deps.getKey()),
+        configured: Boolean(deps.getKey() || deps.getMiniMaxKey?.()),
         busy,
         sessions: sessions.map((item) => ({
           id: item.id,
@@ -1791,14 +1988,42 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(errorText ? { error: errorText } : {}),
       }
     },
-    async send(prompt: string, attachments: AgentAttachmentInput[] = []) {
+    async send(
+      prompt: string,
+      attachments: AgentAttachmentInput[] = [],
+      generation?: GenerationParams,
+    ) {
       const value = prompt.trim()
       if (!value) return
       if (busy) throw new Error('正在执行，请稍候。')
-      const key = deps.getKey()
-      if (!key) throw new Error('请先配置 DeepSeek API Key。')
       const session = ensureSession()
+      if (generationKindForModel(session.model)) {
+        const generationKey = deps.getMiniMaxKey?.()
+        if (!generationKey)
+          throw new Error('请先在设置中配置 MiniMax API Key。')
+        await runGenerationTurn(
+          session,
+          generationKey,
+          value,
+          generation ??
+            session.lastGeneration?.params ??
+            defaultGenerationParams,
+          attachments.slice(0, 16),
+          true,
+        )
+        return
+      }
+      const usingMiniMax = isMiniMaxModel(session.model)
+      const key = usingMiniMax ? deps.getMiniMaxKey?.() : deps.getKey()
+      if (!key)
+        throw new Error(
+          usingMiniMax
+            ? '请先在设置中配置 MiniMax API Key。'
+            : '请先配置 DeepSeek API Key。',
+        )
       const files = attachments.slice(0, 8)
+      if (usingMiniMax && files.length)
+        throw new Error('MiniMax 文本模型暂不支持附件。')
       if (
         session.model === 'deepseek-v4-pro' &&
         files.some(
@@ -1883,9 +2108,33 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     async retry() {
       if (busy) throw new Error('正在执行，请稍候。')
+      const session = ensureSession()
+      if (generationKindForModel(session.model)) {
+        const key = deps.getMiniMaxKey?.()
+        if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
+        const last = session.lastGeneration
+        if (!last) throw new Error('没有可以重试的生成任务。')
+        const tail = session.ui[session.ui.length - 1]
+        if (tail?.role === 'assistant' && tail.parts.length === 1) {
+          const part = tail.parts[0]
+          if (
+            part.type === 'text' &&
+            (part.text === '已停止。' || part.text === errorText)
+          )
+            session.ui.pop()
+        }
+        await runGenerationTurn(
+          session,
+          key,
+          last.prompt,
+          last.params,
+          [],
+          false,
+        )
+        return
+      }
       const key = deps.getKey()
       if (!key) throw new Error('请先配置 DeepSeek API Key。')
-      const session = ensureSession()
       if (!session.history.length)
         throw new Error('没有可以继续的内容。')
       const tail = session.ui[session.ui.length - 1]
@@ -1901,9 +2150,37 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     async regenerate() {
       if (busy) throw new Error('正在执行，请稍候。')
+      const session = ensureSession()
+      if (generationKindForModel(session.model)) {
+        const key = deps.getMiniMaxKey?.()
+        if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
+        const last = session.lastGeneration
+        if (!last) throw new Error('没有可以重新生成的内容。')
+        const lastUserIndex = session.ui.findLastIndex(
+          (message) => message.role === 'user',
+        )
+        if (lastUserIndex < 0)
+          throw new Error('没有可以重新生成的内容。')
+        session.ui = session.ui.slice(0, lastUserIndex + 1)
+        const lastHistory = session.history.at(-1)
+        if (
+          lastHistory?.role === 'assistant' &&
+          typeof lastHistory.content === 'string' &&
+          lastHistory.content.startsWith('已生成 ')
+        )
+          session.history.pop()
+        await runGenerationTurn(
+          session,
+          key,
+          last.prompt,
+          last.params,
+          [],
+          false,
+        )
+        return
+      }
       const key = deps.getKey()
       if (!key) throw new Error('请先配置 DeepSeek API Key。')
-      const session = ensureSession()
       const historyIndex = session.history.findLastIndex(
         (message) => message.role === 'user',
       )
@@ -2169,7 +2446,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
       emit()
     },
-    setModel(model: DeepSeekModel) {
+    setModel(model: AgentModelId) {
       if (busy) return
       const session = ensureSession()
       if (session.model === model) return
@@ -2231,6 +2508,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         const tools = message.parts.filter(
           (part): part is AgentToolPart => part.type === 'tool',
         )
+        const media = message.parts.filter(
+          (part): part is AgentMediaPart => part.type === 'media',
+        )
         if (message.role === 'user') {
           if (text) sections.push(`## 用户\n\n${text}`)
           if (message.attachments?.length)
@@ -2242,6 +2522,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           continue
         }
         if (text) sections.push(`## 助手\n\n${text}`)
+        for (const part of media)
+          if (part.items.length)
+            sections.push(
+              `### 生成文件\n\n${part.items
+                .map((item) => `- ${item.name}`)
+                .join('\n')}`,
+            )
         for (const tool of tools) {
           const output = tool.output?.trim()
           const lines = [

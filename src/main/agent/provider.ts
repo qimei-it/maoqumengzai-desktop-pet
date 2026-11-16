@@ -3,7 +3,7 @@
  * Runs in the main process so the API key never reaches a renderer.
  */
 
-import type { DeepSeekModel } from '../../shared/deepseek'
+import type { AgentModelId } from '../../shared/agent-models'
 import type { AgentReasoning } from '../../shared/agent'
 
 export type ProviderToolCall = {
@@ -61,7 +61,7 @@ export type StreamResult = {
 }
 
 export type StreamOptions = {
-  model: DeepSeekModel
+  model: AgentModelId
   messages: ProviderMessage[]
   tools?: ProviderToolDefinition[]
   reasoning?: AgentReasoning

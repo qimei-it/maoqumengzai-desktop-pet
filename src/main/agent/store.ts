@@ -5,12 +5,16 @@ import { readFile, rename, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
   AgentApprovalMode,
+  AgentAttachmentKind,
   AgentMessageView,
   AgentMode,
   AgentReasoning,
   AgentUsage,
 } from '../../shared/agent'
-import type { DeepSeekModel } from '../../shared/deepseek'
+import type { AgentModelId } from '../../shared/agent-models'
+import { isAgentModelId } from '../../shared/agent-models'
+import type { GenerationParams } from '../../shared/generation'
+import { normalizeGenerationParams } from '../../shared/generation'
 import type { ProviderMessage } from './provider'
 
 export type StoredProject = {
@@ -37,12 +41,18 @@ export type StoredSource = {
   kind: 'attachment' | 'artifact'
 }
 
+export type StoredGenerationTurn = {
+  prompt: string
+  params: GenerationParams
+  references: Array<{ path: string; kind: AgentAttachmentKind }>
+}
+
 export type StoredSession = {
   id: string
   title: string
   mode: AgentMode
   approvalMode?: AgentApprovalMode
-  model: DeepSeekModel
+  model: AgentModelId
   reasoning: AgentReasoning
   workspace: string | null
   projectId: string | null
@@ -59,6 +69,8 @@ export type StoredSession = {
   usage: AgentUsage
   /** Number of older messages folded into the context summary. */
   compacted?: number
+  /** Last generation request so retry/regenerate reuses its parameters. */
+  lastGeneration?: StoredGenerationTurn
 }
 
 export type AgentStore = {
@@ -130,15 +142,50 @@ function parseSource(value: unknown): StoredSource | null {
   }
 }
 
+const attachmentKinds = new Set<AgentAttachmentKind>([
+  'text',
+  'pdf',
+  'office',
+  'spreadsheet',
+  'ofd',
+  'image',
+  'audio',
+  'video',
+  'archive',
+  'ebook',
+])
+
+function parseGenerationTurn(value: unknown): StoredGenerationTurn | null {
+  if (!isRecord(value)) return null
+  if (typeof value.prompt !== 'string' || !value.prompt.trim()) return null
+  const references = Array.isArray(value.references)
+    ? value.references
+        .filter(
+          (item): item is { path: string; kind: AgentAttachmentKind } =>
+            isRecord(item) &&
+            typeof item.path === 'string' &&
+            Boolean(item.path) &&
+            attachmentKinds.has(item.kind as AgentAttachmentKind),
+        )
+        .map((item) => ({ path: item.path, kind: item.kind }))
+        .slice(0, 16)
+    : []
+  return {
+    prompt: value.prompt.slice(0, 32_000),
+    params: normalizeGenerationParams(value.params),
+    references,
+  }
+}
+
 function parseSession(value: unknown): StoredSession | null {
   if (!isRecord(value)) return null
   if (typeof value.id !== 'string' || !value.id) return null
   if (typeof value.title !== 'string') return null
   if (value.mode !== 'plan' && value.mode !== 'build') return null
-  if (value.model !== 'deepseek-flash' && value.model !== 'deepseek-v4-pro')
-    return null
+  if (!isAgentModelId(value.model)) return null
   if (!Array.isArray(value.ui) || !Array.isArray(value.history)) return null
   const usage = isRecord(value.usage) ? value.usage : {}
+  const lastGeneration = parseGenerationTurn(value.lastGeneration)
   return {
     id: value.id,
     title: value.title.slice(0, 60),
@@ -147,7 +194,7 @@ function parseSession(value: unknown): StoredSession | null {
       value.approvalMode === 'auto' || value.approvalMode === 'full'
         ? value.approvalMode
         : 'ask',
-    model: value.model as DeepSeekModel,
+    model: value.model,
     reasoning:
       value.reasoning === 'off' ||
       value.reasoning === 'low' ||
@@ -194,6 +241,7 @@ function parseSession(value: unknown): StoredSession | null {
     ...(typeof value.compacted === 'number' && value.compacted > 0
       ? { compacted: Math.min(value.compacted, maxHistoryEntries) }
       : {}),
+    ...(lastGeneration ? { lastGeneration } : {}),
   }
 }
 

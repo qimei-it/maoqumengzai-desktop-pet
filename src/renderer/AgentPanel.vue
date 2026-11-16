@@ -43,6 +43,7 @@ import {
   ShieldCheck,
   ShieldExclamationPoint,
   ShieldQuestionMark,
+  SlidersHorizontal,
   Square,
   SquareArrowOutUpRight,
   Trash2,
@@ -72,11 +73,27 @@ import {
   type AgentTextPart,
   type AgentToolPart,
 } from '../shared/agent'
+import { deepseekModelIds } from '../shared/deepseek'
 import {
-  deepseekModelIds,
-  deepseekModelLabels,
-  type DeepSeekModel,
-} from '../shared/deepseek'
+  agentModels,
+  agentModelLabels,
+  modelInfo,
+  type AgentModelId,
+} from '../shared/agent-models'
+import {
+  defaultGenerationParams,
+  generationRatios,
+  h3VideoResolutions,
+  imageAreas,
+  imageFormats,
+  imageRatios,
+  normalizeGenerationParams,
+  speechEmotionLabels,
+  speechEmotions,
+  speechFormats,
+  speechVoices,
+  type GenerationParams,
+} from '../shared/generation'
 import type {
   AiTestState,
   Command,
@@ -327,9 +344,109 @@ const mode = computed<AgentMode>(() => agent.value?.mode ?? 'build')
 const approvalMode = computed<AgentApprovalMode>(
   () => agent.value?.approvalMode ?? 'ask',
 )
-const model = computed<DeepSeekModel>(
+const model = computed<AgentModelId>(
   () => agent.value?.model ?? 'deepseek-flash',
 )
+const currentModel = computed(() => modelInfo(model.value))
+const modelReasoning = computed(() => currentModel.value?.reasoning === true)
+const reasoningLevels = computed(() =>
+  model.value === 'MiniMax-M3.1-Flash'
+    ? agentReasoningLevels.filter((level) => level !== 'off')
+    : agentReasoningLevels,
+)
+const reasoningLabel = computed(() =>
+  model.value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off'
+    ? agentReasoningLabels.low
+    : agentReasoningLabels[reasoning.value],
+)
+const generationKind = computed(() => currentModel.value?.kind ?? 'text')
+const showGenerationParams = computed(
+  () => generationKind.value !== 'text',
+)
+const minimaxConfigured = computed(
+  () => props.state?.ai.minimax.configured === true,
+)
+const modelConfigured = computed(() =>
+  currentModel.value?.provider === 'minimax'
+    ? minimaxConfigured.value
+    : configured.value,
+)
+const miniMaxTextModels = agentModels.filter(
+  (item) => item.provider === 'minimax' && item.kind === 'text',
+)
+const miniMaxGenerationModels = agentModels.filter(
+  (item) => item.provider === 'minimax' && item.kind !== 'text',
+)
+const generationParamsKey = 'mqmz.agent.generation-params'
+function loadGenerationParams(): GenerationParams {
+  try {
+    return normalizeGenerationParams(
+      JSON.parse(localStorage.getItem(generationParamsKey) ?? 'null'),
+    )
+  } catch {
+    return normalizeGenerationParams(defaultGenerationParams)
+  }
+}
+const generationParams = ref<GenerationParams>(loadGenerationParams())
+const generationMenuOpen = ref(false)
+const generationPicker = ref<HTMLElement>()
+watch(
+  generationParams,
+  (value) => {
+    try {
+      localStorage.setItem(generationParamsKey, JSON.stringify(value))
+    } catch {
+      // Ignore quota or private-mode storage failures.
+    }
+  },
+  { deep: true },
+)
+watch(model, () => {
+  generationMenuOpen.value = false
+})
+function setVideoParam(patch: Partial<GenerationParams['video']>): void {
+  generationParams.value = {
+    ...generationParams.value,
+    video: { ...generationParams.value.video, ...patch },
+  }
+}
+function setImageParam(patch: Partial<GenerationParams['image']>): void {
+  generationParams.value = {
+    ...generationParams.value,
+    image: { ...generationParams.value.image, ...patch },
+  }
+}
+function setSpeechParam(patch: Partial<GenerationParams['speech']>): void {
+  generationParams.value = {
+    ...generationParams.value,
+    speech: { ...generationParams.value.speech, ...patch },
+  }
+}
+function ratioLabel(value: string): string {
+  return value === 'auto' ? '自动' : value
+}
+function generationPayload(): GenerationParams {
+  return JSON.parse(JSON.stringify(generationParams.value)) as GenerationParams
+}
+function onVoiceChange(event: Event): void {
+  setSpeechParam({ voiceId: (event.target as HTMLSelectElement).value })
+}
+const generationLabel = computed(() => {
+  const params = generationParams.value
+  if (generationKind.value === 'image')
+    return `${params.image.area} · ${
+      params.image.ratio === 'auto' ? '自动比例' : params.image.ratio
+    } · ${params.image.count} 张`
+  if (generationKind.value === 'video')
+    return `${params.video.resolution} · ${params.video.ratio} · ${params.video.duration} 秒`
+  if (generationKind.value === 'speech') {
+    const voice =
+      speechVoices.find((item) => item.id === params.speech.voiceId)?.label ??
+      params.speech.voiceId
+    return `${voice} · ${params.speech.speed.toFixed(1)}x`
+  }
+  return ''
+})
 const pendingFlashSend = ref(false)
 const proBlocked = computed(
   () =>
@@ -438,7 +555,7 @@ const canSend = computed(
     !parsing.value &&
     !pendingSend.value &&
     !proBlocked.value &&
-    configured.value,
+    modelConfigured.value,
 )
 const usage = computed(() => agent.value?.usage ?? { input: 0, output: 0 })
 
@@ -1111,7 +1228,7 @@ function send(): void {
     parsing.value ||
     pendingSend.value ||
     retryingAttachmentId.value ||
-    !configured.value
+    !modelConfigured.value
   )
     return
   const attachmentIds = attachments.value.map((item) => item.id)
@@ -1134,6 +1251,9 @@ function send(): void {
     type: 'agent-send',
     prompt,
     ...(attachmentIds.length ? { attachmentIds } : {}),
+    ...(showGenerationParams.value
+      ? { generation: generationPayload() }
+      : {}),
   })
   following.value = true
   scrollHover.value = false
@@ -1334,10 +1454,12 @@ function selectApprovalMode(value: AgentApprovalMode): void {
   if (approvalMode.value === value) return
   emit('command', { type: 'agent-approval-mode', mode: value })
 }
-function setModel(value: DeepSeekModel): void {
+function setModel(value: AgentModelId): void {
   modelMenuOpen.value = false
   if (model.value === value) return
   if (value !== 'deepseek-flash') pendingFlashSend.value = false
+  if (value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off')
+    emit('command', { type: 'agent-reasoning', reasoning: 'low' })
   emit('command', { type: 'agent-model', model: value })
 }
 function switchToFlashAndSend(): void {
@@ -1668,6 +1790,7 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
   if (editingMessage.value) editingMessage.value = null
   else if (confirm.value) confirm.value = null
+  else if (generationMenuOpen.value) generationMenuOpen.value = false
   else if (modelMenuOpen.value) modelMenuOpen.value = false
   else if (approvalMenuOpen.value) approvalMenuOpen.value = false
   else if (workspaceMenuOpen.value) closeWorkspaceMenu()
@@ -1679,6 +1802,11 @@ function onKeydown(event: KeyboardEvent): void {
 }
 function onDocumentMouseDown(event: MouseEvent): void {
   const target = event.target as Node
+  if (
+    generationMenuOpen.value &&
+    !generationPicker.value?.contains(target)
+  )
+    generationMenuOpen.value = false
   if (modelMenuOpen.value && !modelPicker.value?.contains(target))
     modelMenuOpen.value = false
   if (approvalMenuOpen.value && !approvalPicker.value?.contains(target))
@@ -2770,6 +2898,90 @@ function statusLabel(status: string): string {
                     >
                   </div>
                   <div
+                    v-else-if="part.type === 'media'"
+                    class="agent-media"
+                    :data-status="part.status"
+                  >
+                    <div
+                      v-if="part.status === 'running'"
+                      class="agent-media-running"
+                      role="status"
+                    >
+                      <LoaderCircle
+                        class="is-spinning"
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span>{{ part.text || '正在生成…' }}</span>
+                    </div>
+                    <div
+                      v-if="part.items.length"
+                      class="agent-media-grid"
+                      :data-kind="part.items[0]?.kind"
+                    >
+                      <figure
+                        v-for="item in part.items"
+                        :key="item.id"
+                        class="agent-media-item"
+                      >
+                        <img
+                          v-if="item.kind === 'image'"
+                          :src="item.url"
+                          :alt="item.name"
+                          loading="lazy"
+                        />
+                        <video
+                          v-else-if="item.kind === 'video'"
+                          :src="item.url"
+                          controls
+                          preload="metadata"
+                        ></video>
+                        <audio
+                          v-else
+                          :src="item.url"
+                          controls
+                          preload="metadata"
+                        ></audio>
+                        <figcaption>
+                          <span class="agent-media-name">{{ item.name }}</span>
+                          <button
+                            type="button"
+                            class="agent-media-action"
+                            :aria-label="`保存 ${item.name}`"
+                            :title="`保存 ${item.name}`"
+                            @click="saveSource(item.id)"
+                          >
+                            <Download
+                              :size="12"
+                              :stroke-width="2"
+                              aria-hidden="true"
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            class="agent-media-action"
+                            :aria-label="`打开 ${item.name}`"
+                            :title="`打开 ${item.name}`"
+                            @click="openSource(item.id)"
+                          >
+                            <SquareArrowOutUpRight
+                              :size="12"
+                              :stroke-width="2"
+                              aria-hidden="true"
+                            />
+                          </button>
+                        </figcaption>
+                      </figure>
+                    </div>
+                    <p
+                      v-if="part.text && part.status !== 'running'"
+                      class="agent-media-note"
+                    >
+                      {{ part.text }}
+                    </p>
+                  </div>
+                  <div
                     v-else
                     class="agent-tool"
                     :data-status="part.status"
@@ -3158,6 +3370,198 @@ function statusLabel(status: string): string {
                 @paste="onPaste"
                 @keydown.enter.exact.prevent="send"
               ></textarea>
+              <div
+                v-if="showGenerationParams"
+                ref="generationPicker"
+                class="agent-generation"
+              >
+                <button
+                  type="button"
+                  class="agent-generation-trigger"
+                  :aria-expanded="generationMenuOpen"
+                  aria-haspopup="dialog"
+                  :aria-label="`生成参数，当前 ${generationLabel}`"
+                  @click="generationMenuOpen = !generationMenuOpen"
+                >
+                  <SlidersHorizontal
+                    :size="12"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <span>{{ generationLabel }}</span>
+                  <ChevronDown
+                    :size="11"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </button>
+                <div
+                  v-if="generationMenuOpen"
+                  class="agent-generation-menu"
+                  role="dialog"
+                  aria-label="生成参数"
+                >
+                  <template v-if="generationKind === 'video'">
+                    <p class="agent-generation-label">清晰度</p>
+                    <div class="agent-generation-segment">
+                      <button
+                        v-for="value in h3VideoResolutions"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active:
+                            generationParams.video.resolution === value,
+                        }"
+                        @click="setVideoParam({ resolution: value })"
+                      >
+                        {{ value }}
+                      </button>
+                    </div>
+                    <p class="agent-generation-label">画面比例</p>
+                    <div class="agent-generation-segment is-compact">
+                      <button
+                        v-for="value in generationRatios"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active: generationParams.video.ratio === value,
+                        }"
+                        @click="setVideoParam({ ratio: value })"
+                      >
+                        {{ ratioLabel(value) }}
+                      </button>
+                    </div>
+                    <div class="agent-generation-heading">
+                      <p>视频时长</p>
+                      <span>{{ generationParams.video.duration }} 秒</span>
+                    </div>
+                    <input
+                      v-model.number="generationParams.video.duration"
+                      class="agent-generation-range"
+                      type="range"
+                      min="4"
+                      max="15"
+                      step="1"
+                      aria-label="视频时长"
+                    />
+                  </template>
+                  <template v-else-if="generationKind === 'image'">
+                    <p class="agent-generation-label">输出尺寸</p>
+                    <div class="agent-generation-segment">
+                      <button
+                        v-for="value in imageAreas"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active: generationParams.image.area === value,
+                        }"
+                        @click="setImageParam({ area: value })"
+                      >
+                        {{ value }}
+                      </button>
+                    </div>
+                    <p class="agent-generation-label">画面比例</p>
+                    <div class="agent-generation-segment is-compact">
+                      <button
+                        v-for="value in imageRatios"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active: generationParams.image.ratio === value,
+                        }"
+                        @click="setImageParam({ ratio: value })"
+                      >
+                        {{ ratioLabel(value) }}
+                      </button>
+                    </div>
+                    <p class="agent-generation-label">输出格式</p>
+                    <div class="agent-generation-segment">
+                      <button
+                        v-for="value in imageFormats"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active: generationParams.image.format === value,
+                        }"
+                        @click="setImageParam({ format: value })"
+                      >
+                        {{ value.toUpperCase() }}
+                      </button>
+                    </div>
+                    <div class="agent-generation-heading">
+                      <p>生成数量</p>
+                      <span>{{ generationParams.image.count }} 张</span>
+                    </div>
+                    <input
+                      v-model.number="generationParams.image.count"
+                      class="agent-generation-range"
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="1"
+                      aria-label="生成数量"
+                    />
+                  </template>
+                  <template v-else>
+                    <p class="agent-generation-label">音色</p>
+                    <select
+                      class="agent-generation-select"
+                      :value="generationParams.speech.voiceId"
+                      aria-label="音色"
+                      @change="onVoiceChange"
+                    >
+                      <option
+                        v-for="voice in speechVoices"
+                        :key="voice.id"
+                        :value="voice.id"
+                      >
+                        {{ voice.label }}
+                      </option>
+                    </select>
+                    <div class="agent-generation-heading">
+                      <p>语速</p>
+                      <span>{{ generationParams.speech.speed.toFixed(1) }}x</span>
+                    </div>
+                    <input
+                      v-model.number="generationParams.speech.speed"
+                      class="agent-generation-range"
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      aria-label="语速"
+                    />
+                    <p class="agent-generation-label">情绪</p>
+                    <div class="agent-generation-segment is-compact">
+                      <button
+                        v-for="value in speechEmotions"
+                        :key="value || 'auto'"
+                        type="button"
+                        :class="{
+                          active: generationParams.speech.emotion === value,
+                        }"
+                        @click="setSpeechParam({ emotion: value })"
+                      >
+                        {{ speechEmotionLabels[value] }}
+                      </button>
+                    </div>
+                    <p class="agent-generation-label">输出格式</p>
+                    <div class="agent-generation-segment">
+                      <button
+                        v-for="value in speechFormats"
+                        :key="value"
+                        type="button"
+                        :class="{
+                          active: generationParams.speech.format === value,
+                        }"
+                        @click="setSpeechParam({ format: value })"
+                      >
+                        {{ value.toUpperCase() }}
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
               <div class="agent-composer-row">
                 <div class="agent-composer-tools">
                   <button
@@ -3428,14 +3832,18 @@ function statusLabel(status: string): string {
                       :disabled="busy"
                       :aria-expanded="modelMenuOpen"
                       aria-haspopup="menu"
-                      :aria-label="`选择模型，当前 ${deepseekModelLabels[model]}，推理强度${agentReasoningLabels[reasoning]}`"
+                      :aria-label="`选择模型，当前 ${agentModelLabels[model]}${
+                        modelReasoning
+                          ? `，推理强度${reasoningLabel}`
+                          : ''
+                      }`"
                       @click="modelMenuOpen = !modelMenuOpen"
                     >
                       <span class="agent-model-name">
-                        {{ deepseekModelLabels[model] }}
+                        {{ agentModelLabels[model] }}
                       </span>
-                      <span class="agent-model-effort">
-                        {{ agentReasoningLabels[reasoning] }}
+                      <span v-if="modelReasoning" class="agent-model-effort">
+                        {{ reasoningLabel }}
                       </span>
                       <ChevronDown
                         :size="12"
@@ -3450,7 +3858,7 @@ function statusLabel(status: string): string {
                       role="menu"
                       aria-label="模型与推理强度"
                     >
-                      <p class="agent-model-group">模型</p>
+                      <p class="agent-model-group">DeepSeek</p>
                       <button
                         v-for="id in deepseekModelIds"
                         :key="id"
@@ -3471,21 +3879,26 @@ function statusLabel(status: string): string {
                           class="agent-model-check-space"
                           aria-hidden="true"
                         ></span>
-                        <span>{{ deepseekModelLabels[id] }}</span>
+                        <span>{{ agentModelLabels[id] }}</span>
                       </button>
-                      <div class="agent-model-divider"></div>
-                      <p class="agent-model-group">推理强度</p>
+                      <p class="agent-model-group">MiniMax</p>
                       <button
-                        v-for="level in agentReasoningLevels"
-                        :key="level"
+                        v-for="item in miniMaxTextModels"
+                        :key="item.id"
                         type="button"
                         class="agent-model-option"
                         role="menuitemradio"
-                        :aria-checked="reasoning === level"
-                        @click="setReasoning(level)"
+                        :aria-checked="model === item.id"
+                        :disabled="!minimaxConfigured"
+                        :title="
+                          minimaxConfigured
+                            ? undefined
+                            : '先在设置中添加 MiniMax API Key'
+                        "
+                        @click="setModel(item.id as AgentModelId)"
                       >
                         <Check
-                          v-if="reasoning === level"
+                          v-if="model === item.id"
                           :size="14"
                           :stroke-width="2"
                           aria-hidden="true"
@@ -3495,8 +3908,63 @@ function statusLabel(status: string): string {
                           class="agent-model-check-space"
                           aria-hidden="true"
                         ></span>
-                        <span>{{ agentReasoningLabels[level] }}</span>
+                        <span>{{ item.label }}</span>
                       </button>
+                      <p class="agent-model-group">生成</p>
+                      <button
+                        v-for="item in miniMaxGenerationModels"
+                        :key="item.id"
+                        type="button"
+                        class="agent-model-option"
+                        role="menuitemradio"
+                        :aria-checked="model === item.id"
+                        :disabled="!minimaxConfigured"
+                        :title="
+                          minimaxConfigured
+                            ? undefined
+                            : '先在设置中添加 MiniMax API Key'
+                        "
+                        @click="setModel(item.id as AgentModelId)"
+                      >
+                        <Check
+                          v-if="model === item.id"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span
+                          v-else
+                          class="agent-model-check-space"
+                          aria-hidden="true"
+                        ></span>
+                        <span>{{ item.label }}</span>
+                      </button>
+                      <template v-if="modelReasoning">
+                        <div class="agent-model-divider"></div>
+                        <p class="agent-model-group">推理强度</p>
+                        <button
+                          v-for="level in reasoningLevels"
+                          :key="level"
+                          type="button"
+                          class="agent-model-option"
+                          role="menuitemradio"
+                          :aria-checked="reasoning === level"
+                          @click="setReasoning(level)"
+                        >
+                          <Check
+                            v-if="reasoning === level"
+                            :size="14"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                          <span
+                            v-else
+                            class="agent-model-check-space"
+                            aria-hidden="true"
+                          ></span>
+                          <span>{{ agentReasoningLabels[level] }}</span>
+                        </button>
+                      </template>
                     </div>
                   </div>
                   <button
@@ -5634,6 +6102,236 @@ function statusLabel(status: string): string {
   margin: var(--space-1) var(--space-2);
   background: var(--color-line);
 }
+.agent-model-option:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.agent-generation {
+  position: relative;
+  display: flex;
+  padding: 0 10px var(--space-1);
+}
+.agent-generation-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface-muted);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-generation-trigger:hover {
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+.agent-generation-trigger:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-generation-trigger > svg {
+  flex: none;
+}
+.agent-generation-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 10px;
+  z-index: 30;
+  width: 320px;
+  max-height: min(440px, 60vh);
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+.agent-generation-label {
+  margin: 0 0 var(--space-1);
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+.agent-generation-label:not(:first-child) {
+  margin-top: var(--space-3);
+}
+.agent-generation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+.agent-generation-heading p {
+  margin: 0;
+}
+.agent-generation-heading span {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.agent-generation-segment {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+.agent-generation-segment button {
+  flex: 1;
+  min-height: 26px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--font-size-caption);
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.agent-generation-segment button:hover {
+  color: var(--color-ink);
+}
+.agent-generation-segment button.active {
+  background: var(--color-surface);
+  color: var(--color-brand-ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-control);
+}
+.agent-generation-segment button:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-generation-segment.is-compact button {
+  padding: 0 2px;
+  font-size: var(--font-size-caption);
+}
+.agent-generation-select {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-caption);
+}
+.agent-generation-range {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-brand);
+}
+.agent-media {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+.agent-media-running {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+}
+.agent-media-running svg.is-spinning {
+  flex: none;
+  animation: agent-spin 0.9s linear infinite;
+}
+.agent-media-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+.agent-media-grid[data-kind='image'] {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  width: min(100%, 560px);
+}
+.agent-media-grid[data-kind='video'] {
+  width: min(100%, 480px);
+}
+.agent-media-grid[data-kind='audio'] {
+  width: min(100%, 420px);
+}
+.agent-media-item {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+.agent-media-item img,
+.agent-media-item video {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  background: var(--color-surface-muted);
+  object-fit: contain;
+}
+.agent-media-item audio {
+  display: block;
+  width: 100%;
+  padding: var(--space-2);
+}
+.agent-media-item figcaption {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px var(--space-2);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+}
+.agent-media-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-media-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+}
+.agent-media-action:hover {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+.agent-media-action:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.agent-media-note {
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-caption);
+}
 .agent-send {
   display: grid;
   flex: none;
@@ -6580,6 +7278,7 @@ function statusLabel(status: string): string {
   .agent-parse-spinner,
   .agent-thinking-dots span,
   .agent-attachment-retry svg.is-spinning,
+  .agent-media-running svg.is-spinning,
   .agent-mic,
   .agent-mic svg.is-spinning {
     animation: none;
