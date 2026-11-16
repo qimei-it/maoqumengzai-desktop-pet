@@ -432,6 +432,16 @@ function rangeStyle(
   const ratio = Math.max(0, Math.min(1, (value - min) / (max - min)))
   return { '--range-ratio': String(ratio) }
 }
+function segmentStyle(
+  values: readonly string[],
+  active: string,
+): Record<string, string> {
+  const index = Math.max(0, values.indexOf(active))
+  return {
+    '--segment-index': String(index),
+    '--segment-count': String(Math.max(1, values.length)),
+  }
+}
 function generationPayload(): GenerationParams {
   return JSON.parse(JSON.stringify(generationParams.value)) as GenerationParams
 }
@@ -3676,7 +3686,14 @@ function statusLabel(status: string): string {
                     >
                       <template v-if="generationKind === 'video'">
                         <p class="agent-generation-label">清晰度</p>
-                        <div class="agent-generation-segment">
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(h3VideoResolutions, generationParams.video.resolution)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in h3VideoResolutions"
                             :key="value"
@@ -3691,7 +3708,14 @@ function statusLabel(status: string): string {
                           </button>
                         </div>
                         <p class="agent-generation-label">画面比例</p>
-                        <div class="agent-generation-segment is-compact">
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(generationRatios, generationParams.video.ratio)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in generationRatios"
                             :key="value"
@@ -3733,7 +3757,14 @@ function statusLabel(status: string): string {
                       </template>
                       <template v-else-if="generationKind === 'image'">
                         <p class="agent-generation-label">输出尺寸</p>
-                        <div class="agent-generation-segment">
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(imageAreas, generationParams.image.area)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in imageAreas"
                             :key="value"
@@ -3747,7 +3778,14 @@ function statusLabel(status: string): string {
                           </button>
                         </div>
                         <p class="agent-generation-label">画面比例</p>
-                        <div class="agent-generation-segment is-compact">
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(imageRatios, generationParams.image.ratio)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in imageRatios"
                             :key="value"
@@ -3761,7 +3799,14 @@ function statusLabel(status: string): string {
                           </button>
                         </div>
                         <p class="agent-generation-label">输出格式</p>
-                        <div class="agent-generation-segment">
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(imageFormats, generationParams.image.format)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in imageFormats"
                             :key="value"
@@ -3844,7 +3889,14 @@ function statusLabel(status: string): string {
                           />
                         </div>
                         <p class="agent-generation-label">情绪</p>
-                        <div class="agent-generation-segment is-compact">
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(speechEmotions, generationParams.speech.emotion)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in speechEmotions"
                             :key="value || 'auto'"
@@ -3858,7 +3910,14 @@ function statusLabel(status: string): string {
                           </button>
                         </div>
                         <p class="agent-generation-label">输出格式</p>
-                        <div class="agent-generation-segment">
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(speechFormats, generationParams.speech.format)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
                           <button
                             v-for="value in speechFormats"
                             :key="value"
@@ -6191,13 +6250,30 @@ function statusLabel(status: string): string {
   font-weight: 700;
 }
 .agent-generation-segment {
+  position: relative;
   display: flex;
   gap: 2px;
   padding: 2px;
   border-radius: var(--radius-control);
   background: var(--color-surface-muted);
 }
+.agent-generation-segment-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  z-index: 0;
+  width: calc((100% - 4px) / var(--segment-count, 1));
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-control);
+  pointer-events: none;
+  transform: translateX(calc(var(--segment-index, 0) * 100%));
+  transition: transform var(--motion-normal) var(--ease-spring);
+}
 .agent-generation-segment button {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 26px;
   padding: 0 4px;
@@ -6207,19 +6283,17 @@ function statusLabel(status: string): string {
   color: var(--color-muted);
   font: inherit;
   font-size: var(--font-size-caption);
+  font-weight: 700;
   white-space: nowrap;
-  transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 .agent-generation-segment button:hover {
   color: var(--color-ink);
 }
 .agent-generation-segment button.active {
-  background: var(--color-surface);
+  background: transparent;
   color: var(--color-brand-ink);
-  font-weight: 600;
-  box-shadow: var(--shadow-control);
+  font-weight: 700;
 }
 .agent-generation-segment button:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -7460,6 +7534,9 @@ function statusLabel(status: string): string {
   .agent-model-trigger,
   .agent-media-path,
   .agent-media-save-as,
+  .agent-generation-segment-thumb,
+  .agent-generation-slider-fill,
+  .agent-generation-slider-thumb,
   .agent-message-action,
   .agent-artifact,
   .agent-attachment-remove,
