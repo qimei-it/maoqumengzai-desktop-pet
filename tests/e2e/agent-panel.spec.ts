@@ -543,7 +543,8 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
   const initial = await readWindow()
   expect(initial.resizable).toBe(true)
   if (process.platform === 'darwin') expect(initial.maximizable).toBe(true)
-  expect(initial.bounds.width).toBeGreaterThanOrEqual(700)
+  expect(initial.bounds.width).toBeGreaterThanOrEqual(920)
+  expect(initial.bounds.height).toBeGreaterThanOrEqual(640)
 
   await application.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find((item) =>
@@ -551,10 +552,21 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
     )!
     window.setBounds({ ...window.getBounds(), width: 860, height: 600 })
   })
+  await agent.waitForTimeout(300)
+  const clamped = await readWindow()
+  expect(clamped.bounds.width).toBe(920)
+  expect(clamped.bounds.height).toBe(640)
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('智能体'),
+    )!
+    window.setBounds({ ...window.getBounds(), width: 1100, height: 760 })
+  })
   await agent.waitForTimeout(600)
   const resized = await readWindow()
-  expect(resized.bounds.width).toBe(860)
-  expect(resized.bounds.height).toBe(600)
+  expect(resized.bounds.width).toBe(1100)
+  expect(resized.bounds.height).toBe(760)
 
   await expect
     .poll(async () => {
@@ -573,7 +585,7 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
         return 'missing'
       }
     })
-    .toBe('860x600:false')
+    .toBe('1100x760:false')
 
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'panel-control', action: 'maximize' }),
@@ -617,7 +629,7 @@ test('agent window resizes, maximizes, and remembers bounds', async () => {
   await expect
     .poll(async () => (await readWindow()).maximized)
     .toBe(false)
-  expect((await readWindow()).bounds.width).toBe(860)
+  expect((await readWindow()).bounds.width).toBe(1100)
 
   await agent.locator('.agent-head').dblclick({
     position: { x: 300, y: 20 },
@@ -700,6 +712,13 @@ test('composer grows to 75% of the conversation pane', async () => {
 
   await expect(agent.locator('.agent-main')).toBeVisible()
   await expect(agent.locator('.agent-composer')).toBeVisible()
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('智能体'),
+    )!
+    window.setBounds({ ...window.getBounds(), width: 920, height: 640 })
+  })
+  await agent.waitForTimeout(400)
   const original = await readBounds()
   expect(await ratio()).toBeGreaterThan(0.9)
   const initialWidths = await widths()
@@ -708,7 +727,7 @@ test('composer grows to 75% of the conversation pane', async () => {
     Math.abs(initialWidths.messages - initialWidths.composer),
   ).toBeLessThan(16)
   const initialHeight = await composerHeight()
-  expect(initialHeight).toBeLessThan(112)
+  expect(initialHeight).toBeLessThan(160)
 
   await application.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows().find((item) =>
