@@ -373,11 +373,8 @@ const modelConfigured = computed(() =>
     ? minimaxConfigured.value
     : configured.value,
 )
-const miniMaxTextModels = agentModels.filter(
-  (item) => item.provider === 'minimax' && item.kind === 'text',
-)
-const miniMaxGenerationModels = agentModels.filter(
-  (item) => item.provider === 'minimax' && item.kind !== 'text',
+const miniMaxModels = agentModels.filter(
+  (item) => item.provider === 'minimax',
 )
 const generationParamsKey = 'mqmz.agent.generation-params'
 function loadGenerationParams(): GenerationParams {
@@ -3929,36 +3926,7 @@ function statusLabel(status: string): string {
                       </button>
                       <p class="agent-model-group">MiniMax</p>
                       <button
-                        v-for="item in miniMaxTextModels"
-                        :key="item.id"
-                        type="button"
-                        class="agent-model-option"
-                        role="menuitemradio"
-                        :aria-checked="model === item.id"
-                        :disabled="!minimaxConfigured"
-                        :title="
-                          minimaxConfigured
-                            ? undefined
-                            : '先在设置中添加 MiniMax API Key'
-                        "
-                        @click="setModel(item.id as AgentModelId)"
-                      >
-                        <Check
-                          v-if="model === item.id"
-                          :size="14"
-                          :stroke-width="2"
-                          aria-hidden="true"
-                        />
-                        <span
-                          v-else
-                          class="agent-model-check-space"
-                          aria-hidden="true"
-                        ></span>
-                        <span>{{ item.label }}</span>
-                      </button>
-                      <p class="agent-model-group">生成</p>
-                      <button
-                        v-for="item in miniMaxGenerationModels"
+                        v-for="item in miniMaxModels"
                         :key="item.id"
                         type="button"
                         class="agent-model-option"
