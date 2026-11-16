@@ -15,7 +15,7 @@ describe('vendored research skills', () => {
       builtinRoot,
     )
     const list = store.list()
-    expect(list.length).toBe(683)
+    expect(list.length).toBe(686)
     expect(new Set(list.map((item) => item.name)).size).toBe(list.length)
     expect(list.some((item) => item.requires)).toBe(true)
     expect(new Set(list.map((item) => item.id)).size).toBe(list.length)
@@ -33,7 +33,7 @@ describe('vendored research skills', () => {
       expect(skill.name.trim().length).toBeGreaterThan(0)
     }
     const enabled = list.filter((item) => item.enabled)
-    expect(enabled.length).toBe(33)
+    expect(enabled.length).toBe(36)
     expect(enabled.map((item) => item.name)).toEqual(
       expect.arrayContaining([
         'research-lookup',

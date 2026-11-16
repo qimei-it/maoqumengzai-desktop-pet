@@ -195,6 +195,11 @@ const alwaysConfirmTools = new Set([
   'mail_send',
   'mail_delete',
 ])
+const paidTools = new Set([
+  'image_generate',
+  'video_generate',
+  'speech_generate',
+])
 const maxHistoryChars = 96_000
 const maxSummaryChars = 6_000
 
@@ -921,6 +926,197 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return { ok: true, text: `已绑定工作区：${real}` }
     },
   }
+  const imageGenerateTool: AgentTool = {
+    name: 'image_generate',
+    description:
+      '根据用户要求生成图片。只支持文本提示词，返回本地图片文件。每次调用都需要用户确认并消耗额度。',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: '图片内容描述' },
+        count: { type: 'number', description: '生成数量 1-10，默认 1' },
+        area: {
+          type: 'string',
+          enum: ['1K', '2K', '4K'],
+          description: '输出面积档，默认 2K',
+        },
+        ratio: {
+          type: 'string',
+          enum: ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+          description: '画面比例，默认 auto',
+        },
+        format: {
+          type: 'string',
+          enum: ['jpeg', 'png', 'webp'],
+          description: '输出格式，默认 jpeg',
+        },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) => `生成图像：${String(args.prompt ?? '').slice(0, 40)}`,
+    async run(args, ctx) {
+      const session = activeSession()
+      if (!session) return { ok: false, text: '当前没有活动会话。' }
+      const key = deps.getMiniMaxKey?.()
+      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
+      if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
+      const params = normalizeGenerationParams({
+        image: {
+          count: Number(args.count) || 1,
+          area: args.area,
+          ratio: args.ratio,
+          format: args.format,
+        },
+      })
+      const outcome = await runMiniMaxGeneration({
+        apiKey: key,
+        model: 'MiniMax-H3-Image',
+        prompt,
+        params,
+        references: [],
+        outputDir: generationDirectory(session.id),
+        signal: ctx.signal,
+        onProgress: (text) => ctx.onProgress?.(text),
+      })
+      return {
+        ok: true,
+        text: `已生成 ${outcome.items.length} 张图片。${outcome.warnings.join('；')}`.trim(),
+        media: outcome.items,
+      }
+    },
+  }
+  const videoGenerateTool: AgentTool = {
+    name: 'video_generate',
+    description:
+      '根据用户要求生成视频。当前模型 MiniMax-H3 支持 768P/2K、4-15 秒。每次调用都需要用户确认并消耗额度。',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: '视频内容和镜头描述' },
+        resolution: {
+          type: 'string',
+          enum: ['768P', '2K'],
+          description: '清晰度，默认 768P',
+        },
+        duration: {
+          type: 'number',
+          description: '时长秒数 4-15，默认 5',
+        },
+        ratio: {
+          type: 'string',
+          enum: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+          description: '画面比例，默认 16:9',
+        },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) => `生成视频：${String(args.prompt ?? '').slice(0, 40)}`,
+    async run(args, ctx) {
+      const session = activeSession()
+      if (!session) return { ok: false, text: '当前没有活动会话。' }
+      const key = deps.getMiniMaxKey?.()
+      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
+      if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
+      const params = normalizeGenerationParams({
+        video: {
+          resolution: args.resolution,
+          duration: Number(args.duration) || 5,
+          ratio: args.ratio,
+        },
+      })
+      const outcome = await runMiniMaxGeneration({
+        apiKey: key,
+        model: 'MiniMax-H3',
+        prompt,
+        params,
+        references: [],
+        outputDir: generationDirectory(session.id),
+        signal: ctx.signal,
+        onProgress: (text) => ctx.onProgress?.(text),
+      })
+      return {
+        ok: true,
+        text: `已生成 1 个视频。${outcome.warnings.join('；')}`.trim(),
+        media: outcome.items,
+      }
+    },
+  }
+  const speechGenerateTool: AgentTool = {
+    name: 'speech_generate',
+    description:
+      '根据文本生成语音音频。支持 speech-2.8-hd / speech-2.8-turbo。每次调用都需要用户确认并消耗额度。',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '要朗读的最终文本' },
+        voice_id: {
+          type: 'string',
+          description: '音色 ID，默认 male-qn-qingse',
+        },
+        speed: { type: 'number', description: '语速 0.5-2，默认 1' },
+        emotion: {
+          type: 'string',
+          enum: ['', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm'],
+          description: '情绪，默认自动',
+        },
+        format: {
+          type: 'string',
+          enum: ['mp3', 'wav'],
+          description: '输出格式，默认 mp3',
+        },
+        quality: {
+          type: 'string',
+          enum: ['hd', 'turbo'],
+          description: '模型档位，默认 hd',
+        },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+    plan: 'deny',
+    build: 'ask',
+    title: (args) => `生成语音：${String(args.text ?? '').slice(0, 40)}`,
+    async run(args, ctx) {
+      const session = activeSession()
+      if (!session) return { ok: false, text: '当前没有活动会话。' }
+      const key = deps.getMiniMaxKey?.()
+      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const text = typeof args.text === 'string' ? args.text.trim() : ''
+      if (!text) return { ok: false, text: '缺少参数 text。' }
+      const params = normalizeGenerationParams({
+        speech: {
+          voiceId: args.voice_id,
+          speed: Number(args.speed) || 1,
+          emotion: args.emotion,
+          format: args.format,
+        },
+      })
+      const quality = args.quality === 'turbo' ? 'turbo' : 'hd'
+      const outcome = await runMiniMaxGeneration({
+        apiKey: key,
+        model: quality === 'turbo' ? 'speech-2.8-turbo' : 'speech-2.8-hd',
+        prompt: text,
+        params,
+        references: [],
+        outputDir: generationDirectory(session.id),
+        signal: ctx.signal,
+        onProgress: (progress) => ctx.onProgress?.(progress),
+      })
+      return {
+        ok: true,
+        text: `已生成 1 个音频。${outcome.warnings.join('；')}`.trim(),
+        media: outcome.items,
+      }
+    },
+  }
   const toolList = [
     ...Object.values(tools),
     skillTool,
@@ -933,6 +1129,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     skillInstallUrlTool,
     skillRemoveTool,
     workspaceSetTool,
+    imageGenerateTool,
+    videoGenerateTool,
+    speechGenerateTool,
   ]
   const subagentNames = new Set([
     'workspace_list',
@@ -1377,7 +1576,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         reason:
           tool.name === 'shell_run'
             ? '每条命令都需要确认'
-            : '执行模式下的写操作需要确认',
+            : paidTools.has(tool.name)
+              ? '生成媒体会消耗额度，每次都需要确认'
+              : '执行模式下的写操作需要确认',
       }
       pending = { info, resolve }
       emit()
@@ -1403,17 +1604,20 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     text: string
     ok: boolean
     artifacts?: { name: string; path: string }[]
+    media?: import('./generation').GeneratedMedia[]
   }> {
     let permission = permissionFor(tool, session.mode)
     const project = session.projectId
       ? projects.find((item) => item.id === session.projectId)
       : undefined
-    if (permission === 'ask' && project?.toolPolicy === 'allow')
+    const paid = paidTools.has(tool.name)
+    if (permission === 'ask' && !paid && project?.toolPolicy === 'allow')
       permission = 'allow'
     else if (permission === 'ask' && project?.toolPolicy === 'deny')
       permission = 'deny'
     if (
       permission === 'ask' &&
+      !paid &&
       (session.approvalMode === 'full' ||
         (session.approvalMode === 'auto' &&
           !alwaysConfirmTools.has(tool.name)))
@@ -1441,7 +1645,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     }
     if (
       permission === 'ask' &&
-      !(session.allowedTools ?? []).includes(tool.name)
+      (paid || !(session.allowedTools ?? []).includes(tool.name))
     ) {
       const allowed = await requestApproval(tool, args, argsText)
       if (!allowed)
@@ -1477,6 +1681,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(result.artifacts?.length
           ? { artifacts: result.artifacts }
           : {}),
+        ...(result.media?.length ? { media: result.media } : {}),
       }
     } catch (error) {
       return {
@@ -1505,6 +1710,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     const skills = await (deps.loadSkills?.() ?? Promise.resolve([])).catch(
       () => [],
     )
+    const pendingMedia: AgentMediaView[] = []
     for (let step = 0; step < maxSteps; step += 1) {
       if (signal.aborted) return
       const assistant: AgentMessageView = {
@@ -1609,6 +1815,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             type: 'text',
             text: '（内容被安全策略截断。）',
           })
+        if (pendingMedia.length)
+          assistant.parts.push({
+            type: 'media',
+            status: 'done',
+            items: pendingMedia.splice(0, pendingMedia.length),
+          } satisfies AgentMediaPart)
         pushHistory(session, {
           role: 'assistant',
           content: text || '模型没有返回内容，请换个说法再试。',
@@ -1721,6 +1933,32 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             return { id, name, kind: artifactKind(name) }
           })
         }
+        if (outcome.ok && outcome.media?.length) {
+          for (const item of outcome.media) {
+            const id = randomUUID()
+            rememberSource(session, {
+              id,
+              name: item.name,
+              path: item.path,
+              kind: 'artifact',
+            })
+            pendingMedia.push({
+              id,
+              name: item.name,
+              kind: item.kind,
+              status: 'done',
+              url: mediaUrl(id),
+              path: item.path,
+              directory: dirname(item.path),
+              ...(item.size ? { size: item.size } : {}),
+              ...(item.width ? { width: item.width } : {}),
+              ...(item.height ? { height: item.height } : {}),
+              ...(item.durationSeconds
+                ? { durationSeconds: item.durationSeconds }
+                : {}),
+            })
+          }
+        }
         pushHistory(session, {
           role: 'tool',
           tool_call_id: call.id,
@@ -1732,11 +1970,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
     }
     const current = session.ui[session.ui.length - 1]
-    if (current?.role === 'assistant')
+    if (current?.role === 'assistant') {
+      if (pendingMedia.length)
+        current.parts.push({
+          type: 'media',
+          status: 'done',
+          items: pendingMedia.splice(0, pendingMedia.length),
+        } satisfies AgentMediaPart)
       current.parts.push({
         type: 'text',
         text: '已达到单轮工具调用上限，请继续指令让我接着做。',
       })
+    }
     persist()
   }
 

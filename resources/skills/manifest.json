@@ -5643,6 +5643,30 @@
       "source": "https://github.com/aaron-he-zhu/aaron-marketing-skills/tree/7198d6794d449eccd91b759366157bf47d320367/seo-geo/tune/technical-seo-checker",
       "license": "Apache-2.0",
       "requires": "需要配置 INDEXNOW_KEY、BAIDU_PUSH_TOKEN"
+    },
+    {
+      "id": "builtin-mqmz-image-generation",
+      "dir": "mqmz-media/image-generation",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "project-local",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-mqmz-video-generation",
+      "dir": "mqmz-media/video-generation",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "project-local",
+      "license": "MIT"
+    },
+    {
+      "id": "builtin-mqmz-speech-generation",
+      "dir": "mqmz-media/speech-generation",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "project-local",
+      "license": "MIT"
     }
   ]
 }

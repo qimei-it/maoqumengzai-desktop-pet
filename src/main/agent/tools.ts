@@ -38,6 +38,7 @@ import type {
   SettingsPatch,
 } from '../services/contracts'
 import { runShell } from '../services/shell'
+import type { GeneratedMedia } from './generation'
 
 export type WebSearchResult = {
   title: string
@@ -55,6 +56,7 @@ export type ToolResult = {
   ok: boolean
   text: string
   artifacts?: { name: string; path: string }[]
+  media?: GeneratedMedia[]
 }
 
 export type ToolContext = {

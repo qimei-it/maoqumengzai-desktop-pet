@@ -84,3 +84,9 @@ Not bundled:
 - https://github.com/aaron-he-zhu/aaron-marketing-skills @ `7198d6794d449eccd91b759366157bf47d320367` (Apache-2.0, 16 SEO/GEO skills)
 
 The article also recommends ClawHub/Playbooks-only skills; those pages do not expose source repositories or licenses, so they are not vendored. Several concepts are already covered by marketingskills, claude-seo, nexscope, aronhy TikTok and the bundled humanizer.
+
+## 毛趣萌仔本地技能（2026-11-16）
+
+- `mqmz-media/image-generation`：项目内维护，MIT，调用 `image_generate` 工具。
+- `mqmz-media/video-generation`：项目内维护，MIT，调用 `video_generate` 工具。
+- `mqmz-media/speech-generation`：项目内维护，MIT，调用 `speech_generate` 工具。

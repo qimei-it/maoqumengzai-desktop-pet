@@ -2397,6 +2397,14 @@ const statusLabels: Record<string, string> = {
   error: '失败',
   denied: '已拒绝',
 }
+const paidToolNames = new Set([
+  'image_generate',
+  'video_generate',
+  'speech_generate',
+])
+function isPaidTool(name: string): boolean {
+  return paidToolNames.has(name)
+}
 function statusLabel(status: string): string {
   return statusLabels[status] ?? status
 }
@@ -3777,13 +3785,13 @@ function statusLabel(status: string): string {
                   v-if="
                     (message.role === 'assistant' ||
                       message.role === 'user') &&
-                    assistantText(message) &&
-                    !mediaPartOf(message)
+                    (assistantText(message) || mediaReady(message))
                   "
                   class="agent-message-actions"
                 >
                   <template v-if="message.role === 'assistant'">
                     <button
+                      v-if="assistantText(message)"
                       type="button"
                       class="agent-message-action"
                       :aria-label="
@@ -3800,6 +3808,20 @@ function statusLabel(status: string): string {
                       />
                       <Copy
                         v-else
+                        :size="14"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button
+                      v-if="mediaReady(message)"
+                      type="button"
+                      class="agent-message-action"
+                      aria-label="另存为"
+                      title="另存为"
+                      @click="saveMediaMessage(message)"
+                    >
+                      <Download
                         :size="14"
                         :stroke-width="2"
                         aria-hidden="true"
@@ -3834,26 +3856,6 @@ function statusLabel(status: string): string {
                     @click="startEdit(message)"
                   >
                     <PenLine
-                      :size="14"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </button>
-                </div>
-                <div
-                  v-if="
-                    message.role === 'assistant' && mediaReady(message)
-                  "
-                  class="agent-message-actions agent-message-actions-media"
-                >
-                  <button
-                    type="button"
-                    class="agent-message-action"
-                    aria-label="另存为"
-                    title="另存为"
-                    @click="saveMediaMessage(message)"
-                  >
-                    <Download
                       :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -3903,6 +3905,7 @@ function statusLabel(status: string): string {
                 拒绝
               </button>
               <button
+                v-if="!isPaidTool(agent.approval.name)"
                 type="button"
                 class="agent-button"
                 :title="`本会话不再确认 ${agent.approval.name}`"
