@@ -520,6 +520,7 @@ function save(): void {
   gap: 8px;
   margin: 0;
   padding: 12px 20px 18px;
+  border-top: 0;
 }
 .pet-wizard-enter-active,
 .pet-wizard-leave-active {
