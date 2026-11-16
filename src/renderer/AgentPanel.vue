@@ -6335,7 +6335,7 @@ function statusLabel(status: string): string {
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: var(--space-8);
+  margin-left: var(--space-6);
 }
 .agent-generation-trigger {
   display: inline-flex;
