@@ -11210,8 +11210,8 @@ async function createWindows(): Promise<void> {
   askWindow = new BrowserWindow({
     width: 920,
     height: 640,
-    minWidth: 720,
-    minHeight: 520,
+    minWidth: 920,
+    minHeight: 640,
     title: '毛趣萌仔 · 智能体',
     ...panelChrome,
     show: false,
@@ -11230,7 +11230,12 @@ async function createWindows(): Promise<void> {
     },
   })
   if (savedAgentWindow) {
-    askWindow.setBounds(fitToDisplays(savedAgentWindow.bounds, areas()))
+    const bounds = fitToDisplays(savedAgentWindow.bounds, areas())
+    askWindow.setBounds({
+      ...bounds,
+      width: Math.max(920, bounds.width),
+      height: Math.max(640, bounds.height),
+    })
     positionedPanels.add(askWindow)
   }
   askWindow.on('resize', () => {
