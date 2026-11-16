@@ -6651,7 +6651,10 @@ function statusLabel(status: string): string {
 }
 .agent-media-preview[data-kind='audio'] {
   width: min(100%, 560px);
-  padding: var(--space-2);
+  padding: 0;
+  overflow: visible;
+  border-radius: 0;
+  background: transparent;
 }
 .agent-media-preview audio {
   display: block;
