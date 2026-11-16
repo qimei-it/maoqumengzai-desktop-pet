@@ -790,7 +790,9 @@ test('pet profile section exposes the create entry', async () => {
     wizard.getByRole('button', { name: '关闭', exact: true }),
   ).toHaveCount(0)
   await wizard
-    .getByLabel('最多添加 4 张照片；照片仅用于本次生成，保存或放弃后会删除。')
+    .getByLabel(
+      '最多添加 4 张同一只宠物的照片，建议 2–4 张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。',
+    )
     .hover()
   await expect(wizard.getByRole('tooltip')).toHaveCSS('opacity', '1')
   await wizard.getByRole('button', { name: '取消', exact: true }).click()

@@ -41,4 +41,18 @@ describe('built-in pet styles', () => {
       expect(state?.prompt).not.toMatch(/布偶|ragdoll|蓝眼睛|奶白色/i)
     }
   })
+
+  test('keeps one outfit across multiple photos and all poses', () => {
+    const style = getPetStyle()
+    const base = getPetStyleState(style, 'base')
+    expect(base?.prompt).toContain('同一只宠物的照片')
+    expect(base?.prompt).toContain('有多张时综合判断')
+    expect(base?.prompt).toContain('同一套')
+    for (const id of petPoseIds) {
+      const state = getPetStyleState(style, id)
+      expect(state?.prompt).toContain('衣服')
+      expect(state?.prompt).toContain('配饰')
+      expect(state?.prompt).not.toContain('不穿衣服')
+    }
+  })
 })
