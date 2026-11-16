@@ -309,7 +309,8 @@ function save(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 20px 8px;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--color-line);
 }
 .pet-wizard-head h2 {
   margin: 0;
