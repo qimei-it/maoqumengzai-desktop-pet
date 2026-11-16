@@ -233,18 +233,31 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   await expect(mail.locator('.mail-error')).toContainText(
     '授权已失效，请重新授权。',
   )
-  await expect(
-    mail.locator('.mail-error').getByRole('button', {
-      name: '重新授权',
-      exact: true,
-    }),
-  ).toBeVisible()
+  const authButton = mail.locator('.mail-error').getByRole('button', {
+    name: '重新授权',
+    exact: true,
+  })
+  await expect(authButton).toBeVisible()
+  await expect(authButton).toHaveClass(/primary/)
   await expect(
     mail.locator('.mail-error').getByRole('button', {
       name: '重试',
       exact: true,
     }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  const errorTextBox = await mail
+    .locator('.mail-error > span')
+    .boundingBox()
+  const authButtonBox = await authButton.boundingBox()
+  expect(errorTextBox && authButtonBox).toBeTruthy()
+  if (errorTextBox && authButtonBox)
+    expect(
+      Math.abs(
+        authButtonBox.y +
+          authButtonBox.height / 2 -
+          (errorTextBox.y + errorTextBox.height / 2),
+      ),
+    ).toBeLessThan(8)
 
   await mail.locator('.mail-message', { hasText: '最新验证码' }).click()
   await expect(mail.locator('.mail-reader h2')).toHaveText('最新验证码')

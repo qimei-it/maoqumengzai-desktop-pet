@@ -301,6 +301,7 @@ export type MailPanelState = {
   drafts?: MailDraftSummary[]
   selected?: MailMessageDetail
   error?: string
+  errorKind?: 'auth' | 'sync' | 'detail'
   notice?: string
   noticeId?: number
 }

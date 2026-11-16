@@ -134,6 +134,14 @@ export function mailErrorMessage(error: unknown): string {
   return '邮箱连接失败，请检查账户与授权码。'
 }
 
+/** Whether a mail failure needs a new authorization code instead of a retry. */
+export function isMailAuthMessage(message: string | undefined): boolean {
+  if (!message) return false
+  return /授权|密码|登录|unsafe login|id required|client.*id|please.*id|authentication|invalid credentials|login fail|authorization|auth.*failed|invalid.*password/i.test(
+    message,
+  )
+}
+
 export async function probeMailAccount(
   provider: MailProvider,
   email: string,

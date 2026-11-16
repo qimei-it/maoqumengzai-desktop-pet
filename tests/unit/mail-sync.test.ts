@@ -60,6 +60,7 @@ import {
   fetchMailDetail,
   fetchMailFolders,
   fetchOlderMailInbox,
+  isMailAuthMessage,
   mailErrorMessage,
   moveMailMessage,
   probeMailAccount,
@@ -280,5 +281,25 @@ describe('mail error mapping', () => {
       responseText: '[AUTHENTICATIONFAILED] Invalid credentials',
     })
     expect(mailErrorMessage(error)).toBe('授权码或应用专用密码不正确。')
+  })
+
+  test('routes authorization failures to reauthorization', () => {
+    for (const message of [
+      '授权已失效，请重新授权。',
+      '授权码或应用专用密码不正确。',
+      '邮箱要求客户端标识，请更换授权码后重试。',
+      'AUTHENTICATIONFAILED Invalid credentials',
+    ])
+      expect(isMailAuthMessage(message)).toBe(true)
+  })
+
+  test('keeps network and sync failures on retry', () => {
+    for (const message of [
+      '无法连接邮箱服务器（ETIMEDOUT），请检查网络或代理。',
+      '邮件同步失败。',
+      '加载更多邮件失败。',
+      undefined,
+    ])
+      expect(isMailAuthMessage(message)).toBe(false)
   })
 })

@@ -40,6 +40,7 @@ import { pushToast } from './toasts'
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 const panel = computed(() => props.state?.mailPanel)
+const needsAuth = computed(() => panel.value?.errorKind === 'auth')
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const folderMap = computed(() => props.state?.mail.folders ?? {})
 const folderIcons: Record<MailFolderKind, unknown> = {
@@ -509,17 +510,10 @@ watch(
             <div class="mail-error-actions">
               <button
                 type="button"
-                class="settings-button"
-                @click="openMailSettings"
-              >
-                重新授权
-              </button>
-              <button
-                type="button"
                 class="settings-button primary"
-                @click="refresh"
+                @click="needsAuth ? openMailSettings() : refresh()"
               >
-                重试
+                {{ needsAuth ? '重新授权' : '重试' }}
               </button>
             </div>
           </div>
@@ -1306,7 +1300,10 @@ watch(
 }
 .mail-error {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px;
   border-radius: var(--radius-control);
@@ -1315,10 +1312,16 @@ watch(
   font-size: var(--font-size-label);
   line-height: 1.5;
 }
+.mail-error > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .mail-error-actions {
   display: flex;
-  justify-content: flex-end;
+  flex: none;
+  align-items: center;
   gap: 6px;
+  margin-left: auto;
 }
 .mail-attachment-summary {
   margin: 16px 0 4px;

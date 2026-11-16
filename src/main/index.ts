@@ -297,6 +297,7 @@ import {
   fetchMailDetail,
   fetchMailFolders,
   fetchOlderMailInbox,
+  isMailAuthMessage,
   moveMailMessages,
   moveMailMessagesToFolder,
   probeMailAccount,
@@ -504,7 +505,7 @@ let mailPanelQuery = ''
 const mailComposeAttachments = new Map<string, OutgoingAttachment>()
 let mailCacheBytes = 0
 let mailPanelError: string | undefined
-let mailPanelErrorKind: 'sync' | 'detail' | undefined
+let mailPanelErrorKind: 'auth' | 'sync' | 'detail' | undefined
 let mailPanelNotice: string | undefined
 let mailPanelNoticeId = 0
 let mailPanelMessages: MailMessageSummary[] = []
@@ -4363,6 +4364,7 @@ function mailPanelState(): MailPanelState {
       : {}),
     ...(mailPanelSelected ? { selected: mailPanelSelected } : {}),
     ...(mailPanelError ? { error: mailPanelError } : {}),
+    ...(mailPanelErrorKind ? { errorKind: mailPanelErrorKind } : {}),
     ...(mailPanelNotice ? { notice: mailPanelNotice } : {}),
     ...(mailPanelNoticeId ? { noticeId: mailPanelNoticeId } : {}),
   }
@@ -4634,7 +4636,9 @@ async function refreshMailPanel(): Promise<void> {
     const account = mailDb.account(accountId)
     if (account?.status === 'error') {
       mailPanelError = account.error
-      mailPanelErrorKind = 'sync'
+      mailPanelErrorKind = isMailAuthMessage(account.error)
+        ? 'auth'
+        : 'sync'
     }
   } catch (error) {
     if (
@@ -4643,9 +4647,10 @@ async function refreshMailPanel(): Promise<void> {
       mailPanelFolder !== folder
     )
       return
-    mailPanelError =
+    const message =
       error instanceof Error ? error.message : '邮件同步失败。'
-    mailPanelErrorKind = 'sync'
+    mailPanelError = message
+    mailPanelErrorKind = isMailAuthMessage(message) ? 'auth' : 'sync'
   } finally {
     if (
       requestId === mailPanelRequest &&
@@ -4769,16 +4774,17 @@ async function selectMail(uid: number): Promise<void> {
       if (cached) void markMailSeenOnServer(accountId, uid, folder)
     }
     if (mailPanelAccountId !== accountId) return
-    if (mailPanelErrorKind !== 'sync') {
+    if (mailPanelErrorKind !== 'sync' && mailPanelErrorKind !== 'auth') {
       mailPanelError = undefined
       mailPanelErrorKind = undefined
     }
     mailPanelSelected = detail
   } catch (error) {
     if (mailPanelAccountId !== accountId) return
-    mailPanelError =
+    const message =
       error instanceof Error ? error.message : '无法读取邮件。'
-    mailPanelErrorKind = 'detail'
+    mailPanelError = message
+    mailPanelErrorKind = isMailAuthMessage(message) ? 'auth' : 'detail'
   } finally {
     if (!cached && mailPanelAccountId === accountId) {
       mailPanelLoading = false
@@ -4796,7 +4802,7 @@ async function loadMoreMail(): Promise<void> {
   const secret = await loadMailSecret(mailSecretsPath, accountId)
   if (!secret) {
     mailPanelError = '授权已失效，请重新授权。'
-    mailPanelErrorKind = 'sync'
+    mailPanelErrorKind = 'auth'
     broadcast()
     return
   }
@@ -4832,9 +4838,10 @@ async function loadMoreMail(): Promise<void> {
     loadMailMessages(accountId, folder)
   } catch (error) {
     if (mailPanelAccountId !== accountId) return
-    mailPanelError =
+    const message =
       error instanceof Error ? error.message : '加载更多邮件失败。'
-    mailPanelErrorKind = 'sync'
+    mailPanelError = message
+    mailPanelErrorKind = isMailAuthMessage(message) ? 'auth' : 'sync'
   } finally {
     if (mailPanelAccountId === accountId) {
       mailPanelLoading = false
@@ -4954,9 +4961,10 @@ async function moveMailMessageOperation(
     void updateMailBadge()
     broadcast()
   } catch (error) {
-    mailPanelError =
+    const message =
       error instanceof Error ? error.message : '邮件操作失败，请稍后重试。'
-    mailPanelErrorKind = 'detail'
+    mailPanelError = message
+    mailPanelErrorKind = isMailAuthMessage(message) ? 'auth' : 'detail'
     broadcast()
   }
 }
