@@ -22,6 +22,7 @@ import {
   themeIds,
 } from '../shared/settings'
 import { petPoseIds } from '../shared/pet-style'
+import { petSpeciesOptions } from '../shared/pet-species'
 import {
   hoverActions,
   maxWheelActions,
@@ -1125,6 +1126,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('pet-create-start'),
       name: z.string().trim().min(1).max(20),
+      species: z.enum(petSpeciesOptions),
     })
     .strict(),
   z

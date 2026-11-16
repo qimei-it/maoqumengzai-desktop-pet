@@ -67,6 +67,42 @@ describe('pet store', () => {
     expect(Object.keys(assets.poses)).toEqual([...petPoseIds])
   })
 
+  test('persists the species chosen at creation', async () => {
+    const base = await root()
+    const id = 'cccccccc-dddd-4eee-8fff-aaaaaaaaaaaa'
+    const record = petRecordFor(
+      id,
+      '团子',
+      getPetStyle(),
+      'seedream',
+      Date.now(),
+      '狗',
+    )
+    expect(record.species).toBe('狗')
+    await writePet(base, id, record)
+    await expect(loadPetRecord(base, id)).resolves.toMatchObject({
+      species: '狗',
+    })
+  })
+
+  test('loads records created before species existed', async () => {
+    const base = await root()
+    const id = 'cccccccc-dddd-4eee-8fff-bbbbbbbbbbbb'
+    const record = petRecordFor(
+      id,
+      '橘子',
+      getPetStyle(),
+      'seedream',
+      Date.now(),
+    )
+    expect(record.species).toBeUndefined()
+    await writePet(base, id, record)
+    await expect(loadPetRecord(base, id)).resolves.toMatchObject({
+      id,
+      name: '橘子',
+    })
+  })
+
   test('rejects an incomplete pet directory', async () => {
     const base = await root()
     const id = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'

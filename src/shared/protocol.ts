@@ -26,6 +26,7 @@ import type {
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
 import type { PetPoseId } from './pet-style'
+import type { PetSpecies } from './pet-species'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type {
   AgentApprovalMode,
@@ -469,6 +470,7 @@ export type PetCreateState = {
   open: boolean
   step: PetCreateStep
   name: string
+  species: PetSpecies | ''
   photos: PetCreatePhoto[]
   poses: PetCreatePose[]
   busy: boolean
@@ -684,7 +686,7 @@ export type Command =
   | { type: 'pet-create-close' }
   | { type: 'pet-create-pick-photos' }
   | { type: 'pet-create-remove-photo'; id: string }
-  | { type: 'pet-create-start'; name: string }
+  | { type: 'pet-create-start'; name: string; species: PetSpecies }
   | { type: 'pet-create-retry'; pose: PetPoseId }
   | { type: 'pet-create-cancel' }
   | { type: 'pet-create-save' }

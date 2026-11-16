@@ -5,11 +5,8 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { mediaUrl } from '../shared/media'
 import { registerMediaPath } from './agent/media-registry'
-import {
-  petPoseIds,
-  type PetPoseId,
-  type PetStyle,
-} from '../shared/pet-style'
+import { petPoseIds, type PetPoseId, type PetStyle } from '../shared/pet-style'
+import { petSpeciesOptions, type PetSpecies } from '../shared/pet-species'
 
 const recordSchema = z
   .object({
@@ -19,6 +16,7 @@ const recordSchema = z
     styleId: z.string().min(1).max(80),
     styleName: z.string().min(1).max(80),
     model: z.string().min(1).max(200),
+    species: z.enum(petSpeciesOptions).optional(),
     createdAt: z.number().int().positive(),
     poses: z.record(
       z.enum(petPoseIds),
@@ -122,6 +120,7 @@ export function petRecordFor(
   style: PetStyle,
   model: string,
   createdAt: number,
+  species?: PetSpecies,
 ): PetRecord {
   return {
     version: 1,
@@ -130,6 +129,7 @@ export function petRecordFor(
     styleId: style.id,
     styleName: style.name,
     model,
+    ...(species ? { species } : {}),
     createdAt,
     poses: Object.fromEntries(
       petPoseIds.map((pose) => [pose, `${pose}.png`]),

@@ -11,14 +11,20 @@ import {
 import type { Command, Snapshot } from '../shared/protocol'
 import type { PetPoseId } from '../shared/pet-style'
 import {
+  petSpeciesOptions,
+  type PetSpecies,
+} from '../shared/pet-species'
+import {
   petNameConflict,
   petNameConflictError,
 } from '../shared/pet-name'
+import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot }>()
 const emit = defineEmits<{ command: [Command] }>()
 
 const name = ref('')
+const species = ref<PetSpecies | ''>('')
 const dialog = ref<HTMLElement | null>(null)
 const create = computed(() => props.state?.petCreate)
 const open = computed(() => create.value?.open === true)
@@ -43,6 +49,7 @@ const footerError = computed(() => {
 const canStart = computed(
   () =>
     Boolean(name.value.trim()) &&
+    Boolean(species.value) &&
     !nameConflict.value &&
     photos.value.length > 0 &&
     volcanoReady.value &&
@@ -66,6 +73,7 @@ const canContinue = computed(
 watch(open, async (value) => {
   if (!value) return
   name.value = create.value?.name ?? ''
+  species.value = create.value?.species ?? ''
   await nextTick()
   dialog.value?.focus()
 })
@@ -77,12 +85,20 @@ function removePhoto(id: string): void {
   emit('command', { type: 'pet-create-remove-photo', id })
 }
 function start(): void {
-  if (!canStart.value) return
-  emit('command', { type: 'pet-create-start', name: name.value.trim() })
+  if (!canStart.value || !species.value) return
+  emit('command', {
+    type: 'pet-create-start',
+    name: name.value.trim(),
+    species: species.value,
+  })
 }
 function continueSet(): void {
-  if (busy.value) return
-  emit('command', { type: 'pet-create-start', name: name.value.trim() })
+  if (busy.value || !species.value) return
+  emit('command', {
+    type: 'pet-create-start',
+    name: name.value.trim(),
+    species: species.value,
+  })
 }
 function retry(pose: PetPoseId): void {
   emit('command', { type: 'pet-create-retry', pose })
@@ -184,6 +200,26 @@ function save(): void {
               :aria-describedby="nameConflict ? 'pet-name-conflict' : undefined"
               @keydown.enter.prevent="start"
             />
+          </label>
+
+          <label class="pet-wizard-field">
+            <span class="pet-wizard-label">种类</span>
+            <SelectField
+              v-model="species"
+              size="md"
+              wide
+              aria-label="桌宠种类"
+              title="创建后不可修改"
+            >
+              <option value="" disabled>选择种类</option>
+              <option
+                v-for="item in petSpeciesOptions"
+                :key="item"
+                :value="item"
+              >
+                {{ item }}
+              </option>
+            </SelectField>
           </label>
         </div>
 

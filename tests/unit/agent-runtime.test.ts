@@ -49,6 +49,7 @@ async function makeRuntime(
     getKey?: () => string | undefined
     getMiniMaxKey?: () => string | undefined
     getVolcanoKey?: () => string | undefined
+    getPetProfile?: () => import('../../src/shared/agent').AgentPetProfile
     volcanoStream?: typeof import('../../src/main/agent/volcano-provider').streamVolcanoChat
   },
 ) {
@@ -60,7 +61,9 @@ async function makeRuntime(
     storePath,
     getKey: override?.getKey ?? (() => 'test-key'),
     getSettings: () => ({ ...defaultSettings }),
-    getPetProfile: () => ({ id: 'ragdoll', name: '麻薯' }),
+    getPetProfile:
+      override?.getPetProfile ??
+      (() => ({ id: 'ragdoll', name: '麻薯' })),
     broadcast: () => {},
     stream: override?.stream ?? script.stream,
     ...(override?.titleStream ? { titleStream: override.titleStream } : {}),
@@ -582,6 +585,21 @@ describe('agent runtime', () => {
       )
       .join('')
     expect(text).toContain('你好')
+  })
+
+  test('includes the pet species in the system prompt', async () => {
+    let system = ''
+    const { runtime } = await makeRuntime([], [], {
+      getPetProfile: () => ({ id: 'pet-1', name: '团子', species: '狗' }),
+      stream: async (_key, options) => {
+        const first = options.messages[0]
+        system = typeof first.content === 'string' ? first.content : ''
+        return { text: '好', toolCalls: [] }
+      },
+    })
+    await runtime.send('你好')
+    expect(system).toContain('名字：团子')
+    expect(system).toContain('种类：狗')
   })
 
   test('aborts a turn when an upload fails and marks the attachment', async () => {

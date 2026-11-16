@@ -122,6 +122,7 @@ import {
   petPoseIds,
   type PetPoseId,
 } from '../shared/pet-style'
+import { isPetSpecies, type PetSpecies } from '../shared/pet-species'
 import {
   cleanupPetDrafts,
   listPetRecords,
@@ -438,6 +439,14 @@ let clipboardData: ClipboardData = defaultClipboard()
  * official assistant prompt, so switching pets never changes what it can do.
  */
 function activePetProfile(): AgentPetProfile {
+  if (activePet) {
+    return {
+      id: activePet.id,
+      name: activePet.name || settings.petName || '麻薯',
+      ...(activePet.species ? { species: activePet.species } : {}),
+      personality: '黏人、温和，喜欢待在主人身边',
+    }
+  }
   return {
     id: 'ragdoll',
     name: settings.petName || '麻薯',
@@ -602,6 +611,7 @@ type PetDraft = {
   id: string
   directory: string
   name: string
+  species: PetSpecies | ''
   model?: string
   step: 'edit' | 'generating' | 'preview'
   photos: PetDraftPhoto[]
@@ -1543,6 +1553,7 @@ function petCreateState(): PetCreateState {
     open: Boolean(petDraft),
     step: petDraft?.step ?? 'edit',
     name: petDraft?.name ?? '',
+    species: petDraft?.species ?? '',
     photos:
       petDraft?.photos.map(({ id, name, url }) => ({ id, name, url })) ?? [],
     poses: poses.map((pose) => ({
@@ -2045,6 +2056,7 @@ async function openPetCreate(): Promise<void> {
     id,
     directory,
     name: '',
+    species: '',
     step: 'edit',
     photos: [],
     poses: style.states.map((state) => ({
@@ -2236,7 +2248,10 @@ async function runPetDraft(
   }
 }
 
-async function startPetCreate(name: string): Promise<void> {
+async function startPetCreate(
+  name: string,
+  species: PetSpecies,
+): Promise<void> {
   const draft = petDraft
   if (!draft) throw new Error('请先打开新建桌宠。')
   if (draft.running) return
@@ -2244,9 +2259,11 @@ async function startPetCreate(name: string): Promise<void> {
   if (!draft.photos.length) throw new Error('请先添加至少一张宠物照片。')
   const trimmed = name.trim()
   if (!trimmed) throw new Error('请输入桌宠名字。')
+  if (!isPetSpecies(species)) throw new Error('请选择桌宠种类。')
   if (petNameConflict(trimmed, currentPetNames()))
     throw new Error(petNameConflictError)
   draft.name = trimmed
+  draft.species = species
   const remaining = draft.poses.filter((pose) => pose.status !== 'done')
   if (!remaining.length) {
     draft.step = 'preview'
@@ -2341,6 +2358,7 @@ async function savePetCreate(): Promise<void> {
   if (draft.poses.some((pose) => pose.status !== 'done'))
     throw new Error('还有状态没有生成完成。')
   if (!draft.name.trim()) throw new Error('请输入桌宠名字。')
+  if (!isPetSpecies(draft.species)) throw new Error('请选择桌宠种类。')
   if (petNameConflict(draft.name, currentPetNames()))
     throw new Error(petNameConflictError)
   const root = petsRoot(dataRoot)
@@ -2351,6 +2369,7 @@ async function savePetCreate(): Promise<void> {
     style,
     draft.model ?? getPetStyle().source.model,
     Date.now(),
+    draft.species,
   )
   await rm(join(draft.directory, 'photos'), { recursive: true, force: true })
   await writeFile(
@@ -10706,7 +10725,7 @@ function setupIpc(): void {
         await removePetPhoto(command.id)
         break
       case 'pet-create-start':
-        await startPetCreate(command.name)
+        await startPetCreate(command.name, command.species)
         break
       case 'pet-create-retry':
         await retryPetPose(command.pose)
