@@ -6043,9 +6043,6 @@ function statusLabel(status: string): string {
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard);
 }
-.agent-composer:focus-within {
-  border-color: var(--color-brand);
-}
 .agent-composer-context {
   display: flex;
   align-items: center;
