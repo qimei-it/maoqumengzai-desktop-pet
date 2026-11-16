@@ -59,6 +59,7 @@ let horizontal = false
 let autoTimer: number | undefined
 let wheelTimer: number | undefined
 let wheelTotal = 0
+let wheelDirection = 0
 let wheelLocked = false
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 const reduceMotion = ref(motionQuery.matches)
@@ -142,20 +143,31 @@ function onPointerCancel(): void {
   resetAuto()
 }
 function onWheel(event: WheelEvent): void {
-  if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('input, textarea, select')) return
+  if (
+    Math.abs(event.deltaX) < 2 ||
+    Math.abs(event.deltaX) < Math.abs(event.deltaY) * 0.75
+  )
+    return
+  event.preventDefault()
   stopAuto()
+  const direction = Math.sign(event.deltaX)
+  if (wheelDirection !== 0 && direction !== wheelDirection) wheelTotal = 0
+  wheelDirection = direction
   wheelTotal += event.deltaX
-  if (!wheelLocked && Math.abs(wheelTotal) > 40) {
-    goTo(currentPose.value + (wheelTotal > 0 ? 1 : -1))
+  if (!wheelLocked && Math.abs(wheelTotal) > 24) {
+    goTo(currentPose.value + (direction > 0 ? 1 : -1))
     wheelTotal = 0
     wheelLocked = true
   }
   if (wheelTimer !== undefined) window.clearTimeout(wheelTimer)
   wheelTimer = window.setTimeout(() => {
     wheelTotal = 0
+    wheelDirection = 0
     wheelLocked = false
     resetAuto()
-  }, 220)
+  }, 180)
 }
 
 const name = ref(props.state?.settings.petName ?? '麻薯')
@@ -236,7 +248,11 @@ function close(): void {
 
 <template>
   <main class="profile-shell" @keydown.esc="close">
-    <section class="profile-surface" aria-label="宠物档案">
+    <section
+      class="profile-surface"
+      aria-label="宠物档案"
+      @wheel="onWheel"
+    >
       <PanelHeader
         title="宠物档案"
         :platform="state?.runtime.platform"
@@ -256,7 +272,6 @@ function close(): void {
           @pointermove="onPointerMove"
           @pointerup="onPointerUp"
           @pointercancel="onPointerCancel"
-          @wheel.prevent="onWheel"
         >
           <div class="profile-pose-stage" :style="dragStyle">
             <Transition
