@@ -94,11 +94,19 @@ export type AgentMediaView = {
 
 export type AgentMediaStatus = 'running' | 'done' | 'error'
 
+export type AgentMediaGeneration = {
+  tool: string
+  args: Record<string, unknown>
+  references?: Array<{ path: string; kind: AgentAttachmentKind }>
+}
+
 export type AgentMediaPart = {
   type: 'media'
   status: AgentMediaStatus
   text?: string
   items: AgentMediaView[]
+  /** Present when the media was produced by an agent tool. */
+  generation?: AgentMediaGeneration
 }
 
 export type AgentPart =

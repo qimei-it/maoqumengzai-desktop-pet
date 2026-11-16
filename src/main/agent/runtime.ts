@@ -11,6 +11,7 @@ import type {
   AgentArtifactView,
   AgentAttachmentInput,
   AgentAttachmentView,
+  AgentMediaGeneration,
   AgentMediaPart,
   AgentMediaView,
   AgentMessageView,
@@ -200,6 +201,36 @@ const paidTools = new Set([
   'video_generate',
   'speech_generate',
 ])
+function toolNumber(
+  value: unknown,
+  min: number,
+  max: number,
+  label: string,
+  fallback: number,
+): number {
+  if (value === undefined || value === null || value === '') return fallback
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max
+  )
+    throw new Error(`${label}必须是 ${min} 到 ${max} 之间的数字。`)
+  return value
+}
+
+function toolChoice<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  label: string,
+  fallback: T,
+): T {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value !== 'string' || !allowed.includes(value as T))
+    throw new Error(`${label}只支持：${allowed.join('、')}。`)
+  return value as T
+}
+
 const maxHistoryChars = 96_000
 const maxSummaryChars = 6_000
 
@@ -964,12 +995,30 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
+      const references = (ctx.references ?? []).filter(
+        (item) => item.kind === 'image',
+      )
+      if ((ctx.references ?? []).some((item) => item.kind !== 'image'))
+        return {
+          ok: false,
+          text: '图像生成工具只接受图片参考，请移除视频或音频附件。',
+        }
       const params = normalizeGenerationParams({
         image: {
-          count: Number(args.count) || 1,
-          area: args.area,
-          ratio: args.ratio,
-          format: args.format,
+          count: toolNumber(args.count, 1, 10, '生成数量', 1),
+          area: toolChoice(args.area, ['1K', '2K', '4K'], '输出尺寸', '2K'),
+          ratio: toolChoice(
+            args.ratio,
+            ['auto', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+            '画面比例',
+            'auto',
+          ),
+          format: toolChoice(
+            args.format,
+            ['jpeg', 'png', 'webp'],
+            '输出格式',
+            'jpeg',
+          ),
         },
       })
       const outcome = await runMiniMaxGeneration({
@@ -977,7 +1026,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         model: 'MiniMax-H3-Image',
         prompt,
         params,
-        references: [],
+        references,
         outputDir: generationDirectory(session.id),
         signal: ctx.signal,
         onProgress: (text) => ctx.onProgress?.(text),
@@ -1025,11 +1074,37 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
+      const references = (ctx.references ?? []).filter(
+        (item) =>
+          item.kind === 'image' ||
+          item.kind === 'video' ||
+          item.kind === 'audio',
+      )
+      if ((ctx.references ?? []).some(
+        (item) =>
+          item.kind !== 'image' &&
+          item.kind !== 'video' &&
+          item.kind !== 'audio',
+      ))
+        return {
+          ok: false,
+          text: '视频生成工具只接受图片、视频或音频参考。',
+        }
       const params = normalizeGenerationParams({
         video: {
-          resolution: args.resolution,
-          duration: Number(args.duration) || 5,
-          ratio: args.ratio,
+          resolution: toolChoice(
+            args.resolution,
+            ['768P', '2K'],
+            '清晰度',
+            '768P',
+          ),
+          duration: toolNumber(args.duration, 4, 15, '视频时长', 5),
+          ratio: toolChoice(
+            args.ratio,
+            ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+            '画面比例',
+            '16:9',
+          ),
         },
       })
       const outcome = await runMiniMaxGeneration({
@@ -1037,7 +1112,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         model: 'MiniMax-H3',
         prompt,
         params,
-        references: [],
+        references,
         outputDir: generationDirectory(session.id),
         signal: ctx.signal,
         onProgress: (text) => ctx.onProgress?.(text),
@@ -1091,15 +1166,22 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
       const text = typeof args.text === 'string' ? args.text.trim() : ''
       if (!text) return { ok: false, text: '缺少参数 text。' }
+      if (ctx.references?.length)
+        return { ok: false, text: '语音生成工具不接受参考附件。' }
       const params = normalizeGenerationParams({
         speech: {
           voiceId: args.voice_id,
-          speed: Number(args.speed) || 1,
-          emotion: args.emotion,
-          format: args.format,
+          speed: toolNumber(args.speed, 0.5, 2, '语速', 1),
+          emotion: toolChoice(
+            args.emotion,
+            ['', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised', 'calm'],
+            '情绪',
+            '',
+          ),
+          format: toolChoice(args.format, ['mp3', 'wav'], '输出格式', 'mp3'),
         },
       })
-      const quality = args.quality === 'turbo' ? 'turbo' : 'hd'
+      const quality = toolChoice(args.quality, ['hd', 'turbo'], '语音档位', 'hd')
       const outcome = await runMiniMaxGeneration({
         apiKey: key,
         model: quality === 'turbo' ? 'speech-2.8-turbo' : 'speech-2.8-hd',
@@ -1493,6 +1575,32 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       }
     }
 
+    if (isMiniMaxModel(session.model)) {
+      for (const item of attachments) delete item.uploadError
+      const media = attachments.filter(
+        (item) =>
+          item.kind === 'image' ||
+          item.kind === 'video' ||
+          item.kind === 'audio',
+      )
+      if (media.length) {
+        sections.push('用户附加了以下参考素材；调用生成工具时会自动带上这些附件：')
+        for (const item of media) {
+          const label =
+            item.kind === 'image'
+              ? '图片'
+              : item.kind === 'video'
+                ? '视频'
+                : '音频'
+          sections.push(`- ${label}：${item.name}`)
+        }
+      }
+      return {
+        content: sections.join('\n\n').slice(0, 80_000),
+        views,
+      }
+    }
+
     const blocks: ProviderContentBlock[] = []
     const newRefs: StoredFileRef[] = []
     for (const { item, file } of uploads) {
@@ -1598,6 +1706,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     args: Record<string, unknown>,
     argsText: string,
     signal: AbortSignal,
+    references: GenerationReference[] = [],
     onProgress?: (output: string) => void,
   ): Promise<{
     allowed: boolean
@@ -1663,6 +1772,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         reasoning: session.reasoning,
         ...(deps.backupRoot ? { backupRoot: deps.backupRoot } : {}),
         ...(onProgress ? { onProgress } : {}),
+        references,
         bindWorkspace: (path: string) => {
           if (session.projectId)
             throw new Error(
@@ -1696,6 +1806,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     session: StoredSession,
     key: string,
     signal: AbortSignal,
+    references: GenerationReference[] = [],
   ): Promise<void> {
     await refreshFileRefs(session, key, signal).catch(() => {})
     const usingMiniMax = isMiniMaxModel(session.model)
@@ -1711,6 +1822,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       () => [],
     )
     const pendingMedia: AgentMediaView[] = []
+    let pendingMediaGeneration: AgentMediaGeneration | undefined
+    const generationCalls = new Set<string>()
     for (let step = 0; step < maxSteps; step += 1) {
       if (signal.aborted) return
       const assistant: AgentMessageView = {
@@ -1820,6 +1933,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             type: 'media',
             status: 'done',
             items: pendingMedia.splice(0, pendingMedia.length),
+            ...(pendingMediaGeneration
+              ? { generation: pendingMediaGeneration }
+              : {}),
           } satisfies AgentMediaPart)
         pushHistory(session, {
           role: 'assistant',
@@ -1897,6 +2013,18 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           continue
         }
 
+        if (paidTools.has(tool.name) && generationCalls.has(tool.name)) {
+          part.status = 'error'
+          part.output =
+            '每轮每个生成工具最多调用一次；图片请用 count 生成多张。'
+          pushHistory(session, {
+            role: 'tool',
+            tool_call_id: call.id,
+            content: part.output,
+          })
+          emit()
+          continue
+        }
         if (permissionFor(tool, session.mode) === 'ask') {
           part.status = 'awaiting'
           emit()
@@ -1907,6 +2035,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           args,
           call.arguments || '{}',
           signal,
+          references,
           (progress) => {
             if (signal.aborted) return
             if (part.status === 'awaiting') part.status = 'running'
@@ -1934,6 +2063,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           })
         }
         if (outcome.ok && outcome.media?.length) {
+          if (paidTools.has(call.name)) {
+            generationCalls.add(call.name)
+            pendingMediaGeneration = {
+              tool: call.name,
+              args,
+              ...(references.length ? { references } : {}),
+            }
+          }
           for (const item of outcome.media) {
             const id = randomUUID()
             rememberSource(session, {
@@ -1976,6 +2113,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           type: 'media',
           status: 'done',
           items: pendingMedia.splice(0, pendingMedia.length),
+          ...(pendingMediaGeneration
+            ? { generation: pendingMediaGeneration }
+            : {}),
         } satisfies AgentMediaPart)
       current.parts.push({
         type: 'text',
@@ -2200,6 +2340,88 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     }
   }
 
+  async function regenerateToolMedia(
+    session: StoredSession,
+    part: AgentMediaPart,
+  ): Promise<void> {
+    const generation = part.generation
+    if (!generation) return
+    const tool = toolMap.get(generation.tool)
+    if (!tool) throw new Error('找不到对应的生成工具。')
+    const previousItems = part.items
+    const previousText = part.text
+    errorText = undefined
+    busy = true
+    controller = new AbortController()
+    const signal = controller.signal
+    part.status = 'running'
+    part.text = '正在重新生成…'
+    emit()
+    try {
+      const outcome = await executeTool(
+        session,
+        tool,
+        generation.args,
+        JSON.stringify(generation.args),
+        signal,
+        generation.references ?? [],
+        (progress) => {
+          if (signal.aborted) return
+          part.text = progress
+          emit()
+        },
+      )
+      if (!outcome.allowed) {
+        part.items = previousItems
+        part.status = 'done'
+        part.text = previousText
+        errorText = '已拒绝重新生成。'
+        return
+      }
+      if (!outcome.ok || !outcome.media?.length) {
+        part.items = previousItems
+        part.status = 'done'
+        part.text = previousText
+        errorText = outcome.text
+        return
+      }
+      const items: AgentMediaView[] = []
+      for (const item of outcome.media) {
+        const id = randomUUID()
+        rememberSource(session, {
+          id,
+          name: item.name,
+          path: item.path,
+          kind: 'artifact',
+        })
+        items.push({
+          id,
+          name: item.name,
+          kind: item.kind,
+          status: 'done',
+          url: mediaUrl(id),
+          path: item.path,
+          directory: dirname(item.path),
+          ...(item.size ? { size: item.size } : {}),
+          ...(item.width ? { width: item.width } : {}),
+          ...(item.height ? { height: item.height } : {}),
+          ...(item.durationSeconds
+            ? { durationSeconds: item.durationSeconds }
+            : {}),
+        })
+      }
+      part.items = items
+      part.status = 'done'
+      part.text = undefined
+    } finally {
+      busy = false
+      controller = null
+      session.updatedAt = now()
+      persist()
+      emit()
+    }
+  }
+
   function retryLabelFor(session: StoredSession | undefined): '重试' | '继续' | undefined {
     if (busy || !session?.history.length) return undefined
     const last = session.history[session.history.length - 1]
@@ -2365,8 +2587,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             : '请先配置 DeepSeek API Key。',
         )
       const files = attachments.slice(0, 8)
-      if (usingMiniMax && files.length)
-        throw new Error('MiniMax 文本模型暂不支持附件。')
       if (
         session.model === 'deepseek-v4-pro' &&
         files.some(
@@ -2443,7 +2663,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         }
         session.updatedAt = now()
         emit()
-        await loop(session, key, signal)
+        await loop(
+          session,
+          key,
+          signal,
+          files.flatMap((file) =>
+            file.sourcePath
+              ? [{ path: file.sourcePath, kind: file.kind }]
+              : [],
+          ),
+        )
       } catch (error) {
         if (!signal.aborted) {
           errorText = errorMessage(error, '执行失败，请稍后重试。')
@@ -2540,6 +2769,17 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           false,
         )
         return
+      }
+      const lastAssistant = session.ui.at(-1)
+      if (lastAssistant?.role === 'assistant') {
+        const media = lastAssistant.parts.find(
+          (part): part is AgentMediaPart =>
+            part.type === 'media' && Boolean(part.generation),
+        )
+        if (media) {
+          await regenerateToolMedia(session, media)
+          return
+        }
       }
       const key = deps.getKey()
       if (!key) throw new Error('请先配置 DeepSeek API Key。')

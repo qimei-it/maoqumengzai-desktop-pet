@@ -3,7 +3,7 @@
  * Electron windows or other main-process internals.
  */
 
-import type { AgentMode } from '../../shared/agent'
+import type { AgentAttachmentKind, AgentMode } from '../../shared/agent'
 import { archiveFormats, todoRepeats } from '../../shared/protocol'
 import type { ArchiveFormat, ConvertAction, TodoRepeat } from '../../shared/protocol'
 import type { RenameConfig } from '../../shared/rename'
@@ -70,6 +70,8 @@ export type ToolContext = {
   bindWorkspace?(path: string): void
   /** Streams progress for long-running tools such as sub-agents. */
   onProgress?: (output: string) => void
+  /** Media attached to the current user turn, used by generation tools. */
+  references?: Array<{ path: string; kind: AgentAttachmentKind }>
 }
 
 export type AgentTool = {
