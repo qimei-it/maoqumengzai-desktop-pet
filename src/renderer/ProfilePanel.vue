@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   normalizePetName,
@@ -37,6 +37,130 @@ const currentPose = ref(0)
 const currentPoseImage = computed(
   () => poseImages.value[currentPose.value] ?? poseImages.value[0]!,
 )
+const profileEntering = ref(false)
+const dragX = ref(0)
+const dragging = ref(false)
+const dragStyle = computed(() => ({
+  transform: dragX.value ? `translateX(${dragX.value}px)` : undefined,
+}))
+
+let pointerId: number | undefined
+let startX = 0
+let startY = 0
+let moved = false
+let horizontal = false
+let autoTimer: number | undefined
+let enterTimer: number | undefined
+let wheelTimer: number | undefined
+let wheelTotal = 0
+let wheelLocked = false
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+const reduceMotion = ref(motionQuery.matches)
+
+function stopAuto(): void {
+  if (autoTimer !== undefined) {
+    window.clearInterval(autoTimer)
+    autoTimer = undefined
+  }
+}
+function startAuto(): void {
+  stopAuto()
+  if (!props.state?.profileOpen || reduceMotion.value) return
+  autoTimer = window.setInterval(() => {
+    const length = poseImages.value.length
+    if (length > 1) currentPose.value = (currentPose.value + 1) % length
+  }, 5000)
+}
+function resetAuto(): void {
+  if (props.state?.profileOpen) startAuto()
+}
+function goTo(index: number): void {
+  const length = poseImages.value.length
+  if (!length) return
+  currentPose.value = ((index % length) + length) % length
+  resetAuto()
+}
+function playEnter(): void {
+  profileEntering.value = false
+  if (enterTimer !== undefined) window.clearTimeout(enterTimer)
+  window.requestAnimationFrame(() => {
+    profileEntering.value = true
+    enterTimer = window.setTimeout(() => {
+      profileEntering.value = false
+    }, 300)
+  })
+}
+function onMotionChange(event: MediaQueryListEvent): void {
+  reduceMotion.value = event.matches
+  if (event.matches) stopAuto()
+  else resetAuto()
+}
+function onPointerDown(event: PointerEvent): void {
+  if (!event.isPrimary || event.button !== 0) return
+  pointerId = event.pointerId
+  startX = event.clientX
+  startY = event.clientY
+  moved = false
+  horizontal = false
+  dragX.value = 0
+  dragging.value = true
+  stopAuto()
+  ;(event.currentTarget as HTMLElement | null)?.setPointerCapture?.(
+    event.pointerId,
+  )
+}
+function onPointerMove(event: PointerEvent): void {
+  if (!dragging.value || event.pointerId !== pointerId) return
+  const dx = event.clientX - startX
+  const dy = event.clientY - startY
+  if (!moved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+    moved = true
+    horizontal = Math.abs(dx) > Math.abs(dy)
+  }
+  if (!moved || !horizontal) return
+  dragX.value = Math.max(-80, Math.min(80, dx))
+}
+function onPointerUp(event: PointerEvent): void {
+  if (!dragging.value || event.pointerId !== pointerId) return
+  const dx = dragX.value
+  dragging.value = false
+  pointerId = undefined
+  dragX.value = 0
+  if (moved && horizontal && Math.abs(dx) >= 40) {
+    goTo(currentPose.value + (dx < 0 ? 1 : -1))
+  } else if (!moved) {
+    goTo(currentPose.value + 1)
+  } else {
+    resetAuto()
+  }
+  moved = false
+  horizontal = false
+}
+function onPointerCancel(): void {
+  if (!dragging.value) return
+  dragging.value = false
+  pointerId = undefined
+  dragX.value = 0
+  moved = false
+  horizontal = false
+  resetAuto()
+}
+function onWheel(event: WheelEvent): void {
+  if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return
+  stopAuto()
+  wheelTotal += event.deltaX
+  if (!wheelLocked && Math.abs(wheelTotal) > 40) {
+    goTo(currentPose.value + (wheelTotal > 0 ? 1 : -1))
+    wheelTotal = 0
+    wheelLocked = true
+  }
+  if (wheelTimer !== undefined) window.clearTimeout(wheelTimer)
+  wheelTimer = window.setTimeout(() => {
+    wheelTotal = 0
+    wheelLocked = false
+    resetAuto()
+  }, 220)
+}
 
 const name = ref(props.state?.settings.petName ?? '麻薯')
 const saved = ref(false)
@@ -68,15 +192,35 @@ watch(
 watch(
   () => props.state?.profileOpen,
   (open) => {
-    if (open) currentPose.value = 0
+    if (open) {
+      currentPose.value = 0
+      playEnter()
+      startAuto()
+    } else {
+      stopAuto()
+    }
   },
 )
 watch(
   () => props.state?.petAssets?.id ?? props.state?.settings.petId,
   () => {
     currentPose.value = 0
+    resetAuto()
   },
 )
+onMounted(() => {
+  motionQuery.addEventListener('change', onMotionChange)
+  if (props.state?.profileOpen) {
+    playEnter()
+    startAuto()
+  }
+})
+onUnmounted(() => {
+  motionQuery.removeEventListener('change', onMotionChange)
+  stopAuto()
+  if (enterTimer !== undefined) window.clearTimeout(enterTimer)
+  if (wheelTimer !== undefined) window.clearTimeout(wheelTimer)
+})
 function save(): void {
   if (!canSave.value) return
   emit('command', {
@@ -105,20 +249,31 @@ function close(): void {
         @close="emit('command', { type: 'panel-control', action: 'close' })"
       />
 
-      <div class="profile-carousel">
+      <div
+        class="profile-carousel"
+        :class="{ 'is-entering': profileEntering }"
+      >
         <div
           class="profile-portrait"
+          :class="{ 'is-dragging': dragging }"
           role="tabpanel"
           :aria-label="`${name || '麻薯'}的${currentPoseImage.label}状态`"
+          @pointerdown="onPointerDown"
+          @pointermove="onPointerMove"
+          @pointerup="onPointerUp"
+          @pointercancel="onPointerCancel"
+          @wheel.prevent="onWheel"
         >
-          <Transition name="profile-pose" mode="out-in">
-            <img
-              :key="currentPoseImage.id"
-              :src="currentPoseImage.src"
-              :alt="`${name || '麻薯'}的${currentPoseImage.label}状态`"
-              draggable="false"
-            />
-          </Transition>
+          <div class="profile-pose-stage" :style="dragStyle">
+            <Transition name="profile-pose" appear mode="out-in">
+              <img
+                :key="currentPoseImage.id"
+                :src="currentPoseImage.src"
+                :alt="`${name || '麻薯'}的${currentPoseImage.label}状态`"
+                draggable="false"
+              />
+            </Transition>
+          </div>
         </div>
         <div class="profile-pose-dots" role="tablist" aria-label="桌宠状态">
           <button
@@ -131,7 +286,7 @@ function close(): void {
             :aria-selected="index === currentPose"
             :aria-label="`查看${pose.label}状态`"
             :title="pose.label"
-            @click="currentPose = index"
+            @click="goTo(index)"
           />
         </div>
       </div>
@@ -200,13 +355,38 @@ function close(): void {
   display: flex;
   flex-direction: column;
 }
+.profile-carousel.is-entering {
+  animation: profile-enter 0.24s var(--ease-standard);
+}
+@keyframes profile-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 .profile-portrait {
   display: grid;
   place-items: center;
   height: 236px;
   margin-top: 12px;
+  overflow: hidden;
   border-radius: var(--radius-control);
   background: var(--color-fill-secondary);
+  cursor: grab;
+  touch-action: pan-y;
+}
+.profile-portrait.is-dragging {
+  cursor: grabbing;
+}
+.profile-pose-stage {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
 }
 .profile-portrait img {
   width: 180px;
@@ -350,6 +530,9 @@ function close(): void {
   font-size: var(--font-size-label);
 }
 @media (prefers-reduced-motion: reduce) {
+  .profile-carousel.is-entering {
+    animation: none;
+  }
   .profile-pose-enter-active,
   .profile-pose-leave-active,
   .profile-pose-dot::before {

@@ -6792,7 +6792,7 @@ function positionProfile(): void {
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 400
-  const height = 520
+  const height = 420
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
@@ -12116,7 +12116,7 @@ async function createWindows(): Promise<void> {
   })
   profileWindow = new BrowserWindow({
     width: 400,
-    height: 520,
+    height: 420,
     title: '毛趣萌仔 · 宠物档案',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
