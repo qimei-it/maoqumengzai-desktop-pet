@@ -296,7 +296,7 @@ function save(): void {
   background: var(--color-overlay);
 }
 .pet-wizard {
-  width: min(680px, 100%);
+  width: min(410px, 100%);
   max-height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
@@ -355,7 +355,7 @@ function save(): void {
   left: 0;
   z-index: 20;
   width: max-content;
-  max-width: min(320px, 70vw);
+  max-width: min(260px, 70vw);
   padding: 8px 10px;
   border-radius: var(--radius-control);
   background: var(--color-ink);
