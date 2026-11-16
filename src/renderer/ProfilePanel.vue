@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   normalizePetName,
@@ -37,7 +44,7 @@ const currentPose = ref(0)
 const currentPoseImage = computed(
   () => poseImages.value[currentPose.value] ?? poseImages.value[0]!,
 )
-const profileEntering = ref(false)
+const skipPoseTransition = ref(false)
 const dragX = ref(0)
 const dragging = ref(false)
 const dragStyle = computed(() => ({
@@ -50,7 +57,6 @@ let startY = 0
 let moved = false
 let horizontal = false
 let autoTimer: number | undefined
-let enterTimer: number | undefined
 let wheelTimer: number | undefined
 let wheelTotal = 0
 let wheelLocked = false
@@ -79,16 +85,6 @@ function goTo(index: number): void {
   if (!length) return
   currentPose.value = ((index % length) + length) % length
   resetAuto()
-}
-function playEnter(): void {
-  profileEntering.value = false
-  if (enterTimer !== undefined) window.clearTimeout(enterTimer)
-  window.requestAnimationFrame(() => {
-    profileEntering.value = true
-    enterTimer = window.setTimeout(() => {
-      profileEntering.value = false
-    }, 300)
-  })
 }
 function onMotionChange(event: MediaQueryListEvent): void {
   reduceMotion.value = event.matches
@@ -193,8 +189,13 @@ watch(
   () => props.state?.profileOpen,
   (open) => {
     if (open) {
-      currentPose.value = 0
-      playEnter()
+      if (currentPose.value !== 0) {
+        skipPoseTransition.value = true
+        currentPose.value = 0
+        void nextTick(() => {
+          skipPoseTransition.value = false
+        })
+      }
       startAuto()
     } else {
       stopAuto()
@@ -210,15 +211,11 @@ watch(
 )
 onMounted(() => {
   motionQuery.addEventListener('change', onMotionChange)
-  if (props.state?.profileOpen) {
-    playEnter()
-    startAuto()
-  }
+  if (props.state?.profileOpen) startAuto()
 })
 onUnmounted(() => {
   motionQuery.removeEventListener('change', onMotionChange)
   stopAuto()
-  if (enterTimer !== undefined) window.clearTimeout(enterTimer)
   if (wheelTimer !== undefined) window.clearTimeout(wheelTimer)
 })
 function save(): void {
@@ -249,10 +246,7 @@ function close(): void {
         @close="emit('command', { type: 'panel-control', action: 'close' })"
       />
 
-      <div
-        class="profile-carousel"
-        :class="{ 'is-entering': profileEntering }"
-      >
+      <div class="profile-carousel">
         <div
           class="profile-portrait"
           :class="{ 'is-dragging': dragging }"
@@ -265,7 +259,11 @@ function close(): void {
           @wheel.prevent="onWheel"
         >
           <div class="profile-pose-stage" :style="dragStyle">
-            <Transition name="profile-pose" appear mode="out-in">
+            <Transition
+              :css="!skipPoseTransition"
+              name="profile-pose"
+              mode="out-in"
+            >
               <img
                 :key="currentPoseImage.id"
                 :src="currentPoseImage.src"
@@ -354,19 +352,6 @@ function close(): void {
 .profile-carousel {
   display: flex;
   flex-direction: column;
-}
-.profile-carousel.is-entering {
-  animation: profile-enter 0.24s var(--ease-standard);
-}
-@keyframes profile-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 .profile-portrait {
   display: grid;
@@ -530,9 +515,6 @@ function close(): void {
   font-size: var(--font-size-label);
 }
 @media (prefers-reduced-motion: reduce) {
-  .profile-carousel.is-entering {
-    animation: none;
-  }
   .profile-pose-enter-active,
   .profile-pose-leave-active,
   .profile-pose-dot::before {
