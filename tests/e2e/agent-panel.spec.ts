@@ -801,7 +801,7 @@ test('agent model menu separates dialogue and image models', async () => {
     await modelOptions
       .first()
       .evaluate((node) =>
-        node.firstElementChild?.classList.contains('model-brand-mark'),
+        node.children[1]?.classList.contains('model-brand-mark'),
       ),
   ).toBe(true)
   await expect(

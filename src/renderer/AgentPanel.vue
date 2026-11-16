@@ -4781,7 +4781,6 @@ function statusLabel(status: string): string {
                           "
                           @click="selectAgentModel(item)"
                         >
-                          <ModelBrandMark :provider="item.provider" />
                           <Check
                             v-if="isModelSelected(item)"
                             :size="14"
@@ -4793,6 +4792,7 @@ function statusLabel(status: string): string {
                             class="agent-model-check-space"
                             aria-hidden="true"
                           ></span>
+                          <ModelBrandMark :provider="item.provider" />
                           <span class="agent-model-option-label">{{
                             item.label
                           }}</span>
