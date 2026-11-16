@@ -310,7 +310,6 @@ function save(): void {
   align-items: center;
   justify-content: center;
   padding: 14px 20px 12px;
-  border-bottom: 1px solid var(--color-line);
 }
 .pet-wizard-head h2 {
   margin: 0;
@@ -521,7 +520,6 @@ function save(): void {
   gap: 8px;
   margin: 0;
   padding: 12px 20px 18px;
-  border-top: 1px solid var(--color-line);
 }
 .pet-wizard-enter-active,
 .pet-wizard-leave-active {
