@@ -299,6 +299,23 @@ function pushHistory(
     session.history.splice(0, session.history.length - maxHistoryEntries)
 }
 
+function ensureStoppedText(session: StoredSession): void {
+  const last = session.ui.at(-1)
+  if (last?.role === 'assistant') {
+    const text = last.parts
+      .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      .join('')
+    if (text.includes('已停止。')) return
+    last.parts.push({ type: 'text', text: '已停止。' })
+    return
+  }
+  pushUi(session, {
+    id: randomUUID(),
+    role: 'assistant',
+    parts: [{ type: 'text', text: '已停止。' }],
+  })
+}
+
 function trimContent(
   content: ProviderUserContent,
   limit: number,
@@ -1968,7 +1985,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       })
 
       for (const call of callEntries) {
-        if (signal.aborted) return
+        if (signal.aborted) {
+          ensureStoppedText(session)
+          return
+        }
         const tool = toolMap.get(call.name)
         let args: Record<string, unknown> = {}
         let parseError: string | undefined
@@ -2102,7 +2122,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           content: truncate(outcome.text, 8000),
         })
         emit()
-        if (signal.aborted) return
+        if (signal.aborted) {
+          ensureStoppedText(session)
+          return
+        }
       }
       persist()
     }
@@ -2686,12 +2709,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         busy = false
         controller = null
         if (pending) settleApproval(false)
-        if (signal.aborted && session.ui.at(-1)?.role === 'user')
-          session.ui.push({
-            id: randomUUID(),
-            role: 'assistant',
-            parts: [{ type: 'text', text: '已停止。' }],
-          })
+        if (signal.aborted) ensureStoppedText(session)
         session.updatedAt = now()
         persist()
         emit()
