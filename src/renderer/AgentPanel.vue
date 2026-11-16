@@ -3511,281 +3511,6 @@ function statusLabel(status: string): string {
                     </button>
                   </div>
                 </div>
-                <div
-                  v-if="showGenerationParams"
-                  ref="generationPicker"
-                  class="agent-generation"
-                >
-                  <button
-                    type="button"
-                    class="agent-generation-trigger"
-                    :aria-expanded="generationMenuOpen"
-                    aria-haspopup="dialog"
-                    :aria-label="`生成参数，当前 ${generationLabel}`"
-                    @click="generationMenuOpen = !generationMenuOpen"
-                  >
-                    <SlidersHorizontal
-                      :size="12"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                    <span>{{ generationLabel }}</span>
-                  </button>
-                  <div
-                    v-if="generationMenuOpen"
-                    class="agent-generation-menu"
-                    role="dialog"
-                    aria-label="生成参数"
-                  >
-                    <template v-if="generationKind === 'video'">
-                      <p class="agent-generation-label">清晰度</p>
-                      <div
-                        class="agent-generation-segment"
-                        :style="segmentStyle(h3VideoResolutions, generationParams.video.resolution)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in h3VideoResolutions"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active:
-                              generationParams.video.resolution === value,
-                          }"
-                          @click="setVideoParam({ resolution: value })"
-                        >
-                          {{ value }}
-                        </button>
-                      </div>
-                      <p class="agent-generation-label">画面比例</p>
-                      <div
-                        class="agent-generation-segment is-compact"
-                        :style="segmentStyle(generationRatios, generationParams.video.ratio)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in generationRatios"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active: generationParams.video.ratio === value,
-                          }"
-                          @click="setVideoParam({ ratio: value })"
-                        >
-                          {{ ratioLabel(value) }}
-                        </button>
-                      </div>
-                      <div class="agent-generation-heading">
-                        <p>视频时长</p>
-                        <span>{{ generationParams.video.duration }} 秒</span>
-                      </div>
-                      <div
-                        class="agent-generation-slider"
-                        :style="rangeStyle(generationParams.video.duration, 4, 15)"
-                      >
-                        <span
-                          class="agent-generation-slider-fill"
-                          aria-hidden="true"
-                        ></span>
-                        <span
-                          class="agent-generation-slider-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <input
-                          v-model.number="generationParams.video.duration"
-                          class="agent-generation-range"
-                          type="range"
-                          min="4"
-                          max="15"
-                          step="1"
-                          aria-label="视频时长"
-                        />
-                      </div>
-                    </template>
-                    <template v-else-if="generationKind === 'image'">
-                      <p class="agent-generation-label">输出尺寸</p>
-                      <div
-                        class="agent-generation-segment"
-                        :style="segmentStyle(imageAreas, generationParams.image.area)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in imageAreas"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active: generationParams.image.area === value,
-                          }"
-                          @click="setImageParam({ area: value })"
-                        >
-                          {{ value }}
-                        </button>
-                      </div>
-                      <p class="agent-generation-label">画面比例</p>
-                      <div
-                        class="agent-generation-segment is-compact"
-                        :style="segmentStyle(imageRatios, generationParams.image.ratio)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in imageRatios"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active: generationParams.image.ratio === value,
-                          }"
-                          @click="setImageParam({ ratio: value })"
-                        >
-                          {{ ratioLabel(value) }}
-                        </button>
-                      </div>
-                      <p class="agent-generation-label">输出格式</p>
-                      <div
-                        class="agent-generation-segment"
-                        :style="segmentStyle(imageFormats, generationParams.image.format)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in imageFormats"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active: generationParams.image.format === value,
-                          }"
-                          @click="setImageParam({ format: value })"
-                        >
-                          {{ value.toUpperCase() }}
-                        </button>
-                      </div>
-                      <div class="agent-generation-heading">
-                        <p>生成数量</p>
-                        <span>{{ generationParams.image.count }} 张</span>
-                      </div>
-                      <div
-                        class="agent-generation-slider"
-                        :style="rangeStyle(generationParams.image.count, 1, 10)"
-                      >
-                        <span
-                          class="agent-generation-slider-fill"
-                          aria-hidden="true"
-                        ></span>
-                        <span
-                          class="agent-generation-slider-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <input
-                          v-model.number="generationParams.image.count"
-                          class="agent-generation-range"
-                          type="range"
-                          min="1"
-                          max="10"
-                          step="1"
-                          aria-label="生成数量"
-                        />
-                      </div>
-                    </template>
-                    <template v-else>
-                      <p class="agent-generation-label">音色</p>
-                      <select
-                        class="agent-generation-select"
-                        :value="generationParams.speech.voiceId"
-                        aria-label="音色"
-                        @change="onVoiceChange"
-                      >
-                        <option
-                          v-for="voice in speechVoices"
-                          :key="voice.id"
-                          :value="voice.id"
-                        >
-                          {{ voice.label }}
-                        </option>
-                      </select>
-                      <div class="agent-generation-heading">
-                        <p>语速</p>
-                        <span>{{ generationParams.speech.speed.toFixed(1) }}x</span>
-                      </div>
-                      <div
-                        class="agent-generation-slider"
-                        :style="rangeStyle(generationParams.speech.speed, 0.5, 2)"
-                      >
-                        <span
-                          class="agent-generation-slider-fill"
-                          aria-hidden="true"
-                        ></span>
-                        <span
-                          class="agent-generation-slider-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <input
-                          v-model.number="generationParams.speech.speed"
-                          class="agent-generation-range"
-                          type="range"
-                          min="0.5"
-                          max="2"
-                          step="0.1"
-                          aria-label="语速"
-                        />
-                      </div>
-                      <p class="agent-generation-label">情绪</p>
-                      <div
-                        class="agent-generation-segment is-compact"
-                        :style="segmentStyle(speechEmotions, generationParams.speech.emotion)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in speechEmotions"
-                          :key="value || 'auto'"
-                          type="button"
-                          :class="{
-                            active: generationParams.speech.emotion === value,
-                          }"
-                          @click="setSpeechParam({ emotion: value })"
-                        >
-                          {{ speechEmotionLabels[value] }}
-                        </button>
-                      </div>
-                      <p class="agent-generation-label">输出格式</p>
-                      <div
-                        class="agent-generation-segment"
-                        :style="segmentStyle(speechFormats, generationParams.speech.format)"
-                      >
-                        <span
-                          class="agent-generation-segment-thumb"
-                          aria-hidden="true"
-                        ></span>
-                        <button
-                          v-for="value in speechFormats"
-                          :key="value"
-                          type="button"
-                          :class="{
-                            active: generationParams.speech.format === value,
-                          }"
-                          @click="setSpeechParam({ format: value })"
-                        >
-                          {{ value.toUpperCase() }}
-                        </button>
-                      </div>
-                    </template>
-                  </div>
-                </div>
               </div>
               <div
                 v-if="attachments.length"
@@ -3933,6 +3658,281 @@ function statusLabel(status: string): string {
                           aria-hidden="true"
                         />
                       </button>
+                    </div>
+                  </div>
+                  <div
+                    v-if="showGenerationParams"
+                    ref="generationPicker"
+                    class="agent-generation"
+                  >
+                    <button
+                      type="button"
+                      class="agent-generation-trigger"
+                      :aria-expanded="generationMenuOpen"
+                      aria-haspopup="dialog"
+                      :aria-label="`生成参数，当前 ${generationLabel}`"
+                      @click="generationMenuOpen = !generationMenuOpen"
+                    >
+                      <SlidersHorizontal
+                        :size="12"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span>{{ generationLabel }}</span>
+                    </button>
+                    <div
+                      v-if="generationMenuOpen"
+                      class="agent-generation-menu"
+                      role="dialog"
+                      aria-label="生成参数"
+                    >
+                      <template v-if="generationKind === 'video'">
+                        <p class="agent-generation-label">清晰度</p>
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(h3VideoResolutions, generationParams.video.resolution)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in h3VideoResolutions"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active:
+                                generationParams.video.resolution === value,
+                            }"
+                            @click="setVideoParam({ resolution: value })"
+                          >
+                            {{ value }}
+                          </button>
+                        </div>
+                        <p class="agent-generation-label">画面比例</p>
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(generationRatios, generationParams.video.ratio)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in generationRatios"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active: generationParams.video.ratio === value,
+                            }"
+                            @click="setVideoParam({ ratio: value })"
+                          >
+                            {{ ratioLabel(value) }}
+                          </button>
+                        </div>
+                        <div class="agent-generation-heading">
+                          <p>视频时长</p>
+                          <span>{{ generationParams.video.duration }} 秒</span>
+                        </div>
+                        <div
+                          class="agent-generation-slider"
+                          :style="rangeStyle(generationParams.video.duration, 4, 15)"
+                        >
+                          <span
+                            class="agent-generation-slider-fill"
+                            aria-hidden="true"
+                          ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <input
+                            v-model.number="generationParams.video.duration"
+                            class="agent-generation-range"
+                            type="range"
+                            min="4"
+                            max="15"
+                            step="1"
+                            aria-label="视频时长"
+                          />
+                        </div>
+                      </template>
+                      <template v-else-if="generationKind === 'image'">
+                        <p class="agent-generation-label">输出尺寸</p>
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(imageAreas, generationParams.image.area)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in imageAreas"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active: generationParams.image.area === value,
+                            }"
+                            @click="setImageParam({ area: value })"
+                          >
+                            {{ value }}
+                          </button>
+                        </div>
+                        <p class="agent-generation-label">画面比例</p>
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(imageRatios, generationParams.image.ratio)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in imageRatios"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active: generationParams.image.ratio === value,
+                            }"
+                            @click="setImageParam({ ratio: value })"
+                          >
+                            {{ ratioLabel(value) }}
+                          </button>
+                        </div>
+                        <p class="agent-generation-label">输出格式</p>
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(imageFormats, generationParams.image.format)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in imageFormats"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active: generationParams.image.format === value,
+                            }"
+                            @click="setImageParam({ format: value })"
+                          >
+                            {{ value.toUpperCase() }}
+                          </button>
+                        </div>
+                        <div class="agent-generation-heading">
+                          <p>生成数量</p>
+                          <span>{{ generationParams.image.count }} 张</span>
+                        </div>
+                        <div
+                          class="agent-generation-slider"
+                          :style="rangeStyle(generationParams.image.count, 1, 10)"
+                        >
+                          <span
+                            class="agent-generation-slider-fill"
+                            aria-hidden="true"
+                          ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <input
+                            v-model.number="generationParams.image.count"
+                            class="agent-generation-range"
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="1"
+                            aria-label="生成数量"
+                          />
+                        </div>
+                      </template>
+                      <template v-else>
+                        <p class="agent-generation-label">音色</p>
+                        <select
+                          class="agent-generation-select"
+                          :value="generationParams.speech.voiceId"
+                          aria-label="音色"
+                          @change="onVoiceChange"
+                        >
+                          <option
+                            v-for="voice in speechVoices"
+                            :key="voice.id"
+                            :value="voice.id"
+                          >
+                            {{ voice.label }}
+                          </option>
+                        </select>
+                        <div class="agent-generation-heading">
+                          <p>语速</p>
+                          <span>{{ generationParams.speech.speed.toFixed(1) }}x</span>
+                        </div>
+                        <div
+                          class="agent-generation-slider"
+                          :style="rangeStyle(generationParams.speech.speed, 0.5, 2)"
+                        >
+                          <span
+                            class="agent-generation-slider-fill"
+                            aria-hidden="true"
+                          ></span>
+                          <span
+                            class="agent-generation-slider-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <input
+                            v-model.number="generationParams.speech.speed"
+                            class="agent-generation-range"
+                            type="range"
+                            min="0.5"
+                            max="2"
+                            step="0.1"
+                            aria-label="语速"
+                          />
+                        </div>
+                        <p class="agent-generation-label">情绪</p>
+                        <div
+                          class="agent-generation-segment is-compact"
+                          :style="segmentStyle(speechEmotions, generationParams.speech.emotion)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in speechEmotions"
+                            :key="value || 'auto'"
+                            type="button"
+                            :class="{
+                              active: generationParams.speech.emotion === value,
+                            }"
+                            @click="setSpeechParam({ emotion: value })"
+                          >
+                            {{ speechEmotionLabels[value] }}
+                          </button>
+                        </div>
+                        <p class="agent-generation-label">输出格式</p>
+                        <div
+                          class="agent-generation-segment"
+                          :style="segmentStyle(speechFormats, generationParams.speech.format)"
+                        >
+                          <span
+                            class="agent-generation-segment-thumb"
+                            aria-hidden="true"
+                          ></span>
+                          <button
+                            v-for="value in speechFormats"
+                            :key="value"
+                            type="button"
+                            :class="{
+                              active: generationParams.speech.format === value,
+                            }"
+                            @click="setSpeechParam({ format: value })"
+                          >
+                            {{ value.toUpperCase() }}
+                          </button>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -5602,9 +5602,6 @@ function statusLabel(status: string): string {
 .agent-composer-context .agent-workspace-select {
   max-width: 260px;
   color: var(--color-ink);
-}
-.agent-composer-context .agent-generation {
-  margin-left: auto;
 }
 .agent-input {
   width: 100%;
