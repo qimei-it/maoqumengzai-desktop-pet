@@ -787,6 +787,23 @@ test('agent model menu separates dialogue and image models', async () => {
   await expect(
     menu.getByText('Doubao Seed 2.0 Mini', { exact: true }),
   ).toBeVisible()
+  const modelOptions = menu.locator(
+    '.agent-model-option:has(.agent-model-kind)',
+  )
+  expect(
+    await modelOptions.evaluateAll((nodes) =>
+      nodes.every((node) =>
+        Boolean(node.querySelector('svg.model-brand-mark')),
+      ),
+    ),
+  ).toBe(true)
+  expect(
+    await modelOptions
+      .first()
+      .evaluate((node) =>
+        node.firstElementChild?.classList.contains('model-brand-mark'),
+      ),
+  ).toBe(true)
   await expect(
     menu.locator(
       '.agent-model-option:has(.agent-model-kind)[aria-checked="true"]',

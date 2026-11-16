@@ -107,6 +107,7 @@ import type {
 } from '../shared/protocol'
 import FileTypeIcon from './FileTypeIcon.vue'
 import MarkdownView from './MarkdownView.vue'
+import ModelBrandMark from './ModelBrandMark.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
@@ -4780,6 +4781,7 @@ function statusLabel(status: string): string {
                           "
                           @click="selectAgentModel(item)"
                         >
+                          <ModelBrandMark :provider="item.provider" />
                           <Check
                             v-if="isModelSelected(item)"
                             :size="14"
@@ -7070,7 +7072,7 @@ function statusLabel(status: string): string {
   right: 0;
   bottom: calc(100% + 6px);
   z-index: 30;
-  width: 260px;
+  width: 312px;
   max-height: min(420px, calc(100vh - 120px));
   overflow-y: auto;
   padding: var(--space-1);
