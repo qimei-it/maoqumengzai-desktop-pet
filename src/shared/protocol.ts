@@ -846,6 +846,7 @@ export type Command =
   | { type: 'mail-clear-cache' }
   | { type: 'mail-choose-attachment-dir' }
   | { type: 'mail-open-attachment-dir' }
+  | { type: 'mail-compose-files'; fileIds: string[] }
   | { type: 'mail-open'; accountId?: string; folder?: string }
   | { type: 'mail-folder'; accountId: string; folder: string }
   | { type: 'mail-close' }

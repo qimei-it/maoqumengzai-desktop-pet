@@ -279,6 +279,10 @@ import { convertPdfSecurity } from './convert-qpdf'
 import { qpdfBinaryPath } from './qpdf-bundle'
 import { MailDatabase } from './mail-db'
 import {
+  collectMailAttachments,
+  maxMailAttachments,
+} from './mail-attachments'
+import {
   defaultMailConfig,
   loadMailConfig,
   saveMailConfig,
@@ -4468,6 +4472,18 @@ function openMailCompose(
     mailComposeWindow.focus()
   }
   broadcast()
+}
+async function composeMailWithFiles(fileIds: string[]): Promise<void> {
+  const { attachments, truncated } = await collectMailAttachments(
+    fileIds,
+    registeredFile,
+  )
+  if (!attachments.length) {
+    showToast('文件已不在置物架')
+    return
+  }
+  if (truncated) showToast(`邮件最多添加 ${maxMailAttachments} 个附件`)
+  openMailCompose(undefined, { attachments })
 }
 function closeMailCompose(): void {
   mailComposeWindow?.hide()
@@ -10319,6 +10335,7 @@ function setupIpc(): void {
       'mail-search',
       'mail-send',
       'mail-compose-open',
+      'mail-compose-files',
       'mail-compose-close',
       'mail-draft-save',
       'mail-draft-delete',
@@ -11115,6 +11132,9 @@ function setupIpc(): void {
           command.draft,
           command.draftId,
         )
+        break
+      case 'mail-compose-files':
+        await composeMailWithFiles(command.fileIds)
         break
       case 'mail-compose-close':
         closeMailCompose()

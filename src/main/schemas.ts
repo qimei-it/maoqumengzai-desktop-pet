@@ -737,6 +737,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('mail-open-attachment-dir') }).strict(),
   z
     .object({
+      type: z.literal('mail-compose-files'),
+      fileIds: z.array(fileId).min(1).max(32),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('mail-open'),
       accountId: z.string().uuid().optional(),
       folder: z.string().min(1).max(500).optional(),

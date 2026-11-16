@@ -763,8 +763,21 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
         await api.command({ type: "shrink-files", fileIds: ids }),
       );
     } else if (action === "mail") {
-      state.value = unwrap(await api.command({ type: "mail-open" }));
-      flash("邮件附件发送尚未接入");
+      if (!ids.length) {
+        flashMissedFolders(skipped, "未加入邮件");
+        if (!skipped.length) flash("没有可发送的文件");
+        return;
+      }
+      state.value = unwrap(
+        await api.command({ type: "mail-compose-files", fileIds: ids }),
+      );
+      flash(
+        ids.length > 1
+          ? `已将 ${ids.length} 个文件加入邮件附件`
+          : "已将文件加入邮件附件",
+      );
+      flashMissedFolders(skipped, "未加入邮件");
+      return;
     } else if (action === "stash") {
       // Files are shelved as soon as they are received, so the wheel action
       // just surfaces the pocket instead of asking for a second confirmation.
