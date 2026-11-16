@@ -977,7 +977,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const imageGenerateTool: AgentTool = {
     name: 'image_generate',
     description:
-      '根据用户要求生成图片。直接调用本工具，不要交给 subagent_run。只支持文本提示词，返回本地图片文件。每次调用都需要用户确认并消耗额度。',
+      '根据用户要求生成图片。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片附件会自动作为参考图，无需传路径。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
@@ -1058,7 +1058,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const videoGenerateTool: AgentTool = {
     name: 'video_generate',
     description:
-      '根据用户要求生成视频。直接调用本工具，不要交给 subagent_run。当前模型 MiniMax-H3 支持 768P/2K、4-15 秒。每次调用都需要用户确认并消耗额度。',
+      '根据用户要求生成视频。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片、视频、音频附件会自动作为参考素材，无需传路径。当前模型 MiniMax-H3 支持 768P/2K、4-15 秒。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
@@ -1144,7 +1144,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const speechGenerateTool: AgentTool = {
     name: 'speech_generate',
     description:
-      '根据文本生成语音音频。直接调用本工具，不要交给 subagent_run。支持 speech-2.8-hd / speech-2.8-turbo。每次调用都需要用户确认并消耗额度。',
+      '根据文本生成语音音频。直接调用本工具，不要交给 subagent_run。当前消息附件不会作为参考音频。支持 speech-2.8-hd / speech-2.8-turbo。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
