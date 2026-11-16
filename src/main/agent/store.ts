@@ -45,6 +45,8 @@ export type StoredGenerationTurn = {
   prompt: string
   params: GenerationParams
   references: Array<{ path: string; kind: AgentAttachmentKind }>
+  /** Rewritten script used for speech generation. */
+  script?: string
 }
 
 export type StoredSession = {
@@ -174,6 +176,9 @@ function parseGenerationTurn(value: unknown): StoredGenerationTurn | null {
     prompt: value.prompt.slice(0, 32_000),
     params: normalizeGenerationParams(value.params),
     references,
+    ...(typeof value.script === 'string' && value.script.trim()
+      ? { script: value.script.slice(0, 4_000) }
+      : {}),
   }
 }
 

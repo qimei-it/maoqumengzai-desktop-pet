@@ -38,6 +38,7 @@ import {
 import { registerMediaPath } from './media-registry'
 import { generationOutputDir } from './output-path'
 import { streamMiniMaxChat } from './minimax-provider'
+import { rewriteMiniMaxSpeechScript } from './minimax-api'
 import type { SettingsState } from '../../shared/settings'
 import {
   loadAgentStore,
@@ -1821,38 +1822,66 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         session.updatedAt = now()
         emit()
       }
+      const isSpeech = generationKindForModel(session.model) === 'audio'
+      const cachedScript = appendUser ? undefined : fallback?.script
+      const scriptPart: AgentTextPart | null = isSpeech
+        ? {
+            type: 'text',
+            text: cachedScript ?? '正在撰写台词…',
+          }
+        : null
+      const mediaPart: AgentMediaPart = {
+        type: 'media',
+        status: 'running',
+        text: '正在准备生成…',
+        items: generationPlaceholders(session, normalized),
+      }
       const assistant: AgentMessageView = {
         id: assistantId,
         role: 'assistant',
-        parts: [
-          {
-            type: 'media',
-            status: 'running',
-            text: '正在准备生成…',
-            items: generationPlaceholders(session, normalized),
-          } satisfies AgentMediaPart,
-        ],
+        parts: scriptPart ? [scriptPart, mediaPart] : [mediaPart],
       }
       pushUi(session, assistant)
       emit()
+      let generationPrompt = prompt
+      if (isSpeech) {
+        if (!cachedScript) {
+          const script = await rewriteMiniMaxSpeechScript(key, prompt, {
+            signal,
+          })
+          generationPrompt = script
+          session.lastGeneration = {
+            ...session.lastGeneration,
+            prompt,
+            params: normalized,
+            references,
+            script,
+          }
+          if (scriptPart) scriptPart.text = script
+          emit()
+        } else {
+          generationPrompt = cachedScript
+        }
+      }
       const outcome = await runMiniMaxGeneration({
         apiKey: key,
         model: session.model,
-        prompt,
+        prompt: generationPrompt,
         params: normalized,
         references,
         outputDir: generationDirectory(session.id),
         signal,
         onProgress: (text) => {
           if (signal.aborted) return
-          const part = assistant.parts[0]
-          if (part?.type === 'media') part.text = text
+          mediaPart.text = text
           emit()
         },
       })
       if (signal.aborted) throw new Error('已取消。')
-      const part = assistant.parts[0]
-      if (part?.type !== 'media') throw new Error('生成结果丢失。')
+      const part = assistant.parts.find(
+        (value): value is AgentMediaPart => value.type === 'media',
+      )
+      if (!part) throw new Error('生成结果丢失。')
       part.status = 'done'
       part.text = outcome.warnings.length
         ? outcome.warnings.join('；')

@@ -8,6 +8,7 @@ import {
   editMiniMaxImage,
   generateMiniMaxImage,
   generateMiniMaxSpeech,
+  rewriteMiniMaxSpeechScript,
 } from '../../src/main/agent/minimax-api'
 
 afterEach(() => {
@@ -101,6 +102,32 @@ describe('MiniMax generation payloads', () => {
       { image_url: 'mm_file://1' },
       { image_url: 'mm_file://2' },
     ])
+  })
+
+  test('rewrites a speech request into a plain script', async () => {
+    let body: Record<string, unknown> = {}
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as Record<string, unknown>
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: '“你好，我是麻薯。”',
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      )
+    })
+    const script = await rewriteMiniMaxSpeechScript(
+      'sk-test',
+      '用温柔的语气介绍麻薯',
+    )
+    expect(script).toBe('你好，我是麻薯。')
+    expect(body.model).toBe('MiniMax-M3')
+    expect(body.thinking).toEqual({ type: 'disabled' })
   })
 
   test('decodes hex speech audio', async () => {

@@ -96,6 +96,7 @@ export async function minimaxChat(
     messages: MiniMaxChatMessage[]
     reasoning_effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
     maxTokens?: number
+    disableThinking?: boolean
   },
   options: RequestOptions = {},
 ): Promise<MiniMaxChatResult> {
@@ -111,6 +112,9 @@ export async function minimaxChat(
         ...(request.model === 'MiniMax-M3.1-Flash' &&
         request.reasoning_effort
           ? { reasoning_effort: request.reasoning_effort }
+          : {}),
+        ...(request.model === 'MiniMax-M3' && request.disableThinking
+          ? { thinking: { type: 'disabled' } }
           : {}),
         ...(request.maxTokens
           ? { max_completion_tokens: request.maxTokens }
@@ -139,6 +143,42 @@ export async function minimaxChat(
         }
       : {}),
   }
+}
+
+/** Turns a user request into a plain script that can be read aloud. */
+export async function rewriteMiniMaxSpeechScript(
+  apiKey: string,
+  prompt: string,
+  options: RequestOptions = {},
+): Promise<string> {
+  const result = await minimaxChat(
+    apiKey,
+    {
+      model: 'MiniMax-M3',
+      disableThinking: true,
+      maxTokens: 3_000,
+      messages: [
+        {
+          role: 'system',
+          content: [
+            '你是配音稿撰写助手。',
+            '把用户输入改写成可以直接朗读的中文口播稿。',
+            '只输出最终台词，不要 Markdown、标题、解释、引号、括号动作说明或列表。',
+            '保留用户要求的语气、情绪和语言；不要添加输入中没有的事实。',
+            '只输出一段连续文本，最多 1200 个汉字。',
+          ].join('\n'),
+        },
+        { role: 'user', content: prompt },
+      ],
+    },
+    { ...options, timeoutMs: options.timeoutMs ?? 120_000 },
+  )
+  const script = result.text
+    .replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .trim()
+  if (!script) throw new Error('没有生成可朗读的台词，请换个描述再试。')
+  return script.slice(0, 3_000)
 }
 
 export type MiniMaxImageResult = {

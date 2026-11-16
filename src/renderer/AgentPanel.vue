@@ -182,6 +182,7 @@ const pendingSend = ref(false)
 let pendingSendTimer: ReturnType<typeof setTimeout> | undefined
 let pendingSendBase = 0
 let pendingDraft = ''
+let pendingDraftHtml = ''
 let pendingDraftAttachments: AgentAttachmentPick[] = []
 const retryingAttachmentId = ref<string | null>(null)
 const keyDraft = ref('')
@@ -337,7 +338,11 @@ const editDraft = ref('')
 const editInput = ref<HTMLTextAreaElement>()
 const sessionSearchInput = ref<HTMLInputElement>()
 const skillSearchInput = ref<HTMLInputElement>()
-const composerInput = ref<HTMLTextAreaElement>()
+const composerInput = ref<HTMLElement>()
+const composing = ref(false)
+const mentionOpen = ref(false)
+const mentionIndex = ref(0)
+let mentionRange: Range | undefined
 const archivedOpen = ref(false)
 const draftName = ref('')
 const draftWorkspace = ref('')
@@ -367,6 +372,19 @@ const generationKind = computed(() => currentModel.value?.kind ?? 'text')
 const showGenerationParams = computed(
   () => generationKind.value !== 'text',
 )
+const mentionItems = computed(() => {
+  if (generationKind.value === 'image')
+    return attachments.value.filter((item) => item.kind === 'image')
+  if (generationKind.value === 'video')
+    return attachments.value.filter(
+      (item) =>
+        item.kind === 'image' ||
+        item.kind === 'video' ||
+        item.kind === 'audio',
+    )
+  return []
+})
+const mentionEnabled = computed(() => mentionItems.value.length > 0)
 const minimaxConfigured = computed(
   () => props.state?.ai.minimax.configured === true,
 )
@@ -491,6 +509,8 @@ watch(
   attachments,
   async (items) => {
     const ids = new Set(items.map((item) => item.id))
+    if (mentionOpen.value && !mentionItems.value.length) closeMention()
+    maybeRemoveStaleReferenceChips(ids)
     attachmentPreviews.value = Object.fromEntries(
       Object.entries(attachmentPreviews.value).filter(([id]) => ids.has(id)),
     )
@@ -765,7 +785,7 @@ watch(
     skillsOpen.value = false
     skillDetail.value = null
     void nextTick(() => scheduleFollow())
-    draft.value = ''
+    clearComposer()
     attachmentError.value = ''
     const session = activeSession.value
     if (session?.projectId)
@@ -789,6 +809,7 @@ watch(
     if (!pendingSendLanded()) return
     settlePendingSend()
     pendingDraft = ''
+    pendingDraftHtml = ''
     pendingDraftAttachments = []
   },
 )
@@ -1020,6 +1041,7 @@ function saveMediaMessage(message: AgentMessageView): void {
 
 function removeAttachment(id: string): void {
   attachments.value = attachments.value.filter((item) => item.id !== id)
+  removeReferenceChips(id)
   void window.mqmz!.releaseAgentAttachment(id)
 }
 
@@ -1239,10 +1261,9 @@ async function finishRecording(): Promise<void> {
     attachmentError.value = '没有识别到语音内容。'
     return
   }
-  draft.value = draft.value.trim()
-    ? `${draft.value.trimEnd()} ${text}`
-    : text
-  void nextTick(() => composerInput.value?.focus())
+  setComposerText(
+    draft.value.trim() ? `${draft.value.trimEnd()} ${text}` : text,
+  )
 }
 
 async function toggleRecording(): Promise<void> {
@@ -1286,12 +1307,193 @@ async function toggleRecording(): Promise<void> {
   }
 }
 
+function setComposerCaretAtEnd(el: HTMLElement): void {
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  range.collapse(false)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
+function syncDraftFromEditor(): void {
+  const el = composerInput.value
+  if (!el) return
+  const text = (el.innerText ?? '').replace(/\u00a0/g, ' ')
+  if (!text.trim() && !el.querySelector('.agent-input-reference')) {
+    if (el.innerHTML === '<br>' || el.innerHTML === '<div><br></div>')
+      el.innerHTML = ''
+    draft.value = ''
+    return
+  }
+  draft.value = text
+}
+
+function clearComposer(): void {
+  draft.value = ''
+  mentionOpen.value = false
+  mentionRange = undefined
+  if (composerInput.value) composerInput.value.innerHTML = ''
+}
+
+function setComposerText(text: string): void {
+  const el = composerInput.value
+  draft.value = text
+  if (!el) return
+  el.textContent = text
+  el.focus()
+  setComposerCaretAtEnd(el)
+}
+
+function onComposerInput(): void {
+  syncDraftFromEditor()
+}
+
+function onCompositionEnd(): void {
+  composing.value = false
+  syncDraftFromEditor()
+}
+
+function referenceLabel(item: AgentAttachmentPick): string {
+  const sameKind = attachments.value.filter(
+    (entry) => entry.kind === item.kind,
+  )
+  const index = sameKind.findIndex((entry) => entry.id === item.id) + 1
+  const base =
+    item.kind === 'image' ? '图' : item.kind === 'video' ? '视频' : '音频'
+  return `${base}${index}`
+}
+
+function saveMentionRange(): void {
+  const selection = window.getSelection()
+  const el = composerInput.value
+  if (!selection?.rangeCount || !el) return
+  if (!el.contains(selection.anchorNode)) return
+  mentionRange = selection.getRangeAt(0).cloneRange()
+}
+
+function closeMention(): void {
+  mentionOpen.value = false
+  mentionIndex.value = 0
+  mentionRange = undefined
+}
+
+function insertMention(item: AgentAttachmentPick): void {
+  const el = composerInput.value
+  if (!el) return
+  el.focus()
+  const range =
+    mentionRange && el.contains(mentionRange.startContainer)
+      ? mentionRange
+      : document.createRange()
+  if (!mentionRange || !el.contains(mentionRange.startContainer)) {
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const chip = document.createElement('span')
+  chip.className = 'agent-input-reference'
+  chip.contentEditable = 'false'
+  chip.dataset.referenceId = item.id
+  chip.textContent = referenceLabel(item)
+  range.insertNode(chip)
+  range.setStartAfter(chip)
+  const space = document.createTextNode(' ')
+  range.insertNode(space)
+  range.setStartAfter(space)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  closeMention()
+  syncDraftFromEditor()
+}
+
+function removeReferenceChips(id: string): void {
+  const el = composerInput.value
+  if (!el) return
+  let removed = false
+  for (const chip of el.querySelectorAll('.agent-input-reference')) {
+    if (chip.getAttribute('data-reference-id') !== id) continue
+    chip.remove()
+    removed = true
+  }
+  if (removed) syncDraftFromEditor()
+}
+
+function maybeRemoveStaleReferenceChips(ids: Set<string>): void {
+  const el = composerInput.value
+  if (!el) return
+  let removed = false
+  for (const chip of el.querySelectorAll('.agent-input-reference')) {
+    const id = chip.getAttribute('data-reference-id')
+    if (!id || ids.has(id)) continue
+    chip.remove()
+    removed = true
+  }
+  if (removed) syncDraftFromEditor()
+}
+
+function onComposerKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || composing.value) return
+  if (mentionOpen.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      mentionIndex.value =
+        (mentionIndex.value + 1) % Math.max(1, mentionItems.value.length)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      mentionIndex.value =
+        (mentionIndex.value - 1 + mentionItems.value.length) %
+        Math.max(1, mentionItems.value.length)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const item = mentionItems.value[mentionIndex.value]
+      if (item) insertMention(item)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMention()
+      return
+    }
+  }
+  if (
+    event.key === '@' &&
+    mentionEnabled.value &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    event.preventDefault()
+    saveMentionRange()
+    mentionOpen.value = true
+    mentionIndex.value = 0
+    return
+  }
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    send()
+  }
+}
+
 async function onPaste(event: ClipboardEvent): Promise<void> {
   if (busy.value || parsing.value) return
   const hasImage = [...(event.clipboardData?.items ?? [])].some((item) =>
     item.type.startsWith('image/'),
   )
-  if (!hasImage) return
+  if (!hasImage) {
+    const text = event.clipboardData?.getData('text/plain')
+    if (!text) return
+    event.preventDefault()
+    document.execCommand('insertText', false, text)
+    syncDraftFromEditor()
+    return
+  }
   event.preventDefault()
   attachmentError.value = ''
   const result = await window.mqmz?.attachAgentClipboardImage()
@@ -1320,10 +1522,16 @@ function settlePendingSend(): void {
   pendingSendTimer = undefined
 }
 function restorePendingDraft(): void {
-  if (!draft.value.trim()) draft.value = pendingDraft
+  if (!draft.value.trim()) {
+    if (pendingDraftHtml && composerInput.value) {
+      composerInput.value.innerHTML = pendingDraftHtml
+      syncDraftFromEditor()
+    } else setComposerText(pendingDraft)
+  }
   if (!attachments.value.length)
     attachments.value = pendingDraftAttachments
   pendingDraft = ''
+  pendingDraftHtml = ''
   pendingDraftAttachments = []
 }
 function send(): void {
@@ -1343,6 +1551,7 @@ function send(): void {
   pendingSend.value = true
   pendingSendBase = agent.value?.messages.length ?? 0
   pendingDraft = prompt
+  pendingDraftHtml = composerInput.value?.innerHTML ?? ''
   pendingDraftAttachments = [...attachments.value]
   if (pendingSendTimer) clearTimeout(pendingSendTimer)
   pendingSendTimer = setTimeout(() => {
@@ -1351,7 +1560,7 @@ function send(): void {
     if (!pendingSendLanded()) restorePendingDraft()
     settlePendingSend()
   }, 5000)
-  draft.value = ''
+  clearComposer()
   attachments.value = []
   emit('command', {
     type: 'agent-send',
@@ -1908,6 +2117,12 @@ function onKeydown(event: KeyboardEvent): void {
 }
 function onDocumentMouseDown(event: MouseEvent): void {
   const target = event.target as Node
+  if (
+    mentionOpen.value &&
+    !(target as HTMLElement).closest?.('.agent-mention-menu') &&
+    !composerInput.value?.contains(target)
+  )
+    closeMention()
   if (
     generationMenuOpen.value &&
     !generationPicker.value?.contains(target)
@@ -3314,7 +3529,8 @@ function statusLabel(status: string): string {
                   v-if="
                     (message.role === 'assistant' ||
                       message.role === 'user') &&
-                    assistantText(message)
+                    assistantText(message) &&
+                    !mediaPartOf(message)
                   "
                   class="agent-message-actions"
                 >
@@ -3715,16 +3931,49 @@ function statusLabel(status: string): string {
                   </button>
                 </span>
               </div>
-              <textarea
+              <div
                 ref="composerInput"
-                v-model="draft"
                 class="agent-input"
-                rows="1"
+                contenteditable="true"
+                role="textbox"
+                aria-multiline="true"
+                spellcheck="false"
+                :data-placeholder="`让“${petName}”来帮你工作`"
                 :placeholder="`让“${petName}”来帮你工作`"
                 aria-label="给智能体发送指令"
+                @input="onComposerInput"
+                @keydown="onComposerKeydown"
                 @paste="onPaste"
-                @keydown.enter.exact.prevent="send"
-              ></textarea>
+                @compositionstart="composing = true"
+                @compositionend="onCompositionEnd"
+              ></div>
+              <div
+                v-if="mentionOpen"
+                class="agent-mention-menu"
+                role="listbox"
+                aria-label="插入参考素材"
+              >
+                <button
+                  v-for="(item, itemIndex) in mentionItems"
+                  :key="item.id"
+                  type="button"
+                  class="agent-mention-option"
+                  :class="{ active: mentionIndex === itemIndex }"
+                  role="option"
+                  :aria-selected="mentionIndex === itemIndex"
+                  @mousedown.prevent="insertMention(item)"
+                >
+                  <img
+                    v-if="attachmentPreviews[item.id]"
+                    class="agent-attachment-thumb"
+                    :src="attachmentPreviews[item.id]"
+                    alt=""
+                  />
+                  <FileTypeIcon v-else :name="item.name" :size="16" />
+                  <span class="agent-mention-name">{{ item.name }}</span>
+                  <span class="agent-mention-label">{{ referenceLabel(item) }}</span>
+                </button>
+              </div>
               <div class="agent-composer-row">
                 <div class="agent-composer-tools">
                   <button
@@ -5724,6 +5973,7 @@ function statusLabel(status: string): string {
   }
 }
 .agent-composer {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -5766,8 +6016,88 @@ function statusLabel(status: string): string {
   font: inherit;
   font-size: var(--font-size-body);
   line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overflow-y: auto;
   resize: none;
   outline: none;
+}
+.agent-input:empty::before {
+  color: var(--color-subtle);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+.agent-input-reference {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin: 0 2px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-fill-secondary);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  line-height: 20px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+.agent-mention-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 12px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100% - 24px));
+  max-height: 280px;
+  padding: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-overlay);
+}
+.agent-mention-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  text-align: left;
+}
+.agent-mention-option:hover,
+.agent-mention-option.active {
+  background: var(--color-fill-secondary);
+}
+.agent-mention-option .agent-attachment-thumb {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+.agent-mention-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-mention-label {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  line-height: 18px;
 }
 .agent-composer-row {
   display: flex;
