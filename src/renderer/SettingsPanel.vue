@@ -73,8 +73,12 @@ const section = computed<SettingsSection>(
   () => props.state?.settingsSection ?? 'appearance',
 )
 const apiKey = ref('')
+const keyError = ref('')
+const verifyingKey = ref(false)
 const editingKey = ref(false)
 const minimaxKey = ref('')
+const minimaxKeyError = ref('')
+const verifyingMiniMaxKey = ref(false)
 const editingMiniMaxKey = ref(false)
 const minimaxModelsOpen = ref(false)
 const minimaxModelPreview = ref('')
@@ -113,11 +117,14 @@ const minimaxConfigured = computed(() => minimax.value?.configured === true)
 const minimaxTest = computed<AiTestState>(
   () => minimax.value?.test ?? { status: 'idle' },
 )
-const minimaxModelsVisible = computed(
-  () =>
-    minimaxConfigured.value ||
-    (editingMiniMaxKey.value && Boolean(minimaxKey.value.trim())),
-)
+const minimaxVerifiedKey = ref('')
+const minimaxModelsVisible = computed(() => {
+  if (editingMiniMaxKey.value) {
+    const key = minimaxKey.value.trim()
+    return Boolean(key) && key === minimaxVerifiedKey.value
+  }
+  return minimaxConfigured.value
+})
 const minimaxLatencyClass = computed(() => {
   const latency = minimaxTest.value.latencyMs ?? 0
   if (latency <= 400) return 'is-fast'
@@ -172,10 +179,18 @@ function testAndPullMiniMaxModels(): void {
   if (!value) return
   emit('command', { type: 'minimax-test', apiKey: value })
 }
-function saveMiniMaxKey(): void {
+async function saveMiniMaxKey(): Promise<void> {
   const value = minimaxKey.value.trim()
-  if (!value) return
-  emit('command', { type: 'minimax-config', apiKey: value, test: true })
+  if (!value || verifyingMiniMaxKey.value) return
+  minimaxKeyError.value = ''
+  verifyingMiniMaxKey.value = true
+  const result = await window.mqmz?.verifyMiniMaxKey(value)
+  verifyingMiniMaxKey.value = false
+  if (!result?.ok) {
+    minimaxKeyError.value = result?.error ?? 'API Key 验证失败。'
+    return
+  }
+  emit('command', { type: 'minimax-config', apiKey: value, test: false })
   minimaxKey.value = ''
   editingMiniMaxKey.value = false
 }
@@ -192,6 +207,19 @@ watch(editingMiniMaxKey, (value) => {
 })
 watch(minimaxConfigured, (value) => {
   if (!value) minimaxModelsOpen.value = false
+})
+watch(
+  () => minimaxTest.value.status,
+  (status) => {
+    if (status === 'ok' && editingMiniMaxKey.value)
+      minimaxVerifiedKey.value = minimaxKey.value.trim()
+    if (status === 'error') minimaxVerifiedKey.value = ''
+  },
+)
+watch(minimaxKey, (value) => {
+  minimaxKeyError.value = ''
+  if (editingMiniMaxKey.value && value.trim() !== minimaxVerifiedKey.value)
+    minimaxModelsOpen.value = false
 })
 watch(
   minimaxModelsVisible,
@@ -456,10 +484,18 @@ function testAndPullModels(): void {
   emit('command', { type: 'ai-test', apiKey: value })
   emit('command', { type: 'ai-models', apiKey: value })
 }
-function saveAndTestKey(): void {
+async function saveAndTestKey(): Promise<void> {
   const value = apiKey.value.trim()
-  if (!value) return
-  emit('command', { type: 'ai-config', apiKey: value, test: true })
+  if (!value || verifyingKey.value) return
+  keyError.value = ''
+  verifyingKey.value = true
+  const result = await window.mqmz?.verifyAgentKey(value)
+  verifyingKey.value = false
+  if (!result?.ok) {
+    keyError.value = result?.error ?? 'API Key 验证失败。'
+    return
+  }
+  emit('command', { type: 'ai-config', apiKey: value, test: false })
   apiKey.value = ''
   editingKey.value = false
 }
@@ -1132,6 +1168,7 @@ function onEscape(): void {
                     autocomplete="off"
                     aria-label="DeepSeek API Key"
                     :placeholder="configured ? '替换 API Key' : 'API Key'"
+                    @input="keyError = ''"
                     @keydown.enter="saveAndTestKey"
                   />
                   <SelectField
@@ -1226,6 +1263,9 @@ function onEscape(): void {
                   aria-hidden="true"
                 />
               </button>
+              <span v-if="keyError" class="settings-key-error">{{
+                keyError
+              }}</span>
               <span
                 v-if="aiTest.status === 'testing'"
                 class="ai-latency"
@@ -1253,7 +1293,7 @@ function onEscape(): void {
               <button
                 type="button"
                 class="settings-button primary"
-                :disabled="!apiKey.trim()"
+                :disabled="!apiKey.trim() || verifyingKey"
                 @click="saveAndTestKey"
               >
                 添加
@@ -1305,6 +1345,7 @@ function onEscape(): void {
                     :placeholder="
                       minimaxConfigured ? '替换 API Key' : 'API Key'
                     "
+                    @input="minimaxKeyError = ''"
                     @keydown.enter="saveMiniMaxKey"
                   />
                   <SelectField
@@ -1413,6 +1454,9 @@ function onEscape(): void {
                   aria-hidden="true"
                 />
               </button>
+              <span v-if="minimaxKeyError" class="settings-key-error">{{
+                minimaxKeyError
+              }}</span>
               <span
                 v-if="minimaxTest.status === 'testing'"
                 class="ai-latency"
@@ -1440,7 +1484,7 @@ function onEscape(): void {
               <button
                 type="button"
                 class="settings-button primary"
-                :disabled="!minimaxKey.trim()"
+                :disabled="!minimaxKey.trim() || verifyingMiniMaxKey"
                 @click="saveMiniMaxKey"
               >
                 添加
@@ -2086,6 +2130,10 @@ function onEscape(): void {
 }
 .settings-key-link > svg {
   flex: none;
+}
+.settings-key-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
 }
 .settings-row-editing {
   gap: 8px;

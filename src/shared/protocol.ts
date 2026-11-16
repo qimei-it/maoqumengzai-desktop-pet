@@ -86,6 +86,8 @@ export const channels = {
   agentSkillToggle: 'mqmz:agent:skill-toggle',
   agentSkillReveal: 'mqmz:agent:skill-reveal',
   agentSkillRemove: 'mqmz:agent:skill-remove',
+  aiVerify: 'mqmz:ai:verify',
+  minimaxVerify: 'mqmz:minimax:verify',
   openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
   toastFit: 'mqmz:toast:fit',
@@ -910,6 +912,8 @@ export interface PrototypeApi {
   ): Promise<Result<AgentSkillView>>
   revealAgentSkill(id: string): Promise<Result<void>>
   removeAgentSkill(id: string): Promise<Result<boolean>>
+  verifyAgentKey(apiKey: string): Promise<Result<void>>
+  verifyMiniMaxKey(apiKey: string): Promise<Result<void>>
   openExternal(url: string): Promise<Result<void>>
   pickDirectory(title?: string): Promise<Result<string | null>>
   toastFit(width: number, height: number): void

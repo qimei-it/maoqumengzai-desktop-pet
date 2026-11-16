@@ -10680,6 +10680,20 @@ function setupIpc(): void {
     broadcast()
     return snapshot()
   })
+  handle(channels.aiVerify, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!settingsWindow || window !== settingsWindow)
+      throw new Error('仅设置窗口可以验证 API Key。')
+    const key = z.string().trim().min(10).max(400).parse(payload)
+    await testDeepSeekConnection(key)
+  })
+  handle(channels.minimaxVerify, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!settingsWindow || window !== settingsWindow)
+      throw new Error('仅设置窗口可以验证 API Key。')
+    const key = z.string().trim().min(10).max(400).parse(payload)
+    await testMiniMaxConnection(key)
+  })
   handle(channels.openExternal, 'either', async (_event, payload) => {
     const value = z.string().trim().min(1).max(4096).parse(payload)
     let protocol: string
