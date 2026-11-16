@@ -12,7 +12,7 @@ import type {
   AgentUsage,
 } from '../../shared/agent'
 import type { AgentModelId } from '../../shared/agent-models'
-import { isAgentModelId } from '../../shared/agent-models'
+import { isAgentModelId, isGenerationModel } from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { normalizeGenerationParams } from '../../shared/generation'
 import type { ProviderMessage } from './provider'
@@ -201,7 +201,7 @@ function parseSession(value: unknown): StoredSession | null {
       value.approvalMode === 'auto' || value.approvalMode === 'full'
         ? value.approvalMode
         : 'ask',
-    model: value.model,
+    model: isGenerationModel(value.model) ? 'deepseek-flash' : value.model,
     reasoning:
       value.reasoning === 'off' ||
       value.reasoning === 'low' ||

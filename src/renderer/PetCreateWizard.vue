@@ -9,7 +9,7 @@ import {
   X,
 } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
-import { getPetStyle, type PetPoseId } from '../shared/pet-style'
+import type { PetPoseId } from '../shared/pet-style'
 
 const props = defineProps<{ state?: Snapshot }>()
 const emit = defineEmits<{ command: [Command] }>()
@@ -23,7 +23,6 @@ const busy = computed(() => create.value?.busy === true)
 const photos = computed(() => create.value?.photos ?? [])
 const poses = computed(() => create.value?.poses ?? [])
 const volcanoReady = computed(() => create.value?.volcanoReady === true)
-const styleName = computed(() => getPetStyle().name)
 const canStart = computed(
   () =>
     Boolean(name.value.trim()) &&
@@ -106,28 +105,22 @@ function save(): void {
                   : '生成桌宠'
             }}
           </h2>
-          <button
-            type="button"
-            class="pet-wizard-icon"
-            aria-label="关闭"
-            title="关闭"
-            :disabled="busy"
-            @click="close"
-          >
-            <X :size="16" :stroke-width="2" aria-hidden="true" />
-          </button>
         </header>
 
         <div v-if="step === 'edit'" class="pet-wizard-body">
           <div class="pet-wizard-field">
             <span class="pet-wizard-label">
               参考照片
-              <Info
-                :size="13"
-                :stroke-width="2"
-                aria-hidden="true"
-                title="照片仅用于本次生成，保存前会删除"
-              />
+              <span
+                class="pet-wizard-info"
+                tabindex="0"
+                aria-label="最多添加 4 张照片；照片仅用于本次生成，保存或放弃后会删除。"
+              >
+                <Info :size="13" :stroke-width="2" aria-hidden="true" />
+                <span class="pet-wizard-tooltip" role="tooltip">
+                  最多添加 4 张照片；照片仅用于本次生成，保存或放弃后会删除。
+                </span>
+              </span>
             </span>
             <div class="pet-wizard-photos">
               <div
@@ -171,11 +164,6 @@ function save(): void {
               @keydown.enter.prevent="start"
             />
           </label>
-
-          <div class="pet-wizard-field pet-wizard-style">
-            <span class="pet-wizard-label">风格</span>
-            <span class="pet-wizard-style-value">{{ styleName }}</span>
-          </div>
 
           <p v-if="!volcanoReady" class="pet-wizard-error" role="alert">
             请先在设置 → 智能体添加火山方舟 API Key。
@@ -320,34 +308,14 @@ function save(): void {
 .pet-wizard-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 20px 10px;
+  justify-content: center;
+  padding: 16px 20px 8px;
 }
 .pet-wizard-head h2 {
   margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: 600;
+  font-size: var(--font-size-section);
+  font-weight: 650;
   color: var(--color-ink);
-}
-.pet-wizard-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-.pet-wizard-icon:hover:not(:disabled) {
-  background: var(--color-fill-secondary);
-  color: var(--color-ink);
-}
-.pet-wizard-icon:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 .pet-wizard-body {
   display: flex;
@@ -367,6 +335,44 @@ function save(): void {
   gap: 5px;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+}
+.pet-wizard-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+  cursor: help;
+}
+.pet-wizard-info:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+.pet-wizard-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(320px, 70vw);
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: 400;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.pet-wizard-info:hover .pet-wizard-tooltip,
+.pet-wizard-info:focus-visible .pet-wizard-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 .pet-wizard-photos {
   display: flex;
@@ -427,19 +433,6 @@ function save(): void {
 .pet-wizard-input:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 1px;
-}
-.pet-wizard-style {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius-control);
-  background: var(--color-surface-muted);
-}
-.pet-wizard-style-value {
-  color: var(--color-ink);
-  font-size: var(--font-size-body);
 }
 .pet-wizard-error {
   margin: 0;
@@ -547,7 +540,8 @@ function save(): void {
 }
 @media (prefers-reduced-motion: reduce) {
   .pet-wizard-enter-active,
-  .pet-wizard-leave-active {
+  .pet-wizard-leave-active,
+  .pet-wizard-tooltip {
     transition: none;
   }
   .pet-wizard-spin {

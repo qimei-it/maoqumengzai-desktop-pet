@@ -71,6 +71,13 @@ Seedream 5.5 支持文生 RGBA 和图生 RGBA，输入参考图不需要自带�
 
 单张重新生成单独确认。基础形象重生成会重置其余状态，避免新旧基础形象混用。
 
+## 智能体接入
+
+- 智能体模型菜单分为「对话模型」和「图像模型」。
+- 选择 Doubao Seedream 5.5 只改变 `image_generate` 使用的图像模型，不切换对话模式，输入框内容仍交给文本模型。
+- `image_generate` 使用当前选定的图像模型；Seedream 只支持单张、1K/2K、png/jpeg。
+- 内置说明型 Skill「桌宠形象生成」位于 `resources/skills/mqmz-pet/pet-generation`，默认启用；它负责解释固定规格和入口，不直接生成或保存桌宠。
+
 ## 存储与隐私
 
 ```text
@@ -103,6 +110,8 @@ userData/pets/<id>/
 - 设置页宠物档案与桌宠窗口读取同一套素材。
 - 新建桌宠向导、关闭与本地保存。
 - 「恢复默认」入口已实现，可切回内置麻薯形象。
+- 智能体选择 Doubao Seedream 5.5 作为图像模型后，文本模型仍正常回复，`image_generate` 使用 Seedream 生成 1024×1024 图片。
+- 内置说明型 Skill「桌宠形象生成」默认启用。
 
 ## 未验证
 

@@ -1066,6 +1066,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('agent-image-model'),
+      model: z.custom<AgentModelId>((value) => isAgentModelId(value)),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('agent-approval-mode'),
       mode: z.enum(agentApprovalModes),
     })

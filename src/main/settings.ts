@@ -16,6 +16,7 @@ import {
   sliceActions,
 } from '../shared/donut'
 import { deepseekModelIds } from '../shared/deepseek'
+import { modelInfo, type AgentModelId } from '../shared/agent-models'
 
 const wheelActions = <T extends string>(
   catalog: readonly T[],
@@ -121,6 +122,10 @@ const settingsSchema = z
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
     aiModel: z.enum(deepseekModelIds).default('deepseek-flash'),
+    aiImageModel: z
+      .custom<AgentModelId>((value) => modelInfo(value as string)?.kind === 'image')
+      .default('MiniMax-H3-Image')
+      .catch('MiniMax-H3-Image'),
     aiQuotaEnabled: z.boolean().default(true),
     aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
     aiQuotaOpenAIPath: z.string().max(1024).default(''),

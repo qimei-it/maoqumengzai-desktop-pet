@@ -5667,6 +5667,14 @@
       "defaultEnabled": true,
       "source": "project-local",
       "license": "MIT"
+    },
+    {
+      "id": "builtin-mqmz-pet-generation",
+      "dir": "mqmz-pet/pet-generation",
+      "category": "内容创作",
+      "defaultEnabled": true,
+      "source": "project-local",
+      "license": "MIT"
     }
   ]
 }

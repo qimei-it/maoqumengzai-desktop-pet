@@ -752,6 +752,23 @@ test('composer grows to 75% of the conversation pane', async () => {
   await agent.waitForTimeout(400)
 })
 
+test('agent model menu separates dialogue and image models', async () => {
+  const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+  if (!snapshot.ok || !snapshot.value.agent.configured) {
+    await agent.evaluate(() =>
+      window.mqmz!.command({ type: 'agent-config', apiKey: 'sk-agent-test' }),
+    )
+  }
+  await agent.evaluate(() => window.mqmz!.command({ type: 'agent-open' }))
+  await agent.locator('.agent-model-trigger').click()
+  await expect(agent.getByText('对话模型', { exact: true })).toBeVisible()
+  await expect(agent.getByText('图像模型', { exact: true })).toBeVisible()
+  await expect(
+    agent.getByText('Doubao Seedream 5.5', { exact: true }),
+  ).toBeVisible()
+  await agent.locator('.agent-model-trigger').click()
+})
+
 test('pet profile section exposes the create entry', async () => {
   await settings.evaluate(() =>
     window.mqmz!.command({ type: 'settings-open' }),
@@ -768,7 +785,14 @@ test('pet profile section exposes the create entry', async () => {
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
   const wizard = settings.getByRole('dialog', { name: '新建桌宠' })
   await expect(wizard).toBeVisible()
-  await expect(wizard.getByText('麻薯柔和水彩')).toBeVisible()
+  await expect(wizard.getByText('麻薯柔和水彩')).toHaveCount(0)
+  await expect(
+    wizard.getByRole('button', { name: '关闭', exact: true }),
+  ).toHaveCount(0)
+  await wizard
+    .getByLabel('最多添加 4 张照片；照片仅用于本次生成，保存或放弃后会删除。')
+    .hover()
+  await expect(wizard.getByRole('tooltip')).toHaveCSS('opacity', '1')
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
 })

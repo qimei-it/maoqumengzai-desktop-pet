@@ -662,6 +662,7 @@ export type Command =
   | { type: 'agent-mode'; mode: AgentMode }
   | { type: 'agent-approval-mode'; mode: AgentApprovalMode }
   | { type: 'agent-model'; model: AgentModelId }
+  | { type: 'agent-image-model'; model: AgentModelId }
   | { type: 'agent-reasoning'; reasoning: AgentReasoning }
   | { type: 'agent-workspace'; projectId: string | null }
   | { type: 'agent-config'; apiKey: string }

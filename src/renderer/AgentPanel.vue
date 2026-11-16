@@ -76,12 +76,13 @@ import {
   type AgentTextPart,
   type AgentToolPart,
 } from '../shared/agent'
-import { deepseekModelIds } from '../shared/deepseek'
 import {
   agentModels,
   agentModelLabels,
+  agentProviderLabels,
   modelInfo,
   type AgentModelId,
+  type AgentModelInfo,
 } from '../shared/agent-models'
 import {
   defaultGenerationParams,
@@ -406,14 +407,21 @@ const skillMentionItems = computed(() => {
 const minimaxConfigured = computed(
   () => props.state?.ai.minimax.configured === true,
 )
-const modelConfigured = computed(() =>
-  currentModel.value?.provider === 'minimax'
-    ? minimaxConfigured.value
-    : configured.value,
+const volcanoConfigured = computed(
+  () => props.state?.ai.volcano.configured === true,
 )
-const miniMaxModels = agentModels.filter(
-  (item) => item.provider === 'minimax',
+const settings = computed(() => props.state?.settings)
+const imageModel = computed<AgentModelId>(
+  () => settings.value?.aiImageModel ?? 'MiniMax-H3-Image',
 )
+const textModels = agentModels.filter((item) => item.kind === 'text')
+const imageModels = agentModels.filter((item) => item.kind === 'image')
+const modelConfigured = computed(() => {
+  const provider = currentModel.value?.provider
+  if (provider === 'minimax') return minimaxConfigured.value
+  if (provider === 'volcano') return volcanoConfigured.value
+  return configured.value
+})
 const generationParamsKey = 'mqmz.agent.generation-params'
 function loadGenerationParams(): GenerationParams {
   try {
@@ -1042,13 +1050,6 @@ function mediaKindLabel(kind: 'image' | 'video' | 'audio'): string {
   if (kind === 'image') return '图片'
   if (kind === 'video') return '视频'
   return '音频'
-}
-
-function modelKindLabel(kind: 'text' | 'image' | 'video' | 'speech' | undefined): string {
-  if (kind === 'image') return '图像'
-  if (kind === 'video') return '视频'
-  if (kind === 'speech') return '音频'
-  return '文本'
 }
 
 const mediaSelections = ref<Record<string, number>>({})
@@ -2000,12 +2001,23 @@ function selectApprovalMode(value: AgentApprovalMode): void {
   emit('command', { type: 'agent-approval-mode', mode: value })
 }
 function setModel(value: AgentModelId): void {
+  if (modelInfo(value)?.kind !== 'text') return
   modelMenuOpen.value = false
   if (model.value === value) return
   if (value !== 'deepseek-flash') pendingFlashSend.value = false
   if (value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off')
     emit('command', { type: 'agent-reasoning', reasoning: 'low' })
   emit('command', { type: 'agent-model', model: value })
+}
+function setImageModel(value: AgentModelId): void {
+  modelMenuOpen.value = false
+  if (imageModel.value === value) return
+  emit('command', { type: 'agent-image-model', model: value })
+}
+function modelAvailable(item: AgentModelInfo): boolean {
+  if (item.provider === 'minimax') return minimaxConfigured.value
+  if (item.provider === 'volcano') return volcanoConfigured.value
+  return configured.value
 }
 function switchToFlashAndSend(): void {
   if (busy.value || !draft.value.trim()) return
@@ -4596,7 +4608,7 @@ function statusLabel(status: string): string {
                       :disabled="busy"
                       :aria-expanded="modelMenuOpen"
                       aria-haspopup="menu"
-                      :aria-label="`选择模型，当前 ${agentModelLabels[model]}${
+                      :aria-label="`选择模型，对话 ${agentModelLabels[model]}，图像 ${agentModelLabels[imageModel]}${
                         modelReasoning
                           ? `，推理强度${reasoningLabel}`
                           : ''
@@ -4620,51 +4632,23 @@ function statusLabel(status: string): string {
                       v-if="modelMenuOpen"
                       class="agent-model-menu"
                       role="menu"
-                      aria-label="模型与推理强度"
+                      aria-label="对话模型与图像模型"
                     >
-                      <p class="agent-model-group">DeepSeek</p>
+                      <p class="agent-model-group">对话模型</p>
                       <button
-                        v-for="id in deepseekModelIds"
-                        :key="id"
-                        type="button"
-                        class="agent-model-option"
-                        role="menuitemradio"
-                        :aria-checked="model === id"
-                        @click="setModel(id)"
-                      >
-                        <Check
-                          v-if="model === id"
-                          :size="14"
-                          :stroke-width="2"
-                          aria-hidden="true"
-                        />
-                        <span
-                          v-else
-                          class="agent-model-check-space"
-                          aria-hidden="true"
-                        ></span>
-                        <span class="agent-model-option-label">{{
-                          agentModelLabels[id]
-                        }}</span>
-                        <span class="agent-model-kind">{{
-                          modelKindLabel(modelInfo(id)?.kind)
-                        }}</span>
-                      </button>
-                      <p class="agent-model-group">MiniMax</p>
-                      <button
-                        v-for="item in miniMaxModels"
+                        v-for="item in textModels"
                         :key="item.id"
                         type="button"
                         class="agent-model-option"
                         role="menuitemradio"
                         :aria-checked="model === item.id"
-                        :disabled="!minimaxConfigured"
+                        :disabled="!modelAvailable(item)"
                         :title="
-                          minimaxConfigured
+                          modelAvailable(item)
                             ? undefined
-                            : '先在设置中添加 MiniMax API Key'
+                            : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
                         "
-                        @click="setModel(item.id as AgentModelId)"
+                        @click="setModel(item.id)"
                       >
                         <Check
                           v-if="model === item.id"
@@ -4681,7 +4665,41 @@ function statusLabel(status: string): string {
                           item.label
                         }}</span>
                         <span class="agent-model-kind">{{
-                          modelKindLabel(item.kind)
+                          agentProviderLabels[item.provider]
+                        }}</span>
+                      </button>
+                      <p class="agent-model-group">图像模型</p>
+                      <button
+                        v-for="item in imageModels"
+                        :key="item.id"
+                        type="button"
+                        class="agent-model-option"
+                        role="menuitemradio"
+                        :aria-checked="imageModel === item.id"
+                        :disabled="!modelAvailable(item)"
+                        :title="
+                          modelAvailable(item)
+                            ? undefined
+                            : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
+                        "
+                        @click="setImageModel(item.id)"
+                      >
+                        <Check
+                          v-if="imageModel === item.id"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                        <span
+                          v-else
+                          class="agent-model-check-space"
+                          aria-hidden="true"
+                        ></span>
+                        <span class="agent-model-option-label">{{
+                          item.label
+                        }}</span>
+                        <span class="agent-model-kind">{{
+                          agentProviderLabels[item.provider]
                         }}</span>
                       </button>
                       <template v-if="modelReasoning">

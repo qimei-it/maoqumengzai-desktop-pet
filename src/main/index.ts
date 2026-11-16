@@ -44,7 +44,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { channels } from '../shared/protocol'
-import { isGenerationModel } from '../shared/agent-models'
+import { isGenerationModel, modelInfo } from '../shared/agent-models'
 import {
   mediaHost,
   mediaScheme,
@@ -1161,6 +1161,7 @@ const agent = createAgentRuntime({
   getAttachmentDir: agentAttachmentDirectory,
   getKey: () => aiKey,
   getMiniMaxKey: () => minimaxKey,
+  getVolcanoKey: () => volcanoKey,
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
@@ -3471,6 +3472,7 @@ function settingsState(): SettingsState {
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
     aiModel: settings.aiModel,
+    aiImageModel: settings.aiImageModel,
     aiQuotaEnabled: settings.aiQuotaEnabled,
     aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
     aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
@@ -10240,6 +10242,7 @@ function setupIpc(): void {
       'agent-mode',
       'agent-approval-mode',
       'agent-model',
+      'agent-image-model',
       'agent-reasoning',
       'agent-workspace',
       'agent-config',
@@ -10535,6 +10538,17 @@ function setupIpc(): void {
       case 'agent-model':
         agent.setModel(command.model)
         break
+      case 'agent-image-model': {
+        const info = modelInfo(command.model)
+        if (!info || info.kind !== 'image')
+          throw new Error('请选择图像生成模型。')
+        if (info.provider === 'volcano' && !volcanoKey)
+          throw new Error('请先在设置中添加火山方舟 API Key。')
+        if (info.provider === 'minimax' && !minimaxKey)
+          throw new Error('请先在设置中添加 MiniMax API Key。')
+        await updateSettings({ aiImageModel: command.model })
+        break
+      }
       case 'agent-reasoning':
         agent.setReasoning(command.reasoning)
         break

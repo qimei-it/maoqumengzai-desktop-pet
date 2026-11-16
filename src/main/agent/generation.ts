@@ -1,15 +1,22 @@
 /**
- * Runs MiniMax image, video and speech generation for the agent panel.
+ * Runs image, video and speech generation for the agent panel.
+ * MiniMax models use the MiniMax APIs; Seedream uses the Volcano Ark API.
  * Outputs are downloaded into a local folder served by the mqmz-media scheme.
  */
 
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import sharp from 'sharp'
 import type { AgentAttachmentKind, AgentMediaKind } from '../../shared/agent'
 import type { AgentModelId } from '../../shared/agent-models'
 import { modelInfo } from '../../shared/agent-models'
-import type { GenerationParams } from '../../shared/generation'
+import type {
+  GenerationParams,
+  ImageArea,
+  ImageRatio,
+} from '../../shared/generation'
+import { generateVolcanoImage } from '../../shared/volcano'
 import {
   cancelMiniMaxVideo,
   createMiniMaxVideo,
@@ -229,6 +236,128 @@ async function runImage(
   return { items, warnings }
 }
 
+const seedreamModel = 'doubao-seedream-5-5-261028'
+const seedreamSizes: Record<
+  '1K' | '2K',
+  Record<Exclude<ImageRatio, 'auto'>, string>
+> = {
+  '1K': {
+    '21:9': '1568x672',
+    '16:9': '1424x800',
+    '4:3': '1152x864',
+    '1:1': '1024x1024',
+    '3:4': '864x1152',
+    '9:16': '800x1424',
+  },
+  '2K': {
+    '21:9': '3136x1344',
+    '16:9': '2816x1584',
+    '4:3': '2368x1776',
+    '1:1': '2048x2048',
+    '3:4': '1776x2368',
+    '9:16': '1584x2816',
+  },
+}
+
+function seedreamSize(area: ImageArea, ratio: ImageRatio): string {
+  if (area === '4K')
+    throw new Error('Doubao Seedream 5.5 不支持 4K，请使用 1K 或 2K。')
+  if (ratio === 'auto') return area === '1K' ? '1024x1024' : '2048x2048'
+  return seedreamSizes[area][ratio]
+}
+
+async function referenceDataUrl(path: string): Promise<string> {
+  const info = await stat(path).catch(() => null)
+  if (!info?.isFile()) throw new Error('参考文件已不在。')
+  const image = sharp(path).rotate()
+  const metadata = await image.metadata()
+  if (metadata.hasAlpha) {
+    const png = await image.png().toBuffer()
+    return `data:image/png;base64,${png.toString('base64')}`
+  }
+  const jpeg = await image
+    .resize({
+      width: 2048,
+      height: 2048,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 90 })
+    .toBuffer()
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+}
+
+async function runVolcanoImage(
+  request: GenerationRequest,
+): Promise<GenerationOutcome> {
+  const { image: params } = request.params
+  if (params.count !== 1)
+    throw new Error(
+      'Doubao Seedream 5.5 每次只能生成 1 张图片，请把 count 改为 1。',
+    )
+  if (params.format === 'webp')
+    throw new Error('Doubao Seedream 5.5 只支持 png 或 jpeg 输出。')
+  const unsupported = request.references.filter(
+    (item) => item.kind !== 'image',
+  )
+  if (unsupported.length)
+    throw new Error('图片生成只支持图片作为参考素材。')
+  await assertReferenceSizes(request.references, {
+    image: 30 * 1024 * 1024,
+  })
+  request.onProgress(
+    request.references.length
+      ? `正在准备 ${request.references.length} 张参考图…`
+      : '正在生成图片…',
+  )
+  const images = await Promise.all(
+    request.references.map((reference) => referenceDataUrl(reference.path)),
+  )
+  const result = await generateVolcanoImage(
+    request.apiKey,
+    {
+      model: seedreamModel,
+      prompt: request.prompt,
+      ...(images.length ? { images } : {}),
+      size: seedreamSize(params.area, params.ratio),
+      background: 'opaque',
+      outputFormat: params.format === 'png' ? 'png' : 'jpeg',
+      responseFormat: 'b64_json',
+    },
+    { signal: request.signal },
+  )
+  const items: GeneratedMedia[] = []
+  const warnings: string[] = []
+  let index = 0
+  for (const image of result.images) {
+    index += 1
+    if (image.error) {
+      warnings.push(image.error)
+      continue
+    }
+    if (!image.url && !image.base64) {
+      warnings.push('有一张图片没有返回内容。')
+      continue
+    }
+    const data = image.base64
+      ? Buffer.from(image.base64, 'base64')
+      : await download(image.url!, request.signal)
+    const extension = image.format === 'jpeg' ? 'jpg' : 'png'
+    const name = `图片-${stamp()}-${randomUUID().slice(0, 6)}-${index}.${extension}`
+    const saved = await saveFile(request.outputDir, name, data)
+    const dimensions = parseSize(image.size)
+    items.push({
+      ...saved,
+      name,
+      kind: 'image',
+      ...dimensions,
+    })
+  }
+  if (!items.length)
+    throw new Error(warnings[0] || '图片生成失败，请调整描述后重试。')
+  return { items, warnings }
+}
+
 async function runVideo(
   request: GenerationRequest,
 ): Promise<GenerationOutcome> {
@@ -402,10 +531,12 @@ export function generationKindForModel(
   return info.kind === 'speech' ? 'audio' : info.kind
 }
 
-export async function runMiniMaxGeneration(
+export async function runAgentGeneration(
   request: GenerationRequest,
 ): Promise<GenerationOutcome> {
   await mkdir(request.outputDir, { recursive: true })
+  const info = modelInfo(request.model)
+  if (info?.provider === 'volcano') return runVolcanoImage(request)
   const kind = generationKindForModel(request.model)
   if (kind === 'image') return runImage(request)
   if (kind === 'video') return runVideo(request)

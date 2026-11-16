@@ -1,6 +1,6 @@
 /** Models exposed by the agent composer and their generation capabilities. */
 
-export type AgentProvider = 'deepseek' | 'minimax'
+export type AgentProvider = 'deepseek' | 'minimax' | 'volcano'
 export type AgentModelKind = 'text' | 'image' | 'video' | 'speech'
 
 export type AgentModelInfo = {
@@ -62,6 +62,13 @@ export const agentModels: readonly AgentModelInfo[] = [
     reasoning: false,
   },
   {
+    id: 'Doubao-Seedream-5.5',
+    label: 'Doubao Seedream 5.5',
+    provider: 'volcano',
+    kind: 'image',
+    reasoning: false,
+  },
+  {
     id: 'speech-2.8-hd',
     label: 'Speech-2.8-HD',
     provider: 'minimax',
@@ -78,6 +85,19 @@ export const agentModels: readonly AgentModelInfo[] = [
 ] as const
 
 export type AgentModelId = (typeof agentModels)[number]['id']
+
+export const agentTextModels = agentModels.filter(
+  (model) => model.kind === 'text',
+)
+export const agentImageModels = agentModels.filter(
+  (model) => model.kind === 'image',
+)
+
+export const agentProviderLabels: Record<AgentProvider, string> = {
+  deepseek: 'DeepSeek',
+  minimax: 'MiniMax',
+  volcano: '火山方舟',
+}
 
 export const agentModelLabels: Record<string, string> = Object.fromEntries(
   agentModels.map((model) => [model.id, model.label]),
@@ -98,4 +118,8 @@ export function isMiniMaxModel(id: string): boolean {
 export function isGenerationModel(id: string): boolean {
   const kind = modelInfo(id)?.kind
   return kind === 'image' || kind === 'video' || kind === 'speech'
+}
+
+export function isTextModel(id: string): boolean {
+  return modelInfo(id)?.kind === 'text'
 }

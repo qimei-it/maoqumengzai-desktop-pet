@@ -8,7 +8,16 @@ export const volcanoImagesEndpoint = `${volcanoBaseUrl}/images/generations`
 export const volcanoSeedreamFlashModel = 'doubao-seedream-5-0-flash-260915'
 export const volcanoSeedreamModel = 'doubao-seedream-5-5-261028'
 
-type Options = { endpoint?: string; timeoutMs?: number }
+type Options = {
+  endpoint?: string
+  timeoutMs?: number
+  signal?: AbortSignal
+}
+
+function requestSignal(options: Options, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? timeoutMs)
+  return options.signal ? AbortSignal.any([options.signal, timeout]) : timeout
+}
 
 function modelIds(value: unknown): string[] {
   if (!value || typeof value !== 'object') return []
@@ -36,7 +45,7 @@ async function requestModels(
       Accept: 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
+    signal: requestSignal(options, 20_000),
   }).catch(() => null)
   if (!response) throw new Error('连接火山方舟失败，请检查网络后重试。')
   if (!response.ok) {
@@ -104,7 +113,7 @@ export async function generateVolcanoImage(
     model: string
     prompt: string
     images?: string[]
-    size?: '1K' | '1.5K' | '2K'
+    size?: string
     background?: 'transparent' | 'opaque' | 'auto'
     outputFormat?: 'png' | 'jpeg'
     responseFormat?: 'url' | 'b64_json'
@@ -134,7 +143,7 @@ export async function generateVolcanoImage(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(options.timeoutMs ?? 600_000),
+    signal: requestSignal(options, 600_000),
   }).catch(() => null)
   if (!response) throw new Error('连接火山方舟失败，请检查网络后重试。')
   const data = (await response.json().catch(() => null)) as {

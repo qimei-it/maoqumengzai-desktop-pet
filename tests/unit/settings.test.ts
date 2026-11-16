@@ -57,12 +57,14 @@ describe('settings store', () => {
       aiQuotaEnabled: _enabled,
       aiQuotaRefreshMinutes: _minutes,
       aiQuotaOpenAIPath: _path,
+      aiImageModel: _imageModel,
       ...legacy
     } = defaultSettings
     await writeFile(path, JSON.stringify(legacy))
     const loaded = await loadSettingsFile(path)
     expect(loaded.existed).toBe(true)
     expect(loaded.settings).toMatchObject({
+      aiImageModel: 'MiniMax-H3-Image',
       aiQuotaEnabled: true,
       aiQuotaRefreshMinutes: 5,
       aiQuotaOpenAIPath: '',
@@ -77,6 +79,7 @@ describe('settings store', () => {
       JSON.stringify({
         ...defaultSettings,
         petName: '团子',
+        aiImageModel: 'MiniMax-M3',
         hoverWheelActions: ['agent', 'agent', 'todo'],
         fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
       }),
@@ -84,6 +87,7 @@ describe('settings store', () => {
     const loaded = await loadSettingsFile(path)
     expect(loaded.existed).toBe(true)
     expect(loaded.settings.petName).toBe('团子')
+    expect(loaded.settings.aiImageModel).toBe('MiniMax-H3-Image')
     expect(loaded.settings.hoverWheelActions).toEqual(defaultSettings.hoverWheelActions)
     expect(loaded.settings.fileWheelActions).toEqual([
       'stash',

@@ -15,7 +15,7 @@ describe('vendored research skills', () => {
       builtinRoot,
     )
     const list = store.list()
-    expect(list.length).toBe(686)
+    expect(list.length).toBe(687)
     expect(new Set(list.map((item) => item.name)).size).toBe(list.length)
     expect(list.some((item) => item.requires)).toBe(true)
     expect(new Set(list.map((item) => item.id)).size).toBe(list.length)
@@ -33,7 +33,7 @@ describe('vendored research skills', () => {
       expect(skill.name.trim().length).toBeGreaterThan(0)
     }
     const enabled = list.filter((item) => item.enabled)
-    expect(enabled.length).toBe(36)
+    expect(enabled.length).toBe(37)
     expect(enabled.map((item) => item.name)).toEqual(
       expect.arrayContaining([
         'research-lookup',
@@ -56,6 +56,7 @@ describe('vendored research skills', () => {
         'cinematic-giant-visual-prompts',
         'ads-audit',
         'geo-content-optimizer',
+        '桌宠形象生成',
       ]),
     )
     const files = await store.files('builtin-k-dense-research-lookup')

@@ -1,6 +1,6 @@
 # MiniMax 多模态接入
 
-日期：2026-11-16。首个公开版本只接入 MiniMax 作为 Agent 文本与生成 Provider；百炼顺延到后续版本。火山方舟只用于桌宠形象生成，不进入 Agent 模型菜单，见 `docs/research/pet-generation.md`。
+日期：2026-11-16。首个公开版本只接入 MiniMax 作为 Agent 文本与生成 Provider；百炼顺延到后续版本。火山方舟只用于桌宠形象生成，并作为 Agent 可选图像模型，不进入 Agent 对话模型菜单；对话模型与图像模型分离，见 `docs/research/pet-generation.md`。
 
 ## 调用入口
 

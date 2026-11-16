@@ -27,13 +27,13 @@ import type {
 import { maxAgentNameChars } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
 import type { AgentModelId } from '../../shared/agent-models'
-import { isMiniMaxModel } from '../../shared/agent-models'
+import { isMiniMaxModel, modelInfo } from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { defaultGenerationParams, normalizeGenerationParams } from '../../shared/generation'
 import { mediaUrl } from '../../shared/media'
 import {
   generationKindForModel,
-  runMiniMaxGeneration,
+  runAgentGeneration,
   type GenerationReference,
 } from './generation'
 import { registerMediaPath } from './media-registry'
@@ -122,6 +122,7 @@ export type AgentRuntimeDeps = {
   /** MiniMax text streaming; injectable for tests. */
   minimaxStream?: typeof streamMiniMaxChat
   getMiniMaxKey?(): string | undefined
+  getVolcanoKey?(): string | undefined
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
@@ -977,7 +978,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const imageGenerateTool: AgentTool = {
     name: 'image_generate',
     description:
-      '根据用户要求生成图片。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片附件会自动作为参考图，无需传路径。每次调用都需要用户确认并消耗额度。',
+      '根据用户要求生成图片。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片附件会自动作为参考图，无需传路径。图像模型由设置决定；Doubao Seedream 5.5 只支持单张、1K/2K、png/jpeg。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
@@ -1008,8 +1009,20 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async run(args, ctx) {
       const session = activeSession()
       if (!session) return { ok: false, text: '当前没有活动会话。' }
-      const key = deps.getMiniMaxKey?.()
-      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const imageModel = deps.getSettings().aiImageModel
+      const provider = modelInfo(imageModel)?.provider
+      const key =
+        provider === 'volcano'
+          ? deps.getVolcanoKey?.()
+          : deps.getMiniMaxKey?.()
+      if (!key)
+        return {
+          ok: false,
+          text:
+            provider === 'volcano'
+              ? '请先在设置中配置火山方舟 API Key。'
+              : '请先在设置中配置 MiniMax API Key。',
+        }
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
       const references = (ctx.references ?? []).filter(
@@ -1038,9 +1051,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ),
         },
       })
-      const outcome = await runMiniMaxGeneration({
+      const outcome = await runAgentGeneration({
         apiKey: key,
-        model: 'MiniMax-H3-Image',
+        model: imageModel,
         prompt,
         params,
         references,
@@ -1050,7 +1063,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       })
       return {
         ok: true,
-        text: `已生成 ${outcome.items.length} 张图片。${outcome.warnings.join('；')}`.trim(),
+        text: `已使用 ${modelInfo(imageModel)?.label ?? '图像模型'} 生成 ${outcome.items.length} 张图片。${outcome.warnings.join('；')}`.trim(),
         media: outcome.items,
       }
     },
@@ -1124,7 +1137,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ),
         },
       })
-      const outcome = await runMiniMaxGeneration({
+      const outcome = await runAgentGeneration({
         apiKey: key,
         model: 'MiniMax-H3',
         prompt,
@@ -1199,7 +1212,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         },
       })
       const quality = toolChoice(args.quality, ['hd', 'turbo'], '语音档位', 'hd')
-      const outcome = await runMiniMaxGeneration({
+      const outcome = await runAgentGeneration({
         apiKey: key,
         model: quality === 'turbo' ? 'speech-2.8-turbo' : 'speech-2.8-hd',
         prompt: text,
@@ -2282,7 +2295,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           generationPrompt = cachedScript
         }
       }
-      const outcome = await runMiniMaxGeneration({
+      const outcome = await runAgentGeneration({
         apiKey: key,
         model: session.model,
         prompt: generationPrompt,

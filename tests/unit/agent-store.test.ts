@@ -60,6 +60,17 @@ test('keeps archived sessions and project tool policies', async () => {
   expect(loaded.projects[0].toolPolicy).toBe('allow')
 })
 
+test('migrates generation-only session models to a text model', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-model-'))
+  const path = join(directory, 'agent.json')
+  await saveAgentStore(path, {
+    sessions: [{ ...session(1), model: 'MiniMax-H3-Image' }],
+    projects: [],
+  })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0].model).toBe('deepseek-flash')
+})
+
 test('saves and restores projects and sessions with usage', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')

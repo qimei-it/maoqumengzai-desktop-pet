@@ -48,6 +48,7 @@ export type Settings = {
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
   aiModel: AgentModelId
+  aiImageModel: AgentModelId
   aiQuotaEnabled: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string
@@ -75,6 +76,7 @@ export const defaultSettings: Settings = {
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
   aiModel: 'deepseek-flash',
+  aiImageModel: 'MiniMax-H3-Image',
   aiQuotaEnabled: true,
   aiQuotaRefreshMinutes: 5,
   aiQuotaOpenAIPath: '',
