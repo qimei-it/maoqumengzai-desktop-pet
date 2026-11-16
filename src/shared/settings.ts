@@ -48,7 +48,10 @@ export type Settings = {
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
   aiModel: AgentModelId
-  aiImageModel: AgentModelId
+  agentDefaultChatModel: AgentModelId | ''
+  aiImageModel: AgentModelId | ''
+  agentDefaultVideoModel: AgentModelId | ''
+  agentDefaultAudioModel: AgentModelId | ''
   aiQuotaEnabled: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string
@@ -76,7 +79,10 @@ export const defaultSettings: Settings = {
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
   aiModel: 'deepseek-flash',
+  agentDefaultChatModel: 'deepseek-flash',
   aiImageModel: 'MiniMax-H3-Image',
+  agentDefaultVideoModel: 'MiniMax-H3',
+  agentDefaultAudioModel: 'speech-2.8-hd',
   aiQuotaEnabled: true,
   aiQuotaRefreshMinutes: 5,
   aiQuotaOpenAIPath: '',

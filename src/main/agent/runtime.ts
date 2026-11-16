@@ -27,7 +27,7 @@ import type {
 import { maxAgentNameChars } from '../../shared/agent'
 import { searchWeb } from '../../shared/deepseek'
 import type { AgentModelId } from '../../shared/agent-models'
-import { isMiniMaxModel, modelInfo } from '../../shared/agent-models'
+import { isMiniMaxModel, isTextModel, modelInfo } from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { defaultGenerationParams, normalizeGenerationParams } from '../../shared/generation'
 import { mediaUrl } from '../../shared/media'
@@ -176,6 +176,10 @@ export type AgentRuntime = {
   setMode(mode: AgentMode): void
   setApprovalMode(mode: AgentApprovalMode): void
   setModel(model: AgentModelId): void
+  setGenerationModel(
+    kind: 'image' | 'video' | 'speech',
+    model: AgentModelId,
+  ): void
   setReasoning(reasoning: AgentReasoning): void
   setWorkspace(projectId: string | null): void
   /** Resolve a saved attachment or artifact source for download. */
@@ -1009,8 +1013,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async run(args, ctx) {
       const session = activeSession()
       if (!session) return { ok: false, text: '当前没有活动会话。' }
-      const imageModel = deps.getSettings().aiImageModel
+      const imageModel =
+        session.imageModel ?? deps.getSettings().aiImageModel
+      if (!imageModel)
+        return {
+          ok: false,
+          text: '还没有设置默认图像模型。请到 设置 → 智能体 → 默认图像模型 选择模型，并确认对应 API Key。',
+        }
       const provider = modelInfo(imageModel)?.provider
+      if (!provider)
+        return { ok: false, text: '图像模型不可用，请重新选择默认图像模型。' }
       const key =
         provider === 'volcano'
           ? deps.getVolcanoKey?.()
@@ -1020,8 +1032,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ok: false,
           text:
             provider === 'volcano'
-              ? '请先在设置中配置火山方舟 API Key。'
-              : '请先在设置中配置 MiniMax API Key。',
+              ? '请先在 设置 → 智能体 添加火山方舟 API Key。'
+              : '请先在 设置 → 智能体 添加 MiniMax API Key。',
         }
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
@@ -1071,7 +1083,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const videoGenerateTool: AgentTool = {
     name: 'video_generate',
     description:
-      '根据用户要求生成视频。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片、视频、音频附件会自动作为参考素材，无需传路径。当前模型 MiniMax-H3 支持 768P/2K、4-15 秒。每次调用都需要用户确认并消耗额度。',
+      '根据用户要求生成视频。直接调用本工具，不要交给 subagent_run。当前用户消息里的图片、视频、音频附件会自动作为参考素材，无需传路径。使用当前会话或设置中的默认视频模型，当前 MiniMax-H3 支持 768P/2K、4-15 秒。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
@@ -1100,8 +1112,28 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async run(args, ctx) {
       const session = activeSession()
       if (!session) return { ok: false, text: '当前没有活动会话。' }
-      const key = deps.getMiniMaxKey?.()
-      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const videoModel =
+        session.videoModel ?? deps.getSettings().agentDefaultVideoModel
+      if (!videoModel)
+        return {
+          ok: false,
+          text: '还没有设置默认视频模型。请到 设置 → 智能体 → 默认视频模型 选择模型。',
+        }
+      const provider = modelInfo(videoModel)?.provider
+      if (!provider)
+        return { ok: false, text: '视频模型不可用，请重新选择默认视频模型。' }
+      const key =
+        provider === 'volcano'
+          ? deps.getVolcanoKey?.()
+          : deps.getMiniMaxKey?.()
+      if (!key)
+        return {
+          ok: false,
+          text:
+            provider === 'volcano'
+              ? '请先在 设置 → 智能体 添加火山方舟 API Key。'
+              : '请先在 设置 → 智能体 添加 MiniMax API Key。',
+        }
       const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
       if (!prompt) return { ok: false, text: '缺少参数 prompt。' }
       const references = (ctx.references ?? []).filter(
@@ -1139,7 +1171,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       })
       const outcome = await runAgentGeneration({
         apiKey: key,
-        model: 'MiniMax-H3',
+        model: videoModel,
         prompt,
         params,
         references,
@@ -1157,7 +1189,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const speechGenerateTool: AgentTool = {
     name: 'speech_generate',
     description:
-      '根据文本生成语音音频。直接调用本工具，不要交给 subagent_run。当前消息附件不会作为参考音频。支持 speech-2.8-hd / speech-2.8-turbo。每次调用都需要用户确认并消耗额度。',
+      '根据文本生成语音音频。直接调用本工具，不要交给 subagent_run。当前消息附件不会作为参考音频。使用当前会话或设置中的默认音频模型。每次调用都需要用户确认并消耗额度。',
     parameters: {
       type: 'object',
       properties: {
@@ -1177,11 +1209,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           enum: ['mp3', 'wav'],
           description: '输出格式，默认 mp3',
         },
-        quality: {
-          type: 'string',
-          enum: ['hd', 'turbo'],
-          description: '模型档位，默认 hd',
-        },
       },
       required: ['text'],
       additionalProperties: false,
@@ -1192,8 +1219,28 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async run(args, ctx) {
       const session = activeSession()
       if (!session) return { ok: false, text: '当前没有活动会话。' }
-      const key = deps.getMiniMaxKey?.()
-      if (!key) return { ok: false, text: '请先在设置中配置 MiniMax API Key。' }
+      const speechModel =
+        session.audioModel ?? deps.getSettings().agentDefaultAudioModel
+      if (!speechModel)
+        return {
+          ok: false,
+          text: '还没有设置默认音频模型。请到 设置 → 智能体 → 默认音频模型 选择模型。',
+        }
+      const provider = modelInfo(speechModel)?.provider
+      if (!provider)
+        return { ok: false, text: '音频模型不可用，请重新选择默认音频模型。' }
+      const key =
+        provider === 'volcano'
+          ? deps.getVolcanoKey?.()
+          : deps.getMiniMaxKey?.()
+      if (!key)
+        return {
+          ok: false,
+          text:
+            provider === 'volcano'
+              ? '请先在 设置 → 智能体 添加火山方舟 API Key。'
+              : '请先在 设置 → 智能体 添加 MiniMax API Key。',
+        }
       const text = typeof args.text === 'string' ? args.text.trim() : ''
       if (!text) return { ok: false, text: '缺少参数 text。' }
       if (ctx.references?.length)
@@ -1211,10 +1258,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           format: toolChoice(args.format, ['mp3', 'wav'], '输出格式', 'mp3'),
         },
       })
-      const quality = toolChoice(args.quality, ['hd', 'turbo'], '语音档位', 'hd')
       const outcome = await runAgentGeneration({
         apiKey: key,
-        model: quality === 'turbo' ? 'speech-2.8-turbo' : 'speech-2.8-hd',
+        model: speechModel,
         prompt: text,
         params,
         references: [],
@@ -1417,6 +1463,17 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return sessions.find((session) => session.id === activeId)
   }
 
+  function defaultChatModel(): AgentModelId {
+    const configured = deps.getSettings().agentDefaultChatModel
+    if (configured) return configured
+    const active = activeSession()
+    if (active && isTextModel(active.model)) return active.model
+    const recent = sessions.find((session) => isTextModel(session.model))
+    if (recent) return recent.model
+    if (deps.getMiniMaxKey?.()) return 'MiniMax-M3.1-Flash'
+    return 'deepseek-flash'
+  }
+
   function removeRemoteFile(key: string, id: string): void {
     void files.remove?.(key, id).catch(() => {})
   }
@@ -1459,7 +1516,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   function ensureSession(): StoredSession {
     const current = activeSession()
     if (current) return current
-    const session = newSession(deps.getSettings().aiModel)
+    const session = newSession(defaultChatModel())
     sessions.unshift(session)
     activeId = session.id
     if (sessions.length > maxAgentSessions) {
@@ -2574,7 +2631,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         sessionId: session?.id ?? null,
         mode: session?.mode ?? 'build',
         approvalMode: session?.approvalMode ?? 'ask',
-        model: session?.model ?? deps.getSettings().aiModel,
+        model: session?.model ?? defaultChatModel(),
+        ...(session?.imageModel ? { imageModel: session.imageModel } : {}),
+        ...(session?.videoModel ? { videoModel: session.videoModel } : {}),
+        ...(session?.audioModel ? { audioModel: session.audioModel } : {}),
+        defaultChatModelMissing: !deps.getSettings().agentDefaultChatModel,
         reasoning: session?.reasoning ?? 'high',
         workspace: session?.workspace ?? null,
         messages: session?.ui.slice(-80) ?? [],
@@ -2884,7 +2945,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     newSession() {
       if (busy) this.cancel()
-      const session = newSession(deps.getSettings().aiModel)
+      const session = newSession(defaultChatModel())
       sessions.unshift(session)
       if (sessions.length > maxAgentSessions) {
         const evicted = sessions.splice(maxAgentSessions)
@@ -2900,7 +2961,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (!project) return
       if (busy) this.cancel()
       const session = newSession(
-        deps.getSettings().aiModel,
+        defaultChatModel(),
         project.id,
         project.workspace,
       )
@@ -3085,6 +3146,24 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const session = ensureSession()
       if (session.model === model) return
       session.model = model
+      session.updatedAt = now()
+      persist()
+      emit()
+    },
+    setGenerationModel(
+      kind: 'image' | 'video' | 'speech',
+      model: AgentModelId,
+    ) {
+      if (busy) return
+      const info = modelInfo(model)
+      if (!info || info.kind !== kind) return
+      const session = ensureSession()
+      if (kind === 'image' && session.imageModel === model) return
+      if (kind === 'video' && session.videoModel === model) return
+      if (kind === 'speech' && session.audioModel === model) return
+      if (kind === 'image') session.imageModel = model
+      else if (kind === 'video') session.videoModel = model
+      else session.audioModel = model
       session.updatedAt = now()
       persist()
       emit()

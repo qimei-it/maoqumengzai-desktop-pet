@@ -12,6 +12,10 @@ describe('settings store', () => {
     expect(defaultSettings.statusBubbles).toBe(true)
     expect(defaultSettings.musicBubbles).toBe(true)
     expect(defaultSettings.aiModel).toBe('deepseek-flash')
+    expect(defaultSettings.agentDefaultChatModel).toBe('deepseek-flash')
+    expect(defaultSettings.aiImageModel).toBe('MiniMax-H3-Image')
+    expect(defaultSettings.agentDefaultVideoModel).toBe('MiniMax-H3')
+    expect(defaultSettings.agentDefaultAudioModel).toBe('speech-2.8-hd')
     expect(defaultSettings.hoverWheelActions).toHaveLength(10)
     expect(defaultSettings.fileWheelActions).toHaveLength(10)
     expect(defaultSettings.aiQuotaEnabled).toBe(true)
@@ -69,6 +73,63 @@ describe('settings store', () => {
       aiQuotaRefreshMinutes: 5,
       aiQuotaOpenAIPath: '',
     })
+  })
+
+  test('migrates the default chat model from the legacy AI model', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    const legacy = {
+      ...defaultSettings,
+      aiModel: 'deepseek-v4-pro',
+    } as Record<string, unknown>
+    delete legacy.agentDefaultChatModel
+    delete legacy.agentDefaultVideoModel
+    delete legacy.agentDefaultAudioModel
+    await writeFile(path, JSON.stringify(legacy))
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.settings.agentDefaultChatModel).toBe('deepseek-v4-pro')
+    expect(loaded.settings.agentDefaultVideoModel).toBe('MiniMax-H3')
+    expect(loaded.settings.agentDefaultAudioModel).toBe('speech-2.8-hd')
+  })
+
+  test('allows every default model to be unset', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await saveSettingsFile(path, {
+      ...defaultSettings,
+      agentDefaultChatModel: '',
+      aiImageModel: '',
+      agentDefaultVideoModel: '',
+      agentDefaultAudioModel: '',
+    })
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.settings).toMatchObject({
+      agentDefaultChatModel: '',
+      aiImageModel: '',
+      agentDefaultVideoModel: '',
+      agentDefaultAudioModel: '',
+    })
+  })
+
+  test('falls back when default models have the wrong kind', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        aiModel: 'deepseek-v4-pro',
+        agentDefaultChatModel: 'MiniMax-H3-Image',
+        aiImageModel: 'MiniMax-M3',
+        agentDefaultVideoModel: 'speech-2.8-hd',
+        agentDefaultAudioModel: 'MiniMax-H3',
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.settings.agentDefaultChatModel).toBe('deepseek-v4-pro')
+    expect(loaded.settings.aiImageModel).toBe('MiniMax-H3-Image')
+    expect(loaded.settings.agentDefaultVideoModel).toBe('MiniMax-H3')
+    expect(loaded.settings.agentDefaultAudioModel).toBe('speech-2.8-hd')
   })
 
   test('invalid wheel lists fall back without losing other settings', async () => {

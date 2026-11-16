@@ -761,15 +761,45 @@ test('agent model menu separates dialogue and image models', async () => {
   }
   await agent.evaluate(() => window.mqmz!.command({ type: 'agent-open' }))
   await agent.locator('.agent-model-trigger').click()
-  await expect(agent.getByText('对话模型', { exact: true })).toBeVisible()
-  await expect(agent.getByText('图像模型', { exact: true })).toBeVisible()
+  const menu = agent.locator('.agent-model-menu')
+  await expect(menu.getByText('DeepSeek', { exact: true })).toBeVisible()
+  await expect(menu.getByText('MiniMax', { exact: true })).toBeVisible()
+  await expect(menu.getByText('火山方舟', { exact: true })).toBeVisible()
+  for (const kind of ['文本', '图像', '视频', '音频']) {
+    await expect(menu.getByText(kind, { exact: true }).first()).toBeVisible()
+  }
   await expect(
-    agent.getByText('Doubao Seedream 5.5', { exact: true }),
+    menu.getByText('Doubao Seedream 5.5', { exact: true }),
   ).toBeVisible()
   await agent.locator('.agent-model-trigger').click()
 })
 
 test('pet profile section exposes the create entry', async () => {
+  await application.evaluate(() => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          data: [{ id: 'doubao-seedream-5-5-261028' }],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
+  })
+  await application.evaluate(({ dialog }) => {
+    ;(
+      dialog as unknown as {
+        showMessageBox: () => Promise<{
+          response: number
+          checkboxChecked: boolean
+        }>
+      }
+    ).showMessageBox = async () => ({
+      response: 1,
+      checkboxChecked: false,
+    })
+  })
   await settings.evaluate(() =>
     window.mqmz!.command({ type: 'settings-open' }),
   )
@@ -783,6 +813,33 @@ test('pet profile section exposes the create entry', async () => {
     settings.getByRole('button', { name: '绑定小程序', exact: true }),
   ).toHaveCount(0)
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
+  await expect
+    .poll(async () => {
+      const snapshot = await settings.evaluate(() =>
+        window.mqmz!.snapshot(),
+      )
+      return snapshot.ok ? snapshot.value.settingsSection : ''
+    })
+    .toBe('ai')
+  const volcanoInput = settings.getByLabel('火山方舟 API Key')
+  await expect(volcanoInput).toBeVisible()
+  await expect(volcanoInput).toBeFocused()
+  await volcanoInput.fill('ark-e2e-test')
+  await settings
+    .locator('.settings-field-end')
+    .last()
+    .getByRole('button', { name: '添加', exact: true })
+    .click()
+  await expect
+    .poll(async () => {
+      const snapshot = await settings.evaluate(() =>
+        window.mqmz!.snapshot(),
+      )
+      return snapshot.ok ? snapshot.value.ai.volcano.configured : false
+    })
+    .toBe(true)
+  await settings.getByRole('button', { name: '宠物档案', exact: true }).click()
+  await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
   const wizard = settings.getByRole('dialog', { name: '新建桌宠' })
   await expect(wizard).toBeVisible()
   await settings.waitForTimeout(300)
@@ -792,7 +849,7 @@ test('pet profile section exposes the create entry', async () => {
   ).toHaveCount(0)
   await expect(
     wizard.getByText('请先添加火山方舟 API Key。'),
-  ).toBeVisible()
+  ).toHaveCount(0)
   const initialBox = await wizard.boundingBox()
   await wizard
     .getByLabel(
@@ -811,9 +868,6 @@ test('pet profile section exposes the create entry', async () => {
   await expect(
     wizard.getByText('已经有同名桌宠，请换一个。'),
   ).toHaveCount(0)
-  await expect(
-    wizard.getByText('请先添加火山方舟 API Key。'),
-  ).toBeVisible()
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
 })

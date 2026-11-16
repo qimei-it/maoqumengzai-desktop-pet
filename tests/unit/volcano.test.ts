@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { afterEach, describe, expect, test } from 'vitest'
 import {
   generateVolcanoImage,
+  hasVolcanoSeedreamModel,
   listVolcanoModels,
   resolveVolcanoImageModel,
   testVolcanoConnection,
@@ -54,6 +55,18 @@ describe('Volcano Ark provider', () => {
     await expect(
       testVolcanoConnection('ark-test', { endpoint: `${base}/models` }),
     ).resolves.toBeGreaterThanOrEqual(0)
+  })
+
+  test('detects the desktop pet Seedream model', () => {
+    expect(
+      hasVolcanoSeedreamModel([
+        'doubao-seedream-5-0-flash-20260101',
+        'doubao-seedream-5-5-261028',
+      ]),
+    ).toBe(true)
+    expect(hasVolcanoSeedreamModel(['doubao-seedream-5-0-flash-20260101'])).toBe(
+      false,
+    )
   })
 
   test('prefers the Seedream 5.5 model', () => {

@@ -83,6 +83,8 @@ import {
   modelInfo,
   type AgentModelId,
   type AgentModelInfo,
+  type AgentModelKind,
+  type AgentProvider,
 } from '../shared/agent-models'
 import {
   defaultGenerationParams,
@@ -411,11 +413,54 @@ const volcanoConfigured = computed(
   () => props.state?.ai.volcano.configured === true,
 )
 const settings = computed(() => props.state?.settings)
-const imageModel = computed<AgentModelId>(
-  () => settings.value?.aiImageModel ?? 'MiniMax-H3-Image',
+const sessionImageModel = computed(() => agent.value?.imageModel)
+const sessionVideoModel = computed(() => agent.value?.videoModel)
+const sessionAudioModel = computed(() => agent.value?.audioModel)
+const defaultImageModel = computed(() => settings.value?.aiImageModel || undefined)
+const defaultVideoModel = computed(
+  () => settings.value?.agentDefaultVideoModel || undefined,
 )
-const textModels = agentModels.filter((item) => item.kind === 'text')
-const imageModels = agentModels.filter((item) => item.kind === 'image')
+const defaultAudioModel = computed(
+  () => settings.value?.agentDefaultAudioModel || undefined,
+)
+const imageModel = computed(
+  () => sessionImageModel.value ?? defaultImageModel.value,
+)
+const videoModel = computed(
+  () => sessionVideoModel.value ?? defaultVideoModel.value,
+)
+const audioModel = computed(
+  () => sessionAudioModel.value ?? defaultAudioModel.value,
+)
+const defaultChatModelMissing = computed(
+  () => agent.value?.defaultChatModelMissing === true,
+)
+const providerOrder: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
+const kindOrder: AgentModelKind[] = ['text', 'image', 'video', 'speech']
+const providerGroups = computed(() =>
+  providerOrder
+    .map((provider) => ({
+      provider,
+      label: agentProviderLabels[provider],
+      models: agentModels
+        .filter((item) => item.provider === provider)
+        .slice()
+        .sort(
+          (left, right) =>
+            kindOrder.indexOf(left.kind) - kindOrder.indexOf(right.kind),
+        ),
+    }))
+    .filter((group) => group.models.length > 0),
+)
+function modelKindLabel(kind: AgentModelKind): string {
+  if (kind === 'image') return '图像'
+  if (kind === 'video') return '视频'
+  if (kind === 'speech') return '音频'
+  return '文本'
+}
+function effectiveModelLabel(id: AgentModelId | undefined): string {
+  return id ? agentModelLabels[id] ?? id : '未设置'
+}
 const modelConfigured = computed(() => {
   const provider = currentModel.value?.provider
   if (provider === 'minimax') return minimaxConfigured.value
@@ -2009,10 +2054,35 @@ function setModel(value: AgentModelId): void {
     emit('command', { type: 'agent-reasoning', reasoning: 'low' })
   emit('command', { type: 'agent-model', model: value })
 }
-function setImageModel(value: AgentModelId): void {
+function setGenerationModel(
+  kind: 'image' | 'video' | 'speech',
+  value: AgentModelId,
+): void {
   modelMenuOpen.value = false
-  if (imageModel.value === value) return
-  emit('command', { type: 'agent-image-model', model: value })
+  const current =
+    kind === 'image'
+      ? imageModel.value
+      : kind === 'video'
+        ? videoModel.value
+        : audioModel.value
+  if (current === value) return
+  emit('command', { type: 'agent-generation-model', kind, model: value })
+}
+function isModelSelected(item: AgentModelInfo): boolean {
+  if (item.kind === 'text') return model.value === item.id
+  if (item.kind === 'image') return imageModel.value === item.id
+  if (item.kind === 'video') return videoModel.value === item.id
+  if (item.kind === 'speech') return audioModel.value === item.id
+  return false
+}
+function selectAgentModel(item: AgentModelInfo): void {
+  if (item.kind === 'text') setModel(item.id)
+  else if (item.kind === 'image') setGenerationModel('image', item.id)
+  else if (item.kind === 'video') setGenerationModel('video', item.id)
+  else if (item.kind === 'speech') setGenerationModel('speech', item.id)
+}
+function openAgentSettings(): void {
+  emit('command', { type: 'settings-section', section: 'ai' })
 }
 function modelAvailable(item: AgentModelInfo): boolean {
   if (item.provider === 'minimax') return minimaxConfigured.value
@@ -4612,7 +4682,7 @@ function statusLabel(status: string): string {
                       :disabled="busy"
                       :aria-expanded="modelMenuOpen"
                       aria-haspopup="menu"
-                      :aria-label="`选择模型，对话 ${agentModelLabels[model]}，图像 ${agentModelLabels[imageModel]}${
+                      :aria-label="`选择模型，对话 ${agentModelLabels[model]}，图像 ${effectiveModelLabel(imageModel)}${
                         modelReasoning
                           ? `，推理强度${reasoningLabel}`
                           : ''
@@ -4636,76 +4706,47 @@ function statusLabel(status: string): string {
                       v-if="modelMenuOpen"
                       class="agent-model-menu"
                       role="menu"
-                      aria-label="对话模型与图像模型"
+                      aria-label="供应商模型列表"
                     >
-                      <p class="agent-model-group">对话模型</p>
-                      <button
-                        v-for="item in textModels"
-                        :key="item.id"
-                        type="button"
-                        class="agent-model-option"
-                        role="menuitemradio"
-                        :aria-checked="model === item.id"
-                        :disabled="!modelAvailable(item)"
-                        :title="
-                          modelAvailable(item)
-                            ? undefined
-                            : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
-                        "
-                        @click="setModel(item.id)"
+                      <template
+                        v-for="group in providerGroups"
+                        :key="group.provider"
                       >
-                        <Check
-                          v-if="model === item.id"
-                          :size="14"
-                          :stroke-width="2"
-                          aria-hidden="true"
-                        />
-                        <span
-                          v-else
-                          class="agent-model-check-space"
-                          aria-hidden="true"
-                        ></span>
-                        <span class="agent-model-option-label">{{
-                          item.label
-                        }}</span>
-                        <span class="agent-model-kind">{{
-                          agentProviderLabels[item.provider]
-                        }}</span>
-                      </button>
-                      <p class="agent-model-group">图像模型</p>
-                      <button
-                        v-for="item in imageModels"
-                        :key="item.id"
-                        type="button"
-                        class="agent-model-option"
-                        role="menuitemradio"
-                        :aria-checked="imageModel === item.id"
-                        :disabled="!modelAvailable(item)"
-                        :title="
-                          modelAvailable(item)
-                            ? undefined
-                            : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
-                        "
-                        @click="setImageModel(item.id)"
-                      >
-                        <Check
-                          v-if="imageModel === item.id"
-                          :size="14"
-                          :stroke-width="2"
-                          aria-hidden="true"
-                        />
-                        <span
-                          v-else
-                          class="agent-model-check-space"
-                          aria-hidden="true"
-                        ></span>
-                        <span class="agent-model-option-label">{{
-                          item.label
-                        }}</span>
-                        <span class="agent-model-kind">{{
-                          agentProviderLabels[item.provider]
-                        }}</span>
-                      </button>
+                        <p class="agent-model-group">{{ group.label }}</p>
+                        <button
+                          v-for="item in group.models"
+                          :key="item.id"
+                          type="button"
+                          class="agent-model-option"
+                          role="menuitemradio"
+                          :aria-checked="isModelSelected(item)"
+                          :disabled="!modelAvailable(item)"
+                          :title="
+                            modelAvailable(item)
+                              ? undefined
+                              : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
+                          "
+                          @click="selectAgentModel(item)"
+                        >
+                          <Check
+                            v-if="isModelSelected(item)"
+                            :size="14"
+                            :stroke-width="2"
+                            aria-hidden="true"
+                          />
+                          <span
+                            v-else
+                            class="agent-model-check-space"
+                            aria-hidden="true"
+                          ></span>
+                          <span class="agent-model-option-label">{{
+                            item.label
+                          }}</span>
+                          <span class="agent-model-kind">{{
+                            modelKindLabel(item.kind)
+                          }}</span>
+                        </button>
+                      </template>
                       <template v-if="modelReasoning">
                         <div class="agent-model-divider"></div>
                         <p class="agent-model-group">推理强度</p>
@@ -4778,6 +4819,24 @@ function statusLabel(status: string): string {
                 aria-hidden="true"
                 >&nbsp;</span
               >
+              <div
+                v-if="
+                  defaultChatModelMissing &&
+                  !proBlocked &&
+                  !attachmentError &&
+                  !error
+                "
+                class="agent-default-hint"
+              >
+                <span>默认对话模型未设置</span>
+                <button
+                  type="button"
+                  class="agent-default-settings"
+                  @click="openAgentSettings"
+                >
+                  去设置
+                </button>
+              </div>
               <div v-if="proBlocked" class="agent-pro-hint">
                 <span>当前模型只支持文字附件</span>
                 <button
@@ -6955,6 +7014,8 @@ function statusLabel(status: string): string {
   bottom: calc(100% + 6px);
   z-index: 30;
   width: 240px;
+  max-height: min(420px, calc(100vh - 120px));
+  overflow-y: auto;
   padding: var(--space-1);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
@@ -7505,6 +7566,26 @@ function statusLabel(status: string): string {
   padding: var(--space-2) var(--space-2) 0;
   color: var(--color-subtle);
   font-size: var(--font-size-caption);
+}
+.agent-default-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-muted);
+}
+.agent-default-settings {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.agent-default-settings:hover {
+  color: var(--color-brand-pressed);
 }
 .agent-usage {
   display: inline-block;

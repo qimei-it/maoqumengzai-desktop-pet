@@ -9,7 +9,12 @@ import {
   todoListColors,
   todoRepeats,
 } from '../shared/protocol'
-import { isAgentModelId, type AgentModelId } from '../shared/agent-models'
+import {
+  isAgentModelId,
+  modelInfo,
+  type AgentModelId,
+  type AgentModelKind,
+} from '../shared/agent-models'
 import {
   musicAiDailyLimits,
   musicBarStyles,
@@ -37,6 +42,11 @@ const wheelActions = <T extends string>(catalog: readonly T[]) =>
       (actions) => new Set(actions).size === actions.length,
       '轮盘选项不能重复',
     )
+
+const modelOfKind = (kind: AgentModelKind) =>
+  z.custom<AgentModelId | ''>(
+    (value) => value === '' || modelInfo(value as string)?.kind === kind,
+  )
 
 const mailDisplayName = z
   .string()
@@ -410,6 +420,10 @@ export const commandSchema = z.discriminatedUnion('type', [
           aiModel: z
             .custom<AgentModelId>((value) => isAgentModelId(value))
             .optional(),
+          agentDefaultChatModel: modelOfKind('text').optional(),
+          aiImageModel: modelOfKind('image').optional(),
+          agentDefaultVideoModel: modelOfKind('video').optional(),
+          agentDefaultAudioModel: modelOfKind('speech').optional(),
           aiQuotaEnabled: z.boolean().optional(),
           aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
           aiQuotaOpenAIPath: z.string().max(1024).optional(),
@@ -1066,7 +1080,8 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
-      type: z.literal('agent-image-model'),
+      type: z.literal('agent-generation-model'),
+      kind: z.enum(['image', 'video', 'speech']),
       model: z.custom<AgentModelId>((value) => isAgentModelId(value)),
     })
     .strict(),

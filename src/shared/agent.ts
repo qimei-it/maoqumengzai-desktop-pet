@@ -272,6 +272,10 @@ export type AgentState = {
   mode: AgentMode
   approvalMode: AgentApprovalMode
   model: AgentModelId
+  imageModel?: AgentModelId
+  videoModel?: AgentModelId
+  audioModel?: AgentModelId
+  defaultChatModelMissing?: boolean
   reasoning: AgentReasoning
   workspace: string | null
   messages: AgentMessageView[]

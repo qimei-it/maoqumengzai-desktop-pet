@@ -78,7 +78,9 @@ Seedream 5.5 支持文生 RGBA 和图生 RGBA，输入参考图不需要自带�
 
 - 智能体模型菜单分为「对话模型」和「图像模型」。
 - 选择 Doubao Seedream 5.5 只改变 `image_generate` 使用的图像模型，不切换对话模式，输入框内容仍交给文本模型。
-- `image_generate` 使用当前选定的图像模型；Seedream 只支持单张、1K/2K、png/jpeg。
+- `image_generate` 使用当前会话选择或设置中的默认图像模型；Seedream 只支持单张、1K/2K、png/jpeg。
+- 生成桌宠形象始终使用 Doubao Seedream 5.5，不受默认图像模型影响。
+- 新建桌宠前检查火山方舟 Key 和 `/models` 中的 Seedream 5.5。无 Key 时跳转设置 → 智能体并展开火山方舟添加表单；Key 有效但模型不可见时提示到火山方舟控制台开通。
 - 内置说明型 Skill「桌宠形象生成」位于 `resources/skills/mqmz-pet/pet-generation`，默认启用；它负责解释固定规格和入口，不直接生成或保存桌宠。
 
 ## 存储与隐私

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes, SquareArrowOutUpRight } from '@lucide/vue'
 import {
   formatOpenAiAccountStatus,
@@ -18,6 +18,15 @@ import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import { minimaxModelCatalog } from '../shared/minimax'
 import { resolveVolcanoImageModel } from '../shared/volcano'
+import {
+  agentModels,
+  agentImageModels,
+  agentProviderLabels,
+  agentTextModels,
+  type AgentModelId,
+  type AgentModelInfo,
+  type AgentProvider,
+} from '../shared/agent-models'
 import PetCreateWizard from './PetCreateWizard.vue'
 import {
   defaultSettings,
@@ -90,10 +99,36 @@ const verifyingVolcanoKey = ref(false)
 const editingVolcanoKey = ref(false)
 const volcanoModelsOpen = ref(false)
 const volcanoModelPreview = ref('')
+const volcanoRow = ref<HTMLElement | null>(null)
+const volcanoInput = ref<HTMLInputElement | null>(null)
 const wheelEditor = ref<'hover' | 'file' | null>(null)
 
 const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
+)
+const providerOrder: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
+const kindOrder = ['text', 'image', 'video', 'speech']
+function groupedModels(models: readonly AgentModelInfo[]) {
+  return providerOrder
+    .map((provider) => ({
+      provider,
+      label: agentProviderLabels[provider],
+      models: models
+        .filter((model) => model.provider === provider)
+        .sort(
+          (left, right) =>
+            kindOrder.indexOf(left.kind) - kindOrder.indexOf(right.kind),
+        ),
+    }))
+    .filter((group) => group.models.length > 0)
+}
+const textModelGroups = groupedModels(agentTextModels)
+const imageModelGroups = groupedModels(agentImageModels)
+const videoModelGroups = groupedModels(
+  agentModels.filter((model) => model.kind === 'video'),
+)
+const audioModelGroups = groupedModels(
+  agentModels.filter((model) => model.kind === 'speech'),
 )
 const musicAiCache = computed(() => props.state?.musicAiCache)
 const musicAiCacheLabel = computed(() => {
@@ -348,6 +383,21 @@ watch(
         resolveVolcanoImageModel(models) ?? models[0] ?? ''
   },
   { immediate: true },
+)
+watch(
+  () => props.state?.settingsPrompt?.at,
+  async (at) => {
+    if (!at) return
+    const prompt = props.state?.settingsPrompt
+    if (prompt?.provider !== 'volcano') return
+    addVolcanoKey()
+    await nextTick()
+    volcanoRow.value?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    })
+    volcanoInput.value?.focus()
+  },
 )
 function toggleModels(): void {
   if (modelsOpen.value) {
@@ -1644,6 +1694,7 @@ function onEscape(): void {
               </SelectField>
             </div>
             <div
+              ref="volcanoRow"
               class="settings-row"
               :class="{
                 'settings-row-connected':
@@ -1657,6 +1708,7 @@ function onEscape(): void {
               <template v-if="editingVolcanoKey">
                 <div class="settings-key-fields">
                   <input
+                    ref="volcanoInput"
                     v-model="volcanoKey"
                     class="settings-inline-input settings-key-input"
                     type="password"
@@ -1840,6 +1892,119 @@ function onEscape(): void {
               <p v-else class="settings-error">
                 {{ volcanoModelsError || '暂无可用模型。' }}
               </p>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">默认对话模型</span>
+              <SelectField
+                :model-value="settings.agentDefaultChatModel"
+                aria-label="默认对话模型"
+                min-width="200px"
+                @update:model-value="
+                  value =>
+                    update({
+                      agentDefaultChatModel: value as AgentModelId | '',
+                    })
+                "
+              >
+                <option value="">未设置</option>
+                <optgroup
+                  v-for="group in textModelGroups"
+                  :key="group.provider"
+                  :label="group.label"
+                >
+                  <option
+                    v-for="model in group.models"
+                    :key="model.id"
+                    :value="model.id"
+                  >
+                    {{ model.label }}
+                  </option>
+                </optgroup>
+              </SelectField>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">默认图像模型</span>
+              <SelectField
+                :model-value="settings.aiImageModel"
+                aria-label="默认图像模型"
+                min-width="200px"
+                @update:model-value="
+                  value => update({ aiImageModel: value as AgentModelId | '' })
+                "
+              >
+                <option value="">未设置</option>
+                <optgroup
+                  v-for="group in imageModelGroups"
+                  :key="group.provider"
+                  :label="group.label"
+                >
+                  <option
+                    v-for="model in group.models"
+                    :key="model.id"
+                    :value="model.id"
+                  >
+                    {{ model.label }}
+                  </option>
+                </optgroup>
+              </SelectField>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">默认视频模型</span>
+              <SelectField
+                :model-value="settings.agentDefaultVideoModel"
+                aria-label="默认视频模型"
+                min-width="200px"
+                @update:model-value="
+                  value =>
+                    update({
+                      agentDefaultVideoModel: value as AgentModelId | '',
+                    })
+                "
+              >
+                <option value="">未设置</option>
+                <optgroup
+                  v-for="group in videoModelGroups"
+                  :key="group.provider"
+                  :label="group.label"
+                >
+                  <option
+                    v-for="model in group.models"
+                    :key="model.id"
+                    :value="model.id"
+                  >
+                    {{ model.label }}
+                  </option>
+                </optgroup>
+              </SelectField>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">默认音频模型</span>
+              <SelectField
+                :model-value="settings.agentDefaultAudioModel"
+                aria-label="默认音频模型"
+                min-width="200px"
+                @update:model-value="
+                  value =>
+                    update({
+                      agentDefaultAudioModel: value as AgentModelId | '',
+                    })
+                "
+              >
+                <option value="">未设置</option>
+                <optgroup
+                  v-for="group in audioModelGroups"
+                  :key="group.provider"
+                  :label="group.label"
+                >
+                  <option
+                    v-for="model in group.models"
+                    :key="model.id"
+                    :value="model.id"
+                  >
+                    {{ model.label }}
+                  </option>
+                </optgroup>
+              </SelectField>
             </div>
             <div class="settings-row">
               <span class="settings-label">附件保存目录</span>

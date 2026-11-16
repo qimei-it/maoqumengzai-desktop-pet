@@ -107,6 +107,7 @@ import { clearProviderKey, loadProviderKey, saveProviderKey } from './provider-k
 import { fetchDeepSeekBalance, fetchOpenAiQuota, resolveOpenAiAuthPath } from './ai-quota'
 import { testMiniMaxConnection } from '../shared/minimax'
 import {
+  hasVolcanoSeedreamModel,
   listVolcanoModels,
   resolveVolcanoImageModel,
   testVolcanoConnection,
@@ -242,6 +243,7 @@ import type {
   TodoListColor,
   TodoRepeat,
   AgentAttachmentProgress,
+  SettingsPrompt,
 } from '../shared/protocol'
 import { defaultTodoListIcon } from '../shared/protocol'
 import {
@@ -501,6 +503,7 @@ let ffmpegAbort: AbortController | undefined
 let lastClipboardText = ''
 let lastClipboardImageKey = ''
 let settingsSection: SettingsSection = 'appearance'
+let settingsPrompt: SettingsPrompt | undefined
 let petHoverMode = false
 let hoverCenterSince = 0
 let hoverSent = false
@@ -1322,6 +1325,7 @@ function snapshot(): Snapshot {
     settingsOpen: windowVisible(settingsWindow),
     settings: settingsState(),
     settingsSection,
+    ...(settingsPrompt ? { settingsPrompt } : {}),
     pomodoroOpen: windowVisible(pomodoroWindow),
     waterOpen: windowVisible(waterWindow),
     breakOpen: windowVisible(breakWindow),
@@ -1945,6 +1949,82 @@ async function loadVolcanoModels(draftKey?: string): Promise<void> {
   }
   broadcast()
 }
+async function promptVolcanoKeySetup(
+  message = '生成桌宠需要火山方舟 API Key 和 Doubao Seedream 5.5。',
+): Promise<void> {
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'question',
+    title: '配置火山方舟',
+    message,
+    detail: '现在前往 设置 → 智能体 添加 API Key？',
+    buttons: ['取消', '去设置'],
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  settingsSection = 'ai'
+  settingsPrompt = {
+    provider: 'volcano',
+    action: 'add-key',
+    at: Date.now(),
+  }
+  openSettings()
+  broadcast()
+}
+
+async function openPetCreateFromProfile(): Promise<void> {
+  if (!volcanoKey) {
+    await promptVolcanoKeySetup()
+    return
+  }
+  let models = volcanoModels
+  if (!models) {
+    try {
+      models = await listVolcanoModels(volcanoKey)
+      volcanoModels = models
+      volcanoModelsError = undefined
+      broadcast()
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '拉取火山方舟模型失败。'
+      if (/API Key 无效/.test(message)) {
+        await promptVolcanoKeySetup(
+          '当前火山方舟 API Key 无效，需要重新添加。',
+        )
+      } else {
+        await dialog.showMessageBox(settingsWindow ?? pet, {
+          type: 'warning',
+          title: '连接火山方舟失败',
+          message,
+          buttons: ['知道了'],
+          defaultId: 0,
+          noLink: true,
+        })
+      }
+      return
+    }
+  }
+  if (!hasVolcanoSeedreamModel(models)) {
+    const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+      type: 'warning',
+      title: '需要开通 Doubao Seedream 5.5',
+      message: '当前火山方舟 Key 拉取不到 Doubao Seedream 5.5。',
+      detail: '请先在火山方舟控制台开通该模型，再回来重试。',
+      buttons: ['取消', '打开控制台'],
+      defaultId: 1,
+      cancelId: 0,
+      noLink: true,
+    })
+    if (choice.response === 1)
+      await shell.openExternal(
+        'https://console.volcengine.com/ark/region:cn-beijing/openManagement?LLM=%7B%7D&OpenTokenDrawer=false',
+      )
+    return
+  }
+  await openPetCreate()
+}
+
 async function openPetCreate(): Promise<void> {
   if (petDraft) {
     broadcast()
@@ -3495,7 +3575,10 @@ function settingsState(): SettingsState {
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
     aiModel: settings.aiModel,
+    agentDefaultChatModel: settings.agentDefaultChatModel,
     aiImageModel: settings.aiImageModel,
+    agentDefaultVideoModel: settings.agentDefaultVideoModel,
+    agentDefaultAudioModel: settings.agentDefaultAudioModel,
     aiQuotaEnabled: settings.aiQuotaEnabled,
     aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
     aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
@@ -10283,7 +10366,7 @@ function setupIpc(): void {
       'agent-mode',
       'agent-approval-mode',
       'agent-model',
-      'agent-image-model',
+      'agent-generation-model',
       'agent-reasoning',
       'agent-workspace',
       'agent-config',
@@ -10579,15 +10662,11 @@ function setupIpc(): void {
       case 'agent-model':
         agent.setModel(command.model)
         break
-      case 'agent-image-model': {
+      case 'agent-generation-model': {
         const info = modelInfo(command.model)
-        if (!info || info.kind !== 'image')
-          throw new Error('请选择图像生成模型。')
-        if (info.provider === 'volcano' && !volcanoKey)
-          throw new Error('请先在设置中添加火山方舟 API Key。')
-        if (info.provider === 'minimax' && !minimaxKey)
-          throw new Error('请先在设置中添加 MiniMax API Key。')
-        await updateSettings({ aiImageModel: command.model })
+        if (!info || info.kind !== command.kind)
+          throw new Error('模型类型不匹配。')
+        agent.setGenerationModel(command.kind, command.model)
         break
       }
       case 'agent-reasoning':
@@ -10603,7 +10682,7 @@ function setupIpc(): void {
         await shell.openExternal('https://platform.deepseek.com/api_keys')
         break
       case 'profile-create':
-        await openPetCreate()
+        await openPetCreateFromProfile()
         break
       case 'profile-bind':
         showToast('小程序绑定即将开放')

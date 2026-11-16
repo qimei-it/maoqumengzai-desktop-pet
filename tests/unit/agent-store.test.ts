@@ -71,6 +71,48 @@ test('migrates generation-only session models to a text model', async () => {
   expect(loaded.sessions[0].model).toBe('deepseek-flash')
 })
 
+test('restores per-session generation model overrides', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-generation-'))
+  const path = join(directory, 'agent.json')
+  await saveAgentStore(path, {
+    sessions: [
+      {
+        ...session(1),
+        imageModel: 'Doubao-Seedream-5.5',
+        videoModel: 'MiniMax-H3',
+        audioModel: 'speech-2.8-turbo',
+      },
+    ],
+    projects: [],
+  })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0]).toMatchObject({
+    imageModel: 'Doubao-Seedream-5.5',
+    videoModel: 'MiniMax-H3',
+    audioModel: 'speech-2.8-turbo',
+  })
+})
+
+test('drops generation overrides with the wrong model kind', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-generation-'))
+  const path = join(directory, 'agent.json')
+  await saveAgentStore(path, {
+    sessions: [
+      {
+        ...session(1),
+        imageModel: 'MiniMax-M3',
+        videoModel: 'speech-2.8-hd',
+        audioModel: 'MiniMax-H3',
+      },
+    ],
+    projects: [],
+  })
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions[0]).not.toHaveProperty('imageModel')
+  expect(loaded.sessions[0]).not.toHaveProperty('videoModel')
+  expect(loaded.sessions[0]).not.toHaveProperty('audioModel')
+})
+
 test('saves and restores projects and sessions with usage', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')

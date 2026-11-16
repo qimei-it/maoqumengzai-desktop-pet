@@ -16,7 +16,11 @@ import {
   sliceActions,
 } from '../shared/donut'
 import { deepseekModelIds } from '../shared/deepseek'
-import { modelInfo, type AgentModelId } from '../shared/agent-models'
+import {
+  modelInfo,
+  type AgentModelId,
+  type AgentModelKind,
+} from '../shared/agent-models'
 
 const wheelActions = <T extends string>(
   catalog: readonly T[],
@@ -102,6 +106,11 @@ function migrateSettings(value: Settings): Settings {
   }
 }
 
+const modelOfKind = (kind: AgentModelKind) =>
+  z.custom<AgentModelId | ''>(
+    (value) => value === '' || modelInfo(value as string)?.kind === kind,
+  )
+
 const settingsSchema = z
   .object({
     version: z.literal(1),
@@ -122,10 +131,16 @@ const settingsSchema = z
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
     aiModel: z.enum(deepseekModelIds).default('deepseek-flash'),
-    aiImageModel: z
-      .custom<AgentModelId>((value) => modelInfo(value as string)?.kind === 'image')
+    agentDefaultChatModel: modelOfKind('text').optional().catch(undefined),
+    aiImageModel: modelOfKind('image')
       .default('MiniMax-H3-Image')
       .catch('MiniMax-H3-Image'),
+    agentDefaultVideoModel: modelOfKind('video')
+      .default('MiniMax-H3')
+      .catch('MiniMax-H3'),
+    agentDefaultAudioModel: modelOfKind('speech')
+      .default('speech-2.8-hd')
+      .catch('speech-2.8-hd'),
     aiQuotaEnabled: z.boolean().default(true),
     aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
     aiQuotaOpenAIPath: z.string().max(1024).default(''),
@@ -135,7 +150,17 @@ const settingsSchema = z
     fileWheelActions: wheelActions(sliceActionCatalog, sliceActions),
   })
   .strict()
-  .transform(({ archiveFormat: _legacyArchiveFormat, ...rest }) => rest)
+  .transform(
+    ({
+      archiveFormat: _legacyArchiveFormat,
+      agentDefaultChatModel,
+      ...rest
+    }) => ({
+      ...rest,
+      agentDefaultChatModel:
+        agentDefaultChatModel ?? rest.aiModel ?? 'deepseek-flash',
+    }),
+  )
 
 export type LoadedSettings = {
   settings: Settings

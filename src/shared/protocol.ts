@@ -441,6 +441,11 @@ export type AiProviderState = {
   models?: string[]
   modelsError?: string
 }
+export type SettingsPrompt = {
+  provider: 'volcano'
+  action: 'add-key'
+  at: number
+}
 export type PetAssets = {
   id: string
   name: string
@@ -538,6 +543,7 @@ export type Snapshot = {
   settingsOpen: boolean
   settings: SettingsState
   settingsSection: SettingsSection
+  settingsPrompt?: SettingsPrompt
   mail: MailState
   mailPanel: MailPanelState
   mailCompose: MailComposeState
@@ -663,7 +669,11 @@ export type Command =
   | { type: 'agent-mode'; mode: AgentMode }
   | { type: 'agent-approval-mode'; mode: AgentApprovalMode }
   | { type: 'agent-model'; model: AgentModelId }
-  | { type: 'agent-image-model'; model: AgentModelId }
+  | {
+      type: 'agent-generation-model'
+      kind: 'image' | 'video' | 'speech'
+      model: AgentModelId
+    }
   | { type: 'agent-reasoning'; reasoning: AgentReasoning }
   | { type: 'agent-workspace'; projectId: string | null }
   | { type: 'agent-config'; apiKey: string }

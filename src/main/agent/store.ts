@@ -12,7 +12,11 @@ import type {
   AgentUsage,
 } from '../../shared/agent'
 import type { AgentModelId } from '../../shared/agent-models'
-import { isAgentModelId, isGenerationModel } from '../../shared/agent-models'
+import {
+  isAgentModelId,
+  isGenerationModel,
+  modelInfo,
+} from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { normalizeGenerationParams } from '../../shared/generation'
 import type { ProviderMessage } from './provider'
@@ -55,6 +59,9 @@ export type StoredSession = {
   mode: AgentMode
   approvalMode?: AgentApprovalMode
   model: AgentModelId
+  imageModel?: AgentModelId
+  videoModel?: AgentModelId
+  audioModel?: AgentModelId
   reasoning: AgentReasoning
   workspace: string | null
   projectId: string | null
@@ -193,6 +200,21 @@ function parseSession(value: unknown): StoredSession | null {
   if (!Array.isArray(value.ui) || !Array.isArray(value.history)) return null
   const usage = isRecord(value.usage) ? value.usage : {}
   const lastGeneration = parseGenerationTurn(value.lastGeneration)
+  const imageModel =
+    typeof value.imageModel === 'string' &&
+    modelInfo(value.imageModel)?.kind === 'image'
+      ? value.imageModel
+      : undefined
+  const videoModel =
+    typeof value.videoModel === 'string' &&
+    modelInfo(value.videoModel)?.kind === 'video'
+      ? value.videoModel
+      : undefined
+  const audioModel =
+    typeof value.audioModel === 'string' &&
+    modelInfo(value.audioModel)?.kind === 'speech'
+      ? value.audioModel
+      : undefined
   return {
     id: value.id,
     title: value.title.slice(0, 60),
@@ -202,6 +224,9 @@ function parseSession(value: unknown): StoredSession | null {
         ? value.approvalMode
         : 'ask',
     model: isGenerationModel(value.model) ? 'deepseek-flash' : value.model,
+    ...(imageModel ? { imageModel } : {}),
+    ...(videoModel ? { videoModel } : {}),
+    ...(audioModel ? { audioModel } : {}),
     reasoning:
       value.reasoning === 'off' ||
       value.reasoning === 'low' ||

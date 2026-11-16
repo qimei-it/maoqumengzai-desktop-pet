@@ -82,6 +82,10 @@ export function isVolcanoImageModel(id: string): boolean {
   return /seedream/i.test(id)
 }
 
+export function hasVolcanoSeedreamModel(ids: string[]): boolean {
+  return ids.includes(volcanoSeedreamModel)
+}
+
 /** Prefer Seedream 5.5 for native text/image RGBA, then 5.0 flash. */
 export function resolveVolcanoImageModel(ids: string[]): string | undefined {
   const imageModels = ids.filter(isVolcanoImageModel)
