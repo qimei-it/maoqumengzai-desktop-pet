@@ -2587,6 +2587,19 @@ function statusLabel(status: string): string {
                   aria-hidden="true"
                 />
               </button>
+              <button
+                type="button"
+                class="agent-section-action"
+                aria-label="新建对话"
+                title="新建对话"
+                @click.stop="newSession"
+              >
+                <MessageCirclePlus
+                  :size="15"
+                  :stroke-width="2"
+                  aria-hidden="true"
+                />
+              </button>
             </div>
 
             <div v-if="ungroupedOpen">
