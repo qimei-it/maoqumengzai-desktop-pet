@@ -9,7 +9,7 @@
 - [x] 视频生成：MiniMax-H3 异步任务、轮询、取消、下载与预览。
 - [x] 语音生成：speech-2.8-hd / speech-2.8-turbo 同步语音合成。
 - [x] 文本生成：MiniMax-M3.1-Flash / MiniMax-M3 已进入 Agent 模型菜单，百炼与火山方舟不再进入首发版本。
-- [ ] 将图像、视频、语音生成接入对应内置 Skill，并完成真实 Key 验收。
+- [x] 将图像、视频、语音生成接入对应内置 Skill，并完成真实 Key 验收。
 
 ## 当前阶段：macOS 与跨平台（优先）
 
