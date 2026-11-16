@@ -175,13 +175,6 @@ function save(): void {
               :aria-describedby="nameConflict ? 'pet-name-conflict' : undefined"
               @keydown.enter.prevent="start"
             />
-            <span
-              v-if="nameConflict"
-              id="pet-name-conflict"
-              class="pet-wizard-error"
-              role="alert"
-              >{{ petNameConflictError }}</span
-            >
           </label>
 
           <p v-if="!volcanoReady" class="pet-wizard-error" role="alert">
@@ -255,6 +248,13 @@ function save(): void {
 
         <footer class="pet-wizard-foot">
           <template v-if="step === 'edit'">
+            <span
+              v-if="nameConflict"
+              id="pet-name-conflict"
+              class="pet-wizard-foot-error"
+              role="alert"
+              >{{ petNameConflictError }}</span
+            >
             <button type="button" class="settings-button" @click="close">
               取消
             </button>
@@ -562,6 +562,16 @@ function save(): void {
   margin: 0;
   padding: 12px 20px 18px;
   border-top: 0;
+}
+.pet-wizard-foot-error {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--color-danger);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pet-wizard-enter-active,
 .pet-wizard-leave-active {
