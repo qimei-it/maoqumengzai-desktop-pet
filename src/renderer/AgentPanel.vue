@@ -5593,7 +5593,7 @@ function statusLabel(status: string): string {
   gap: var(--space-2);
   min-height: 34px;
   margin: -10px -10px 0 -12px;
-  padding: 5px 12px;
+  padding: 5px 12px 5px var(--space-4);
   border-bottom: 1px solid var(--color-line);
   border-radius: calc(var(--radius-stage) - 1px)
     calc(var(--radius-stage) - 1px) 0 0;
@@ -6200,7 +6200,7 @@ function statusLabel(status: string): string {
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: var(--space-2);
+  margin-left: var(--space-8);
 }
 .agent-generation-trigger {
   display: inline-flex;
