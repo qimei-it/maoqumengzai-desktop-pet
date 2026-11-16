@@ -6749,6 +6749,19 @@ function statusLabel(status: string): string {
   );
   background-size: 10px 10px;
 }
+.agent-media-placeholder::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(
+    var(--color-brand) 1px,
+    transparent 1.2px
+  );
+  background-size: 10px 10px;
+  content: '';
+  pointer-events: none;
+  animation: agent-media-dot-breathe 2.4s ease-in-out infinite;
+}
 .agent-media-placeholder[data-kind='image'] {
   aspect-ratio: 1 / 1;
 }
@@ -6762,6 +6775,7 @@ function statusLabel(status: string): string {
   position: absolute;
   right: 10px;
   bottom: 10px;
+  z-index: 1;
   display: grid;
   place-items: center;
   width: 38px;
@@ -7480,6 +7494,15 @@ function statusLabel(status: string): string {
     transform: rotate(360deg);
   }
 }
+@keyframes agent-media-dot-breathe {
+  0%,
+  100% {
+    opacity: 0.06;
+  }
+  50% {
+    opacity: 0.68;
+  }
+}
 .agent-menu-layer,
 .agent-modal-layer {
   position: fixed;
@@ -7729,6 +7752,10 @@ function statusLabel(status: string): string {
   .agent-attachment-retry svg.is-spinning,
   .agent-media-spinner svg.is-spinning {
     animation: none;
+  }
+  .agent-media-placeholder::after {
+    animation: none;
+    opacity: 0.18;
   }
   .agent-skills-filter-thumb {
     transition: none;

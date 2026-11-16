@@ -1763,7 +1763,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   ): Promise<void> {
     const fallback = session.lastGeneration
     const normalized = normalizeGenerationParams(params ?? defaultGenerationParams)
-    const references: GenerationReference[] = attachments.length
+    const references: GenerationReference[] = appendUser
       ? attachments.flatMap((item) =>
           item.sourcePath
             ? [{ path: item.sourcePath, kind: item.kind }]
