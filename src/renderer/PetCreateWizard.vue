@@ -136,7 +136,7 @@ function save(): void {
                   title="移除"
                   @click="removePhoto(photo.id)"
                 >
-                  <X :size="12" :stroke-width="2.4" aria-hidden="true" />
+                  <X :size="10" :stroke-width="2.2" aria-hidden="true" />
                 </button>
               </div>
               <button
@@ -415,11 +415,33 @@ function save(): void {
   place-items: center;
   width: 20px;
   height: 20px;
-  border: 0;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
-  background: var(--color-overlay-strong);
-  color: var(--color-inverse);
+  background: var(--color-dialog-glass);
+  color: var(--color-muted);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.pet-wizard-remove::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pet-wizard-remove:hover,
+.pet-wizard-remove:focus-visible {
+  border-color: transparent;
+  background: var(--color-danger);
+  color: var(--color-on-brand);
+}
+.pet-wizard-remove:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .pet-wizard-input {
   height: 38px;
@@ -541,7 +563,8 @@ function save(): void {
 @media (prefers-reduced-motion: reduce) {
   .pet-wizard-enter-active,
   .pet-wizard-leave-active,
-  .pet-wizard-tooltip {
+  .pet-wizard-tooltip,
+  .pet-wizard-remove {
     transition: none;
   }
   .pet-wizard-spin {
