@@ -476,6 +476,42 @@ describe('agent attachment pipeline', () => {
     )
   })
 
+  test('keeps generation references raw without vision uploads', async () => {
+    const root = await directory()
+    const path = join(root, 'reference.png')
+    await writeFile(path, await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 3,
+        background: { r: 120, g: 160, b: 200 },
+      },
+    }).png().toBuffer())
+    const result = await prepareAgentAttachment(path, 30_000, {
+      ...flash,
+      mediaOnly: true,
+    })
+    expect('attachment' in result).toBe(true)
+    if ('attachment' in result) {
+      expect(result.attachment.kind).toBe('image')
+      expect(result.attachment.needsModelUpload).toBe(false)
+      expect(result.attachment.upload).toBeUndefined()
+      expect(result.attachment.audio).toBeUndefined()
+      expect(result.attachment.tempPaths).toEqual([])
+    }
+  })
+
+  test('rejects documents when the model only needs media references', async () => {
+    const root = await directory()
+    const path = join(root, 'notes.txt')
+    await writeFile(path, '不需要解析的文本')
+    const result = await prepareAgentAttachment(path, 30_000, {
+      ...flash,
+      mediaOnly: true,
+    })
+    expect('skipped' in result).toBe(true)
+  })
+
   test('reads archives into local text and cleans temporary files', async () => {
     const root = await directory()
     const path = join(root, 'bundle.zip')

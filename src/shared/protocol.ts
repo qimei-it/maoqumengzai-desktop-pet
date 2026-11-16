@@ -73,7 +73,9 @@ export const channels = {
   agentCopyOutput: 'mqmz:agent:copy-output',
   agentSaveSession: 'mqmz:agent:save-session',
   agentSaveSource: 'mqmz:agent:save-source',
+  agentSaveSourceAs: 'mqmz:agent:save-source-as',
   agentSourceOpen: 'mqmz:agent:source-open',
+  agentRevealSource: 'mqmz:agent:reveal-source',
   agentDiagramExport: 'mqmz:agent:diagram-export',
   agentSpeech: 'mqmz:agent:speech',
   agentSpeechStop: 'mqmz:agent:speech-stop',
@@ -889,7 +891,9 @@ export interface PrototypeApi {
   copyAgentOutput(text: string): Promise<Result<void>>
   saveAgentSession(id: string): Promise<Result<string>>
   saveAgentSource(id: string): Promise<Result<string>>
+  saveAgentSourceAs(id: string): Promise<Result<string | null>>
   openAgentSource(id: string): Promise<Result<void>>
+  revealAgentSource(id: string): Promise<Result<void>>
   exportAgentDiagram(
     kind: 'svg' | 'png',
     data: string,

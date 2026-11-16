@@ -43,7 +43,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { channels } from '../shared/protocol'
-import { mediaHost, mediaScheme } from '../shared/media'
+import { isGenerationModel } from '../shared/agent-models'
+import {
+  mediaHost,
+  mediaScheme,
+  mediaSourceHost,
+} from '../shared/media'
 import type {
   AgentApprovalMode,
   AgentAttachmentPick,
@@ -55,6 +60,7 @@ import {
   createAgentRuntime,
   type AgentSkillPrompt,
 } from './agent/runtime'
+import { resolveMediaPath } from './agent/media-registry'
 import { streamChat } from './agent/provider'
 import {
   createSkillStore,
@@ -936,10 +942,12 @@ async function addAgentAttachmentPathsOnce(paths: readonly string[]): Promise<{
   const added: AgentAttachmentPick[] = []
   const skipped: SkippedAttachment[] = []
   try {
+    const model = agent.state().model
     const options = {
-      model: agent.state().model,
+      model,
       soffice: await libreOfficeExecutable(),
       ffmpeg: await ffmpegExecutable(),
+      mediaOnly: isGenerationModel(model),
     }
     const existing = new Set(
       [...agentDraftAttachments.values()].map((item) => item.sourcePath),
@@ -1097,6 +1105,7 @@ const agent = createAgentRuntime({
   services,
   storePath: agentPath,
   generationDir: agentGenerationDir,
+  getAttachmentDir: agentAttachmentDirectory,
   getKey: () => aiKey,
   getMiniMaxKey: () => minimaxKey,
   getSettings: () => settings,
@@ -9156,6 +9165,44 @@ function setupIpc(): void {
     const error = await shell.openPath(source.path)
     if (error) throw new Error(error)
   })
+  handle(channels.agentRevealSource, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以打开文件目录。')
+    const id = z.string().uuid().parse(payload)
+    const source = agent.source(id)
+    if (!source) throw new Error('文件记录不存在。')
+    const info = await lstat(source.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('源文件已不在。')
+    shell.showItemInFolder(source.path)
+  })
+  handle(channels.agentSaveSourceAs, 'either', async (event, payload) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!askWindow || window !== askWindow)
+      throw new Error('仅智能体窗口可以保存文件。')
+    const id = z.string().uuid().parse(payload)
+    const source = agent.source(id)
+    if (!source) throw new Error('文件记录不存在。')
+    const info = await lstat(source.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('源文件已不在。')
+    const extension = extname(source.name).replace(/^\./, '')
+    const saved = await dialog.showSaveDialog(askWindow, {
+      defaultPath: join(app.getPath('downloads'), source.name),
+      ...(extension
+        ? {
+            filters: [
+              { name: extension.toUpperCase(), extensions: [extension] },
+            ],
+          }
+        : {}),
+    })
+    if (saved.canceled || !saved.filePath) return null
+    if (resolve(saved.filePath) === resolve(source.path)) return saved.filePath
+    await mkdir(dirname(saved.filePath), { recursive: true })
+    await copyFile(source.path, saved.filePath)
+    showToast(`已保存 ${basename(saved.filePath)}`)
+    return saved.filePath
+  })
   handle(channels.agentSpeech, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!askWindow || window !== askWindow)
@@ -11982,6 +12029,12 @@ else {
         try {
           const url = new URL(request.url)
           const decoded = decodeURIComponent(url.pathname)
+          if (url.hostname === mediaSourceHost) {
+            const id = decoded.replace(/^\/+/, '')
+            const path = id ? resolveMediaPath(id) : undefined
+            if (!path) return new Response('Not found', { status: 404 })
+            return await net.fetch(pathToFileURL(path).toString())
+          }
           const name = basename(decoded)
           if (
             url.hostname !== mediaHost ||

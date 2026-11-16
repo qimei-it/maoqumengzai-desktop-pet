@@ -84,8 +84,12 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.agentSaveSession, id),
   saveAgentSource: (id) =>
     ipcRenderer.invoke(channels.agentSaveSource, id),
+  saveAgentSourceAs: (id) =>
+    ipcRenderer.invoke(channels.agentSaveSourceAs, id),
   openAgentSource: (id) =>
     ipcRenderer.invoke(channels.agentSourceOpen, id),
+  revealAgentSource: (id) =>
+    ipcRenderer.invoke(channels.agentRevealSource, id),
   exportAgentDiagram: (kind, data) =>
     ipcRenderer.invoke(channels.agentDiagramExport, { kind, data }),
   speakAgentText: (text) =>

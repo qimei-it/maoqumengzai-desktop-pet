@@ -12,6 +12,7 @@ import type {
   AgentAttachmentInput,
   AgentAttachmentView,
   AgentMediaPart,
+  AgentMediaView,
   AgentMessageView,
   AgentMode,
   AgentPetProfile,
@@ -34,6 +35,8 @@ import {
   runMiniMaxGeneration,
   type GenerationReference,
 } from './generation'
+import { registerMediaPath } from './media-registry'
+import { generationOutputDir } from './output-path'
 import { streamMiniMaxChat } from './minimax-provider'
 import type { SettingsState } from '../../shared/settings'
 import {
@@ -102,8 +105,10 @@ export type AgentSkillPrompt = {
 export type AgentRuntimeDeps = {
   services: Services
   storePath: string
-  /** Folder for generated images, videos and audio. */
+  /** Legacy folder for generated images, videos and audio. */
   generationDir?: string
+  /** Root used for generated outputs, normally the attachment directory. */
+  getAttachmentDir?(): string
   getKey(): string | undefined
   getSettings(): SettingsState
   getPetProfile(): AgentPetProfile
@@ -1084,6 +1089,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       source,
       ...session.sources.filter((item) => item.id !== source.id),
     ].slice(0, 400)
+    registerMediaPath(source.id, source.path)
   }
 
   function activeSession(): StoredSession | undefined {
@@ -1722,8 +1728,30 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     persist()
   }
 
-  const generationDir =
+  const generationFallbackDir =
     deps.generationDir ?? join(dirname(deps.storePath), 'generated')
+
+  function generationDirectory(sessionId: string): string {
+    const base = deps.getAttachmentDir?.() ?? generationFallbackDir
+    return generationOutputDir(base, sessionId)
+  }
+
+  function generationPlaceholders(
+    session: StoredSession,
+    params: GenerationParams,
+  ): AgentMediaView[] {
+    const kind = generationKindForModel(session.model)
+    if (!kind) return []
+    const count = kind === 'image' ? params.image.count : 1
+    const label =
+      kind === 'image' ? '图片' : kind === 'video' ? '视频' : '音频'
+    return Array.from({ length: count }, (_, index) => ({
+      id: randomUUID(),
+      name: count > 1 ? `${label} ${index + 1}` : label,
+      kind,
+      status: 'running' as const,
+    }))
+  }
 
   async function runGenerationTurn(
     session: StoredSession,
@@ -1801,7 +1829,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             type: 'media',
             status: 'running',
             text: '正在准备生成…',
-            items: [],
+            items: generationPlaceholders(session, normalized),
           } satisfies AgentMediaPart,
         ],
       }
@@ -1813,7 +1841,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         prompt,
         params: normalized,
         references,
-        outputDir: generationDir,
+        outputDir: generationDirectory(session.id),
         signal,
         onProgress: (text) => {
           if (signal.aborted) return
@@ -1841,7 +1869,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           id,
           name: item.name,
           kind: item.kind,
-          url: mediaUrl(item.name),
+          status: 'done' as const,
+          url: mediaUrl(id),
+          path: item.path,
+          directory: dirname(item.path),
           ...(item.size ? { size: item.size } : {}),
           ...(item.width ? { width: item.width } : {}),
           ...(item.height ? { height: item.height } : {}),
@@ -1940,6 +1971,31 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       sessions = store.sessions
       projects = store.projects
       activeId = sessions[0]?.id ?? null
+      for (const session of sessions) {
+        const sourcePaths = new Map(
+          (session.sources ?? []).map((source) => [source.id, source.path]),
+        )
+        for (const source of session.sources ?? [])
+          registerMediaPath(source.id, source.path)
+        for (const message of session.ui)
+          for (const part of message.parts) {
+            if (part.type !== 'media') continue
+            for (const item of part.items) {
+              const path = sourcePaths.get(item.id)
+              if (!item.path && path) {
+                item.path = path
+                item.directory = dirname(path)
+              }
+              if (part.status === 'running') {
+                item.status = 'error'
+                item.error = '生成已中断。'
+              }
+            }
+            if (part.status !== 'running') continue
+            part.status = 'error'
+            part.text = part.items.length ? undefined : '生成已中断。'
+          }
+      }
       await pruneOrphanFileRefs()
     },
     state(): AgentState {

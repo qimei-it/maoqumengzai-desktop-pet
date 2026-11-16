@@ -104,6 +104,22 @@ async function saveFile(
   return { path, ...(info ? { size: info.size } : {}) }
 }
 
+async function assertReferenceSizes(
+  references: GenerationReference[],
+  limits: Partial<Record<AgentAttachmentKind, number>>,
+): Promise<void> {
+  for (const reference of references) {
+    const limit = limits[reference.kind]
+    if (!limit) continue
+    const info = await stat(reference.path).catch(() => null)
+    if (!info?.isFile()) throw new Error('参考文件已不在。')
+    if (info.size > limit)
+      throw new Error(
+        `${reference.kind === 'video' ? '参考视频' : reference.kind === 'audio' ? '参考音频' : '参考图片'}不能超过 ${Math.round(limit / 1024 / 1024)} MB。`,
+      )
+  }
+}
+
 async function uploadReferences(
   apiKey: string,
   references: GenerationReference[],
@@ -135,6 +151,7 @@ async function runImage(
   if (images.length > 16) throw new Error('图片编辑最多支持 16 张参考图。')
   if (images.length && request.references.length !== images.length)
     throw new Error('图片生成只支持图片作为参考素材。')
+  await assertReferenceSizes(images, { image: 64 * 1024 * 1024 })
 
   let urls: string[] = []
   if (images.length) {
@@ -227,6 +244,11 @@ async function runVideo(
   if (images.length > 9) throw new Error('视频生成最多支持 9 张参考图。')
   if (videos.length > 3) throw new Error('视频生成最多支持 3 段参考视频。')
   if (audios.length > 3) throw new Error('视频生成最多支持 3 段参考音频。')
+  await assertReferenceSizes(request.references, {
+    image: 30 * 1024 * 1024,
+    video: 50 * 1024 * 1024,
+    audio: 15 * 1024 * 1024,
+  })
 
   const hasReferenceMedia = videos.length > 0 || audios.length > 0
   const firstFrameMode = images.length === 1 && !hasReferenceMedia

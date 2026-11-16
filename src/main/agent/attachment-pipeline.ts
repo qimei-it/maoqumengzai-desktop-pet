@@ -170,6 +170,8 @@ export type AttachmentEngineOptions = {
   ffmpeg: string | null
   signal?: AbortSignal
   onProgress?: (stage: string) => void
+  /** Generation models only need raw reference media, not text extraction. */
+  mediaOnly?: boolean
 }
 
 export type PreparedAgentAttachment = AgentAttachmentPick & {
@@ -277,6 +279,28 @@ function remainingText(remaining: number): number {
   return Math.min(agentAttachmentFileChars, Math.max(0, remaining))
 }
 
+function prepareMediaReference(
+  path: string,
+  size: number,
+  kind: 'image' | 'audio' | 'video',
+): PrepareAttachmentResult {
+  const limits = {
+    image: 64 * 1024 * 1024,
+    video: 50 * 1024 * 1024,
+    audio: 15 * 1024 * 1024,
+  }
+  if (size > limits[kind])
+    return skipped(
+      `${kind === 'image' ? '图片' : kind === 'video' ? '视频' : '音频'}超过 ${Math.round(limits[kind] / 1024 / 1024)} MB`,
+    )
+  return {
+    attachment: baseAttachment(path, size, kind, 'vision', {
+      needsModelUpload: false,
+      detail: `${kind === 'image' ? '图片参考' : kind === 'video' ? '视频参考' : '音频参考'}`,
+    }),
+  }
+}
+
 export async function prepareAgentAttachment(
   path: string,
   remaining: number,
@@ -288,6 +312,11 @@ export async function prepareAgentAttachment(
   if (info.size === 0) return skipped('文件是空的')
   const kind = attachmentKindForName(path)
   if (!kind) return skipped(`暂不支持 ${extname(path) || '该格式'}`)
+  if (options.mediaOnly) {
+    if (kind !== 'image' && kind !== 'audio' && kind !== 'video')
+      return skipped('生成模型只接受图片、视频或音频参考')
+    return prepareMediaReference(path, info.size, kind)
+  }
 
   try {
     switch (kind) {

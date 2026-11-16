@@ -78,11 +78,18 @@ export type AgentMediaView = {
   name: string
   kind: AgentMediaKind
   /** Streamable address served by the app's local media protocol. */
-  url: string
+  url?: string
+  /** Missing on legacy entries, which are treated as finished. */
+  status?: AgentMediaStatus
   size?: number
   width?: number
   height?: number
   durationSeconds?: number
+  /** Absolute output path, used by the save-as dialog and path tooltip. */
+  path?: string
+  /** Containing folder shown on hover. */
+  directory?: string
+  error?: string
 }
 
 export type AgentMediaStatus = 'running' | 'done' | 'error'
