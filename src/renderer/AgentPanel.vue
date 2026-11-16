@@ -340,6 +340,9 @@ const composerInput = ref<HTMLElement>()
 const composing = ref(false)
 const mentionOpen = ref(false)
 const mentionIndex = ref(0)
+const skillMentionOpen = ref(false)
+const skillMentionQuery = ref('')
+const skillIndex = ref(0)
 const mentionPosition = ref({ left: 12, bottom: 160 })
 let mentionRange: Range | undefined
 const archivedOpen = ref(false)
@@ -384,6 +387,22 @@ const mentionItems = computed(() => {
   return []
 })
 const mentionEnabled = computed(() => mentionItems.value.length > 0)
+const enabledSkills = computed(() => skills.value.filter((skill) => skill.enabled))
+const skillMentionEnabled = computed(
+  () => generationKind.value === 'text' && enabledSkills.value.length > 0,
+)
+const skillMentionItems = computed(() => {
+  const query = skillMentionQuery.value.trim().toLowerCase()
+  const source = enabledSkills.value
+  if (!query) return source.slice(0, 50)
+  return source
+    .filter((skill) =>
+      `${skill.name}\n${skill.category}\n${skill.description}`
+        .toLowerCase()
+        .includes(query),
+    )
+    .slice(0, 50)
+})
 const minimaxConfigured = computed(
   () => props.state?.ai.minimax.configured === true,
 )
@@ -1434,6 +1453,89 @@ function closeMention(): void {
   mentionRange = undefined
 }
 
+function closeSkillMention(): void {
+  skillMentionOpen.value = false
+  skillMentionQuery.value = ''
+  skillIndex.value = 0
+  mentionRange = undefined
+}
+
+function openSkillMention(): void {
+  closeMention()
+  saveMentionRange()
+  skillMentionOpen.value = true
+  skillMentionQuery.value = ''
+  skillIndex.value = 0
+  positionMentionMenu()
+}
+
+function insertSkillLiteral(): void {
+  const el = composerInput.value
+  if (!el) return
+  const text = `$${skillMentionQuery.value}`
+  const range =
+    mentionRange && el.contains(mentionRange.startContainer)
+      ? mentionRange
+      : document.createRange()
+  if (!mentionRange || !el.contains(mentionRange.startContainer)) {
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+  range.setStartAfter(node)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  closeSkillMention()
+  syncDraftFromEditor()
+}
+
+function insertSkillMention(skill: AgentSkillView): void {
+  const el = composerInput.value
+  if (!el) return
+  el.focus()
+  const range =
+    mentionRange && el.contains(mentionRange.startContainer)
+      ? mentionRange
+      : document.createRange()
+  if (!mentionRange || !el.contains(mentionRange.startContainer)) {
+    range.selectNodeContents(el)
+    range.collapse(false)
+  }
+  range.deleteContents()
+  const chip = document.createElement('span')
+  chip.className = 'agent-input-skill'
+  chip.contentEditable = 'false'
+  chip.dataset.skillName = skill.name
+  chip.textContent = `$${skill.name}`
+  range.insertNode(chip)
+  range.setStartAfter(chip)
+  const space = document.createTextNode(' ')
+  range.insertNode(space)
+  range.setStartAfter(space)
+  range.collapse(true)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+  closeSkillMention()
+  syncDraftFromEditor()
+}
+
+function composerSkillNames(): string[] {
+  const el = composerInput.value
+  if (!el) return []
+  return [
+    ...new Set(
+      [...el.querySelectorAll('.agent-input-skill')]
+        .map((chip) => chip.getAttribute('data-skill-name') ?? '')
+        .filter(Boolean),
+    ),
+  ]
+}
+
 function insertMention(item: AgentAttachmentPick): void {
   const el = composerInput.value
   if (!el) return
@@ -1503,6 +1605,52 @@ function maybeRemoveStaleReferenceChips(ids: Set<string>): void {
 
 function onComposerKeydown(event: KeyboardEvent): void {
   if (event.isComposing || composing.value) return
+  if (skillMentionOpen.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      skillIndex.value =
+        (skillIndex.value + 1) %
+        Math.max(1, skillMentionItems.value.length)
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      skillIndex.value =
+        (skillIndex.value - 1 + skillMentionItems.value.length) %
+        Math.max(1, skillMentionItems.value.length)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const skill = skillMentionItems.value[skillIndex.value]
+      if (skill) insertSkillMention(skill)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      insertSkillLiteral()
+      return
+    }
+    if (event.key === 'Backspace') {
+      event.preventDefault()
+      if (skillMentionQuery.value) {
+        skillMentionQuery.value = skillMentionQuery.value.slice(0, -1)
+        skillIndex.value = 0
+      } else insertSkillLiteral()
+      return
+    }
+    if (
+      event.key.length === 1 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey
+    ) {
+      event.preventDefault()
+      skillMentionQuery.value += event.key
+      skillIndex.value = 0
+      return
+    }
+  }
   if (mentionOpen.value) {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
@@ -1537,10 +1685,22 @@ function onComposerKeydown(event: KeyboardEvent): void {
     !event.altKey
   ) {
     event.preventDefault()
+    closeSkillMention()
     saveMentionRange()
     mentionOpen.value = true
     mentionIndex.value = 0
     positionMentionMenu()
+    return
+  }
+  if (
+    event.key === '$' &&
+    skillMentionEnabled.value &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  ) {
+    event.preventDefault()
+    openSkillMention()
     return
   }
   if (event.key === 'Enter' && !event.shiftKey) {
@@ -1614,6 +1774,7 @@ function send(): void {
   )
     return
   const attachmentIds = attachments.value.map((item) => item.id)
+  const skillNames = composerSkillNames()
   modelMenuOpen.value = false
   attachmentError.value = ''
   pendingSend.value = true
@@ -1637,6 +1798,7 @@ function send(): void {
     ...(showGenerationParams.value
       ? { generation: generationPayload() }
       : {}),
+    ...(skillNames.length ? { skills: skillNames } : {}),
   })
   following.value = true
   scrollHover.value = false
@@ -2191,6 +2353,12 @@ function onDocumentMouseDown(event: MouseEvent): void {
     !composerInput.value?.contains(target)
   )
     closeMention()
+  if (
+    skillMentionOpen.value &&
+    !(target as HTMLElement).closest?.('.agent-skill-menu') &&
+    !composerInput.value?.contains(target)
+  )
+    closeSkillMention()
   if (
     generationMenuOpen.value &&
     !generationPicker.value?.contains(target)
@@ -4032,6 +4200,37 @@ function statusLabel(status: string): string {
                   <span class="agent-mention-name">{{ item.name }}</span>
                   <span class="agent-mention-label">{{ referenceLabel(item) }}</span>
                 </button>
+              </div>
+              <div
+                v-if="skillMentionOpen"
+                class="agent-mention-menu agent-skill-menu"
+                :style="{
+                  left: `${mentionPosition.left}px`,
+                  bottom: `${mentionPosition.bottom}px`,
+                }"
+                role="listbox"
+                aria-label="插入技能"
+              >
+                <button
+                  v-for="(skill, itemIndex) in skillMentionItems"
+                  :key="skill.id"
+                  type="button"
+                  class="agent-mention-option agent-skill-option"
+                  :class="{ active: skillIndex === itemIndex }"
+                  role="option"
+                  :aria-selected="skillIndex === itemIndex"
+                  :title="skill.description"
+                  @mousedown.prevent="insertSkillMention(skill)"
+                >
+                  <span class="agent-skill-option-name">${{ skill.name }}</span>
+                  <span class="agent-skill-option-category">{{ skill.category }}</span>
+                </button>
+                <p
+                  v-if="!skillMentionItems.length"
+                  class="agent-mention-empty"
+                >
+                  没有匹配的技能
+                </p>
               </div>
               <div class="agent-composer-row">
                 <div class="agent-composer-tools">
@@ -6117,6 +6316,16 @@ function statusLabel(status: string): string {
 .agent-input :deep(.agent-input-reference-label) {
   font-weight: 600;
 }
+.agent-input :deep(.agent-input-skill) {
+  display: inline;
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
 .agent-mention-menu {
   position: fixed;
   z-index: 80;
@@ -6154,6 +6363,29 @@ function statusLabel(status: string): string {
   flex: none;
   width: 22px;
   height: 22px;
+}
+.agent-skill-option {
+  gap: var(--space-3);
+}
+.agent-skill-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-brand-ink);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-skill-option-category {
+  flex: none;
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
+}
+.agent-mention-empty {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-subtle);
+  font-size: var(--font-size-label);
 }
 .agent-mention-name {
   flex: 1;

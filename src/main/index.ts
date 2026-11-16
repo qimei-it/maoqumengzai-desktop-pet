@@ -9902,7 +9902,7 @@ function setupIpc(): void {
             (item): item is PreparedAgentAttachment => Boolean(item),
           )
         void agent
-          .send(command.prompt, attachments, command.generation)
+          .send(command.prompt, attachments, command.generation, command.skills)
           .then(async () => {
             if (agent.state().error) {
               broadcast()

@@ -868,6 +868,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('agent-send'),
       prompt: z.string().trim().min(1).max(8000),
       attachmentIds: z.array(z.string().uuid()).max(16).optional(),
+      skills: z.array(z.string().trim().min(1).max(200)).max(20).optional(),
       generation: z
         .object({
           image: z

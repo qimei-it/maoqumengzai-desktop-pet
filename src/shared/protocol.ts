@@ -579,6 +579,7 @@ export type Command =
       prompt: string
       attachmentIds?: string[]
       generation?: GenerationParams
+      skills?: string[]
     }
   | { type: 'agent-retry' }
   | { type: 'agent-message-regenerate' }

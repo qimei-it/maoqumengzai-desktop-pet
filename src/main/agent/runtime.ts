@@ -142,6 +142,7 @@ export type AgentRuntime = {
     prompt: string,
     attachments?: AgentAttachmentInput[],
     generation?: GenerationParams,
+    skills?: string[],
   ): Promise<void>
   /** Continues the last turn after an error, stop or tool-step limit. */
   retry(): Promise<void>
@@ -229,6 +230,14 @@ function newSession(
 
 function sessionTitle(prompt: string): string {
   return cleanSessionTitle(prompt) || '新会话'
+}
+
+function appendUserText(
+  content: ProviderUserContent,
+  text: string,
+): ProviderUserContent {
+  if (typeof content === 'string') return `${content}\n\n${text}`
+  return [...content, { type: 'text', text }]
 }
 
 function truncate(value: string, limit: number): string {
@@ -2080,6 +2089,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       prompt: string,
       attachments: AgentAttachmentInput[] = [],
       generation?: GenerationParams,
+      requestedSkills: string[] = [],
     ) {
       const value = prompt.trim()
       if (!value) return
@@ -2127,6 +2137,19 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       controller = new AbortController()
       const signal = controller.signal
       try {
+        const skillNames = [
+          ...new Set(
+            requestedSkills.map((name) => name.trim()).filter(Boolean),
+          ),
+        ].slice(0, 20)
+        if (skillNames.length) {
+          const available = await (deps.loadSkills?.() ?? Promise.resolve([]))
+          const missing = skillNames.filter(
+            (name) => !available.some((skill) => skill.name === name),
+          )
+          if (missing.length)
+            throw new Error(`技能已停用或不存在：${missing.join('、')}`)
+        }
         const built = await buildUserContent(
           session,
           key,
@@ -2134,6 +2157,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           files,
           signal,
         )
+        const historyContent = skillNames.length
+          ? appendUserText(
+              built.content,
+              `[用户明确引用了技能：${skillNames.join('、')}。回答前必须先调用 skill_load 读取这些技能的完整说明，并按说明执行。]`,
+            )
+          : built.content
         for (const file of files) {
           if (!file.sourcePath) continue
           rememberSource(session, {
@@ -2161,7 +2190,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             : {}),
         }
         pushUi(session, userMessage)
-        pushHistory(session, { role: 'user', content: built.content })
+        pushHistory(session, { role: 'user', content: historyContent })
         if (session.title === '新会话') {
           const fallback = sessionTitle(value)
           session.title = fallback
