@@ -204,9 +204,9 @@ ServiceContext（index.ts 提供的现有主进程能力）
 - 生成失败只显示面板提示；队列中的视频任务在停止时会尝试调用取消接口，运行中的任务按服务端限制无法取消。
 - 文本模型可通过内置技能与 `image_generate` / `video_generate` / `speech_generate` 工具自主生成媒体；生成类工具每次都需要审批，参数由模型解析；选中生成模型时输入框下方显示对应参数，作为工具未显式给参时的默认值。
 - 输入框的模型菜单只对「当前选择模型」打勾：选择文本模型即用该模型对话；选择图像/视频/音频模型时，对话改用默认文本模型兜底，输入框仍是 Agent 文本输入。
-- 智能体模型菜单按供应商分组：DeepSeek、MiniMax、火山方舟；每个模型右侧显示文本/图像/视频/音频类型。文本模型包含 DeepSeek-V4.1-Flash、DeepSeek-V4-Pro、MiniMax-M3.1-Flash、MiniMax-M3、Doubao Seed 2.1 Pro。
+- 智能体模型菜单按供应商分组：DeepSeek、MiniMax、火山方舟；每个模型右侧显示文本/图像/视频/音频类型。文本模型包含 DeepSeek-V4.1-Flash、DeepSeek-V4-Pro、MiniMax-M3.1-Flash、MiniMax-M3，以及火山方舟的 Doubao Seed Evolving、2.1 Pro/Lite/Turbo、2.0 Pro/Lite/Mini。
 - 设置 → 智能体提供默认对话、图像、视频、音频模型，可设为「未设置」。默认对话模型用于新会话；会话内文本模型优先。图像/视频/音频缺模型时，工具返回文字提醒，不弹额外设置按钮。
-- 无任何 Key 时，智能体面板提供 DeepSeek、MiniMax、火山方舟三家供应商的添加入口；保存任一 Key 后按可用供应商选择文本模型。火山方舟文本模型使用 `doubao-seed-2-1-pro-260915`，上下文 1024K。
+- 无任何 Key 时，智能体面板提供 DeepSeek、MiniMax、火山方舟三家供应商的添加入口；保存任一 Key 后按可用供应商选择文本模型。火山方舟文本模型覆盖 `doubao-seed-2-1-pro-260915`、`doubao-seed-2-1-lite-260915`、`doubao-seed-2-1-turbo-260628`、`doubao-seed-evolving`、`doubao-seed-2-0-pro-260215`、`doubao-seed-2-0-lite-260428`、`doubao-seed-2-0-mini-260428`。
 - 图像模型支持 MiniMax-H3-Image 与火山方舟 Doubao Seedream 5.5。Seedream 只支持单张、1K/2K、png/jpeg，参考图最多 10 张。
 - 工具会自动使用当前用户消息里的媒体附件作为参考：图像工具只接受图片，视频工具接受图片/视频/音频，语音工具不接受附件。参数超出支持范围时返回错误给模型，由模型询问用户，不直接弹前端错误。
 - 每轮每个生成工具最多成功调用一次；图片多张请使用 `count`。媒体消息的重新生成会直接重放同一工具和参数，并再次审批；停止视频会取消本地轮询并尝试取消排队任务，不保存半成品。

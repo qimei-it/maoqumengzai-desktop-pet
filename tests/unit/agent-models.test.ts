@@ -33,6 +33,26 @@ describe('agent model catalog', () => {
     )
   })
 
+  test('exposes the Volcano text model family', () => {
+    const volcanoText = agentTextModels.filter(
+      (item) => item.provider === 'volcano',
+    )
+    expect(volcanoText.map((item) => item.id)).toEqual([
+      'doubao-seed-2-1-pro-260915',
+      'doubao-seed-2-1-lite-260915',
+      'doubao-seed-2-1-turbo-260628',
+      'doubao-seed-evolving',
+      'doubao-seed-2-0-pro-260215',
+      'doubao-seed-2-0-lite-260428',
+      'doubao-seed-2-0-mini-260428',
+    ])
+    for (const item of volcanoText) {
+      expect(item.kind).toBe('text')
+      expect(item.reasoning).toBe(true)
+      expect(item.contextWindow).toBeGreaterThan(0)
+    }
+  })
+
   test('classifies text and generation models', () => {
     expect(isTextModel('MiniMax-M3.1-Flash')).toBe(true)
     expect(isTextModel('doubao-seed-2-1-pro-260915')).toBe(true)

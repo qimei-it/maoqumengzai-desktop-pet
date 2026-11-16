@@ -10,7 +10,7 @@
 - Key 校验：`GET https://ark.cn-beijing.volces.com/api/v3/models`，无 Key 返回 401，校验不消耗生图额度。
 - 桌宠生图：`POST https://ark.cn-beijing.volces.com/api/v3/images/generations`。
 - 固定模型：`doubao-seedream-5-5-261028`。
-- 火山方舟同时作为 Agent 供应商：文本模型 `doubao-seed-2-1-pro-260915`（Doubao Seed 2.1 Pro），图像模型 Doubao Seedream 5.5。
+- 火山方舟同时作为 Agent 供应商：文本模型 Doubao Seed Evolving、2.1 Pro/Lite/Turbo、2.0 Pro/Lite/Mini；图像模型 Doubao Seedream 5.5。
 
 首次使用前需要在火山方舟控制台开通 Doubao-Seedream-5.5。未开通时接口返回 `has not activated the model`，客户端会提示到控制台开通。
 

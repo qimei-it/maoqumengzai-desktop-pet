@@ -782,6 +782,12 @@ test('agent model menu separates dialogue and image models', async () => {
     menu.getByText('Doubao Seed 2.1 Pro', { exact: true }),
   ).toBeVisible()
   await expect(
+    menu.getByText('Doubao Seed 2.1 Lite', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    menu.getByText('Doubao Seed 2.0 Mini', { exact: true }),
+  ).toBeVisible()
+  await expect(
     menu.locator(
       '.agent-model-option:has(.agent-model-kind)[aria-checked="true"]',
     ),
