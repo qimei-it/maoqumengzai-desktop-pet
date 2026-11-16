@@ -108,7 +108,10 @@ const settings = computed<SettingsState>(
 )
 const providerOrder: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
 const kindOrder = ['text', 'image', 'video', 'speech']
-function groupedModels(models: readonly AgentModelInfo[]) {
+function groupedModels(
+  models: readonly AgentModelInfo[],
+  available: (provider: AgentProvider) => boolean,
+) {
   return providerOrder
     .map((provider) => ({
       provider,
@@ -120,16 +123,8 @@ function groupedModels(models: readonly AgentModelInfo[]) {
             kindOrder.indexOf(left.kind) - kindOrder.indexOf(right.kind),
         ),
     }))
-    .filter((group) => group.models.length > 0)
+    .filter((group) => group.models.length > 0 && available(group.provider))
 }
-const textModelGroups = groupedModels(agentTextModels)
-const imageModelGroups = groupedModels(agentImageModels)
-const videoModelGroups = groupedModels(
-  agentModels.filter((model) => model.kind === 'video'),
-)
-const audioModelGroups = groupedModels(
-  agentModels.filter((model) => model.kind === 'speech'),
-)
 const musicAiCache = computed(() => props.state?.musicAiCache)
 const musicAiCacheLabel = computed(() => {
   const cache = musicAiCache.value
@@ -153,6 +148,7 @@ const petProfiles = computed(() => [
     id: props.state?.petAssets?.id ?? 'ragdoll',
     name: settings.value.petName,
     cover: activePetCover.value,
+    days: props.state?.petStats.daysTogether ?? 0,
   },
 ])
 const configured = computed(() => Boolean(props.state?.ai.configured))
@@ -202,6 +198,29 @@ const volcanoLatencyClass = computed(() => {
   if (latency <= 1200) return 'is-medium'
   return 'is-slow'
 })
+function providerHasKey(provider: AgentProvider): boolean {
+  if (provider === 'minimax') return minimaxConfigured.value
+  if (provider === 'volcano') return volcanoConfigured.value
+  return configured.value
+}
+const textModelGroups = computed(() =>
+  groupedModels(agentTextModels, providerHasKey),
+)
+const imageModelGroups = computed(() =>
+  groupedModels(agentImageModels, providerHasKey),
+)
+const videoModelGroups = computed(() =>
+  groupedModels(
+    agentModels.filter((model) => model.kind === 'video'),
+    providerHasKey,
+  ),
+)
+const audioModelGroups = computed(() =>
+  groupedModels(
+    agentModels.filter((model) => model.kind === 'speech'),
+    providerHasKey,
+  ),
+)
 const modelPreview = ref('')
 const modelsOpen = ref(false)
 watch(
@@ -614,9 +633,11 @@ function toggle(
     | 'shelfAutoScreenshots'
     | 'shelfClipboardImages'
     | 'shelfScreenshotBubble'
-    | 'aiQuotaEnabled',
+    | 'aiQuotaEnabled'
+    | 'aiQuotaAlerts',
 ): void {
   if (key === 'musicAiEnabled' && !configured.value) return
+  if (key === 'aiQuotaAlerts' && !settings.value.aiQuotaEnabled) return
   update({ [key]: !settings.value[key] })
 }
 const shelfFolderLabel = computed(() => {
@@ -923,7 +944,10 @@ function onEscape(): void {
                 <span class="pet-cover">
                   <img :src="pet.cover" alt="" draggable="false" />
                 </span>
-                <span class="pet-card-name">{{ pet.name }}</span>
+                <span class="pet-card-meta">
+                  <span class="pet-card-name">{{ pet.name }}</span>
+                  <span class="pet-card-days">已陪伴 {{ pet.days }} 天</span>
+                </span>
               </button>
             </div>
           </template>
@@ -2050,6 +2074,22 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
+              <span id="setting-ai-quota-alerts" class="settings-label"
+                >额度提醒</span
+              >
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-ai-quota-alerts"
+                :aria-checked="settings.aiQuotaAlerts"
+                :aria-disabled="!settings.aiQuotaEnabled"
+                @click="toggle('aiQuotaAlerts')"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
               <span class="settings-label"
                 >OpenAI 帐户<span class="settings-account-state"
                   >（{{ openAiAccountStatus }}）</span
@@ -2426,12 +2466,26 @@ function onEscape(): void {
   outline: var(--mqmz-focus-ring);
   outline-offset: 2px;
 }
+.pet-card-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
 .pet-card-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--font-size-label);
   font-weight: 600;
+}
+.pet-card-days {
+  flex: none;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
 }
 @media (prefers-reduced-motion: reduce) {
   .pet-cover {

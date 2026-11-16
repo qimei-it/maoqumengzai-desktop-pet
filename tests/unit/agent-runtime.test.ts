@@ -50,6 +50,7 @@ async function makeRuntime(
     getKey?: () => string | undefined
     getMiniMaxKey?: () => string | undefined
     getVolcanoKey?: () => string | undefined
+    getVolcanoModels?: () => string[] | undefined
     getPetProfile?: () => import('../../src/shared/agent').AgentPetProfile
     volcanoStream?: typeof import('../../src/main/agent/volcano-provider').streamVolcanoChat
     seedStore?: (path: string) => Promise<void>
@@ -74,6 +75,9 @@ async function makeRuntime(
       : {}),
     ...(override?.getVolcanoKey
       ? { getVolcanoKey: override.getVolcanoKey }
+      : {}),
+    ...(override?.getVolcanoModels
+      ? { getVolcanoModels: override.getVolcanoModels }
       : {}),
     ...(override?.volcanoStream
       ? { volcanoStream: override.volcanoStream }
@@ -565,8 +569,28 @@ describe('agent runtime', () => {
     expect(state.selectedModel).toBe('deepseek-flash')
   })
 
-  test('routes text turns to the Volcano stream', async () => {
-    let arkCalls = 0
+  test('uses only Ark models the current key can call', async () => {
+    let listed: string[] | undefined = ['doubao-seed-2-0-mini-260428']
+    const { runtime } = await makeRuntime([], [], {
+      getKey: () => undefined,
+      getVolcanoKey: () => 'ark-key',
+      getVolcanoModels: () => listed,
+    })
+    let state = runtime.state()
+    expect(state.configured).toBe(true)
+    expect(state.model).toBe('doubao-seed-2-0-mini-260428')
+    listed = ['doubao-seed-2-1-lite-260915']
+    runtime.syncModelWithKeys()
+    state = runtime.state()
+    expect(state.model).toBe('doubao-seed-2-1-lite-260915')
+    expect(state.selectedModel).toBe('doubao-seed-2-1-lite-260915')
+    // An unknown list (fetch failed) keeps the current choice.
+    listed = undefined
+    runtime.syncModelWithKeys()
+    expect(runtime.state().model).toBe('doubao-seed-2-1-lite-260915')
+  })
+
+  test('routes text turns to the Volcano stream', async () => {    let arkCalls = 0
     const { runtime } = await makeRuntime([], [], {
       getKey: () => undefined,
       getVolcanoKey: () => 'ark-key',

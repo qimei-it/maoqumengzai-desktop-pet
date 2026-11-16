@@ -1042,6 +1042,7 @@ function markPanelScroll(event: Event): void {
   );
 }
 function triggerPoke(): void {
+  if (api) void command({ type: "pet-poke" });
   petPose.value = "ponder";
   if (pokeTimer) clearTimeout(pokeTimer);
   pokeTimer = setTimeout(() => {

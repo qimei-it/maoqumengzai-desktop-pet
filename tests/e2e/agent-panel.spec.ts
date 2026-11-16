@@ -23,6 +23,7 @@ test.beforeAll(async () => {
   environment.MQMZ_SCREENSHOT_DIR = join(directory, 'shots')
   environment.MQMZ_QUOTA_DEEPSEEK_URL = 'http://127.0.0.1:1/balance'
   environment.MQMZ_QUOTA_OPENAI_URL = 'http://127.0.0.1:1/usage'
+  environment.MQMZ_VOLCANO_MODELS_URL = 'http://127.0.0.1:1/models'
   await mkdir(environment.MQMZ_DATA_DIR, { recursive: true })
   await mkdir(environment.MQMZ_SCREENSHOT_DIR, { recursive: true })
   application = await electron.launch({
@@ -121,6 +122,18 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
   await expect(modelTrigger).toContainText('DeepSeek-V4.1-Flash')
 
   await modelTrigger.click()
+  const deepseekGroup = agent.getByRole('button', {
+    name: 'DeepSeek',
+    exact: true,
+  })
+  await expect(deepseekGroup).toHaveAttribute('aria-expanded', 'true')
+  await deepseekGroup.click()
+  await expect(deepseekGroup).toHaveAttribute('aria-expanded', 'false')
+  await expect(
+    agent.getByRole('menuitemradio', { name: /DeepSeek-V4-Pro/ }),
+  ).toHaveCount(0)
+  await deepseekGroup.click()
+  await expect(deepseekGroup).toHaveAttribute('aria-expanded', 'true')
   await agent
     .getByRole('menuitemradio', { name: /DeepSeek-V4-Pro/ })
     .click()
@@ -759,7 +772,7 @@ test('composer grows to 75% of the conversation pane', async () => {
   await agent.waitForTimeout(400)
 })
 
-test('agent model menu separates dialogue and image models', async () => {
+test('agent model menu lists only configured providers', async () => {
   const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
   if (!snapshot.ok || !snapshot.value.agent.configured) {
     await agent.evaluate(() =>
@@ -770,23 +783,15 @@ test('agent model menu separates dialogue and image models', async () => {
   await agent.locator('.agent-model-trigger').click()
   const menu = agent.locator('.agent-model-menu')
   await expect(menu.getByText('DeepSeek', { exact: true })).toBeVisible()
-  await expect(menu.getByText('MiniMax', { exact: true })).toBeVisible()
-  await expect(menu.getByText('火山方舟', { exact: true })).toBeVisible()
-  for (const kind of ['文本', '图像', '视频', '音频']) {
-    await expect(menu.getByText(kind, { exact: true }).first()).toBeVisible()
-  }
+  await expect(menu.getByText('MiniMax', { exact: true })).toHaveCount(0)
+  await expect(menu.getByText('火山方舟', { exact: true })).toHaveCount(0)
   await expect(
     menu.getByText('Doubao Seedream 5.5', { exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
   await expect(
     menu.getByText('Doubao Seed 2.1 Pro', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    menu.getByText('Doubao Seed 2.1 Lite', { exact: true }),
-  ).toBeVisible()
-  await expect(
-    menu.getByText('Doubao Seed 2.0 Mini', { exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect(menu.getByText('文本', { exact: true }).first()).toBeVisible()
   const modelOptions = menu.locator(
     '.agent-model-option:has(.agent-model-kind)',
   )
@@ -825,7 +830,10 @@ test('pet profile section exposes the create entry', async () => {
     globalThis.fetch = async () =>
       new Response(
         JSON.stringify({
-          data: [{ id: 'doubao-seedream-5-5-261028' }],
+          data: [
+            { id: 'doubao-seedream-5-5-261028' },
+            { id: 'doubao-seed-2-1-lite-260915' },
+          ],
         }),
         {
           status: 200,
@@ -884,6 +892,37 @@ test('pet profile section exposes the create entry', async () => {
       return snapshot.ok ? snapshot.value.ai.volcano.configured : false
     })
     .toBe(true)
+  await expect
+    .poll(async () => {
+      const snapshot = await settings.evaluate(() =>
+        window.mqmz!.snapshot(),
+      )
+      return snapshot.ok
+        ? (snapshot.value.ai.volcano.models ?? []).join(',')
+        : ''
+    })
+    .toBe('doubao-seedream-5-5-261028,doubao-seed-2-1-lite-260915')
+  await agent.evaluate(() => window.mqmz!.command({ type: 'agent-open' }))
+  await agent.locator('.agent-model-trigger').click()
+  await expect(
+    agent.locator('.agent-model-menu').getByText('火山方舟', { exact: true }),
+  ).toBeVisible()
+  await expect(
+    agent.locator('.agent-model-menu').getByText('MiniMax', { exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    agent.getByRole('menuitemradio', { name: /Doubao Seed 2\.1 Lite/ }),
+  ).toBeEnabled()
+  await expect(
+    agent.getByRole('menuitemradio', { name: /Doubao Seedream 5\.5/ }),
+  ).toBeEnabled()
+  await expect(
+    agent.getByRole('menuitemradio', { name: /Doubao Seed 2\.1 Pro/ }),
+  ).toBeDisabled()
+  await expect(
+    agent.getByRole('menuitemradio', { name: /Doubao Seed 2\.0 Pro/ }),
+  ).toBeDisabled()
+  await agent.locator('.agent-model-trigger').click()
   await settings.getByRole('button', { name: '宠物档案', exact: true }).click()
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()
   const wizard = settings.getByRole('dialog', { name: '新建桌宠' })
@@ -927,4 +966,47 @@ test('pet profile section exposes the create entry', async () => {
   await expect(speciesSelect).toHaveValue('守宫')
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
+
+  // Removing the DeepSeek key drops its group while Ark stays configured.
+  await agent.evaluate(() => window.mqmz!.command({ type: 'ai-delete' }))
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.ai.configured : true
+    })
+    .toBe(false)
+  await agent.locator('.agent-model-trigger').click()
+  const menuAfterDelete = agent.locator('.agent-model-menu')
+  await expect(
+    menuAfterDelete.getByText('DeepSeek', { exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    menuAfterDelete.getByText('火山方舟', { exact: true }),
+  ).toBeVisible()
+  await agent.locator('.agent-model-trigger').click()
+  // The DeepSeek default clears; the Ark image default survives.
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      if (!snapshot.ok) return ''
+      return `${snapshot.value.settings.agentDefaultChatModel}|${snapshot.value.settings.aiImageModel}`
+    })
+    .toBe('|Doubao-Seedream-5.5')
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-section', section: 'ai' }),
+  )
+  const chatDefault = settings.getByLabel('默认对话模型')
+  await expect(chatDefault).toHaveValue('')
+  await expect(chatDefault.locator('optgroup')).toHaveCount(1)
+  await expect(chatDefault.locator('optgroup')).toHaveAttribute(
+    'label',
+    '火山方舟',
+  )
+  const imageDefault = settings.getByLabel('默认图像模型')
+  await expect(imageDefault).toHaveValue('Doubao-Seedream-5.5')
+  await expect(imageDefault.locator('optgroup')).toHaveCount(1)
+  await expect(imageDefault.locator('optgroup')).toHaveAttribute(
+    'label',
+    '火山方舟',
+  )
 })

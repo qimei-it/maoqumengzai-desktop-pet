@@ -13,7 +13,7 @@ describe('settings store', () => {
     expect(defaultSettings.musicBubbles).toBe(true)
     expect(defaultSettings.aiModel).toBe('deepseek-flash')
     expect(defaultSettings.agentDefaultChatModel).toBe('deepseek-flash')
-    expect(defaultSettings.aiImageModel).toBe('MiniMax-H3-Image')
+    expect(defaultSettings.aiImageModel).toBe('Doubao-Seedream-5.5')
     expect(defaultSettings.agentDefaultVideoModel).toBe('MiniMax-H3')
     expect(defaultSettings.agentDefaultAudioModel).toBe('speech-2.8-hd')
     expect(defaultSettings.hoverWheelActions).toHaveLength(10)
@@ -51,7 +51,7 @@ describe('settings store', () => {
       hoverWheelActions: ['agent', 'todo', 'water', 'settings'],
       fileWheelActions: ['stash', 'convert', 'eat', 'ask'],
     })
-    expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(1)
+    expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(2)
   })
 
   test('adds AI quota defaults to an older settings file', async () => {
@@ -68,11 +68,36 @@ describe('settings store', () => {
     const loaded = await loadSettingsFile(path)
     expect(loaded.existed).toBe(true)
     expect(loaded.settings).toMatchObject({
-      aiImageModel: 'MiniMax-H3-Image',
+      aiImageModel: 'Doubao-Seedream-5.5',
       aiQuotaEnabled: true,
       aiQuotaRefreshMinutes: 5,
       aiQuotaOpenAIPath: '',
     })
+  })
+
+  test('migrates the v1 MiniMax image default to Seedream and bumps the version', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
+    const path = join(directory, 'mqmz.settings.json')
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...defaultSettings,
+        version: 1,
+        aiImageModel: 'MiniMax-H3-Image',
+      }),
+    )
+    const loaded = await loadSettingsFile(path)
+    expect(loaded.upgraded).toBe(true)
+    expect(loaded.settings.version).toBe(2)
+    expect(loaded.settings.aiImageModel).toBe('Doubao-Seedream-5.5')
+    // A deliberate Seedream→MiniMax choice made later survives reloads.
+    await saveSettingsFile(path, {
+      ...loaded.settings,
+      aiImageModel: 'MiniMax-H3-Image',
+    })
+    const reloaded = await loadSettingsFile(path)
+    expect(reloaded.upgraded).toBe(false)
+    expect(reloaded.settings.aiImageModel).toBe('MiniMax-H3-Image')
   })
 
   test('migrates the default chat model from the legacy AI model', async () => {
@@ -127,7 +152,7 @@ describe('settings store', () => {
     )
     const loaded = await loadSettingsFile(path)
     expect(loaded.settings.agentDefaultChatModel).toBe('deepseek-v4-pro')
-    expect(loaded.settings.aiImageModel).toBe('MiniMax-H3-Image')
+    expect(loaded.settings.aiImageModel).toBe('Doubao-Seedream-5.5')
     expect(loaded.settings.agentDefaultVideoModel).toBe('MiniMax-H3')
     expect(loaded.settings.agentDefaultAudioModel).toBe('speech-2.8-hd')
   })
@@ -148,7 +173,7 @@ describe('settings store', () => {
     const loaded = await loadSettingsFile(path)
     expect(loaded.existed).toBe(true)
     expect(loaded.settings.petName).toBe('团子')
-    expect(loaded.settings.aiImageModel).toBe('MiniMax-H3-Image')
+    expect(loaded.settings.aiImageModel).toBe('Doubao-Seedream-5.5')
     expect(loaded.settings.hoverWheelActions).toEqual(defaultSettings.hoverWheelActions)
     expect(loaded.settings.fileWheelActions).toEqual([
       'stash',

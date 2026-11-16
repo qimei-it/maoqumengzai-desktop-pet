@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
     from: { value: [{ name: 'Example', address: 'security@example.com' }] },
     date: new Date('2026-01-01T08:00:00Z'),
     text: '您的验证码是 123456，5 分钟内有效。',
-    html: undefined,
+    html: undefined as string | undefined,
     attachments: [],
   })),
 }))
@@ -95,6 +95,35 @@ describe('mail detail fetch', () => {
     expect(detail.codeExpiresAt).toBe(
       new Date('2026-01-01T08:00:00Z').getTime() + 5 * 60_000,
     )
+  })
+
+  test('keeps tables and links in the fetched html body', async () => {
+    mocks.parse.mockResolvedValueOnce({
+      subject: '订单已发货',
+      from: { value: [{ name: 'Shop', address: 'shop@example.com' }] },
+      date: new Date('2026-01-01T08:00:00Z'),
+      text: '订单已发货，查看订单：https://example.com/order/1',
+      html:
+        '<table width="600" cellpadding="8" bgcolor="#f6f6f6">' +
+        '<tr><td colspan="2" style="padding:12px;background-color:#fff">订单已发货</td></tr>' +
+        '<tr><td><a href="https://example.com/order/1" style="display:inline-block;padding:8px 16px;background-color:#ad5946;color:#fff">查看订单</a></td></tr>' +
+        '</table>',
+      attachments: [],
+    })
+    const detail = await fetchMailDetail(
+      'qq',
+      'demo@qq.com',
+      'auth-code',
+      3014,
+    )
+    expect(detail.bodyHtml).toContain('<table width="600" cellpadding="8"')
+    expect(detail.bodyHtml).toContain('bgcolor="#f6f6f6"')
+    expect(detail.bodyHtml).toContain('colspan="2"')
+    expect(detail.bodyHtml).toContain(
+      'href="https://example.com/order/1"',
+    )
+    expect(detail.bodyHtml).toContain('rel="noopener noreferrer"')
+    expect(detail.bodyHtml).toContain('display:inline-block')
   })
 
   test('loads older cached pages by UID', async () => {

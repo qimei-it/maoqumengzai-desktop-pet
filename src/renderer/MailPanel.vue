@@ -40,6 +40,7 @@ import { pushToast } from './toasts'
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 const panel = computed(() => props.state?.mailPanel)
+const maximized = computed(() => props.state?.mailMaximized === true)
 const needsAuth = computed(() => panel.value?.errorKind === 'auth')
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const folderMap = computed(() => props.state?.mail.folders ?? {})
@@ -311,6 +312,37 @@ function saveAttachment(part: string, open: boolean): void {
     open,
   })
 }
+function openContentLink(event: MouseEvent): void {
+  const target = event.target
+  if (!(target instanceof Element)) return
+  const anchor = target.closest('a')
+  if (!anchor) return
+  event.preventDefault()
+  const href = anchor.getAttribute('href') ?? ''
+  if (!/^(https?:|mailto:)/i.test(href)) return
+  void window.mqmz?.openExternal(href)
+}
+function toggleDefault(): void {
+  emit('command', { type: 'panel-control', action: 'toggle-default' })
+}
+function onFrameDoubleClick(event: MouseEvent): void {
+  if (event.target !== event.currentTarget) return
+  toggleDefault()
+}
+/** Snapshot the state before the native drag region may zoom the window. */
+let headerPressMaximized = false
+function onHeaderMouseDown(): void {
+  headerPressMaximized = maximized.value
+}
+function onHeaderDoubleClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button')) return
+  const before = headerPressMaximized
+  window.setTimeout(() => {
+    if (maximized.value !== before) return
+    toggleDefault()
+  }, 220)
+}
 async function copyCode(): Promise<void> {
   if (!selected.value?.code || codeExpired.value) return
   try {
@@ -365,11 +397,21 @@ watch(
 </script>
 
 <template>
-  <main class="mail-shell" @keydown.esc="emit('command', { type: 'mail-close' })">
+  <main
+    class="mail-shell"
+    :class="{ 'is-maximized': maximized }"
+    @dblclick="onFrameDoubleClick"
+    @keydown.esc="emit('command', { type: 'mail-close' })"
+  >
     <section class="mail-surface" aria-label="邮件">
       <PanelHeader
         title="邮件"
         :platform="state?.runtime.platform"
+        :resizable="true"
+        :maximized="maximized"
+        @mousedown="onHeaderMouseDown"
+        @dblclick="onHeaderDoubleClick"
+        @maximize="toggleDefault"
         @minimize="
           emit('command', { type: 'panel-control', action: 'minimize' })
         "
@@ -687,7 +729,13 @@ watch(
             <p v-if="selected.code && codeNote" class="mail-code-note">
               {{ codeNote }}
             </p>
-            <div v-if="selected.bodyHtml" class="mail-content" v-html="selected.bodyHtml" />
+            <div
+              v-if="selected.bodyHtml"
+              class="mail-content"
+              @click="openContentLink"
+              @auxclick="openContentLink"
+              v-html="selected.bodyHtml"
+            />
             <pre v-else-if="selected.bodyText" class="mail-text">{{ selected.bodyText }}</pre>
             <p v-else class="mail-empty">这封邮件没有正文。</p>
             <p
@@ -736,6 +784,13 @@ watch(
   background: transparent;
   color: var(--color-ink);
   user-select: none;
+}
+.mail-shell.is-maximized {
+  background: var(--color-canvas);
+}
+.mail-shell.is-maximized .mail-surface {
+  border-radius: 0;
+  box-shadow: none;
 }
 .mail-surface {
   height: 100%;
@@ -1260,6 +1315,91 @@ watch(
   font-size: var(--font-size-label);
   line-height: 1.65;
   overflow-wrap: anywhere;
+  overflow-x: auto;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+.mail-content::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.mail-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mail-content::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--color-line);
+}
+.mail-content :deep(a) {
+  color: var(--color-brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.mail-content :deep(a:hover) {
+  color: var(--color-brand);
+}
+.mail-content :deep(a:focus-visible) {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-brand-highlight);
+  outline-offset: 2px;
+}
+.mail-content :deep(table) {
+  max-width: 100%;
+  border-color: var(--color-line);
+  overflow-wrap: normal;
+}
+.mail-content :deep(th),
+.mail-content :deep(td) {
+  overflow-wrap: break-word;
+}
+.mail-content :deep(p) {
+  margin: 0 0 10px;
+}
+.mail-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.mail-content :deep(h1),
+.mail-content :deep(h2),
+.mail-content :deep(h3),
+.mail-content :deep(h4),
+.mail-content :deep(h5),
+.mail-content :deep(h6) {
+  margin: 14px 0 8px;
+}
+.mail-content :deep(h1) {
+  font-size: 20px;
+}
+.mail-content :deep(h2) {
+  font-size: 18px;
+}
+.mail-content :deep(h3) {
+  font-size: 16px;
+}
+.mail-content :deep(h4),
+.mail-content :deep(h5),
+.mail-content :deep(h6) {
+  font-size: 14px;
+}
+.mail-content :deep(ul),
+.mail-content :deep(ol) {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.mail-content :deep(blockquote) {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-line);
+  color: var(--color-muted);
+}
+.mail-content :deep(pre) {
+  overflow-x: auto;
+}
+.mail-content :deep(hr) {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
 }
 .mail-content :deep(img) {
   display: none;
@@ -1270,6 +1410,7 @@ watch(
   font: inherit;
   font-size: var(--font-size-label);
   line-height: 1.65;
+  user-select: text;
 }
 .mail-attachments {
   display: flex;

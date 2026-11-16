@@ -1,5 +1,7 @@
 /** Models exposed by the agent composer and their generation capabilities. */
 
+import { isVolcanoImageModel } from './volcano'
+
 export type AgentProvider = 'deepseek' | 'minimax' | 'volcano'
 export type AgentModelKind = 'text' | 'image' | 'video' | 'speech'
 
@@ -174,6 +176,16 @@ export function isMiniMaxModel(id: string): boolean {
 export function isGenerationModel(id: string): boolean {
   const kind = modelInfo(id)?.kind
   return kind === 'image' || kind === 'video' || kind === 'speech'
+}
+
+/** Whether a supported model is covered by the Ark key's listed model IDs. */
+export function volcanoModelListed(
+  model: AgentModelInfo,
+  ids: readonly string[],
+): boolean {
+  if (model.provider !== 'volcano') return false
+  if (model.kind === 'image') return ids.some((id) => isVolcanoImageModel(id))
+  return ids.includes(model.id)
 }
 
 export function isTextModel(id: string): boolean {

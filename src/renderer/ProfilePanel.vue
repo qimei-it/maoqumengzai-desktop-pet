@@ -178,6 +178,7 @@ function onWheel(event: WheelEvent): void {
 }
 
 const name = ref(props.state?.settings.petName ?? '麻薯')
+const daysTogether = computed(() => props.state?.petStats.daysTogether ?? 0)
 const saved = ref(false)
 const value = computed(() => name.value.trim())
 const currentName = computed(() => props.state?.settings.petName ?? '')
@@ -368,6 +369,10 @@ function close(): void {
             </button>
           </span>
         </div>
+        <div class="profile-row">
+          <span class="profile-label">已陪伴</span>
+          <span class="profile-value">{{ daysTogether }} 天</span>
+        </div>
       </div>
 
       <p v-if="saved" class="profile-notice" role="status">名字已保存</p>
@@ -534,6 +539,14 @@ function close(): void {
   gap: 12px;
   min-height: 58px;
   font-size: var(--font-size-body);
+}
+.profile-row + .profile-row {
+  border-top: 1px solid var(--color-line);
+}
+.profile-value {
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
 }
 .profile-label {
   display: inline-flex;

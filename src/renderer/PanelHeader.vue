@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Minus, Square, X } from '@lucide/vue'
+import { Copy, Minus, Square, X } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{
     title: string
     platform?: string
     resizable?: boolean
+    maximized?: boolean
   }>(),
-  { platform: '', resizable: false },
+  { platform: '', resizable: false, maximized: false },
 )
 const emit = defineEmits<{
   minimize: []
@@ -49,12 +50,18 @@ const mac = computed(() => {
       <button
         type="button"
         class="panel-win-button"
-        aria-label="最大化"
-        title="固定尺寸"
+        :aria-label="maximized ? '还原' : '最大化'"
+        :title="maximized ? '还原' : resizable ? '最大化' : '固定尺寸'"
         :disabled="!resizable"
         @click="emit('maximize')"
       >
-        <Square :size="12" :stroke-width="2" aria-hidden="true" />
+        <Copy
+          v-if="maximized"
+          :size="12"
+          :stroke-width="2"
+          aria-hidden="true"
+        />
+        <Square v-else :size="12" :stroke-width="2" aria-hidden="true" />
       </button>
       <button
         type="button"

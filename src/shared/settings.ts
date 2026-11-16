@@ -32,7 +32,7 @@ export const themeLabels: Record<ThemeId, string> = {
 }
 
 export type Settings = {
-  version: 1
+  version: 2
   petId: string
   petName: string
   theme: ThemeId
@@ -53,6 +53,7 @@ export type Settings = {
   agentDefaultVideoModel: AgentModelId | ''
   agentDefaultAudioModel: AgentModelId | ''
   aiQuotaEnabled: boolean
+  aiQuotaAlerts: boolean
   aiQuotaRefreshMinutes: number
   aiQuotaOpenAIPath: string
   agentAttachmentDir: string
@@ -63,7 +64,7 @@ export type Settings = {
 export type SettingsState = Omit<Settings, 'version'>
 
 export const defaultSettings: Settings = {
-  version: 1,
+  version: 2,
   petId: '',
   petName: '麻薯',
   theme: 'default',
@@ -80,10 +81,11 @@ export const defaultSettings: Settings = {
   shelfMaxRecords: 100,
   aiModel: 'deepseek-flash',
   agentDefaultChatModel: 'deepseek-flash',
-  aiImageModel: 'MiniMax-H3-Image',
+  aiImageModel: 'Doubao-Seedream-5.5',
   agentDefaultVideoModel: 'MiniMax-H3',
   agentDefaultAudioModel: 'speech-2.8-hd',
   aiQuotaEnabled: true,
+  aiQuotaAlerts: true,
   aiQuotaRefreshMinutes: 5,
   aiQuotaOpenAIPath: '',
   agentAttachmentDir: '',

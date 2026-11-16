@@ -262,7 +262,7 @@ test("restart restores focus, reminders, clipboard and shelf state", async () =>
       const current = await pet.evaluate(() => window.mqmz!.snapshot());
       return current.ok
         ? current.value.events.some((event) =>
-            event.message.includes("喝水提醒"),
+            event.message.includes("喝水提醒：主人，"),
           )
         : false;
     })

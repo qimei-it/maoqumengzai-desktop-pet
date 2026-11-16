@@ -3,13 +3,13 @@ import { stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type { TLSSocket } from 'node:tls'
 import nodemailer from 'nodemailer'
-import sanitizeHtml from 'sanitize-html'
 import {
   mailSmtpServer,
   type MailAccount,
   type MailProvider,
 } from '../shared/mail'
 import { appendMailToSent } from './mail-sync'
+import { sanitizeMailBodyHtml } from './mail-html'
 import { createProxySocket, mailProxyUrl } from './mail-proxy'
 
 export type OutgoingAttachment = {
@@ -82,16 +82,7 @@ export async function sendMailMessage(
   const from = mail.account.displayName
     ? { name: mail.account.displayName, address: mail.account.email }
     : mail.account.email
-  const html = mail.bodyHtml
-    ? sanitizeHtml(mail.bodyHtml, {
-        allowedTags: [
-          'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u',
-          'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
-          'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr',
-        ],
-        allowedAttributes: {},
-      })
-    : undefined
+  const html = mail.bodyHtml ? sanitizeMailBodyHtml(mail.bodyHtml) : undefined
   const mailOptions: nodemailer.SendMailOptions = {
     from,
     to: mail.to,

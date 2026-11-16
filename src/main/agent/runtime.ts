@@ -31,6 +31,7 @@ import {
   agentTextModels,
   isTextModel,
   modelInfo,
+  volcanoModelListed,
 } from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
 import { defaultGenerationParams, normalizeGenerationParams } from '../../shared/generation'
@@ -131,6 +132,8 @@ export type AgentRuntimeDeps = {
   volcanoStream?: typeof streamVolcanoChat
   getMiniMaxKey?(): string | undefined
   getVolcanoKey?(): string | undefined
+  /** Ark model IDs the current key can call; undefined until the list loads. */
+  getVolcanoModels?(): string[] | undefined
   /** Injectable for tests; production uses the DeepSeek Files/ASR APIs. */
   files?: AgentFilesClient
   /** Enabled skills exposed to the model as a catalog plus a loader tool. */
@@ -624,7 +627,17 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return '请先配置 DeepSeek API Key。'
   }
   function textModelFor(provider: AgentProvider): AgentModelId | undefined {
-    return agentTextModels.find((model) => model.provider === provider)?.id
+    const models = agentTextModels.filter(
+      (model) => model.provider === provider,
+    )
+    if (provider === 'volcano') {
+      const ids = deps.getVolcanoModels?.()
+      if (ids?.length) {
+        const listed = models.find((model) => volcanoModelListed(model, ids))
+        if (listed) return listed.id
+      }
+    }
+    return models[0]?.id
   }
   function availableChatModel(): AgentModelId | undefined {
     if (deps.getKey()) return textModelFor('deepseek')
@@ -633,7 +646,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return undefined
   }
   function modelKeyAvailable(model: AgentModelId): boolean {
-    return Boolean(providerKey(modelInfo(model)?.provider))
+    const provider = modelInfo(model)?.provider
+    if (!providerKey(provider)) return false
+    const info = modelInfo(model)
+    const ids = deps.getVolcanoModels?.()
+    if (provider !== 'volcano' || !info || !ids?.length) return true
+    return volcanoModelListed(info, ids)
   }
   const files: AgentFilesClient = deps.files ?? {
     upload: (apiKey, path, purpose, signal) =>

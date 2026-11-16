@@ -1,5 +1,6 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, test } from 'vitest'
 import { MailDatabase } from '../../src/main/mail-db'
@@ -80,6 +81,43 @@ describe('mail database', () => {
     db.close()
   })
 
+
+  test('tracks the cached body format version', async () => {
+    const directory = await tempDirectory()
+    const path = join(directory, 'mail.db')
+    const db = new MailDatabase(path)
+    const account = db.addAccount({
+      provider: 'qq',
+      email: 'body@qq.com',
+    })
+    db.upsertMessages(account.id, 'INBOX', [
+      {
+        uid: 1,
+        subject: '表格邮件',
+        unread: false,
+        hasAttachments: false,
+      },
+    ])
+    expect(db.isMessageBodyCurrent(account.id, 'INBOX', 1)).toBe(false)
+    db.saveMessageDetail(account.id, 'INBOX', 1, {
+      bodyText: '表头',
+      bodyHtml: '<table><tr><td>表头</td></tr></table>',
+      attachments: [],
+    })
+    expect(db.isMessageBodyCurrent(account.id, 'INBOX', 1)).toBe(true)
+    db.close()
+
+    const raw = new DatabaseSync(path)
+    raw.prepare('UPDATE mail_messages SET body_version = 0').run()
+    raw.close()
+
+    const reopened = new MailDatabase(path)
+    expect(reopened.isMessageBodyCurrent(account.id, 'INBOX', 1)).toBe(false)
+    expect(reopened.message(account.id, 'INBOX', 1)?.bodyHtml).toContain(
+      '<table>',
+    )
+    reopened.close()
+  })
 
   test('prunes cached messages older than the retention window', async () => {
     const directory = await tempDirectory()

@@ -17,6 +17,7 @@ import type {
   MailMessageSummary,
   MailProvider,
 } from '../shared/mail'
+import { mailBodyVersion } from './mail-html'
 
 type AccountRow = {
   id: string
@@ -96,6 +97,7 @@ export class MailDatabase {
         size INTEGER NOT NULL DEFAULT 0,
         body_text TEXT,
         body_html TEXT,
+        body_version INTEGER NOT NULL DEFAULT 0,
         cached_at INTEGER NOT NULL,
         PRIMARY KEY(account_id, folder, uid)
       );
@@ -157,6 +159,13 @@ export class MailDatabase {
     } catch {
       /* column already exists */
     }
+    try {
+      this.db.exec(
+        'ALTER TABLE mail_messages ADD COLUMN body_version INTEGER NOT NULL DEFAULT 0',
+      )
+    } catch {
+      /* column already exists */
+    }
     const version = this.db
       .prepare('PRAGMA user_version')
       .get() as unknown as { user_version: number }
@@ -169,6 +178,11 @@ export class MailDatabase {
         DELETE FROM mail_messages WHERE folder <> 'INBOX';
         PRAGMA user_version = 1;
       `)
+    }
+    if ((version?.user_version ?? 0) < 2) {
+      // Bodies cached before version 2 lost links and table styling during
+      // sanitisation. They are refetched lazily when opened.
+      this.db.exec('PRAGMA user_version = 2')
     }
   }
 
@@ -754,6 +768,19 @@ export class MailDatabase {
     }))
   }
 
+  isMessageBodyCurrent(accountId: string, folder: string, uid: number): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT body_version
+         FROM mail_messages
+         WHERE account_id = ? AND folder = ? AND uid = ?`,
+      )
+      .get(accountId, folder, uid) as unknown as
+      | { body_version: number }
+      | undefined
+    return Boolean(row && row.body_version >= mailBodyVersion)
+  }
+
   message(
     accountId: string,
     folder: string,
@@ -876,12 +903,14 @@ export class MailDatabase {
     this.db
       .prepare(
         `UPDATE mail_messages
-         SET body_text = ?, body_html = ?, snippet = ?, has_attachments = ?
+         SET body_text = ?, body_html = ?, body_version = ?, snippet = ?,
+             has_attachments = ?
          WHERE account_id = ? AND folder = ? AND uid = ?`,
       )
       .run(
         detail.bodyText ?? null,
         detail.bodyHtml ?? null,
+        mailBodyVersion,
         detail.snippet ?? null,
         detail.attachments.length ? 1 : 0,
         accountId,

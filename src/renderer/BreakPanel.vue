@@ -48,6 +48,8 @@ const nextLabel = computed(() => {
 const dnd = computed(() => focus.value?.breakDnd ?? true)
 const dndStart = computed(() => focus.value?.breakDndStart ?? 22)
 const dndEnd = computed(() => focus.value?.breakDndEnd ?? 8)
+/** Nothing to mute while both reminders are off. */
+const dndLocked = computed(() => !sitting.value && !eyes.value)
 const tabLabel = computed(() =>
   tab.value === 'sitting' ? '久坐提醒' : '用眼提醒',
 )
@@ -197,7 +199,7 @@ function close(): void {
         </div>
 
         <div class="break-dnd">
-          <div class="break-row">
+          <div class="break-row" :class="{ muted: dndLocked }">
             <span>免打扰</span>
             <button
               type="button"
@@ -205,17 +207,18 @@ function close(): void {
               role="switch"
               aria-label="免打扰"
               :aria-checked="dnd"
+              :disabled="dndLocked"
               @click="toggleDnd"
             >
               <span class="break-switch-thumb" />
             </button>
           </div>
-          <div class="break-row" :class="{ muted: !dnd }">
+          <div class="break-row" :class="{ muted: dndLocked || !dnd }">
             <span>免打扰时段</span>
             <span class="break-config">
               <SelectField
                 :value="dndStart"
-                :disabled="!dnd"
+                :disabled="dndLocked || !dnd"
                 min-width="92px"
                 aria-label="免打扰开始时间"
                 @change="changeDndStart"
@@ -227,7 +230,7 @@ function close(): void {
               <span class="break-value">–</span>
               <SelectField
                 :value="dndEnd"
-                :disabled="!dnd"
+                :disabled="dndLocked || !dnd"
                 min-width="92px"
                 aria-label="免打扰结束时间"
                 @change="changeDndEnd"
@@ -367,6 +370,9 @@ function close(): void {
 }
 .break-switch[aria-checked='true'] .break-switch-thumb {
   transform: translateX(17px);
+}
+.break-switch:disabled {
+  opacity: 0.55;
 }
 .break-next {
   display: flex;

@@ -3,6 +3,7 @@ import { ImapFlow, type FetchMessageObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import sanitizeHtml from 'sanitize-html'
 import { detectVerificationCode } from '../shared/mail-code'
+import { sanitizeMailBodyHtml } from './mail-html'
 import { mailProxyUrl } from './mail-proxy'
 import {
   mailImapServer,
@@ -578,17 +579,7 @@ export async function fetchMailDetail(
     const from = parsed.from?.value?.[0]
     const subject = parsed.subject || '(无主题)'
     const text = parsed.text || ''
-    const html = parsed.html
-      ? sanitizeHtml(parsed.html, {
-          allowedTags: [
-            'p', 'br', 'div', 'span', 'strong', 'b', 'em', 'i', 'u',
-            'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr',
-          ],
-          disallowedTagsMode: 'discard',
-        })
-      : undefined
+    const html = parsed.html ? sanitizeMailBodyHtml(parsed.html) : undefined
     const detectionText =
       text ||
       (html

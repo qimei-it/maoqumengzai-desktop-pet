@@ -89,20 +89,26 @@ function matchesOrder<T extends string>(
   )
 }
 
-function migrateSettings(value: Settings): Settings {
+function migrateSettings(
+  value: Omit<Settings, 'version'> & { version: 1 | 2 },
+): Settings {
   const previousHover = matchesOrder(value.hoverWheelActions, previousHoverActions)
   const previousFile = previousFileOrders.some((order) =>
     matchesOrder(value.fileWheelActions, order),
   )
-  if (!previousHover && !previousFile) return value
+  /** v1 shipped MiniMax H3 Image as the default image model. */
+  const previousImage =
+    value.version === 1 && value.aiImageModel === 'MiniMax-H3-Image'
   return {
     ...value,
+    version: 2,
     ...(previousHover
       ? { hoverWheelActions: [...defaultSettings.hoverWheelActions] }
       : {}),
     ...(previousFile
       ? { fileWheelActions: [...defaultSettings.fileWheelActions] }
       : {}),
+    ...(previousImage ? { aiImageModel: defaultSettings.aiImageModel } : {}),
   }
 }
 
@@ -113,7 +119,7 @@ const modelOfKind = (kind: AgentModelKind) =>
 
 const settingsSchema = z
   .object({
-    version: z.literal(1),
+    version: z.union([z.literal(1), z.literal(2)]),
     petId: z.string().trim().max(80).default(''),
     petName: z.string().trim().min(1).max(20).default('麻薯'),
     theme: z.enum(themeIds),
@@ -133,8 +139,8 @@ const settingsSchema = z
     aiModel: z.enum(deepseekModelIds).default('deepseek-flash'),
     agentDefaultChatModel: modelOfKind('text').optional().catch(undefined),
     aiImageModel: modelOfKind('image')
-      .default('MiniMax-H3-Image')
-      .catch('MiniMax-H3-Image'),
+      .default('Doubao-Seedream-5.5')
+      .catch('Doubao-Seedream-5.5'),
     agentDefaultVideoModel: modelOfKind('video')
       .default('MiniMax-H3')
       .catch('MiniMax-H3'),
@@ -142,6 +148,7 @@ const settingsSchema = z
       .default('speech-2.8-hd')
       .catch('speech-2.8-hd'),
     aiQuotaEnabled: z.boolean().default(true),
+    aiQuotaAlerts: z.boolean().default(true),
     aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).default(5),
     aiQuotaOpenAIPath: z.string().max(1024).default(''),
     agentAttachmentDir: z.string().trim().max(4096).default(''),
@@ -165,14 +172,19 @@ const settingsSchema = z
 export type LoadedSettings = {
   settings: Settings
   existed: boolean
+  /** The file on disk used an older schema and should be rewritten. */
+  upgraded?: boolean
 }
 
 export async function loadSettingsFile(path: string): Promise<LoadedSettings> {
   try {
-    const settings = migrateSettings(
-      settingsSchema.parse(JSON.parse(await readFile(path, 'utf8'))),
-    )
-    return { settings, existed: true }
+    const parsed = settingsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const settings = migrateSettings(parsed)
+    return {
+      settings,
+      existed: true,
+      upgraded: JSON.stringify(parsed) !== JSON.stringify(settings),
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
       return { settings: { ...defaultSettings }, existed: false }

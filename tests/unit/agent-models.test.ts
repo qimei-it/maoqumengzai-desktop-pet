@@ -6,6 +6,7 @@ import {
   isGenerationModel,
   isTextModel,
   modelInfo,
+  volcanoModelListed,
 } from '../../src/shared/agent-models'
 
 describe('agent model catalog', () => {
@@ -66,5 +67,30 @@ describe('agent model catalog', () => {
       reasoning: true,
       contextWindow: 1_048_576,
     })
+  })
+
+  test('matches supported Volcano models against the listed IDs', () => {
+    const text = modelInfo('doubao-seed-2-1-lite-260915')!
+    const image = modelInfo('Doubao-Seedream-5.5')!
+    const deepseek = modelInfo('deepseek-flash')!
+    expect(
+      volcanoModelListed(text, [
+        'doubao-seed-2-1-pro-260915',
+        'doubao-seed-2-1-lite-260915',
+        'doubao-seedream-5-5-261028',
+      ]),
+    ).toBe(true)
+    expect(
+      volcanoModelListed(text, ['doubao-seed-2-1-pro-260915']),
+    ).toBe(false)
+    expect(
+      volcanoModelListed(image, ['doubao-seedream-5-0-flash-20260101']),
+    ).toBe(true)
+    expect(volcanoModelListed(image, ['doubao-seed-2-1-pro-260915'])).toBe(
+      false,
+    )
+    expect(volcanoModelListed(deepseek, ['doubao-seed-2-1-pro-260915'])).toBe(
+      false,
+    )
   })
 })

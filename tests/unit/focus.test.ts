@@ -8,6 +8,7 @@ import {
   formatClockTime,
   formatFocus,
   groupByDay,
+  inQuietHours,
   nextBreakAt,
   nextPhase,
   nextWaterAt,
@@ -65,6 +66,18 @@ describe('focus helpers', () => {
     )
   })
 
+  test('quiet hours predicate covers both window shapes', () => {
+    const night = new Date(2026, 10, 16, 23, 0).getTime()
+    const morning = new Date(2026, 10, 16, 7, 30).getTime()
+    const noon = new Date(2026, 10, 16, 12, 0).getTime()
+    expect(inQuietHours(night, 22, 8)).toBe(true)
+    expect(inQuietHours(morning, 22, 8)).toBe(true)
+    expect(inQuietHours(noon, 22, 8)).toBe(false)
+    expect(inQuietHours(noon, 12, 14)).toBe(true)
+    expect(inQuietHours(night, 12, 14)).toBe(false)
+    expect(inQuietHours(noon, 22, 22)).toBe(false)
+  })
+
   test('water reminders stay inside 09:00–22:00', () => {
     const inside = new Date(2026, 10, 11, 10, 30).getTime()
     expect(nextWaterAt(inside)).toBe(inside + 60 * 60 * 1000)
@@ -75,6 +88,12 @@ describe('focus helpers', () => {
     expect(tomorrow.getMinutes()).toBe(0)
     const early = new Date(2026, 10, 11, 8, 30).getTime()
     expect(new Date(nextWaterAt(early)).getHours()).toBe(9)
+    // A due reminder after the window closes must not land on today's past 09:00.
+    const night = new Date(2026, 10, 11, 23, 20).getTime()
+    const nextMorning = new Date(nextWaterAt(night))
+    expect(nextMorning.getDate()).toBe(12)
+    expect(nextMorning.getHours()).toBe(9)
+    expect(nextWaterAt(night)).toBeGreaterThan(night)
   })
 
   test('water interval and active hours are configurable', () => {

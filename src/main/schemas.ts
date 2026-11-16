@@ -426,6 +426,7 @@ export const commandSchema = z.discriminatedUnion('type', [
           agentDefaultVideoModel: modelOfKind('video').optional(),
           agentDefaultAudioModel: modelOfKind('speech').optional(),
           aiQuotaEnabled: z.boolean().optional(),
+          aiQuotaAlerts: z.boolean().optional(),
           aiQuotaRefreshMinutes: z.number().int().min(1).max(1440).optional(),
           aiQuotaOpenAIPath: z.string().max(1024).optional(),
           agentAttachmentDir: z.string().trim().max(4096).optional(),
@@ -509,6 +510,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('break-close') }).strict(),
   z.object({ type: z.literal('profile-open') }).strict(),
   z.object({ type: z.literal('profile-close') }).strict(),
+  z.object({ type: z.literal('pet-poke') }).strict(),
   z.object({ type: z.literal('clipboard-open') }).strict(),
   z.object({ type: z.literal('clipboard-close') }).strict(),
   z

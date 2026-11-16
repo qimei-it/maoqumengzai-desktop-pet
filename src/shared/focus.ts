@@ -70,6 +70,21 @@ export function nextBreakAt(
   return resume.getTime()
 }
 
+/** True while local time sits inside the daily quiet window (may cross midnight). */
+export function inQuietHours(
+  now: number,
+  dndStart = 22,
+  dndEnd = 8,
+): boolean {
+  if (dndStart === dndEnd) return false
+  const date = new Date(now)
+  const hour =
+    date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600
+  return dndStart < dndEnd
+    ? hour >= dndStart && hour < dndEnd
+    : hour >= dndStart || hour < dndEnd
+}
+
 export type FocusStatsPeriod = 'week' | 'month'
 export type FocusStatsBucket = {
   key: string
@@ -179,8 +194,8 @@ export function nextWaterAt(
   const date = new Date(next)
   if (date.getHours() >= endHour || date.getHours() < startHour) {
     const morning = new Date(now)
-    if (date.getHours() >= endHour) morning.setDate(morning.getDate() + 1)
     morning.setHours(startHour, 0, 0, 0)
+    if (morning.getTime() <= now) morning.setDate(morning.getDate() + 1)
     return morning.getTime()
   }
   return next

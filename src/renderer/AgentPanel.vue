@@ -81,6 +81,7 @@ import {
   agentModelLabels,
   agentProviderLabels,
   modelInfo,
+  volcanoModelListed,
   type AgentModelId,
   type AgentModelInfo,
   type AgentModelKind,
@@ -144,7 +145,10 @@ watch(
     }, 4000)
   },
 )
-const configured = computed(() => agent.value?.configured === true)
+/** DeepSeek keeps its key in the legacy `ai` block; this is not "any provider". */
+const deepseekConfigured = computed(
+  () => props.state?.ai.configured === true,
+)
 const aiTest = computed<AiTestState>(
   () => props.state?.ai.test ?? { status: 'idle' },
 )
@@ -421,7 +425,10 @@ const volcanoConfigured = computed(
   () => props.state?.ai.volcano.configured === true,
 )
 const chatAvailable = computed(
-  () => configured.value || minimaxConfigured.value || volcanoConfigured.value,
+  () =>
+    deepseekConfigured.value ||
+    minimaxConfigured.value ||
+    volcanoConfigured.value,
 )
 const setupProviders: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
 function toggleSetupProvider(provider: AgentProvider): void {
@@ -430,7 +437,7 @@ function toggleSetupProvider(provider: AgentProvider): void {
 function providerConfigured(provider: AgentProvider): boolean {
   if (provider === 'minimax') return minimaxConfigured.value
   if (provider === 'volcano') return volcanoConfigured.value
-  return configured.value
+  return deepseekConfigured.value
 }
 function providerTest(provider: AgentProvider): AiTestState {
   if (provider === 'minimax')
@@ -458,7 +465,10 @@ const providerGroups = computed(() =>
             kindOrder.indexOf(left.kind) - kindOrder.indexOf(right.kind),
         ),
     }))
-    .filter((group) => group.models.length > 0),
+    .filter(
+      (group) =>
+        group.models.length > 0 && providerConfigured(group.provider),
+    ),
 )
 function modelKindLabel(kind: AgentModelKind): string {
   if (kind === 'image') return '图像'
@@ -466,11 +476,19 @@ function modelKindLabel(kind: AgentModelKind): string {
   if (kind === 'speech') return '音频'
   return '文本'
 }
+const collapsedProviders = ref<Partial<Record<AgentProvider, boolean>>>({})
+function providerCollapsed(provider: AgentProvider): boolean {
+  return collapsedProviders.value[provider] === true
+}
+function toggleProvider(provider: AgentProvider): void {
+  collapsedProviders.value = {
+    ...collapsedProviders.value,
+    [provider]: !providerCollapsed(provider),
+  }
+}
 const modelConfigured = computed(() => {
   const provider = currentModel.value?.provider
-  if (provider === 'minimax') return minimaxConfigured.value
-  if (provider === 'volcano') return volcanoConfigured.value
-  return configured.value
+  return provider ? providerConfigured(provider) : false
 })
 const generationParamsKey = 'mqmz.agent.generation-params'
 function loadGenerationParams(): GenerationParams {
@@ -708,20 +726,26 @@ function formatCompactNumber(value: number): string {
 function formatTokenCount(value: number): string {
   return new Intl.NumberFormat('en-US').format(value)
 }
-const contextWindowLabel = computed(() =>
-  formatCompactNumber(currentModel.value?.contextWindow ?? 0),
-)
-const contextPercent = computed(() => {
-  const window = currentModel.value?.contextWindow ?? 0
+const contextRatio = computed(() => {
+  const window = selectedModelInfo.value?.contextWindow ?? 0
   if (!window) return 0
-  return Math.min(
-    100,
-    Math.max(0, Math.round((contextTokens.value / window) * 100)),
-  )
+  return Math.min(100, Math.max(0, (contextTokens.value / window) * 100))
 })
+function formatPercent(value: number): string {
+  if (value <= 0) return '0'
+  if (value < 0.05) return '<0.1'
+  if (value < 1) return (Math.round(value * 10) / 10).toFixed(1)
+  return String(Math.round(value))
+}
 const tokenUsageLabel = computed(() => {
-  if (!isTextModel.value || !currentModel.value?.contextWindow) return ''
-  return `${contextWindowLabel.value} (${contextPercent.value}%) 输入：${formatTokenCount(usage.value.input)} tokens 输出：${formatTokenCount(usage.value.output)} tokens`
+  if (!isTextModel.value || !selectedModelInfo.value?.contextWindow) return ''
+  if (contextTokens.value <= 0) return ''
+  return `${formatCompactNumber(contextTokens.value)} (${formatPercent(contextRatio.value)}%) · 输入 ${formatTokenCount(usage.value.input)} · 输出 ${formatTokenCount(usage.value.output)}`
+})
+const tokenUsageTitle = computed(() => {
+  const window = selectedModelInfo.value?.contextWindow ?? 0
+  if (!window || contextTokens.value <= 0) return ''
+  return `当前上下文 ${formatTokenCount(contextTokens.value)} / ${formatTokenCount(window)} tokens（${formatPercent(contextRatio.value)}%）；输入、输出为本会话累计`
 })
 
 const ungrouped = computed(() =>
@@ -2090,10 +2114,20 @@ function selectAgentModel(item: AgentModelInfo): void {
 function openAgentSettings(): void {
   emit('command', { type: 'settings-section', section: 'ai' })
 }
+function modelUnavailableReason(item: AgentModelInfo): string | undefined {
+  if (!providerConfigured(item.provider))
+    return `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
+  const listed = props.state?.ai.volcano.models
+  if (
+    item.provider === 'volcano' &&
+    listed?.length &&
+    !volcanoModelListed(item, listed)
+  )
+    return '当前 API Key 无法使用该模型'
+  return undefined
+}
 function modelAvailable(item: AgentModelInfo): boolean {
-  if (item.provider === 'minimax') return minimaxConfigured.value
-  if (item.provider === 'volcano') return volcanoConfigured.value
-  return configured.value
+  return modelUnavailableReason(item) === undefined
 }
 function switchToFlashAndSend(): void {
   if (busy.value || !draft.value.trim()) return
@@ -3520,6 +3554,7 @@ function statusLabel(status: string): string {
                 :key="message.id"
                 class="agent-message"
                 :class="message.role"
+                :data-lead="message.parts[0]?.type ?? 'none'"
               >
                 <div
                   v-if="message.attachments?.length"
@@ -4765,46 +4800,64 @@ function statusLabel(status: string): string {
                         v-for="group in providerGroups"
                         :key="group.provider"
                       >
-                        <p class="agent-model-group">{{ group.label }}</p>
                         <button
-                          v-for="item in group.models"
-                          :key="item.id"
                           type="button"
-                          class="agent-model-option"
-                          role="menuitemradio"
-                          :aria-checked="isModelSelected(item)"
-                          :disabled="!modelAvailable(item)"
-                          :title="
-                            modelAvailable(item)
-                              ? undefined
-                              : `先在设置中添加 ${agentProviderLabels[item.provider]} API Key`
-                          "
-                          @click="selectAgentModel(item)"
+                          class="agent-model-group agent-model-group-toggle"
+                          :aria-expanded="!providerCollapsed(group.provider)"
+                          :aria-label="group.label"
+                          @click="toggleProvider(group.provider)"
                         >
-                          <Check
-                            v-if="isModelSelected(item)"
+                          <span>{{ group.label }}</span>
+                          <ChevronDown
+                            v-if="!providerCollapsed(group.provider)"
                             :size="14"
                             :stroke-width="2"
                             aria-hidden="true"
                           />
-                          <span
+                          <ChevronRight
                             v-else
-                            class="agent-model-check-space"
+                            :size="14"
+                            :stroke-width="2"
                             aria-hidden="true"
-                          ></span>
-                          <ModelBrandMark :provider="item.provider" />
-                          <span class="agent-model-option-label">{{
-                            item.label
-                          }}</span>
-                          <span
-                            v-if="isDefaultModel(item)"
-                            class="agent-model-default"
-                            >默认</span
-                          >
-                          <span class="agent-model-kind">{{
-                            modelKindLabel(item.kind)
-                          }}</span>
+                          />
                         </button>
+                        <template v-if="!providerCollapsed(group.provider)">
+                          <button
+                            v-for="item in group.models"
+                            :key="item.id"
+                            type="button"
+                            class="agent-model-option"
+                            role="menuitemradio"
+                            :aria-checked="isModelSelected(item)"
+                            :disabled="!modelAvailable(item)"
+                            :title="modelUnavailableReason(item)"
+                            @click="selectAgentModel(item)"
+                          >
+                            <Check
+                              v-if="isModelSelected(item)"
+                              :size="14"
+                              :stroke-width="2"
+                              aria-hidden="true"
+                            />
+                            <span
+                              v-else
+                              class="agent-model-check-space"
+                              aria-hidden="true"
+                            ></span>
+                            <ModelBrandMark :provider="item.provider" />
+                            <span class="agent-model-option-label">{{
+                              item.label
+                            }}</span>
+                            <span
+                              v-if="isDefaultModel(item)"
+                              class="agent-model-default"
+                              >默认</span
+                            >
+                            <span class="agent-model-kind">{{
+                              modelKindLabel(item.kind)
+                            }}</span>
+                          </button>
+                        </template>
                       </template>
                       <template v-if="modelReasoning">
                         <div class="agent-model-divider"></div>
@@ -4869,6 +4922,7 @@ function statusLabel(status: string): string {
               <span
                 v-if="tokenUsageLabel"
                 class="agent-usage"
+                :title="tokenUsageTitle"
               >
                 {{ tokenUsageLabel }}
               </span>
@@ -5867,7 +5921,7 @@ function statusLabel(status: string): string {
 .agent-messages-inner {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-2);
   width: calc(100% - 32px);
   min-height: 100%;
   margin: 0 auto;
@@ -5877,6 +5931,7 @@ function statusLabel(status: string): string {
   align-items: center;
   align-self: center;
   gap: var(--space-2);
+  margin-bottom: calc(var(--space-5) - var(--space-2));
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   background: var(--color-fill-secondary);
@@ -5930,6 +5985,13 @@ function statusLabel(status: string): string {
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+}
+/* 步骤卡（思考/工具）跨消息也保持同一间距，正文与图片才拉开消息级留白 */
+.agent-message[data-lead='text']:not(:first-child),
+.agent-message[data-lead='media']:not(:first-child),
+.agent-message[data-lead='none']:not(:first-child),
+.agent-message.user + .agent-message {
+  margin-top: calc(var(--space-5) - var(--space-2));
 }
 .agent-message.user {
   align-items: flex-end;
@@ -6080,7 +6142,8 @@ function statusLabel(status: string): string {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 7px 10px;
+  min-height: 30px;
+  padding: 4px 10px;
   color: var(--color-muted);
 }
 .agent-tool-toggle,
@@ -6090,6 +6153,7 @@ function statusLabel(status: string): string {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  min-height: 22px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -7087,6 +7151,30 @@ function statusLabel(status: string): string {
   color: var(--color-subtle);
   font-size: var(--font-size-caption);
   font-weight: 600;
+}
+.agent-model-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 24px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  text-align: left;
+}
+.agent-model-group-toggle:hover {
+  color: var(--color-ink);
+}
+.agent-model-group-toggle:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: -1px;
+}
+.agent-model-group-toggle > svg {
+  flex: none;
 }
 .agent-model-option {
   display: flex;

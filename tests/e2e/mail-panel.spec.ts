@@ -116,6 +116,11 @@ test.beforeAll(async () => {
   })
   db.saveMessageDetail(accountId, 'INBOX', 1, {
     bodyText: '验证码 222222',
+    bodyHtml:
+      '<table width="600" cellpadding="8" bgcolor="#f6f6f6">' +
+      '<tr><td colspan="2" style="padding:12px;background-color:#fff">旧邮件表格</td></tr>' +
+      '<tr><td><a href="https://example.com/verify">查看验证码</a></td><td>说明</td></tr>' +
+      '</table>',
     code: '222222',
     attachments: [],
   })
@@ -345,6 +350,18 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
     .toContain('报告.txt')
 
   await mail.locator('.mail-message', { hasText: '旧验证码' }).click()
+  await expect(mail.locator('.mail-content')).toBeVisible()
+  await expect(mail.locator('.mail-content table')).toHaveAttribute(
+    'width',
+    '600',
+  )
+  await expect(
+    mail.locator('.mail-content td[colspan="2"]'),
+  ).toContainText('旧邮件表格')
+  await expect(mail.locator('.mail-content a')).toHaveAttribute(
+    'href',
+    'https://example.com/verify',
+  )
   await expect(mail.locator('.mail-code')).toHaveText('222222')
   await expect(mail.locator('.mail-code-note')).toHaveText(
     '已被新验证码替代',
@@ -551,6 +568,97 @@ test('添加或编辑账户时隐藏账户卡片', async () => {
   await pet.evaluate(() =>
     window.mqmz!.command({ type: 'settings-close' }),
   )
+})
+
+test('邮件窗口只放大正文区域并支持双击铺满与手动放大', async () => {
+  await pet.evaluate(
+    (id) => window.mqmz!.command({ type: 'mail-open', accountId: id }),
+    accountId,
+  )
+  await expect(mail.locator('.mail-surface')).toBeVisible()
+
+  const readWindow = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows().find(
+        (item) =>
+          item.getTitle().includes('邮件') &&
+          !item.getTitle().includes('撰写'),
+      )!
+      return {
+        resizable: window.isResizable(),
+        minimum: window.getMinimumSize(),
+        bounds: { ...window.getBounds() },
+        maximized: window.isMaximized(),
+      }
+    })
+
+  const initial = await readWindow()
+  expect(initial.resizable).toBe(true)
+  expect(initial.minimum).toEqual([980, 680])
+  expect(initial.bounds.width).toBe(980)
+  expect(initial.bounds.height).toBe(680)
+
+  const folders = await mail.locator('.mail-accounts').boundingBox()
+  const list = await mail.locator('.mail-list').boundingBox()
+  const reader = await mail.locator('.mail-reader').boundingBox()
+  expect(folders && list && reader).toBeTruthy()
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find(
+      (item) =>
+        item.getTitle().includes('邮件') && !item.getTitle().includes('撰写'),
+    )!
+    const bounds = window.getBounds()
+    window.setBounds({ ...bounds, width: 1100, height: 760 })
+  })
+  await expect
+    .poll(async () => (await readWindow()).bounds.width)
+    .toBeGreaterThanOrEqual(1100)
+  const enlargedFolders = await mail.locator('.mail-accounts').boundingBox()
+  const enlargedList = await mail.locator('.mail-list').boundingBox()
+  const enlargedReader = await mail.locator('.mail-reader').boundingBox()
+  expect(enlargedFolders && enlargedList && enlargedReader).toBeTruthy()
+  expect(Math.round(enlargedFolders!.width)).toBe(Math.round(folders!.width))
+  expect(Math.round(enlargedList!.width)).toBe(Math.round(list!.width))
+  expect(enlargedReader!.width).toBeGreaterThan(reader!.width)
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find(
+      (item) =>
+        item.getTitle().includes('邮件') && !item.getTitle().includes('撰写'),
+    )!
+    const bounds = window.getBounds()
+    window.setBounds({ ...bounds, width: 800, height: 500 })
+  })
+  await expect
+    .poll(async () => (await readWindow()).bounds)
+    .toMatchObject({ width: 980, height: 680 })
+
+  const shell = await mail.locator('.mail-shell').boundingBox()
+  expect(shell).toBeTruthy()
+  await mail.mouse.dblclick(shell!.width - 5, shell!.height / 2)
+  await expect
+    .poll(async () => (await readWindow()).maximized, { timeout: 5000 })
+    .toBe(true)
+
+  const maximizedFolders = await mail.locator('.mail-accounts').boundingBox()
+  const maximizedList = await mail.locator('.mail-list').boundingBox()
+  expect(maximizedFolders && maximizedList).toBeTruthy()
+  expect(Math.round(maximizedFolders!.width)).toBe(Math.round(folders!.width))
+  expect(Math.round(maximizedList!.width)).toBe(Math.round(list!.width))
+
+  const maximizedShell = await mail.locator('.mail-shell').boundingBox()
+  expect(maximizedShell).toBeTruthy()
+  await mail.mouse.dblclick(
+    maximizedShell!.width - 5,
+    maximizedShell!.height / 2,
+  )
+  await expect
+    .poll(async () => (await readWindow()).maximized, { timeout: 5000 })
+    .toBe(false)
+  await expect
+    .poll(async () => (await readWindow()).bounds)
+    .toMatchObject({ width: 980, height: 680 })
 })
 
 test('删除当前账户后切换到下一个账户，删除全部后关闭邮件面板', async () => {

@@ -84,6 +84,9 @@ test.beforeAll(async () => {
         { id: crypto.randomUUID(), endedAt: yesterday.getTime(), minutes: 25 },
       ],
       waterLog: [],
+      breakDnd: true,
+      breakDndStart: 22,
+      breakDndEnd: 8,
     }),
     "utf8",
   );
@@ -1485,8 +1488,25 @@ test("hovering the pet centre opens companion tools", async () => {
       return snapshot.ok ? snapshot.value.focus.breakEyesInterval : 0;
     })
     .toBe(30);
+  // Quiet hours only mute: toggling them never closes the reminders.
   const dndSwitch = breakPanel.getByRole("switch", { name: "免打扰" });
-  await expect(dndSwitch).toHaveAttribute("aria-checked", "false");
+  await expect(dndSwitch).toHaveAttribute("aria-checked", "true");
+  await expect(dndSwitch).toBeEnabled();
+  await dndSwitch.click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.focus.breakDnd : true;
+    })
+    .toBe(false);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.focus.breakSitting}:${snapshot.value.focus.breakEyes}`
+        : "";
+    })
+    .toBe("true:true");
   await dndSwitch.click();
   await expect
     .poll(async () => {
@@ -1496,30 +1516,27 @@ test("hovering the pet centre opens companion tools", async () => {
     .toBe(true);
   await expect
     .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok
-        ? `${snapshot.value.focus.breakSitting}:${snapshot.value.focus.breakEyes}`
-        : "";
-    })
-    .toBe("false:false");
-  await expect(eyesSwitch).toHaveAttribute("aria-checked", "false");
-  await breakPanel.getByRole("tab", { name: "久坐提醒" }).click();
-  await expect(sittingSwitch).toHaveAttribute("aria-checked", "false");
-  await sittingSwitch.click();
-  await expect
-    .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.focus.breakDnd : true;
-    })
-    .toBe(false);
-  await expect
-    .poll(async () => {
       const data = JSON.parse(
         await readFile(join(directory, "data", "mqmz.focus.json"), "utf8"),
       );
       return `${data.breakSitting}:${data.breakEyes}:${data.breakEyesInterval}:${data.breakDnd}`;
     })
-    .toBe("true:false:30:false");
+    .toBe("true:true:30:true");
+  await expect(eyesSwitch).toHaveAttribute("aria-checked", "true");
+  await breakPanel.getByRole("tab", { name: "久坐提醒" }).click();
+  await expect(sittingSwitch).toHaveAttribute("aria-checked", "true");
+  await sittingSwitch.click();
+  await breakPanel.getByRole("tab", { name: "用眼提醒" }).click();
+  await eyesSwitch.click();
+  await expect(dndSwitch).toBeDisabled();
+  await expect
+    .poll(async () => {
+      const data = JSON.parse(
+        await readFile(join(directory, "data", "mqmz.focus.json"), "utf8"),
+      );
+      return `${data.breakSitting}:${data.breakEyes}:${data.breakDnd}`;
+    })
+    .toBe("false:false:true");
   await breakPanel.evaluate(() =>
     window.mqmz!.command({ type: "break-close" }),
   );

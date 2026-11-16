@@ -44,7 +44,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { channels } from '../shared/protocol'
-import { isGenerationModel, modelInfo } from '../shared/agent-models'
+import {
+  agentModels,
+  isGenerationModel,
+  modelInfo,
+  type AgentModelId,
+  type AgentModelKind,
+  type AgentProvider,
+} from '../shared/agent-models'
 import {
   mediaHost,
   mediaScheme,
@@ -175,11 +182,23 @@ import {
   type EnginePrefs,
 } from './engine-store'
 import {
+  countToday,
   formatFocus,
+  inQuietHours,
   nextBreakAt,
   nextPhase,
   nextWaterAt,
 } from '../shared/focus'
+import { evaluateAiQuotaAlerts } from '../shared/ai-quota-alert'
+import {
+  loadAiQuotaAlertKeys,
+  saveAiQuotaAlertKeys,
+} from './ai-quota-alert-store'
+import {
+  reminderLine,
+  type ReminderKind,
+  type ReminderVars,
+} from '../shared/reminder-lines'
 import {
   dueTodosToNotify,
   endOfLocalDay,
@@ -194,6 +213,16 @@ import {
 import { isScreenshotCandidate } from '../shared/screenshot'
 import { ffmpegBuild, emptyFfmpegState } from '../shared/ffmpeg'
 import { loadSettingsFile, saveSettingsFile } from './settings'
+import { loadPetStatsFile, savePetStatsFile } from './pet-stats-store'
+import {
+  bumpPetInteraction,
+  defaultPetStats,
+  localDayKey,
+  petStatsView,
+  recordPetDay,
+  type PetStats,
+  type PetStatsInteraction,
+} from '../shared/pet-stats'
 import {
   aiMoodToMusicMood,
   clearMusicAiCache,
@@ -558,6 +587,8 @@ async function changeMailAttachmentDir(next: string): Promise<void> {
 let settingsExisted = false
 let focusData: FocusData = defaultFocus()
 let clipboardData: ClipboardData = defaultClipboard()
+let petStats: PetStats | undefined
+let lastPetPokeAt = 0
 
 /**
  * The active pet only shapes the agent's tone. Task rules stay in the
@@ -601,6 +632,7 @@ let mailSyncing = false
 let mailError: string | undefined
 let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let mailWindow: BrowserWindow | undefined
+let mailWindowMaximized = false
 let mailComposeWindow: BrowserWindow | undefined
 let mailComposeAccountId: string | undefined
 let mailComposeDraft: MailComposeDraft | undefined
@@ -705,6 +737,7 @@ let aiQuota: AiQuotaState = emptyAiQuotaState()
 let aiQuotaTimer: ReturnType<typeof setInterval> | undefined
 let aiQuotaBusy = false
 let aiQuotaQueued = false
+let aiQuotaAlertKeys: Record<string, number> = {}
 let aiBusy = false
 let aiMessages: AiMessage[] = []
 let aiFiles: AiFile[] = []
@@ -721,6 +754,8 @@ let volcanoTest: AiTestState = { status: 'idle' }
 let volcanoTestToken = 0
 let volcanoModels: string[] | undefined
 let volcanoModelsError: string | undefined
+let volcanoModelsToken = 0
+let volcanoModelsFetchedAt = 0
 let activePet: PetRecord | undefined
 let activePetAssets: SavedPetAssets | undefined
 let petNames: string[] = []
@@ -840,7 +875,9 @@ const bellyPath = join(dataRoot, 'mqmz.belly.json')
 const settingsPath = join(dataRoot, 'mqmz.settings.json')
 const focusPath = join(dataRoot, 'mqmz.focus.json')
 const clipboardPath = join(dataRoot, 'mqmz.clipboard.json')
+const petStatsPath = join(dataRoot, 'mqmz.pet-stats.json')
 const aiQuotaCachePath = join(dataRoot, 'mqmz.ai-quota.json')
+const aiQuotaAlertPath = join(dataRoot, 'mqmz.ai-quota-alerts.json')
 const enginePrefsPath = join(dataRoot, 'mqmz.engines.json')
 const mailDbPath = join(dataRoot, 'mqmz.mail.db')
 const mailConfigPath = join(dataRoot, 'mqmz.mail.json')
@@ -1387,6 +1424,7 @@ const agent = createAgentRuntime({
   getKey: () => aiKey,
   getMiniMaxKey: () => minimaxKey,
   getVolcanoKey: () => volcanoKey,
+  getVolcanoModels: () => volcanoModels,
   getSettings: () => settings,
   getPetProfile: () => activePetProfile(),
   loadSkills: loadEnabledSkillPrompts,
@@ -1468,7 +1506,36 @@ function positionPanelOnce(
   position()
   positionedPanels.add(window)
 }
+function persistPetStats(): void {
+  if (!petStats) return
+  void savePetStatsFile(petStatsPath, petStats).catch(() => {})
+}
+/** Adds today to the companion record, so long sessions still count one day. */
+function refreshPetDay(now = Date.now()): boolean {
+  if (!petStats) {
+    petStats = defaultPetStats(now)
+    persistPetStats()
+    return true
+  }
+  if (petStats.days.includes(localDayKey(now))) return false
+  petStats = recordPetDay(petStats, now)
+  persistPetStats()
+  return true
+}
+function notePetInteraction(kind: PetStatsInteraction, now = Date.now()): void {
+  const base = petStats ?? defaultPetStats(now)
+  petStats = bumpPetInteraction(recordPetDay(base, now), kind, now)
+  persistPetStats()
+}
+/** Rapid clicks on the pet still read as one interaction. */
+function notePetPoke(): void {
+  const now = Date.now()
+  if (now - lastPetPokeAt < 1000) return
+  lastPetPokeAt = now
+  notePetInteraction('poke', now)
+}
 function snapshot(): Snapshot {
+  refreshPetDay()
   if (!pet || pet.isDestroyed()) throw new Error('窗口已关闭。')
   return {
     runtime: {
@@ -1549,6 +1616,7 @@ function snapshot(): Snapshot {
     clipboardOpen: windowVisible(clipboardWindow),
     clipboard: clipboardState(),
     ...(activePetAssets ? { petAssets: activePetAssets } : {}),
+    petStats: petStatsView(petStats ?? defaultPetStats(Date.now())),
     petCreate: petCreateState(),
     shelfFolders: windowVisible(settingsWindow) ? screenshotFolders : [],
     shelfInvalidCount,
@@ -1559,6 +1627,8 @@ function snapshot(): Snapshot {
     },
     mail: mailState(),
     mailPanel: mailPanelState(),
+    mailMaximized:
+      !!mailWindow && !mailWindow.isDestroyed() && mailWindow.isMaximized(),
     mailCompose: mailComposeState(),
     focus: {
       phase: focusData.phase,
@@ -1977,6 +2047,8 @@ function openAgentPanel(): void {
     askWindow.moveTop()
     askWindow.focus()
   }
+  if (volcanoKey && Date.now() - volcanoModelsFetchedAt > 10 * 60_000)
+    void loadVolcanoModels()
   broadcast()
 }
 function closeAsk(): void {
@@ -2002,6 +2074,7 @@ async function configureAi(
   if (!wasConfigured && enableMusicAi)
     await updateSettings({ musicAiEnabled: true })
   void refreshAiQuota()
+  fillDefaultModels('deepseek')
   broadcast()
   agent.syncModelWithKeys()
   if (test) void testAiConnection()
@@ -2020,6 +2093,7 @@ async function clearAi(): Promise<void> {
   void refreshAiQuota()
   broadcast()
   agent.syncModelWithKeys()
+  pruneDefaultModels()
 }
 async function deleteAiKey(): Promise<void> {
   const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
@@ -2046,6 +2120,7 @@ async function configureMiniMax(
   minimaxKey = key
   minimaxTest = test ? { status: 'testing' } : { status: 'idle' }
   minimaxTestToken += 1
+  fillDefaultModels('minimax')
   broadcast()
   agent.syncModelWithKeys()
   if (test) void testMiniMax()
@@ -2068,6 +2143,7 @@ async function deleteMiniMaxKey(): Promise<void> {
   minimaxTestToken += 1
   broadcast()
   agent.syncModelWithKeys()
+  pruneDefaultModels()
 }
 async function testMiniMax(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || minimaxKey
@@ -2105,8 +2181,11 @@ async function configureVolcano(
   volcanoTestToken += 1
   volcanoModels = undefined
   volcanoModelsError = undefined
+  volcanoModelsFetchedAt = 0
+  fillDefaultModels('volcano')
   broadcast()
   agent.syncModelWithKeys()
+  void loadVolcanoModels()
   if (test) void testVolcano()
 }
 async function deleteVolcanoKey(): Promise<void> {
@@ -2127,8 +2206,11 @@ async function deleteVolcanoKey(): Promise<void> {
   volcanoTestToken += 1
   volcanoModels = undefined
   volcanoModelsError = undefined
+  volcanoModelsToken += 1
+  volcanoModelsFetchedAt = 0
   broadcast()
   agent.syncModelWithKeys()
+  pruneDefaultModels()
 }
 async function testVolcano(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || volcanoKey
@@ -2155,6 +2237,7 @@ async function testVolcano(draftKey?: string): Promise<void> {
 }
 async function loadVolcanoModels(draftKey?: string): Promise<void> {
   const key = draftKey?.trim() || volcanoKey
+  const token = ++volcanoModelsToken
   if (!key) {
     volcanoModels = undefined
     volcanoModelsError = '请先添加火山方舟 API Key。'
@@ -2163,9 +2246,16 @@ async function loadVolcanoModels(draftKey?: string): Promise<void> {
   }
   volcanoModelsError = undefined
   try {
-    volcanoModels = await listVolcanoModels(key)
+    const models = await listVolcanoModels(key)
+    if (token !== volcanoModelsToken) return
+    volcanoModels = models
+    volcanoModelsFetchedAt = Date.now()
+    // Drop a selected model the key cannot call before the menu shows it.
+    agent.syncModelWithKeys()
   } catch (error) {
+    if (token !== volcanoModelsToken) return
     volcanoModels = undefined
+    volcanoModelsFetchedAt = 0
     volcanoModelsError =
       error instanceof Error ? error.message : '拉取模型失败。'
   }
@@ -2741,6 +2831,7 @@ async function refreshAiQuota(): Promise<void> {
       (nextOpenAi.configured || nextDeepSeek.configured),
   }
   void saveAiQuotaCache(aiQuotaCachePath, aiQuota).catch(() => {})
+  checkAiQuotaAlerts()
   aiQuotaBusy = false
   broadcast()
   syncOverlays()
@@ -2748,6 +2839,19 @@ async function refreshAiQuota(): Promise<void> {
     aiQuotaQueued = false
     void refreshAiQuota()
   }
+}
+function checkAiQuotaAlerts(): void {
+  if (!settings.aiQuotaEnabled || !settings.aiQuotaAlerts) return
+  const now = Date.now()
+  const result = evaluateAiQuotaAlerts(aiQuota, aiQuotaAlertKeys, { now })
+  if (!result.alerts.length) return
+  aiQuotaAlertKeys = result.keys
+  void saveAiQuotaAlertKeys(aiQuotaAlertPath, aiQuotaAlertKeys).catch(() => {})
+  for (const alert of result.alerts)
+    notifyFocus(
+      alert.title,
+      reminderText(alert.kind, { left: alert.left, service: alert.service }),
+    )
 }
 function aiQuotaRefreshIntervalMs(): number {
   /** Test hook for the periodic-refresh Electron integration test. */
@@ -3810,6 +3914,7 @@ function settingsState(): SettingsState {
     agentDefaultVideoModel: settings.agentDefaultVideoModel,
     agentDefaultAudioModel: settings.agentDefaultAudioModel,
     aiQuotaEnabled: settings.aiQuotaEnabled,
+    aiQuotaAlerts: settings.aiQuotaAlerts,
     aiQuotaRefreshMinutes: settings.aiQuotaRefreshMinutes,
     aiQuotaOpenAIPath: settings.aiQuotaOpenAIPath,
     agentAttachmentDir: settings.agentAttachmentDir,
@@ -4727,15 +4832,25 @@ function switchMailFolder(accountId: string, folder: string): void {
   broadcast()
   if (windowVisible(mailWindow)) void refreshMailPanel()
 }
-function positionMail(): void {
-  if (!mailWindow || mailWindow.isDestroyed()) return
-  const b = pet.getBounds()
-  const a = screen.getDisplayMatching(b).workArea
+function mailDefaultBounds(display: Electron.Display): Rect {
+  const area = display.workArea
   const width = 980
   const height = 680
-  const x = a.x + Math.round((a.width - width) / 2)
-  const y = a.y + Math.round((a.height - height) / 2)
-  mailWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+  return fitToDisplays(
+    {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + Math.round((area.height - height) / 2),
+      width,
+      height,
+    },
+    [area],
+  )
+}
+function positionMail(): void {
+  if (!mailWindow || mailWindow.isDestroyed()) return
+  mailWindow.setBounds(
+    mailDefaultBounds(screen.getDisplayMatching(pet.getBounds())),
+  )
 }
 async function openMail(accountId?: string, folder?: string): Promise<void> {
   if (!mailDb) return
@@ -4762,6 +4877,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
     positionPanelOnce(mailWindow, positionMail)
     if (process.platform === 'darwin' || mailWindow.isMinimized())
       mailWindow.restore()
+    if (mailWindowMaximized && !mailWindow.isMaximized()) mailWindow.maximize()
     mailWindow.show()
     mailWindow.moveTop()
     mailWindow.focus()
@@ -4871,7 +4987,10 @@ async function ensureMailDetail(
 ): Promise<MailMessageDetail | undefined> {
   if (!mailDb) return undefined
   const cached = mailDb.message(accountId, folder, uid)
-  if (cached?.bodyText || cached?.bodyHtml || cached?.attachments.length)
+  if (
+    (cached?.bodyText || cached?.bodyHtml || cached?.attachments.length) &&
+    mailDb.isMessageBodyCurrent(accountId, folder, uid)
+  )
     return cached
   const account = mailDb.account(accountId)
   if (!account) throw new Error('邮箱账户不存在。')
@@ -4947,9 +5066,10 @@ async function selectMail(uid: number): Promise<void> {
   const accountId = mailPanelAccountId
   const folder = mailPanelFolder
   const before = mailDb.message(accountId, folder, uid)
-  const cached = Boolean(
-    before?.bodyText || before?.bodyHtml || before?.attachments.length,
-  )
+  const cached =
+    Boolean(
+      before?.bodyText || before?.bodyHtml || before?.attachments.length,
+    ) && mailDb.isMessageBodyCurrent(accountId, folder, uid)
   if (!cached) {
     mailPanelLoading = true
     mailPanelLoadingKind = 'detail'
@@ -4981,6 +5101,14 @@ async function selectMail(uid: number): Promise<void> {
     mailPanelSelected = detail
   } catch (error) {
     if (mailPanelAccountId !== accountId) return
+    // A stale cached body is better than an empty reader: keep showing it and
+    // let the list error surface the failed refresh.
+    if (
+      before?.bodyText ||
+      before?.bodyHtml ||
+      before?.attachments.length
+    )
+      mailPanelSelected = before
     const message =
       error instanceof Error ? error.message : '无法读取邮件。'
     mailPanelError = message
@@ -6120,6 +6248,71 @@ function closeSettings(): void {
   settingsWindow?.hide()
   broadcast()
 }
+function configuredModelProvider(provider: AgentProvider): boolean {
+  if (provider === 'minimax') return Boolean(minimaxKey)
+  if (provider === 'volcano') return Boolean(volcanoKey)
+  return Boolean(aiKey)
+}
+/** Defaults pointing at a provider without a key fall back to 未设置. */
+function pruneDefaultModels(): void {
+  const available = (value: AgentModelId | ''): boolean => {
+    if (!value) return true
+    const provider = modelInfo(value)?.provider
+    return provider ? configuredModelProvider(provider) : false
+  }
+  const next = {
+    ...settings,
+    agentDefaultChatModel: available(settings.agentDefaultChatModel)
+      ? settings.agentDefaultChatModel
+      : ('' as const),
+    aiImageModel: available(settings.aiImageModel)
+      ? settings.aiImageModel
+      : ('' as const),
+    agentDefaultVideoModel: available(settings.agentDefaultVideoModel)
+      ? settings.agentDefaultVideoModel
+      : ('' as const),
+    agentDefaultAudioModel: available(settings.agentDefaultAudioModel)
+      ? settings.agentDefaultAudioModel
+      : ('' as const),
+  }
+  if (
+    next.agentDefaultChatModel === settings.agentDefaultChatModel &&
+    next.aiImageModel === settings.aiImageModel &&
+    next.agentDefaultVideoModel === settings.agentDefaultVideoModel &&
+    next.agentDefaultAudioModel === settings.agentDefaultAudioModel
+  )
+    return
+  settings = next
+  void saveSettingsFile(settingsPath, settings).catch(() => {})
+  broadcast()
+}
+/** Adding a key fills default slots it can serve, so chat does not start empty. */
+function fillDefaultModels(provider: AgentProvider): void {
+  const candidate = (kind: AgentModelKind) =>
+    agentModels.find(
+      (model) => model.provider === provider && model.kind === kind,
+    )?.id as AgentModelId | undefined
+  const next = {
+    ...settings,
+    agentDefaultChatModel:
+      settings.agentDefaultChatModel || candidate('text') || '',
+    aiImageModel: settings.aiImageModel || candidate('image') || '',
+    agentDefaultVideoModel:
+      settings.agentDefaultVideoModel || candidate('video') || '',
+    agentDefaultAudioModel:
+      settings.agentDefaultAudioModel || candidate('speech') || '',
+  }
+  if (
+    next.agentDefaultChatModel === settings.agentDefaultChatModel &&
+    next.aiImageModel === settings.aiImageModel &&
+    next.agentDefaultVideoModel === settings.agentDefaultVideoModel &&
+    next.agentDefaultAudioModel === settings.agentDefaultAudioModel
+  )
+    return
+  settings = next
+  void saveSettingsFile(settingsPath, settings).catch(() => {})
+  broadcast()
+}
 async function updateSettings(
   patch: Partial<SettingsState>,
   syncPetName = true,
@@ -6262,6 +6455,18 @@ function persistFocus(): void {
     addEvent('专注状态保存失败；当前计时仍可使用。')
   })
 }
+/** Last few lines per reminder kind so consecutive prompts do not repeat. */
+const lastReminderLines: Partial<Record<ReminderKind, string[]>> = {}
+function reminderText(kind: ReminderKind, vars: ReminderVars = {}): string {
+  const recent = lastReminderLines[kind] ?? []
+  const line = reminderLine(
+    kind,
+    { name: activePetProfile().name, ...vars },
+    recent,
+  )
+  lastReminderLines[kind] = [...recent, line].slice(-3)
+  return line
+}
 function notifyFocus(title: string, body: string): void {
   addEvent(`${title}：${body}`)
   if (Notification.isSupported())
@@ -6275,9 +6480,10 @@ function checkTodoReminders(now: number): void {
   )
   todoReminderCheck = now
   if (!due.length) return
-  const body =
-    due.length === 1 ? due[0].text : `${due[0].text} 等 ${due.length} 项`
-  notifyFocus('待办提醒', body)
+  notifyFocus(
+    '待办提醒',
+    reminderText('todo', { todo: due[0].text, more: due.length }),
+  )
 }
 function completeFocus(): void {
   const previous = focusData.phase
@@ -6308,9 +6514,10 @@ function completeFocus(): void {
   persistFocus()
   syncOverlays()
   broadcast()
+  if (previous === 'focus') notePetInteraction('focus')
   notifyFocus(
     '番茄时钟',
-    previous === 'focus' ? '专注结束，休息一下' : '休息结束，继续专注',
+    reminderText(previous === 'focus' ? 'focusDone' : 'breakDone'),
   )
 }
 function reminderDue(key: string, dueAt: number): boolean {
@@ -6451,7 +6658,14 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
           focusData.waterEnd,
         )
         persistFocus()
-        if (reminderDue('water', dueAt)) notifyFocus('喝水提醒', '该喝水了')
+        if (reminderDue('water', dueAt))
+          notifyFocus(
+            '喝水提醒',
+            reminderText('water', {
+              count: countToday(focusData.waterLog, (entry) => entry.at, now),
+              goal: focusData.waterGoal,
+            }),
+          )
         changed = true
       }
     }
@@ -6464,8 +6678,8 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
         const dueAt = focusData.breakSittingNextAt
         focusData.breakSittingNextAt = scheduleBreak('sitting')
         persistFocus()
-        if (reminderDue('sitting', dueAt))
-          notifyFocus('久坐提醒', '起来活动一下吧')
+        if (!quietForBreak(now) && reminderDue('sitting', dueAt))
+          notifyFocus('久坐提醒', reminderText('sitting'))
         changed = true
       }
     }
@@ -6478,8 +6692,8 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
         const dueAt = focusData.breakEyesNextAt
         focusData.breakEyesNextAt = scheduleBreak('eyes')
         persistFocus()
-        if (reminderDue('eyes', dueAt))
-          notifyFocus('用眼提醒', '看看远处，放松一下眼睛')
+        if (!quietForBreak(now) && reminderDue('eyes', dueAt))
+          notifyFocus('用眼提醒', reminderText('eyes'))
         changed = true
       }
     }
@@ -6648,6 +6862,7 @@ function addWaterDrink(): void {
   }
   persistFocus()
   broadcast()
+  notePetInteraction('water')
 }
 function setWaterReminder(enabled: boolean): void {
   focusData = {
@@ -6714,19 +6929,17 @@ function scheduleBreak(kind: BreakKind, minutes = breakIntervalOf(kind)): number
     focusData.breakDndEnd,
   )
 }
+/** A due reminder inside the quiet window stays silent until the window ends. */
+function quietForBreak(now: number): boolean {
+  return (
+    focusData.breakDnd &&
+    inQuietHours(now, focusData.breakDndStart, focusData.breakDndEnd)
+  )
+}
 function setBreakEnabled(kind: BreakKind, enabled: boolean): void {
-  const next = enabled
-    ? nextBreakAt(
-        Date.now(),
-        breakIntervalOf(kind),
-        false,
-        focusData.breakDndStart,
-        focusData.breakDndEnd,
-      )
-    : null
+  const next = enabled ? scheduleBreak(kind) : null
   focusData = {
     ...focusData,
-    ...(enabled ? { breakDnd: false } : {}),
     ...(kind === 'sitting'
       ? { breakSitting: enabled, breakSittingNextAt: next }
       : { breakEyes: enabled, breakEyesNextAt: next }),
@@ -6767,29 +6980,25 @@ function snoozeBreak(kind: BreakKind, minutes = 10): void {
 function setBreakDnd(enabled: boolean, start: number, end: number): void {
   const safeStart = Math.min(23, Math.max(0, Math.round(start)))
   const safeEnd = Math.min(24, Math.max(1, Math.round(end)))
-  const sitting = enabled ? false : focusData.breakSitting
-  const eyes = enabled ? false : focusData.breakEyes
   focusData = {
     ...focusData,
     breakDnd: enabled,
     breakDndStart: safeStart,
     breakDndEnd: safeEnd,
-    breakSitting: sitting,
-    breakEyes: eyes,
-    breakSittingNextAt: sitting
+    breakSittingNextAt: focusData.breakSitting
       ? nextBreakAt(
           Date.now(),
           focusData.breakSittingInterval,
-          false,
+          enabled,
           safeStart,
           safeEnd,
         )
       : null,
-    breakEyesNextAt: eyes
+    breakEyesNextAt: focusData.breakEyes
       ? nextBreakAt(
           Date.now(),
           focusData.breakEyesInterval,
-          false,
+          enabled,
           safeStart,
           safeEnd,
         )
@@ -6900,6 +7109,7 @@ function toggleTodo(id: string): void {
   }
   persistFocus()
   broadcast()
+  if (completing) notePetInteraction('todo')
 }
 function updateTodo(
   id: string,
@@ -7123,7 +7333,7 @@ function positionProfile(): void {
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 400
-  const height = 420
+  const height = 490
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
@@ -8155,6 +8365,7 @@ async function runMaintenance(): Promise<void> {
   maintenanceBusy = true
   try {
     let changed = false
+    if (refreshPetDay()) changed = true
     if (pruneClipboard()) {
       persistClipboard()
       changed = true
@@ -10517,6 +10728,7 @@ function setupIpc(): void {
       'break-dnd',
       'profile-open',
       'profile-close',
+      'pet-poke',
       'clipboard-open',
       'clipboard-close',
       'clipboard-copy',
@@ -11229,6 +11441,9 @@ function setupIpc(): void {
       case 'profile-close':
         closeProfile()
         break
+      case 'pet-poke':
+        notePetPoke()
+        break
       case 'clipboard-open':
         openClipboard()
         break
@@ -11520,12 +11735,20 @@ function setupIpc(): void {
         else if (command.action === 'maximize' && owner.isResizable()) {
           if (owner.isMaximized()) owner.unmaximize()
           else owner.maximize()
-        } else if (command.action === 'toggle-default' && owner === askWindow) {
+        } else if (
+          command.action === 'toggle-default' &&
+          (owner === askWindow || owner === mailWindow)
+        ) {
           if (!owner.isResizable()) break
           if (owner.isMaximized()) {
-            const next = agentDefaultBounds(
-              screen.getDisplayMatching(owner.getBounds()),
-            )
+            const next =
+              owner === askWindow
+                ? agentDefaultBounds(
+                    screen.getDisplayMatching(owner.getBounds()),
+                  )
+                : mailDefaultBounds(
+                    screen.getDisplayMatching(owner.getBounds()),
+                  )
             owner.unmaximize()
             setTimeout(() => {
               if (!owner.isDestroyed()) owner.setBounds(next)
@@ -12340,6 +12563,8 @@ async function createWindows(): Promise<void> {
   mailWindow = new BrowserWindow({
     width: 980,
     height: 680,
+    minWidth: 980,
+    minHeight: 680,
     title: '毛趣萌仔 · 邮件',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -12347,7 +12572,7 @@ async function createWindows(): Promise<void> {
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
-    resizable: false,
+    resizable: true,
     skipTaskbar: false,
     alwaysOnTop: false,
     webPreferences: {
@@ -12357,6 +12582,14 @@ async function createWindows(): Promise<void> {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+  mailWindow.on('maximize', () => {
+    mailWindowMaximized = true
+    broadcast()
+  })
+  mailWindow.on('unmaximize', () => {
+    mailWindowMaximized = false
+    broadcast()
   })
   mailComposeWindow = new BrowserWindow({
     width: 760,
@@ -12446,7 +12679,7 @@ async function createWindows(): Promise<void> {
   })
   profileWindow = new BrowserWindow({
     width: 400,
-    height: 420,
+    height: 490,
     title: '毛趣萌仔 · 宠物档案',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -12523,7 +12756,9 @@ async function createWindows(): Promise<void> {
     clipboardWindow,
     todoWindow,
   ])
-    configurePanelChrome(panel, { maximizable: panel === askWindow })
+    configurePanelChrome(panel, {
+      maximizable: panel === askWindow || panel === mailWindow,
+    })
   focusBadge = new BrowserWindow({
     width: 76,
     height: 76,
@@ -12916,6 +13151,8 @@ else {
       await mkdir(dataRoot, { recursive: true })
       const loadedSettings = await loadSettingsFile(settingsPath)
       settings = loadedSettings.settings
+      if (loadedSettings.upgraded)
+        await saveSettingsFile(settingsPath, settings).catch(() => {})
       try {
         await migrateLegacyAgentStorage()
         await cleanupLegacyGenerated()
@@ -12939,16 +13176,15 @@ else {
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
-      if (focusData.breakDnd) {
-        focusData = {
-          ...focusData,
-          breakSitting: false,
-          breakSittingNextAt: null,
-          breakEyes: false,
-          breakEyesNextAt: null,
-        }
-      }
       clipboardData = await loadClipboardFile(clipboardPath)
+      {
+        const now = Date.now()
+        petStats = recordPetDay(
+          (await loadPetStatsFile(petStatsPath)) ?? defaultPetStats(now),
+          now,
+        )
+        await savePetStatsFile(petStatsPath, petStats).catch(() => {})
+      }
       await agent.load()
       try {
         agentSkillStore = await createSkillStore(
@@ -13032,8 +13268,11 @@ else {
       aiKey = await loadStoredKey()
       minimaxKey = await loadProviderKey('minimax')
       volcanoKey = await loadProviderKey('volcano')
+      if (volcanoKey) void loadVolcanoModels()
       agent.syncModelWithKeys()
+      pruneDefaultModels()
       const cachedQuota = await loadAiQuotaCache(aiQuotaCachePath)
+      aiQuotaAlertKeys = await loadAiQuotaAlertKeys(aiQuotaAlertPath)
       const cachedOpenAiPath = await resolveOpenAiAuthPath(
         settings.aiQuotaOpenAIPath,
       )

@@ -25,6 +25,7 @@ import type {
 } from './mail'
 import type { RenameConfig } from './rename'
 import type { SettingsState } from './settings'
+import type { PetStatsView } from './pet-stats'
 import type { PetPoseId } from './pet-style'
 import type { PetSpecies } from './pet-species'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
@@ -548,6 +549,7 @@ export type Snapshot = {
   settingsPrompt?: SettingsPrompt
   mail: MailState
   mailPanel: MailPanelState
+  mailMaximized: boolean
   mailCompose: MailComposeState
   pomodoroOpen: boolean
   waterOpen: boolean
@@ -557,6 +559,7 @@ export type Snapshot = {
   clipboardOpen: boolean
   clipboard: ClipboardState
   petAssets?: PetAssets
+  petStats: PetStatsView
   petCreate: PetCreateState
   shelfFolders: string[]
   shelfInvalidCount: number
@@ -765,6 +768,7 @@ export type Command =
   | { type: 'break-close' }
   | { type: 'profile-open' }
   | { type: 'profile-close' }
+  | { type: 'pet-poke' }
   | { type: 'clipboard-open' }
   | { type: 'clipboard-close' }
   | { type: 'clipboard-copy'; id: string }
