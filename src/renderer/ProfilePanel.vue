@@ -1,28 +1,46 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Check, PawPrint } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
   normalizePetName,
   petNameConflict,
   petNameConflictError,
 } from '../shared/pet-name'
+import { getPetStyle, type PetPoseId } from '../shared/pet-style'
 import PanelHeader from './PanelHeader.vue'
 import catBase from './assets/pet/ragdoll/base.png'
+import catBlink from './assets/pet/ragdoll/blink.png'
+import catFocus from './assets/pet/ragdoll/focus.png'
+import catLifted from './assets/pet/ragdoll/lifted.png'
+import catMusic from './assets/pet/ragdoll/music.png'
+import catPonder from './assets/pet/ragdoll/ponder.png'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
 
+const bundledPoses: Record<PetPoseId, string> = {
+  base: catBase,
+  blink: catBlink,
+  focus: catFocus,
+  lifted: catLifted,
+  music: catMusic,
+  ponder: catPonder,
+}
+const poseImages = computed(() =>
+  getPetStyle().states.map((state) => ({
+    id: state.id,
+    label: state.label,
+    src: props.state?.petAssets?.poses[state.id] ?? bundledPoses[state.id],
+  })),
+)
+const currentPose = ref(0)
+const currentPoseImage = computed(
+  () => poseImages.value[currentPose.value] ?? poseImages.value[0]!,
+)
+
 const name = ref(props.state?.settings.petName ?? '麻薯')
 const saved = ref(false)
 const value = computed(() => name.value.trim())
-const cover = computed(
-  () => props.state?.petAssets?.poses.base ?? catBase,
-)
-const styleName = computed(
-  () => props.state?.petAssets?.styleName ?? '默认',
-)
-const species = computed(() => (props.state?.petAssets ? '自定义' : '布偶猫'))
 const currentName = computed(() => props.state?.settings.petName ?? '')
 const existingNames = computed(
   () => props.state?.petCreate.existingNames ?? [],
@@ -45,6 +63,18 @@ watch(
   () => props.state?.settings.petName,
   (next) => {
     if (next) name.value = next
+  },
+)
+watch(
+  () => props.state?.profileOpen,
+  (open) => {
+    if (open) currentPose.value = 0
+  },
+)
+watch(
+  () => props.state?.petAssets?.id ?? props.state?.settings.petId,
+  () => {
+    currentPose.value = 0
   },
 )
 function save(): void {
@@ -75,16 +105,40 @@ function close(): void {
         @close="emit('command', { type: 'panel-control', action: 'close' })"
       />
 
-      <div class="profile-portrait">
-        <img :src="cover" :alt="name || '麻薯'" draggable="false" />
+      <div class="profile-carousel">
+        <div
+          class="profile-portrait"
+          role="tabpanel"
+          :aria-label="`${name || '麻薯'}的${currentPoseImage.label}状态`"
+        >
+          <Transition name="profile-pose" mode="out-in">
+            <img
+              :key="currentPoseImage.id"
+              :src="currentPoseImage.src"
+              :alt="`${name || '麻薯'}的${currentPoseImage.label}状态`"
+              draggable="false"
+            />
+          </Transition>
+        </div>
+        <div class="profile-pose-dots" role="tablist" aria-label="桌宠状态">
+          <button
+            v-for="(pose, index) in poseImages"
+            :key="pose.id"
+            type="button"
+            class="profile-pose-dot"
+            :class="{ active: index === currentPose }"
+            role="tab"
+            :aria-selected="index === currentPose"
+            :aria-label="`查看${pose.label}状态`"
+            :title="pose.label"
+            @click="currentPose = index"
+          />
+        </div>
       </div>
 
       <div class="profile-body">
         <div class="profile-row">
-          <span class="profile-label">
-            <PawPrint :size="15" :stroke-width="2" aria-hidden="true" />
-            名字
-          </span>
+          <span class="profile-label">名字</span>
           <span class="profile-edit">
             <input
               v-model="name"
@@ -105,17 +159,9 @@ function close(): void {
               title="保存"
               @click="save"
             >
-              <Check :size="14" :stroke-width="2.2" aria-hidden="true" />
+              保存
             </button>
           </span>
-        </div>
-        <div class="profile-row">
-          <span class="profile-label">品种</span>
-          <span class="profile-value">{{ species }}</span>
-        </div>
-        <div class="profile-row">
-          <span class="profile-label">形象</span>
-          <span class="profile-value">{{ styleName }}</span>
         </div>
       </div>
 
@@ -150,6 +196,10 @@ function close(): void {
   border-radius: var(--radius-sheet);
   box-shadow: var(--mqmz-panel-shadow);
 }
+.profile-carousel {
+  display: flex;
+  flex-direction: column;
+}
 .profile-portrait {
   display: grid;
   place-items: center;
@@ -163,6 +213,61 @@ function close(): void {
   height: 180px;
   object-fit: contain;
 }
+.profile-pose-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 8px;
+}
+.profile-pose-dot {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+.profile-pose-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-cover);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.profile-pose-dot:hover::before {
+  background: var(--color-brand);
+}
+.profile-pose-dot.active::before {
+  background: var(--color-brand-ink);
+  transform: scale(1.15);
+}
+.profile-pose-dot:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
+}
+.profile-pose-enter-active,
+.profile-pose-leave-active {
+  transition:
+    opacity 0.16s var(--ease-standard),
+    transform 0.2s var(--ease-standard);
+}
+.profile-pose-enter-from {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.profile-pose-leave-to {
+  opacity: 0;
+  transform: scale(1.02);
+}
 .profile-body {
   display: flex;
   flex-direction: column;
@@ -174,21 +279,13 @@ function close(): void {
   justify-content: space-between;
   gap: 12px;
   min-height: 58px;
-  border-bottom: 1px solid var(--color-line);
   font-size: var(--font-size-body);
-}
-.profile-row:last-child {
-  border-bottom: 0;
 }
 .profile-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--color-ink);
-}
-.profile-value {
-  color: var(--color-muted);
-  font-size: var(--font-size-label);
 }
 .profile-edit {
   display: flex;
@@ -211,20 +308,35 @@ function close(): void {
   outline-offset: 2px;
 }
 .profile-save {
-  display: grid;
-  place-items: center;
-  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 32px;
+  min-width: 0;
   min-height: 32px;
-  padding: 0;
+  padding: 0 12px;
   border: 0;
   border-radius: var(--radius-control);
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.profile-save:hover:not(:disabled) {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+.profile-save:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 1px;
 }
 .profile-save:disabled {
   background: var(--color-fill-secondary);
   color: var(--color-muted);
+  cursor: default;
 }
 .profile-notice {
   margin: 10px 0 0;
@@ -236,5 +348,12 @@ function close(): void {
   margin: 10px 0 0;
   color: var(--color-danger);
   font-size: var(--font-size-label);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-pose-enter-active,
+  .profile-pose-leave-active,
+  .profile-pose-dot::before {
+    transition: none;
+  }
 }
 </style>
