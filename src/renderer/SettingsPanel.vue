@@ -867,6 +867,7 @@ function onEscape(): void {
                 type="button"
                 class="pet-card"
                 :aria-label="`打开${pet.name}的宠物档案`"
+                :title="pet.name"
                 @click="emit('command', { type: 'profile-open' })"
               >
                 <span class="pet-cover">
