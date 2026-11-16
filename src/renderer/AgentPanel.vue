@@ -2075,6 +2075,17 @@ function isModelSelected(item: AgentModelInfo): boolean {
   if (item.kind === 'speech') return audioModel.value === item.id
   return false
 }
+function isDefaultModel(item: AgentModelInfo): boolean {
+  if (item.kind === 'text')
+    return settings.value?.agentDefaultChatModel === item.id
+  if (item.kind === 'image')
+    return settings.value?.aiImageModel === item.id
+  if (item.kind === 'video')
+    return settings.value?.agentDefaultVideoModel === item.id
+  if (item.kind === 'speech')
+    return settings.value?.agentDefaultAudioModel === item.id
+  return false
+}
 function selectAgentModel(item: AgentModelInfo): void {
   if (item.kind === 'text') setModel(item.id)
   else if (item.kind === 'image') setGenerationModel('image', item.id)
@@ -4742,6 +4753,11 @@ function statusLabel(status: string): string {
                           <span class="agent-model-option-label">{{
                             item.label
                           }}</span>
+                          <span
+                            v-if="isDefaultModel(item)"
+                            class="agent-model-default"
+                            >默认</span
+                          >
                           <span class="agent-model-kind">{{
                             modelKindLabel(item.kind)
                           }}</span>
@@ -7013,7 +7029,7 @@ function statusLabel(status: string): string {
   right: 0;
   bottom: calc(100% + 6px);
   z-index: 30;
-  width: 240px;
+  width: 260px;
   max-height: min(420px, calc(100vh - 120px));
   overflow-y: auto;
   padding: var(--space-1);
@@ -7061,9 +7077,18 @@ function statusLabel(status: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-model-default {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  line-height: 18px;
+}
 .agent-model-kind {
   flex: none;
-  margin-left: auto;
   padding: 0 6px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-fill-secondary);
