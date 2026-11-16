@@ -900,11 +900,14 @@ test('pet profile section exposes the create entry', async () => {
   const speciesSelect = wizard.getByLabel('桌宠种类')
   await expect(speciesSelect).toBeVisible()
   await expect(
-    speciesSelect.locator('option'),
-    '种类包含猫狗等选项',
-  ).toHaveCount(7)
-  await speciesSelect.selectOption('猫')
-  await expect(speciesSelect).toHaveValue('猫')
+    speciesSelect.locator('optgroup'),
+    '种类按常见、异宠、鸟类、爬宠、水族等分组',
+  ).toHaveCount(6)
+  await expect(
+    speciesSelect.locator('option', { hasText: '守宫' }),
+  ).toHaveCount(1)
+  await speciesSelect.selectOption('守宫')
+  await expect(speciesSelect).toHaveValue('守宫')
   await wizard.getByRole('button', { name: '取消', exact: true }).click()
   await expect(wizard).toHaveCount(0)
 })

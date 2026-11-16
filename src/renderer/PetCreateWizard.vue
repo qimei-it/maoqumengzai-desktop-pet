@@ -11,7 +11,7 @@ import {
 import type { Command, Snapshot } from '../shared/protocol'
 import type { PetPoseId } from '../shared/pet-style'
 import {
-  petSpeciesOptions,
+  petSpeciesGroups,
   type PetSpecies,
 } from '../shared/pet-species'
 import {
@@ -212,13 +212,19 @@ function save(): void {
               title="创建后不可修改"
             >
               <option value="" disabled>选择种类</option>
-              <option
-                v-for="item in petSpeciesOptions"
-                :key="item"
-                :value="item"
+              <optgroup
+                v-for="group in petSpeciesGroups"
+                :key="group.label"
+                :label="group.label"
               >
-                {{ item }}
-              </option>
+                <option
+                  v-for="item in group.options"
+                  :key="item"
+                  :value="item"
+                >
+                  {{ item }}
+                </option>
+              </optgroup>
             </SelectField>
           </label>
         </div>
