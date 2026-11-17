@@ -44,6 +44,9 @@ test.afterAll(async () => {
 })
 
 test('records a voice message and offers read-aloud', async () => {
+  // Voice input and read-aloud were removed in 104d161; re-enable when the
+  // feature returns to the composer.
+  test.skip(true, '语音输入与朗读当前未在输入框提供')
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
@@ -79,7 +82,7 @@ test('records a voice message and offers read-aloud', async () => {
   await expect(agent.getByLabel('停止录音')).toBeVisible()
   await agent.waitForTimeout(900)
   await agent.getByLabel('停止录音').click()
-  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue(
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveText(
     /今天天气不错/,
     { timeout: 15_000 },
   )

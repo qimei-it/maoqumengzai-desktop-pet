@@ -32,7 +32,7 @@ type StreamChunk = {
 
 function friendlyError(status: number, detail?: string): Error {
   if (status === 401 || status === 403)
-    return new Error('MiniMax API Key 无效，请重新添加。')
+    return new Error('API Key 无效')
   if (status === 402) return new Error('MiniMax 账户余额或套餐额度不足。')
   if (status === 429) return new Error('MiniMax 请求过于频繁，请稍后再试。')
   if (status === 422)

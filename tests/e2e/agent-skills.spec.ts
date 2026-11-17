@@ -199,6 +199,6 @@ test('skills page lists, searches, toggles, adds and uninstalls skills', async (
   await expect(cards).toHaveCount(4)
   await expect(agent.getByText('Banner Design', { exact: true })).toHaveCount(0)
 
-  await agent.getByRole('button', { name: '新建对话' }).click()
+  await agent.locator('.agent-new-chat').first().click()
   await expect(agent.locator('.agent-skills-page')).toBeHidden()
 })

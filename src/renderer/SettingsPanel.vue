@@ -17,7 +17,12 @@ import type { ClipboardConfig } from '../shared/clipboard'
 import { clipboardDefaults } from '../shared/clipboard'
 import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import { minimaxModelCatalog } from '../shared/minimax'
-import { resolveVolcanoImageModel } from '../shared/volcano'
+import {
+  hasVolcanoSeedreamModel,
+  resolveVolcanoImageModel,
+  volcanoApiKeyUrl,
+  volcanoModelManagementUrl,
+} from '../shared/volcano'
 import {
   agentModels,
   agentImageModels,
@@ -106,6 +111,36 @@ const wheelEditor = ref<'hover' | 'file' | null>(null)
 const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
+const backup = computed(() => props.state?.backup)
+const restoreOpen = ref(false)
+function backupSize(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+function backupTime(at: number): string {
+  return new Date(at).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+const manualBackupDescription = '立即把本地数据打包导出为 ZIP 文件。'
+const restoreDescription = '用备份覆盖当前本地数据并重启应用。'
+const autoBackupDescription = computed(
+  () =>
+    `每天自动备份一次本地数据，保留最近 ${backup.value?.retention ?? 7} 份。`,
+)
+function toggleAutoBackup(): void {
+  emit('command', {
+    type: 'settings-auto-backup',
+    enabled: !(backup.value?.autoEnabled ?? true),
+  })
+}
+function restoreSnapshot(snapshot: string): void {
+  emit('command', { type: 'settings-backup-restore', snapshot })
+}
 const providerOrder: AgentProvider[] = ['deepseek', 'minimax', 'volcano']
 const kindOrder = ['text', 'image', 'video', 'speech']
 function groupedModels(
@@ -198,6 +233,19 @@ const volcanoLatencyClass = computed(() => {
   if (latency <= 1200) return 'is-medium'
   return 'is-slow'
 })
+/** The key works, but the pet image model is not activated on this account. */
+const volcanoSeedreamMissing = computed(
+  () =>
+    volcanoModelsVisible.value &&
+    volcanoModels.value.length > 0 &&
+    !hasVolcanoSeedreamModel(volcanoModels.value),
+)
+const volcanoSeedreamWarning = computed(
+  () =>
+    volcanoSeedreamMissing.value &&
+    volcanoTest.value.status !== 'testing' &&
+    volcanoTest.value.status !== 'error',
+)
 function providerHasKey(provider: AgentProvider): boolean {
   if (provider === 'minimax') return minimaxConfigured.value
   if (provider === 'volcano') return volcanoConfigured.value
@@ -254,8 +302,17 @@ function openProviderKeys(provider: 'deepseek' | 'minimax' | 'volcano'): void {
       ? 'https://platform.deepseek.com/api_keys'
       : provider === 'minimax'
         ? 'https://platform.minimax.cn/console/keys'
-        : 'https://console.volcengine.com/ark/region:cn-beijing/apiKey',
+        : volcanoApiKeyUrl,
   )
+}
+function openVolcanoModels(): void {
+  void window.mqmz?.openExternal(volcanoModelManagementUrl)
+}
+/** Hover text is a sentence; the visible status text stays bare. */
+function tooltipText(text?: string): string {
+  const value = text?.trim()
+  if (!value) return ''
+  return /[。！？.!?]$/.test(value) ? value : `${value}。`
 }
 function testSavedMiniMaxKey(): void {
   if (!minimaxConfigured.value || minimaxTest.value.status === 'testing') return
@@ -279,7 +336,7 @@ async function saveMiniMaxKey(): Promise<void> {
   const result = await window.mqmz?.verifyMiniMaxKey(value)
   verifyingMiniMaxKey.value = false
   if (!result?.ok) {
-    minimaxKeyError.value = result?.error ?? 'API Key 验证失败。'
+    minimaxKeyError.value = result?.error ?? 'API Key 验证失败'
     return
   }
   emit('command', { type: 'minimax-config', apiKey: value, test: false })
@@ -323,7 +380,7 @@ async function saveVolcanoKey(): Promise<void> {
   const result = await window.mqmz?.verifyVolcanoKey(value)
   verifyingVolcanoKey.value = false
   if (!result?.ok) {
-    volcanoKeyError.value = result?.error ?? 'API Key 验证失败。'
+    volcanoKeyError.value = result?.error ?? 'API Key 验证失败'
     return
   }
   emit('command', { type: 'volcano-config', apiKey: value, test: false })
@@ -678,7 +735,7 @@ async function saveAndTestKey(): Promise<void> {
   const result = await window.mqmz?.verifyAgentKey(value)
   verifyingKey.value = false
   if (!result?.ok) {
-    keyError.value = result?.error ?? 'API Key 验证失败。'
+    keyError.value = result?.error ?? 'API Key 验证失败'
     return
   }
   emit('command', { type: 'ai-config', apiKey: value, test: false })
@@ -910,6 +967,119 @@ function onEscape(): void {
                 </button>
               </span>
             </div>
+            <div class="settings-row">
+              <span class="settings-label-icon">
+                <span id="setting-auto-backup" class="settings-label"
+                  >自动备份</span
+                >
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="autoBackupDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    autoBackupDescription
+                  }}</span>
+                </span>
+              </span>
+              <button
+                type="button"
+                class="settings-switch"
+                role="switch"
+                aria-labelledby="setting-auto-backup"
+                :aria-checked="backup?.autoEnabled ?? true"
+                :disabled="backup?.busy"
+                @click="toggleAutoBackup"
+              >
+                <span class="settings-switch-thumb" />
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label-icon">
+                <span class="settings-label">手动备份</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="manualBackupDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    manualBackupDescription
+                  }}</span>
+                </span>
+              </span>
+              <button
+                type="button"
+                class="settings-button primary"
+                :disabled="backup?.busy"
+                @click="emit('command', { type: 'settings-backup-export' })"
+              >
+                {{ backup?.busy ? '处理中…' : '导出…' }}
+              </button>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label-icon">
+                <span class="settings-label">恢复</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="restoreDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    restoreDescription
+                  }}</span>
+                </span>
+              </span>
+              <button
+                type="button"
+                class="settings-button danger"
+                :disabled="backup?.busy"
+                @click="restoreOpen = !restoreOpen"
+              >
+                {{ restoreOpen ? '收起' : '选择备份…' }}
+              </button>
+            </div>
+            <template v-if="restoreOpen">
+              <div
+                v-for="item in backup?.snapshots ?? []"
+                :key="item.id"
+                class="settings-row"
+              >
+                <span class="settings-value"
+                  >{{ backupTime(item.createdAt) }} ·
+                  {{ backupSize(item.bytes) }}</span
+                >
+                <button
+                  type="button"
+                  class="settings-button danger"
+                  :disabled="backup?.busy"
+                  @click="restoreSnapshot(item.id)"
+                >
+                  恢复
+                </button>
+              </div>
+              <div v-if="!backup?.snapshots?.length" class="settings-row">
+                <span class="settings-value">暂无备份</span>
+              </div>
+              <div class="settings-row">
+                <span class="settings-label">从文件</span>
+                <button
+                  type="button"
+                  class="settings-button"
+                  :disabled="backup?.busy"
+                  @click="
+                    emit('command', { type: 'settings-backup-restore' })
+                  "
+                >
+                  选择 ZIP…
+                </button>
+              </div>
+            </template>
+            <p v-if="backup?.error" class="settings-error" role="alert">
+              {{ backup.error }}
+            </p>
           </template>
 
           <template v-else-if="section === 'profile'">
@@ -1411,7 +1581,7 @@ function onEscape(): void {
                 <span
                   v-else-if="configured && aiTest.status === 'error'"
                   class="ai-latency is-slow"
-                  :title="aiTest.error"
+                  :title="tooltipText(aiTest.error)"
                   >测试失败</span
                 >
                 <button
@@ -1462,7 +1632,7 @@ function onEscape(): void {
                   aria-hidden="true"
                 />
               </button>
-              <span v-if="keyError" class="settings-key-error">{{
+              <span v-if="keyError" class="settings-key-error" :title="tooltipText(keyError)">{{
                 keyError
               }}</span>
               <span
@@ -1479,7 +1649,7 @@ function onEscape(): void {
               <span
                 v-else-if="aiTest.status === 'error'"
                 class="ai-latency is-slow"
-                :title="aiTest.error"
+                :title="tooltipText(aiTest.error)"
                 >测试失败</span
               >
               <button
@@ -1599,7 +1769,7 @@ function onEscape(): void {
                 <span
                   v-else-if="minimaxTest.status === 'error'"
                   class="ai-latency is-slow"
-                  :title="minimaxTest.error"
+                  :title="tooltipText(minimaxTest.error)"
                   >测试失败</span
                 >
                 <button
@@ -1653,9 +1823,12 @@ function onEscape(): void {
                   aria-hidden="true"
                 />
               </button>
-              <span v-if="minimaxKeyError" class="settings-key-error">{{
-                minimaxKeyError
-              }}</span>
+              <span
+                v-if="minimaxKeyError"
+                class="settings-key-error"
+                :title="tooltipText(minimaxKeyError)"
+                >{{ minimaxKeyError }}</span
+              >
               <span
                 v-if="minimaxTest.status === 'testing'"
                 class="ai-latency"
@@ -1670,7 +1843,7 @@ function onEscape(): void {
               <span
                 v-else-if="minimaxTest.status === 'error'"
                 class="ai-latency is-slow"
-                :title="minimaxTest.error"
+                :title="tooltipText(minimaxTest.error)"
                 >测试失败</span
               >
               <button
@@ -1787,16 +1960,22 @@ function onEscape(): void {
                   >测试中…</span
                 >
                 <span
+                  v-else-if="volcanoTest.status === 'error'"
+                  class="ai-latency is-slow"
+                  :title="tooltipText(volcanoTest.error)"
+                  >测试失败</span
+                >
+                <span
+                  v-else-if="volcanoSeedreamWarning"
+                  class="ai-latency is-warning"
+                  title="在火山方舟控制台开通 Doubao Seedream 5.5 后重试。"
+                  >未开通 Seedream 5.5</span
+                >
+                <span
                   v-else-if="volcanoTest.status === 'ok'"
                   class="ai-latency"
                   :class="volcanoLatencyClass"
                   >{{ volcanoTest.latencyMs }} ms</span
-                >
-                <span
-                  v-else-if="volcanoTest.status === 'error'"
-                  class="ai-latency is-slow"
-                  :title="volcanoTest.error"
-                  >测试失败</span
                 >
                 <button
                   v-if="volcanoConfigured"
@@ -1837,37 +2016,60 @@ function onEscape(): void {
               v-if="editingVolcanoKey"
               class="settings-field settings-field-end"
             >
-              <button
-                type="button"
-                class="settings-key-link"
-                @click="openProviderKeys('volcano')"
+              <span class="settings-key-links">
+                <button
+                  type="button"
+                  class="settings-key-link"
+                  @click="openProviderKeys('volcano')"
+                >
+                  <span>获取 API Key</span>
+                  <SquareArrowOutUpRight
+                    :size="13"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </button>
+                <button
+                  type="button"
+                  class="settings-key-link"
+                  @click="openVolcanoModels"
+                >
+                  <span>开通大模型</span>
+                  <SquareArrowOutUpRight
+                    :size="13"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                </button>
+              </span>
+              <span
+                v-if="volcanoKeyError"
+                class="settings-key-error"
+                :title="tooltipText(volcanoKeyError)"
+                >{{ volcanoKeyError }}</span
               >
-                <span>获取 API Key</span>
-                <SquareArrowOutUpRight
-                  :size="13"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
-              </button>
-              <span v-if="volcanoKeyError" class="settings-key-error">{{
-                volcanoKeyError
-              }}</span>
               <span
                 v-if="volcanoTest.status === 'testing'"
                 class="ai-latency"
                 >测试中…</span
               >
               <span
+                v-else-if="volcanoTest.status === 'error'"
+                class="ai-latency is-slow"
+                :title="tooltipText(volcanoTest.error)"
+                >测试失败</span
+              >
+              <span
+                v-else-if="volcanoSeedreamWarning"
+                class="ai-latency is-warning"
+                title="在火山方舟控制台开通 Doubao Seedream 5.5 后重试。"
+                >未开通 Seedream 5.5</span
+              >
+              <span
                 v-else-if="volcanoTest.status === 'ok'"
                 class="ai-latency"
                 :class="volcanoLatencyClass"
                 >{{ volcanoTest.latencyMs }} ms</span
-              >
-              <span
-                v-else-if="volcanoTest.status === 'error'"
-                class="ai-latency is-slow"
-                :title="volcanoTest.error"
-                >测试失败</span
               >
               <button
                 type="button"
@@ -2497,6 +2699,49 @@ function onEscape(): void {
   align-items: center;
   gap: 6px;
 }
+.settings-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink);
+  cursor: help;
+}
+.settings-info:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+.settings-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: 400;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.settings-info:hover .settings-tooltip,
+.settings-info:focus-visible .settings-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-tooltip {
+    transition: none;
+  }
+}
 .settings-label {
   font-size: var(--font-size-body);
 }
@@ -2518,6 +2763,9 @@ function onEscape(): void {
 }
 .ai-latency.is-slow {
   color: var(--color-danger);
+}
+.ai-latency.is-warning {
+  color: var(--color-warning);
 }
 .settings-quota-state {
   max-width: 220px;
@@ -2650,6 +2898,16 @@ function onEscape(): void {
   padding-left: 0;
   padding-right: 0;
 }
+.settings-key-links {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  margin-right: auto;
+}
+.settings-key-links .settings-key-link {
+  margin-right: 0;
+}
 .settings-key-link {
   display: inline-flex;
   align-items: center;
@@ -2675,8 +2933,12 @@ function onEscape(): void {
   flex: none;
 }
 .settings-key-error {
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-danger);
   font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .settings-row-editing {
   gap: 8px;

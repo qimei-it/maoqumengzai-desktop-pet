@@ -7,14 +7,21 @@ import {
   ref,
   watch,
 } from 'vue'
-import { ChevronLeft, ChevronRight } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Info } from '@lucide/vue'
 import type { Command, Snapshot } from '../shared/protocol'
 import {
+  maxPetNameChars,
   normalizePetName,
   petNameConflict,
   petNameConflictError,
+  petNameLength,
 } from '../shared/pet-name'
-import { getPetStyle, type PetPoseId } from '../shared/pet-style'
+import { maxPetPromptChars, petPromptLength } from '../shared/pet-prompt'
+import {
+  getPetStyle,
+  resolvePetStyleState,
+  type PetPoseId,
+} from '../shared/pet-style'
 import PanelHeader from './PanelHeader.vue'
 import catBase from './assets/pet/ragdoll/base.png'
 import catBlink from './assets/pet/ragdoll/blink.png'
@@ -34,13 +41,17 @@ const bundledPoses: Record<PetPoseId, string> = {
   music: catMusic,
   ponder: catPonder,
 }
-const poseImages = computed(() =>
-  getPetStyle().states.map((state) => ({
+const poseImages = computed(() => {
+  const style = getPetStyle()
+  const assets = props.state?.petAssets
+  // The bundled sprite is the built-in cat; a saved pet without a species is unknown.
+  const species = assets ? assets.species : '猫'
+  return style.states.map((state) => ({
     id: state.id,
-    label: state.label,
-    src: props.state?.petAssets?.poses[state.id] ?? bundledPoses[state.id],
-  })),
-)
+    label: resolvePetStyleState(style, state.id, species)?.label ?? state.id,
+    src: assets?.poses[state.id] ?? bundledPoses[state.id],
+  }))
+})
 const currentPose = ref(0)
 const currentPoseImage = computed(
   () => poseImages.value[currentPose.value] ?? poseImages.value[0]!,
@@ -179,6 +190,19 @@ function onWheel(event: WheelEvent): void {
 
 const name = ref(props.state?.settings.petName ?? '麻薯')
 const daysTogether = computed(() => props.state?.petStats.daysTogether ?? 0)
+const customPet = computed(() => Boolean(props.state?.petAssets))
+const prompt = ref(props.state?.petAssets?.prompt ?? '')
+const savedPrompt = computed(() => props.state?.petAssets?.prompt ?? '')
+const promptValue = computed(() => prompt.value.trim())
+const promptLength = computed(() => petPromptLength(prompt.value))
+const promptOverLimit = computed(
+  () => promptLength.value > maxPetPromptChars,
+)
+const canSavePrompt = computed(
+  () =>
+    promptValue.value !== savedPrompt.value && !promptOverLimit.value,
+)
+const promptSaved = ref(false)
 const saved = ref(false)
 const value = computed(() => name.value.trim())
 const currentName = computed(() => props.state?.settings.petName ?? '')
@@ -192,17 +216,32 @@ const nameConflict = computed(() => {
   )
   return petNameConflict(value.value, others)
 })
+const nameLength = computed(() => petNameLength(name.value))
+const nameOverLimit = computed(() => nameLength.value > maxPetNameChars)
 const canSave = computed(
   () =>
     value.value.length > 0 &&
     value.value !== currentName.value &&
-    !nameConflict.value,
+    !nameConflict.value &&
+    !nameOverLimit.value,
 )
 
 watch(
   () => props.state?.settings.petName,
   (next) => {
     if (next) name.value = next
+  },
+)
+watch(
+  () => props.state?.petAssets?.id,
+  () => {
+    prompt.value = props.state?.petAssets?.prompt ?? ''
+  },
+)
+watch(
+  () => props.state?.petAssets?.prompt,
+  (next) => {
+    if ((next ?? '') !== prompt.value.trim()) prompt.value = next ?? ''
   },
 )
 watch(
@@ -247,6 +286,14 @@ function save(): void {
   saved.value = true
   window.setTimeout(() => {
     saved.value = false
+  }, 1200)
+}
+function savePrompt(): void {
+  if (!canSavePrompt.value) return
+  emit('command', { type: 'pet-prompt-save', prompt: promptValue.value })
+  promptSaved.value = true
+  window.setTimeout(() => {
+    promptSaved.value = false
   }, 1200)
 }
 function close(): void {
@@ -346,12 +393,16 @@ function close(): void {
         <div class="profile-row">
           <span class="profile-label">名字</span>
           <span class="profile-edit">
+            <span
+              class="profile-name-count"
+              :class="{ 'is-over': nameOverLimit }"
+              >{{ nameLength }} / {{ maxPetNameChars }}</span
+            >
             <input
               v-model="name"
               type="text"
-              maxlength="20"
               aria-label="宠物名字"
-              :aria-invalid="nameConflict"
+              :aria-invalid="nameConflict || nameOverLimit"
               :aria-describedby="
                 nameConflict ? 'profile-name-conflict' : undefined
               "
@@ -373,9 +424,57 @@ function close(): void {
           <span class="profile-label">已陪伴</span>
           <span class="profile-value">{{ daysTogether }} 天</span>
         </div>
+        <div v-if="customPet" class="profile-prompt">
+          <div class="profile-prompt-head">
+            <span class="profile-label">
+              提示词
+              <span
+                class="profile-info"
+                tabindex="0"
+                aria-label="随这只桌宠保存，只影响称呼、语气与情感陪伴的表达，不改变助理规则、工具与安全边界。"
+              >
+                <Info :size="13" :stroke-width="2" aria-hidden="true" />
+                <span class="profile-tooltip" role="tooltip">
+                  随这只桌宠保存，只影响称呼、语气与情感陪伴的表达，不改变助理规则、工具与安全边界。
+                </span>
+              </span>
+            </span>
+            <span class="profile-prompt-actions">
+              <span
+                class="profile-prompt-count"
+                :class="{ 'is-over': promptOverLimit }"
+                >{{ promptLength }} / {{ maxPetPromptChars }}</span
+              >
+              <button
+                type="button"
+                class="profile-save"
+                :disabled="!canSavePrompt"
+                aria-label="保存提示词"
+                title="保存"
+                @click="savePrompt"
+              >
+                保存
+              </button>
+            </span>
+          </div>
+          <textarea
+            v-model="prompt"
+            class="profile-prompt-input"
+            rows="3"
+            placeholder="例如：用朋友的口吻陪我聊天，累的时候先听我说。"
+            aria-label="桌宠提示词"
+            :aria-invalid="promptOverLimit"
+          ></textarea>
+          <p v-if="promptOverLimit" class="profile-prompt-error" role="alert">
+            提示词超过上限，请酌情删除部分内容
+          </p>
+        </div>
       </div>
 
       <p v-if="saved" class="profile-notice" role="status">名字已保存</p>
+      <p v-if="promptSaved" class="profile-notice" role="status">
+        提示词已保存
+      </p>
       <p
         v-if="nameConflict"
         id="profile-name-conflict"
@@ -383,6 +482,13 @@ function close(): void {
         role="alert"
       >
         {{ petNameConflictError }}
+      </p>
+      <p
+        v-if="nameOverLimit && !nameConflict"
+        class="profile-error"
+        role="alert"
+      >
+        桌宠名称超过上限，请按要求调整
       </p>
       <p v-if="error" class="profile-error" role="alert">{{ error }}</p>
     </section>
@@ -529,8 +635,11 @@ function close(): void {
 }
 .profile-body {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
   margin-top: 6px;
+  overflow-y: auto;
 }
 .profile-row {
   display: flex;
@@ -554,10 +663,105 @@ function close(): void {
   gap: 6px;
   color: var(--color-ink);
 }
+.profile-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--color-line);
+}
+.profile-prompt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.profile-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-prompt-count {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+.profile-prompt-count.is-over {
+  color: var(--color-danger);
+}
+.profile-prompt-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-label);
+}
+.profile-prompt-input {
+  width: 100%;
+  min-height: 78px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+  line-height: 1.5;
+  resize: none;
+}
+.profile-prompt-input:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+.profile-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+  cursor: help;
+}
+.profile-info:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+.profile-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(240px, 64vw);
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: 400;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.profile-info:hover .profile-tooltip,
+.profile-info:focus-visible .profile-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
 .profile-edit {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.profile-name-count {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.profile-name-count.is-over {
+  color: var(--color-danger);
 }
 .profile-edit input {
   width: 150px;
@@ -620,7 +824,8 @@ function close(): void {
   .profile-pose-enter-active,
   .profile-pose-leave-active,
   .profile-pose-dot::before,
-  .profile-preview {
+  .profile-preview,
+  .profile-tooltip {
     transition: none;
   }
 }

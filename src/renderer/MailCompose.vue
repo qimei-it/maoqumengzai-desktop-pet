@@ -27,7 +27,29 @@ const emit = defineEmits<{ command: [command: Command] }>()
 
 const accounts = computed(() => props.state?.mail.accounts ?? [])
 const compose = computed(() => props.state?.mailCompose)
+const maximized = computed(() => props.state?.mailCompose.maximized === true)
 const sending = computed(() => Boolean(compose.value?.sending))
+function toggleDefault(): void {
+  emit('command', { type: 'panel-control', action: 'toggle-default' })
+}
+function onFrameDoubleClick(event: MouseEvent): void {
+  if (event.target !== event.currentTarget) return
+  toggleDefault()
+}
+/** Snapshot the state before the native drag region may zoom the window. */
+let headerPressMaximized = false
+function onHeaderMouseDown(): void {
+  headerPressMaximized = maximized.value
+}
+function onHeaderDoubleClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button')) return
+  const before = headerPressMaximized
+  window.setTimeout(() => {
+    if (maximized.value !== before) return
+    toggleDefault()
+  }, 220)
+}
 const accountId = ref('')
 const to = ref('')
 const cc = ref('')
@@ -248,15 +270,22 @@ function size(bytes: number): string {
 <template>
   <main
     class="compose-shell"
+    :class="{ 'is-maximized': maximized }"
     @keydown.esc="close"
+    @dblclick="onFrameDoubleClick"
   >
     <section class="compose-surface" aria-label="撰写邮件">
       <PanelHeader
         title="新邮件"
         :platform="state?.runtime.platform"
+        resizable
+        :maximized="maximized"
+        @mousedown="onHeaderMouseDown"
+        @dblclick="onHeaderDoubleClick"
         @minimize="
           emit('command', { type: 'panel-control', action: 'minimize' })
         "
+        @maximize="toggleDefault"
         @close="close"
       />
       <div class="compose-body">
@@ -453,7 +482,7 @@ function size(bytes: number): string {
         <div class="compose-actions">
           <button
             type="button"
-            class="settings-button"
+            class="settings-button compose-attach-button"
             :disabled="sending"
             @click="chooseAttachments"
           >
@@ -490,6 +519,13 @@ function size(bytes: number): string {
   background: transparent;
   color: var(--color-ink);
 }
+.compose-shell.is-maximized {
+  background: var(--color-canvas);
+}
+.compose-shell.is-maximized .compose-surface {
+  border-radius: 0;
+  box-shadow: none;
+}
 .compose-surface {
   height: 100%;
   display: flex;
@@ -506,6 +542,10 @@ function size(bytes: number): string {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
 }
 .compose-field {
   display: flex;
@@ -565,7 +605,7 @@ function size(bytes: number): string {
 }
 .compose-content {
   flex: 1;
-  min-height: 180px;
+  min-height: 160px;
   overflow-y: auto;
   padding: 10px 2px;
   scrollbar-gutter: stable;
@@ -599,15 +639,17 @@ function size(bytes: number): string {
 }
 .compose-attachments {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 132px;
   margin: 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-control);
-  background: var(--color-fill-secondary);
+  padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 .compose-attachment-summary {
+  flex: none;
   margin: 0;
   color: var(--color-muted);
   font-size: var(--font-size-caption);
@@ -619,11 +661,16 @@ function size(bytes: number): string {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-width: 0;
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+  background: var(--color-fill-secondary);
   font-size: var(--font-size-label);
 }
 .compose-attachments li > span:nth-child(2) {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -652,12 +699,22 @@ function size(bytes: number): string {
 }
 .compose-actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
   padding-top: 12px;
+  background: var(--color-canvas);
   border-top: 1px solid var(--color-line);
 }
 .compose-spacer {
   flex: 1;
+}
+.compose-attach-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

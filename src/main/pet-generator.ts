@@ -67,7 +67,9 @@ export async function generatePetPose(
   ).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : ''
     if (/not activated the model/i.test(message))
-      throw new Error('火山方舟还没有开通这个图像模型，请在控制台开通后重试。')
+      throw new Error(
+        '火山方舟还没有开通 Doubao Seedream 5.5，请在控制台开通后重试。',
+      )
     throw error
   })
   const image = result.images[0]

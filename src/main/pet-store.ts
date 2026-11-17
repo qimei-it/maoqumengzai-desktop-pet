@@ -5,18 +5,22 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { mediaUrl } from '../shared/media'
 import { registerMediaPath } from './agent/media-registry'
+import { maxPetNameChars } from '../shared/pet-name'
 import { petPoseIds, type PetPoseId, type PetStyle } from '../shared/pet-style'
+import { maxPetPromptChars, normalizePetPrompt } from '../shared/pet-prompt'
 import { petSpeciesOptions, type PetSpecies } from '../shared/pet-species'
 
 const recordSchema = z
   .object({
     version: z.literal(1),
     id: z.string().min(1).max(80),
-    name: z.string().trim().min(1).max(20),
+    name: z.string().trim().min(1).max(maxPetNameChars),
     styleId: z.string().min(1).max(80),
     styleName: z.string().min(1).max(80),
+    styleVersion: z.number().int().positive().optional(),
     model: z.string().min(1).max(200),
     species: z.enum(petSpeciesOptions).optional(),
+    prompt: z.string().trim().max(maxPetPromptChars).optional(),
     createdAt: z.number().int().positive(),
     poses: z.record(
       z.enum(petPoseIds),
@@ -35,7 +39,9 @@ export type PetAssets = {
   id: string
   name: string
   styleName: string
+  species?: PetSpecies
   poses: Record<PetPoseId, string>
+  prompt?: string
 }
 
 export function petsRoot(dataRoot: string): string {
@@ -110,7 +116,9 @@ export function registerPetAssets(
     id: record.id,
     name: record.name,
     styleName: record.styleName,
+    ...(record.species ? { species: record.species } : {}),
     poses,
+    ...(record.prompt ? { prompt: record.prompt } : {}),
   }
 }
 
@@ -121,15 +129,19 @@ export function petRecordFor(
   model: string,
   createdAt: number,
   species?: PetSpecies,
+  prompt?: string,
 ): PetRecord {
+  const companionPrompt = prompt ? normalizePetPrompt(prompt) : ''
   return {
     version: 1,
     id,
     name,
     styleId: style.id,
     styleName: style.name,
+    styleVersion: style.version,
     model,
     ...(species ? { species } : {}),
+    ...(companionPrompt ? { prompt: companionPrompt } : {}),
     createdAt,
     poses: Object.fromEntries(
       petPoseIds.map((pose) => [pose, `${pose}.png`]),

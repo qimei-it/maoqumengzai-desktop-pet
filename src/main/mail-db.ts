@@ -50,6 +50,11 @@ function accountFromRow(row: AccountRow): MailAccount {
 export class MailDatabase {
   private readonly db: DatabaseSync
 
+  /** Flush the WAL so a file-level backup sees a consistent database. */
+  checkpoint(): void {
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  }
+
   constructor(path: string) {
     mkdirSync(dirname(path), { recursive: true })
     this.db = new DatabaseSync(path)

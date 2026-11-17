@@ -95,6 +95,7 @@ export const channels = {
   openExternal: 'mqmz:open-external',
   pickDirectory: 'mqmz:directory:pick',
   toastFit: 'mqmz:toast:fit',
+  toastHover: 'mqmz:toast:hover',
 } as const
 
 export type Rect = { x: number; y: number; width: number; height: number }
@@ -452,7 +453,9 @@ export type PetAssets = {
   id: string
   name: string
   styleName: string
+  species?: PetSpecies
   poses: Record<PetPoseId, string>
+  prompt?: string
 }
 export type PetCreateStep = 'edit' | 'generating' | 'preview'
 export type PetCreatePhoto = {
@@ -472,6 +475,7 @@ export type PetCreateState = {
   step: PetCreateStep
   name: string
   species: PetSpecies | ''
+  prompt: string
   photos: PetCreatePhoto[]
   poses: PetCreatePose[]
   busy: boolean
@@ -497,13 +501,42 @@ export type LocalEngineState = {
   error?: string
 }
 export type ToastPart = { text: string; code?: boolean }
+/** Click target carried by an actionable toast bubble. */
+export type ToastAction = {
+  type: 'todo'
+  todoId: string
+  listId: string | null
+}
+/** One-shot request that opens the todo panel on a specific row. */
+export type TodoFocusTarget = {
+  todoId: string
+  listId: string | null
+  /** Bumped for every request so clicking the same reminder again re-applies. */
+  nonce: number
+}
+
+export type BackupSnapshot = {
+  id: string
+  createdAt: number
+  bytes: number
+}
+
+export type BackupState = {
+  autoEnabled: boolean
+  retention: number
+  snapshots: BackupSnapshot[]
+  busy: boolean
+  lastAt?: number
+  error?: string
+  restore?: { ok: boolean; at: number; message?: string }
+}
 
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
   petBounds: Rect
   displays: DisplayInfo[]
   scale: number
-  dropMode: boolean
+  dropArmed: boolean
   wheelOpen: boolean
   passthrough: boolean
   maskReady: boolean
@@ -528,6 +561,8 @@ export type Snapshot = {
   }
   toast?: string
   toastParts?: ToastPart[]
+  toastAction?: ToastAction
+  todoFocus?: TodoFocusTarget
   mailAlert?: MailAlert
   aiOpen: boolean
   ai: AiState
@@ -537,6 +572,7 @@ export type Snapshot = {
   agentSkills: AgentSkillView[]
   agentMaximized: boolean
   aiQuota: AiQuotaState
+  backup: BackupState
   convertOpen: boolean
   convert: ConvertState
   archiveOpen: boolean
@@ -578,7 +614,7 @@ export type Command =
   | { type: 'show-lab' }
   | { type: 'show-pocket' }
   | { type: 'hide-pocket' }
-  | { type: 'drop-mode'; enabled: boolean }
+  | { type: 'drop-arm'; armed: boolean }
   | { type: 'scale'; scale: number }
   | { type: 'move-display'; displayId: number }
   | { type: 'remove-file'; fileId: string }
@@ -690,10 +726,17 @@ export type Command =
   | { type: 'pet-create-close' }
   | { type: 'pet-create-pick-photos' }
   | { type: 'pet-create-remove-photo'; id: string }
-  | { type: 'pet-create-start'; name: string; species: PetSpecies }
+  | { type: 'pet-create-species'; species: PetSpecies }
+  | {
+      type: 'pet-create-start'
+      name: string
+      species: PetSpecies
+      prompt: string
+    }
   | { type: 'pet-create-retry'; pose: PetPoseId }
   | { type: 'pet-create-cancel' }
   | { type: 'pet-create-save' }
+  | { type: 'pet-prompt-save'; prompt: string }
   | { type: 'pet-default' }
   | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
@@ -724,6 +767,9 @@ export type Command =
       patch: Partial<SettingsState>
     }
   | { type: 'settings-open-data' }
+  | { type: 'settings-auto-backup'; enabled: boolean }
+  | { type: 'settings-backup-export' }
+  | { type: 'settings-backup-restore'; snapshot?: string }
   | { type: 'settings-choose-agent-dir' }
   | { type: 'settings-open-agent-dir' }
   | { type: 'settings-clear-cache' }
@@ -735,7 +781,8 @@ export type Command =
   | { type: 'water-open' }
   | { type: 'water-close' }
   | { type: 'water-drink' }
-  | { type: 'todo-open' }
+  | { type: 'todo-open'; todoId?: string; listId?: string | null }
+  | { type: 'todo-focus-ack'; nonce: number }
   | { type: 'todo-close' }
   | { type: 'focus-start' }
   | { type: 'focus-pause' }
@@ -985,6 +1032,7 @@ export interface PrototypeApi {
   openExternal(url: string): Promise<Result<void>>
   pickDirectory(title?: string): Promise<Result<string | null>>
   toastFit(width: number, height: number): void
+  toastHover(hovering: boolean): void
   onSnapshot(listener: (snapshot: Snapshot) => void): () => void
   onHover(listener: () => void): () => void
 }

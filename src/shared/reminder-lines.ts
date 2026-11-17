@@ -74,6 +74,8 @@ const templates: Record<ReminderKind, readonly string[]> = {
     '主人，先放下手里的，松松肩',
     '主人，做得好，先歇一会儿',
     '主人，时间到，抬头看看远处',
+    '主人，这一段完成啦，来击掌',
+    '主人，辛苦啦，{name}陪你歇会儿',
   ],
   breakDone: [
     '主人，休息够啦，回来继续',

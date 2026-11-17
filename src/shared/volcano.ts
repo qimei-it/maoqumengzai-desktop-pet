@@ -4,6 +4,12 @@ export const volcanoBaseUrl = 'https://ark.cn-beijing.volces.com/api/v3'
 export const volcanoModelsEndpoint = `${volcanoBaseUrl}/models`
 export const volcanoImagesEndpoint = `${volcanoBaseUrl}/images/generations`
 
+/** Console pages opened from the API Key setup UI. */
+export const volcanoApiKeyUrl =
+  'https://console.volcengine.com/ark/region:cn-beijing/apiKey'
+export const volcanoModelManagementUrl =
+  'https://console.volcengine.com/ark/region:cn-beijing/openManagement?LLM=%7B%22PageSize%22%3A10%2C%22PageNumber%22%3A1%2C%22Filter%22%3A%7B%22VendorNameOrModelName%22%3A%5B%7B%22key%22%3A%22name%22%2C%22value%22%3A%22Seed%22%7D%5D%7D%7D&advancedActiveKey=model'
+
 /** Public model IDs used when the model list cannot be reached. */
 export const volcanoSeedreamFlashModel = 'doubao-seedream-5-0-flash-260915'
 export const volcanoSeedreamModel = 'doubao-seedream-5-5-261028'
@@ -47,18 +53,18 @@ async function requestModels(
     },
     signal: requestSignal(options, 20_000),
   }).catch(() => null)
-  if (!response) throw new Error('连接火山方舟失败，请检查网络后重试。')
+  if (!response) throw new Error('连接失败，请检查网络')
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
-      throw new Error('火山方舟 API Key 无效，请重新添加。')
+      throw new Error('API Key 无效')
     if (response.status === 429)
-      throw new Error('火山方舟请求过于频繁，请稍后再试。')
+      throw new Error('请求过于频繁')
     if (response.status >= 500)
-      throw new Error('火山方舟服务暂时不可用，请稍后重试。')
-    throw new Error(`火山方舟模型请求失败（${response.status}）。`)
+      throw new Error('服务暂不可用')
+    throw new Error(`连接失败（${response.status}）`)
   }
   const ids = modelIds(await response.json().catch(() => null))
-  if (!ids.length) throw new Error('火山方舟模型列表返回了无效数据。')
+  if (!ids.length) throw new Error('返回数据异常')
   return ids
 }
 
@@ -83,7 +89,7 @@ export function isVolcanoImageModel(id: string): boolean {
 }
 
 export function hasVolcanoSeedreamModel(ids: string[]): boolean {
-  return ids.includes(volcanoSeedreamModel)
+  return ids.some((id) => /seedream[-_ ]?5[-_.]?5/i.test(id))
 }
 
 /** Prefer Seedream 5.5 for native text/image RGBA, then 5.0 flash. */
@@ -165,8 +171,12 @@ export async function generateVolcanoImage(
   } | null
   if (!response.ok) {
     const detail = data?.error?.message ?? ''
+    if (/not activated the model/i.test(detail))
+      throw new Error(
+        '火山方舟还没有开通 Doubao Seedream 5.5，请在控制台开通后重试。',
+      )
     if (response.status === 401 || response.status === 403)
-      throw new Error('火山方舟 API Key 无效，请重新添加。')
+      throw new Error('API Key 无效')
     if (response.status === 402)
       throw new Error('火山方舟账户余额或套餐额度不足。')
     if (response.status === 429)

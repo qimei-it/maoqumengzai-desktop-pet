@@ -48,9 +48,24 @@ test('edits and regenerates a turn', async () => {
   await expect(agent.getByLabel('给智能体发送指令')).toBeVisible()
   await application.evaluate(() => {
     let replies = 0
-    globalThis.fetch = async (input: string | URL | Request) => {
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       if (!String(input).includes('/chat/completions'))
         return new Response('{}', { status: 503 })
+      const body = typeof init?.body === 'string' ? init.body : ''
+      if (body.includes('会话标题生成器'))
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '测试标题' } }] })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
       replies += 1
       return new Response(
         [
@@ -69,7 +84,7 @@ test('edits and regenerates a turn', async () => {
 
   await agent.getByLabel('给智能体发送指令').fill('原始问题')
   await agent.getByRole('button', { name: '发送' }).click()
-  await expect(agent.getByText('回答 1')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-message').getByText('回答 1')).toBeVisible({ timeout: 15_000 })
 
   await agent
     .locator('.agent-message.user')
@@ -88,7 +103,7 @@ test('edits and regenerates a turn', async () => {
   await expect(
     agent.locator('.agent-message').getByText('回答 1'),
   ).toHaveCount(0)
-  await expect(agent.getByText('回答 2')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-message').getByText('回答 2')).toBeVisible({ timeout: 15_000 })
   await expect(agent.locator('.agent-message.user')).toHaveCount(1)
 
   await agent
@@ -96,7 +111,7 @@ test('edits and regenerates a turn', async () => {
     .last()
     .getByRole('button', { name: '重新生成' })
     .click()
-  await expect(agent.getByText('回答 3')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-message').getByText('回答 3')).toBeVisible({ timeout: 15_000 })
   await expect(
     agent.locator('.agent-message').getByText('回答 2'),
   ).toHaveCount(0)
@@ -109,9 +124,24 @@ test('edits and regenerates a turn', async () => {
 test('shows collapsed reasoning and the length limit note', async () => {
   await application.evaluate(() => {
     let replies = 0
-    globalThis.fetch = async (input: string | URL | Request) => {
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       if (!String(input).includes('/chat/completions'))
         return new Response('{}', { status: 503 })
+      const body = typeof init?.body === 'string' ? init.body : ''
+      if (body.includes('会话标题生成器'))
+        return new Response(
+          [
+            `data: ${JSON.stringify({ choices: [{ delta: { content: '测试标题' } }] })}`,
+            '',
+            'data: [DONE]',
+            '',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+        )
       replies += 1
       if (replies === 1)
         return new Response(
@@ -145,7 +175,7 @@ test('shows collapsed reasoning and the length limit note', async () => {
 
   await agent.getByLabel('给智能体发送指令').fill('需要思考')
   await agent.getByRole('button', { name: '发送' }).click()
-  await expect(agent.getByText('带思考的回答')).toBeVisible({
+  await expect(agent.locator('.agent-message').getByText('带思考的回答')).toBeVisible({
     timeout: 15_000,
   })
   const reasoning = agent.locator('.agent-reasoning').last()

@@ -1186,6 +1186,28 @@ footer button {
 .toast-surface.has-alert {
   pointer-events: auto;
 }
+.toast-surface.is-actionable {
+  pointer-events: auto;
+}
+.toast-body.is-actionable {
+  padding-right: 27px;
+  cursor: pointer;
+  transition: border-color 160ms ease-out;
+}
+.toast-body.is-actionable:hover {
+  border-color: var(--color-brand-ink);
+}
+.toast-open-icon {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  color: var(--color-muted);
+  transform: translateY(-50%);
+  transition: color 160ms ease-out;
+}
+.toast-body.is-actionable:hover .toast-open-icon {
+  color: var(--color-brand-ink);
+}
 .mail-alert {
   display: flex;
   flex-direction: column;
@@ -1205,6 +1227,17 @@ footer button {
 }
 .mail-alert:hover {
   border-color: var(--color-brand-ink);
+}
+.mail-alert.has-greeting {
+  height: 136px;
+}
+.mail-alert-greeting {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-brand-ink);
+  font-size: var(--font-size-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .mail-alert-sender {
   max-width: 100%;

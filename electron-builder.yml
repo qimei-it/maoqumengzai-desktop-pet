@@ -11,11 +11,7 @@ files:
   - "!node_modules/@babel/**"
   - "!node_modules/magic-string/**"
   - "!node_modules/estree-walker/**"
-  - "!node_modules/source-map-js/**"
-  - "!node_modules/postcss/**"
-  - "!node_modules/nanoid/**"
   - "!node_modules/csstype/**"
-  - "!node_modules/entities/**"
 asar: true
 afterPack: scripts/after-pack.cjs
 asarUnpack:

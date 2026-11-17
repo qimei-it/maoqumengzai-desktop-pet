@@ -117,6 +117,10 @@ async function retryNetwork<T>(operation: () => Promise<T>): Promise<T> {
 
 export function mailErrorMessage(error: unknown): string {
   const message = errorText(error)
+  if (/请填写 Gmail 代理地址|代理地址格式不正确|代理仅支持/.test(message))
+    return message
+  if (/EPROXY|ProxyError|代理连接超时|代理拒绝连接|Invalid proxy/i.test(message))
+    return '邮件代理连接失败，请检查 Gmail 代理设置。'
   if (/unsafe login|id required|client.*id|please.*id/i.test(message))
     return '邮箱要求客户端标识，请更换授权码后重试。'
   if (

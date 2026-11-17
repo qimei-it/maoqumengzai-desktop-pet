@@ -80,7 +80,7 @@ function friendlyError(
   detail?: string,
 ): Error {
   if (status === 401 || status === 403)
-    return new Error('API Key 无效，请在设置中更换。')
+    return new Error('API Key 无效')
   if (status === 402) return new Error('DeepSeek 账户余额不足。')
   if (status === 429) return new Error('请求太频繁，请稍后再试。')
   if (status === 400 && detail) return new Error(`请求被拒绝：${detail}`)

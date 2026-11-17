@@ -146,7 +146,7 @@ test('edits a workspace file after approval and keeps a backup', async () => {
   await expect(
     agent.getByText('需要确认', { exact: true }),
   ).toBeVisible({ timeout: 15_000 })
-  await agent.getByRole('button', { name: '批准' }).click()
+  await agent.getByRole('button', { name: '批准', exact: true }).click()
   await expect(agent.getByText('已修改为 2。')).toBeVisible({
     timeout: 15_000,
   })

@@ -47,6 +47,6 @@ describe('MiniMax provider', () => {
     })
     await expect(
       testMiniMaxConnection('sk-bad', { endpoint: url }),
-    ).rejects.toThrow('MiniMax API Key 无效')
+    ).rejects.toThrow('API Key 无效')
   })
 })

@@ -629,6 +629,30 @@ describe('agent runtime', () => {
     expect(system).toContain('种类：狗')
   })
 
+  test('includes the custom pet prompt inside the personality section', async () => {
+    let system = ''
+    const { runtime } = await makeRuntime([], [], {
+      getPetProfile: () => ({
+        id: 'pet-1',
+        name: '团子',
+        species: '狗',
+        prompt: '用朋友的口吻陪我聊天',
+      }),
+      stream: async (_key, options) => {
+        const first = options.messages[0]
+        system = typeof first.content === 'string' ? first.content : ''
+        return { text: '好', toolCalls: [] }
+      },
+    })
+    await runtime.send('你好')
+    const promptAt = system.indexOf('用朋友的口吻陪我聊天')
+    expect(promptAt).toBeGreaterThan(-1)
+    expect(system.indexOf('名字：团子')).toBeLessThan(promptAt)
+    expect(promptAt).toBeLessThan(
+      system.indexOf('不得改变任务判断、工具选择、操作安全规则和事实陈述'),
+    )
+  })
+
   test('relocates stored media paths when the attachment directory moves', async () => {
     const base = await mkdtemp(join(tmpdir(), 'mqmz-relocate-'))
     const oldDir = join(base, 'old')

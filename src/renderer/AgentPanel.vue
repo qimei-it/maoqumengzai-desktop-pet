@@ -101,6 +101,10 @@ import {
   speechVoices,
   type GenerationParams,
 } from '../shared/generation'
+import {
+  volcanoApiKeyUrl,
+  volcanoModelManagementUrl,
+} from '../shared/volcano'
 import type {
   AiTestState,
   Command,
@@ -2194,8 +2198,12 @@ function getKey(provider: AgentProvider = 'deepseek'): void {
   void window.mqmz?.openExternal(
     provider === 'minimax'
       ? 'https://platform.minimax.cn/console/keys'
-      : 'https://console.volcengine.com/ark/region:cn-beijing/apiKey',
+      : volcanoApiKeyUrl,
   )
+}
+function openModels(provider: AgentProvider): void {
+  if (provider !== 'volcano') return
+  void window.mqmz?.openExternal(volcanoModelManagementUrl)
 }
 function testDraftKey(provider: AgentProvider = 'deepseek'): void {
   const apiKey = keyDraft.value.trim()
@@ -3452,19 +3460,35 @@ function statusLabel(status: string): string {
                     @keydown.enter.prevent="saveKey(provider)"
                   />
                   <div class="agent-setup-actions">
-                    <button
-                      type="button"
-                      class="agent-text-button agent-get-key"
-                      @click="getKey(provider)"
-                    >
-                      获取 API Key
-                      <SquareArrowOutUpRight
-                        class="agent-external-icon"
-                        :size="14"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                    </button>
+                    <span class="agent-setup-links">
+                      <button
+                        type="button"
+                        class="agent-text-button agent-get-key"
+                        @click="getKey(provider)"
+                      >
+                        获取 API Key
+                        <SquareArrowOutUpRight
+                          class="agent-external-icon"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                      </button>
+                      <button
+                        v-if="provider === 'volcano'"
+                        type="button"
+                        class="agent-text-button agent-get-key"
+                        @click="openModels(provider)"
+                      >
+                        开通大模型
+                        <SquareArrowOutUpRight
+                          class="agent-external-icon"
+                          :size="14"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </span>
                     <div class="agent-setup-buttons">
                       <span
                         v-if="providerTest(provider).status === 'testing'"
@@ -4051,6 +4075,12 @@ function statusLabel(status: string): string {
                   {{ agent.retryLabel }}
                 </button>
               </div>
+              <p
+                v-if="!busy && agent?.error"
+                class="agent-error agent-turn-error"
+              >
+                {{ agent.error }}
+              </p>
             </div>
           </div>
 
@@ -8012,6 +8042,12 @@ function statusLabel(status: string): string {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+}
+.agent-setup-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
 }
 .agent-get-key {

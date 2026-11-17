@@ -52,6 +52,10 @@ function errorText(error: unknown): string {
 
 export function smtpErrorMessage(error: unknown): string {
   const message = errorText(error)
+  if (/请填写 Gmail 代理地址|代理地址格式不正确|代理仅支持/.test(message))
+    return message
+  if (/EPROXY|ProxyError|代理连接超时|代理拒绝连接|Invalid proxy/i.test(message))
+    return '邮件代理连接失败，请检查 Gmail 代理设置。'
   if (
     /authentication|invalid.*(?:login|credential|password)|535|534|username|password/i.test(
       message,

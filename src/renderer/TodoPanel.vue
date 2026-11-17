@@ -25,6 +25,7 @@ import type {
   Command,
   FocusTodo,
   Snapshot,
+  TodoFocusTarget,
   TodoList,
   TodoListColor,
   TodoRepeat,
@@ -89,6 +90,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer)
+  if (highlightTimer) clearTimeout(highlightTimer)
 })
 
 const todos = computed(() => props.state?.focus.todos ?? [])
@@ -308,6 +310,52 @@ function selectGroup(id: string): void {
   closeEditing()
   selection.value = { kind: 'group', id }
 }
+const itemList = ref<HTMLElement | null>(null)
+const highlightId = ref<string | null>(null)
+let highlightTimer: ReturnType<typeof setTimeout> | undefined
+const reduceMotion = window.matchMedia?.(
+  '(prefers-reduced-motion: reduce)',
+).matches
+/** Opens the list holding a reminded todo and flashes that row. */
+function revealTodo(target: TodoFocusTarget): void {
+  const todo = todos.value.find((item) => item.id === target.todoId)
+  const listId = todo?.listId ?? target.listId
+  closeEditing()
+  const list = listId
+    ? lists.value.find((item) => item.id === listId)
+    : undefined
+  const groupKey = list ? (list.groupId ?? UNGROUPED_ID) : undefined
+  if (groupKey && isGroupCollapsed(groupKey))
+    collapsedGroups.value = { ...collapsedGroups.value, [groupKey]: false }
+  selection.value =
+    listId && list
+      ? { kind: 'list', id: listId }
+      : { kind: 'smart', id: 'all' }
+  if (todo) {
+    highlightId.value = target.todoId
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = setTimeout(() => {
+      highlightId.value = null
+    }, 2400)
+  }
+  emit('command', { type: 'todo-focus-ack', nonce: target.nonce })
+  void nextTick(() => {
+    if (!todo) return
+    itemList.value
+      ?.querySelector<HTMLElement>(`[data-todo-id="${target.todoId}"]`)
+      ?.scrollIntoView({
+        block: 'center',
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      })
+  })
+}
+watch(
+  () => props.state?.todoFocus,
+  (target) => {
+    if (target) revealTodo(target)
+  },
+  { immediate: true },
+)
 function addTodo(): void {
   const text = draft.value.trim()
   if (!text || !canAdd.value) return
@@ -1241,12 +1289,16 @@ watch(groups, (value) => {
           </form>
 
           <div class="todo-list">
-            <ul v-if="ordered.length" class="todo-items panel-scroll">
+            <ul v-if="ordered.length" ref="itemList" class="todo-items panel-scroll">
               <li
                 v-for="todo in ordered"
                 :key="todo.id"
                 class="todo-item"
-                :class="{ editing: editingId === todo.id }"
+                :class="{
+                  editing: editingId === todo.id,
+                  revealed: highlightId === todo.id,
+                }"
+                :data-todo-id="todo.id"
                 @keydown.esc.stop.prevent="closeEditing"
               >
                 <button
@@ -2278,6 +2330,11 @@ watch(groups, (value) => {
   gap: 10px;
   padding: 9px 2px;
   border-bottom: 1px solid var(--color-line);
+  transition: background-color 220ms ease-out;
+}
+.todo-item.revealed {
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-soft);
 }
 .todo-content {
   flex: 1;
@@ -2925,6 +2982,9 @@ watch(groups, (value) => {
   .todo-list-actions,
   .todo-tag,
   .todo-remove {
+    transition: none;
+  }
+  .todo-item {
     transition: none;
   }
 }

@@ -878,6 +878,13 @@ test('pet profile section exposes the create entry', async () => {
   const volcanoInput = settings.getByLabel('火山方舟 API Key')
   await expect(volcanoInput).toBeVisible()
   await expect(volcanoInput).toBeFocused()
+  await expect(
+    settings.getByRole('button', { name: '获取 API Key' }),
+  ).toBeVisible()
+  await expect(
+    settings.getByRole('button', { name: '开通大模型' }),
+  ).toBeVisible()
+  await expect(settings.getByText('未开通 Seedream 5.5')).toHaveCount(0)
   await volcanoInput.fill('ark-e2e-test')
   await settings
     .locator('.settings-field-end')
@@ -1008,5 +1015,40 @@ test('pet profile section exposes the create entry', async () => {
   await expect(imageDefault.locator('optgroup')).toHaveAttribute(
     'label',
     '火山方舟',
+  )
+})
+
+test('volcano test warns when Seedream 5.5 is not activated', async () => {
+  await application.evaluate(() => {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({ data: [{ id: 'doubao-seed-2-1-lite-260915' }] }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
+  })
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-open' }),
+  )
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-section', section: 'ai' }),
+  )
+  const row = settings
+    .locator('.settings-row', { hasText: '火山方舟' })
+    .first()
+  await row.getByRole('button', { name: '删除', exact: true }).click()
+  await expect(
+    row.getByRole('button', { name: '添加', exact: true }),
+  ).toBeVisible()
+  await row.getByRole('button', { name: '添加', exact: true }).click()
+  await settings.getByLabel('火山方舟 API Key').fill('ark-e2e-no-seedream')
+  await row.getByRole('button', { name: '测试', exact: true }).click()
+  const warning = settings.getByText('未开通 Seedream 5.5')
+  await expect(warning).toBeVisible()
+  await expect(warning).toHaveAttribute(
+    'title',
+    '在火山方舟控制台开通 Doubao Seedream 5.5 后重试。',
   )
 })

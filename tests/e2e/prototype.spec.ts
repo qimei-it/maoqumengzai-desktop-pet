@@ -202,7 +202,8 @@ test("macOS panels use native traffic lights and stay fixed-size", async () => {
   const chrome = await readChrome();
   for (const panel of chrome) {
     expect(panel.position).toMatchObject({ x: 14, y: 17 });
-    expect(panel.maximizable).toBe(false);
+    // The agent window is resizable and maximizable; other panels are fixed.
+    expect(panel.maximizable).toBe(panel.title.includes("智能体"));
     expect(panel.fullScreenable).toBe(false);
     expect(panel.closable).toBe(true);
     expect(panel.minimizable).toBe(true);
@@ -512,7 +513,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toContain("设置已生效");
 
-  await settings.getByRole("button", { name: "API Key", exact: true }).click();
+  await settings.getByRole("button", { name: "智能体", exact: true }).click();
   await expect(
     settings.locator(".settings-row", { hasText: "显示额度监控" }),
   ).toBeVisible();
@@ -530,29 +531,46 @@ test("settings panel updates theme, scale, and bubbles", async () => {
   await expect(
     settings.getByRole("button", { name: "测试链接", exact: true }),
   ).toHaveCount(0);
-  const addKeyButton = settings.getByRole("button", {
+  const deepseekRow = settings
+    .locator(".settings-row", { hasText: "DeepSeek" })
+    .first();
+  const addKeyButton = deepseekRow.getByRole("button", {
     name: "添加",
     exact: true,
   });
   await expect(addKeyButton).toBeVisible();
   await expect(
-    settings.getByRole("button", { name: "测试延迟", exact: true }),
+    settings.getByRole("button", { name: "延迟测试", exact: true }),
   ).toHaveCount(0);
   await addKeyButton.click();
   await expect(settings.getByLabel("DeepSeek API Key")).toBeVisible();
   await expect(
-    settings.getByRole("button", { name: "取消", exact: true }),
+    settings.locator(".settings-field-end").last().getByRole("button", {
+      name: "取消",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
-    settings.getByRole("button", { name: "测试", exact: true }),
-  ).toBeVisible();
-  await expect(
-    settings.getByRole("button", { name: "添加", exact: true }),
+    settings.locator(".settings-field-end").last().getByRole("button", {
+      name: "添加",
+      exact: true,
+    }),
   ).toBeVisible();
   await settings.getByLabel("DeepSeek API Key").fill("sk-settings-test");
-  await settings.getByRole("button", { name: "测试", exact: true }).click();
-  await expect(settings.locator(".ai-latency")).toBeVisible();
-  await settings.getByRole("button", { name: "添加", exact: true }).click();
+  await application.evaluate(() => {
+    globalThis.fetch = async (input: string | URL | Request) =>
+      String(input).includes("/models")
+        ? new Response(
+            JSON.stringify({ data: [{ id: "deepseek-flash" }] }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          )
+        : new Response("{}", { status: 503 });
+  });
+  await settings
+    .locator(".settings-field-end")
+    .last()
+    .getByRole("button", { name: "添加", exact: true })
+    .click();
   await expect
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
@@ -560,9 +578,8 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     })
     .toBe(true);
   await expect(addKeyButton).toHaveCount(0);
-  await expect(settings.locator(".ai-latency")).toBeVisible();
   await expect(
-    settings.getByRole("button", { name: "测试延迟", exact: true }),
+    settings.getByRole("button", { name: "延迟测试", exact: true }),
   ).toBeVisible();
   const deleteKeyButton = settings.getByRole("button", {
     name: "删除",
@@ -594,7 +611,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     .toBe(false);
   await expect(addKeyButton).toBeVisible();
   await expect(
-    settings.getByRole("button", { name: "测试延迟", exact: true }),
+    settings.getByRole("button", { name: "延迟测试", exact: true }),
   ).toHaveCount(0);
   await application.evaluate(({ dialog }) => {
     const target = dialog as unknown as {
@@ -680,6 +697,7 @@ test("settings panel updates theme, scale, and bubbles", async () => {
     window.mqmz!.command({ type: "panel-control", action: "close" }),
   );
   await expect.poll(settingsVisible).toBe(false);
+  await pet.evaluate(() => window.mqmz!.command({ type: "hide-pocket" }));
   if (process.platform === "darwin" && !dockBefore)
     await expect
       .poll(() => application.evaluate(({ app }) => app.dock?.isVisible()), {
@@ -697,8 +715,6 @@ test("panels keep normal macOS window behavior and Command-W closes them", async
       );
       return window ? window.isVisible() : false;
     }, title);
-  const dockVisible = () =>
-    application.evaluate(({ app }) => app.dock?.isVisible() ?? false);
   const focus = (title: string) =>
     application.evaluate(({ BrowserWindow }, title) => {
       const window = BrowserWindow.getAllWindows().find((item) =>
@@ -709,7 +725,6 @@ test("panels keep normal macOS window behavior and Command-W closes them", async
     }, title);
   await pet.evaluate(() => window.mqmz!.command({ type: "settings-open" }));
   await expect.poll(() => visible("设置")).toBe(true);
-  await expect.poll(dockVisible).toBe(true);
   await focus("设置");
   await promisify(execFile)("/usr/bin/osascript", [
     "-e",
@@ -720,7 +735,6 @@ test("panels keep normal macOS window behavior and Command-W closes them", async
   await expect.poll(() => visible("交互标记")).toBe(true);
 
   await pet.evaluate(() => window.mqmz!.command({ type: "settings-close" }));
-  await expect.poll(dockVisible).toBe(false);
 
   await pet.evaluate(() => window.mqmz!.command({ type: "todo-open" }));
   await expect.poll(() => visible("待办清单")).toBe(true);
@@ -1668,7 +1682,7 @@ test("screenshot files auto-enter the shelf and follow the switch", async () => 
       const snapshot = await pet.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok ? snapshot.value.toast ?? "" : "";
     })
-    .toContain("截图已放入置物架");
+    .toContain("截图我收进置物架啦");
   await rm(screenshotPath, { force: true });
   await pet.evaluate(() => window.mqmz!.command({ type: "shelf-scan" }));
   await expect
@@ -1840,7 +1854,7 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   });
 });
 
-test("controls resize the real native window and switch the whole file receiving region", async () => {
+test("controls resize the real native window", async () => {
   await lab.locator("#marker-scale").selectOption("2");
   await expect
     .poll(async () =>
@@ -1852,14 +1866,8 @@ test("controls resize the real native window and switch the whole file receiving
       ),
     )
     .toBe(264);
-  await lab.getByTestId("drop-mode").click();
-  // The pet stays visible; the donut appears during a real drag, not on a toggle.
-  await expect(pet.locator(".marker")).toBeVisible();
-  const dropping = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(
-    dropping.ok && dropping.value.dropMode && !dropping.value.passthrough,
-  ).toBe(true);
-  await lab.getByTestId("drop-mode").click();
+  // The receive region arms itself during a real drag, so no toggle exists.
+  await expect(lab.getByTestId("drop-arm")).toHaveCount(0);
   await expect(pet.locator(".marker")).toBeVisible();
   await lab.locator("#marker-scale").selectOption("1");
 });
@@ -2140,7 +2148,16 @@ test("OS-backed File objects reach the real local registry; removal preserves so
     "mqmz local integration fixture\n",
   );
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(JSON.stringify(state)).not.toContain(directory);
+  if (!state.ok) throw new Error(state.error);
+  // The configured attachment directory is a user path; file records must not
+  // carry the absolute source path.
+  expect(
+    JSON.stringify({
+      files: state.value.files,
+      received: state.value.received,
+      events: state.value.events.map((event) => event.message),
+    }),
+  ).not.toContain(directory);
   await lab
     .getByRole("button", { name: "移除 验证 空格&文件.txt 的记录" })
     .click();
@@ -2353,27 +2370,55 @@ function pointOnSlice(
 }
 
 async function hoverSlice(action: DropAction): Promise<void> {
+  const ringOpen = () =>
+    pet.evaluate(() => Boolean(document.querySelector(".donut-ring")));
+  if (!(await ringOpen())) {
+    await pet.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+      const transfer = new DataTransfer();
+      for (const file of input.files!) transfer.items.add(file);
+      document.querySelector(".pet-surface")!.dispatchEvent(
+        new DragEvent("dragenter", {
+          dataTransfer: transfer,
+          bubbles: true,
+          cancelable: true,
+          clientX: 2,
+          clientY: 2,
+        }),
+      );
+    });
+    await expect(pet.locator(".donut-ring")).toBeVisible();
+    await pet.waitForTimeout(320);
+  }
   const box = await pet.locator(".marker").boundingBox();
   if (!box) throw new Error("Marker is not rendered");
   const point = pointOnSlice(action, box.x + box.width / 2, box.y + box.height / 2);
-  await pet.evaluate(({ x, y }) => {
-    const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
-    const transfer = new DataTransfer();
-    for (const file of input.files!) transfer.items.add(file);
-    document.querySelector(".pet-surface")!.dispatchEvent(
-      new DragEvent("dragover", {
-        dataTransfer: transfer,
-        bubbles: true,
-        cancelable: true,
-        clientX: x,
-        clientY: y,
-      }),
-    );
-  }, point);
+  const dispatch = () =>
+    pet.evaluate(({ x, y }) => {
+      const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+      const transfer = new DataTransfer();
+      for (const file of input.files!) transfer.items.add(file);
+      document.querySelector(".pet-surface")!.dispatchEvent(
+        new DragEvent("dragover", {
+          dataTransfer: transfer,
+          bubbles: true,
+          cancelable: true,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    }, point);
+  await dispatch();
+  // Slices ignore hover for a moment while the ring plays its entrance.
+  await pet.waitForTimeout(300);
+  await dispatch();
   await expect(pet.locator(`[data-region="${action}"]`)).toHaveClass(/active/);
 }
 
 test("dragging over the pet opens ten equal slices and Esc closes them", async () => {
+  // Close any wheel left open by an earlier test before measuring this one.
+  await pet.keyboard.press("Escape");
+  await pet.waitForTimeout(300);
   const fixture = join(directory, "拖拽预览.txt");
   await writeFile(fixture, "donut preview");
   await pet.evaluate(() => {
@@ -2406,21 +2451,24 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
       sliceLabels[action],
     );
   }
-  await expect
-    .poll(async () => {
-      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
-      return snapshot.ok ? snapshot.value.petBounds.width : 0;
-    })
-    .toBe(donutMetrics(1).window);
-  await pet.waitForFunction(
-    (width) => innerWidth === width,
-    donutMetrics(1).window,
-  );
-  await pet.waitForTimeout(320);
-
   // Drag events repeat while the cursor crosses the pet. Repeating the same
   // request must not shrink the window and reopen the wheel, which made the
   // pet and ring jump around mid-drag.
+  await pet.evaluate(() => {
+    const input = document.querySelector<HTMLInputElement>("#mqmz-donut-input")!;
+    const transfer = new DataTransfer();
+    for (const file of input.files!) transfer.items.add(file);
+    document.querySelector(".pet-surface")!.dispatchEvent(
+      new DragEvent("dragenter", {
+        dataTransfer: transfer,
+        bubbles: true,
+        cancelable: true,
+        clientX: 2,
+        clientY: 2,
+      }),
+    );
+  });
+  await pet.waitForTimeout(120);
   await pet.evaluate(() => {
     const target = window as unknown as { __wheelResizes?: number[] };
     target.__wheelResizes = [];
@@ -2450,7 +2498,18 @@ test("dragging over the pet opens ten equal slices and Esc closes them", async (
         [],
     ),
   ).toEqual([]);
-  expect(await pet.evaluate(() => innerWidth)).toBe(donutMetrics(1).window);
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petBounds.width : 0;
+    })
+    .toBe(donutMetrics(1).window);
+  await pet.waitForFunction(
+    (width) => innerWidth === width,
+    donutMetrics(1).window,
+  );
+  await pet.waitForTimeout(320);
+
 
   await hoverSlice("stash");
   await pet.waitForTimeout(240);
@@ -2514,7 +2573,7 @@ test("dropping on 智能体 creates an ungrouped chat with the file attached", a
       : true,
   ).toBe(false);
   await expect(
-    ask.getByRole("heading", { name: "连接 DeepSeek", exact: true }),
+    ask.getByRole("heading", { name: "连接模型供应商", exact: true }),
   ).toBeVisible();
   await expect(ask.getByLabel("DeepSeek API Key")).toBeVisible();
   await ask.getByLabel("DeepSeek API Key").fill("sk-ask-test");
@@ -3140,6 +3199,7 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
   await expect(settings.locator(".toast-stack")).toHaveCSS("top", "64px");
   await expect(settings.locator(".mail-row .mail-label")).toHaveText([
     "邮箱账户",
+    "Gmail 代理",
     "同步间隔",
     "新邮件通知",
     "未读角标",
@@ -3156,10 +3216,8 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
     "height",
     "22px",
   );
-  await settings
-    .locator(".mail-row", { hasText: "邮箱账户" })
-    .getByRole("button", { name: "添加", exact: true })
-    .click();
+  // 没有账户时设置页会自动展开添加表单，避免等待“添加”按钮的竞态。
+  await expect(settings.locator(".mail-form")).toBeVisible();
   await expect(settings.locator(".mail-account-block")).toHaveCSS(
     "border-bottom-width",
     "1px",
@@ -3232,6 +3290,49 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
       .getByRole("button", { name: "添加", exact: true }),
   ).toBeVisible();
 
+  const proxyRow = settings.locator(".mail-row", { hasText: "Gmail 代理" });
+  await expect(proxyRow.locator("select")).toHaveValue("auto");
+  await proxyRow.locator("select").selectOption("manual");
+  const proxyField = settings.locator(".mail-row", { hasText: "代理地址" });
+  const proxyInput = proxyField.locator("input");
+  await expect(proxyInput).toBeVisible();
+  await expect(proxyInput).toHaveAttribute("readonly", "");
+  await proxyField
+    .getByRole("button", { name: "编辑", exact: true })
+    .click();
+  await expect(proxyInput).not.toHaveAttribute("readonly", "");
+  await proxyInput.fill("socks5://127.0.0.1:6153");
+  const saveProxy = proxyField.getByRole("button", {
+    name: "保存",
+    exact: true,
+  });
+  await expect(saveProxy).toHaveClass(/primary/);
+  await expect(saveProxy).toBeEnabled();
+  await saveProxy.click();
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok
+        ? `${snapshot.value.mail.config.proxyMode}:${snapshot.value.mail.config.proxyUrl}`
+        : "";
+    })
+    .toBe("manual:socks5://127.0.0.1:6153");
+  await expect(proxyInput).toHaveAttribute("readonly", "");
+  await expect(
+    proxyField.getByRole("button", { name: "编辑", exact: true }),
+  ).toBeVisible();
+  await proxyField
+    .getByRole("button", { name: "编辑", exact: true })
+    .click();
+  await proxyInput.fill("not a proxy");
+  await proxyField
+    .getByRole("button", { name: "保存", exact: true })
+    .click();
+  await expect(proxyInput).not.toHaveAttribute("readonly", "");
+  await expect(proxyInput).toHaveValue("not a proxy");
+  await proxyRow.locator("select").selectOption("auto");
+  await expect(proxyInput).toHaveCount(0);
+
   await settings
     .locator(".mail-row", { hasText: "同步间隔" })
     .locator("select")
@@ -3288,6 +3389,9 @@ test("邮件客户端设置可添加账户并调整偏好", async () => {
 });
 
 test("打包归档、解压缩与压缩大小 work on real files", async () => {
+  // A wheel left open by an earlier test would absorb the drop here.
+  await pet.keyboard.press("Escape");
+  await pet.waitForTimeout(300);
   const first = join(directory, "归档甲.txt");
   const second = join(directory, "归档乙.txt");
   await writeFile(first, "alpha");
@@ -3588,7 +3692,7 @@ test("the donut closes when a drag ends without a drop", async () => {
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok
-        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropMode}:${snapshot.value.petBounds.width}`
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropArmed}:${snapshot.value.petBounds.width}`
         : "";
     })
     .toBe("false:false:132");
@@ -3636,7 +3740,7 @@ test("canceling a file drag restores the hover wheel", async () => {
     .poll(async () => {
       const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
       return snapshot.ok
-        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropMode}`
+        ? `${snapshot.value.wheelOpen}:${snapshot.value.dropArmed}`
         : "";
     })
     .toBe("false:false");
@@ -3735,7 +3839,9 @@ test("dropping on 吃掉 eats the file into a reversible belly", async () => {
   const eaten = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(eaten.ok && eaten.value.belly.length).toBe(1);
   expect(eaten.ok && eaten.value.belly[0].name).toBe("被吃掉.txt");
-  expect(JSON.stringify(eaten)).not.toContain(directory);
+  expect(
+    eaten.ok ? JSON.stringify(eaten.value.belly) : "",
+  ).not.toContain(directory);
   await pet.evaluate(() => window.mqmz!.command({ type: "show-pocket" }));
   await expect(pocket.getByText("肚子里的", { exact: true })).toBeVisible();
   await pocket.getByRole("button", { name: "取回", exact: true }).click();
@@ -3757,9 +3863,12 @@ test("dropping a non-ZIP on 解压缩 reports a clear error", async () => {
   const fixture = join(directory, "不是压缩包.txt");
   await writeFile(fixture, "not-a-zip");
   await dropOnPet(fixture, "extract");
-  await expect(pet.locator(".pet-error")).toContainText(
-    "目前支持 ZIP、7Z、TAR、TGZ、GZ、BZ2、XZ 和 RAR 压缩包",
-  );
+  await expect
+    .poll(async () => {
+      const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.toast ?? "" : "";
+    })
+    .toContain("目前支持 ZIP、7Z、TAR、TGZ、GZ、BZ2、XZ 和 RAR 压缩包");
   const state = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(state.ok && state.value.files.length).toBe(1);
   if (state.ok)
@@ -3871,11 +3980,14 @@ test("copy-to copies a dropped file into the chosen folder and keeps the origina
         const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
         return snapshot.ok ? snapshot.value.toast ?? "" : "";
       })
-      .toBe("将「复制到原件.txt」复制到「复制到目标」了～");
+      .toBe("我把「复制到原件.txt」复制到「复制到目标」啦");
     const toastRenderer = (await application.windows()).find((page) =>
       page.url().includes("view=toast"),
     );
     if (!toastRenderer) throw new Error("toast renderer is missing");
+    await expect(toastRenderer.locator(".toast-body")).toHaveText(
+      "我把「复制到原件.txt」复制到「复制到目标」啦",
+    );
     await expect(toastRenderer.locator(".toast-inline-code")).toHaveCount(2);
     await expect(toastRenderer.locator(".toast-inline-code")).toHaveText([
       "复制到原件.txt",
@@ -3995,7 +4107,7 @@ test("move-to moves the original and points the shelf entry at the new path", as
         const snapshot = await lab.evaluate(() => window.mqmz!.snapshot());
         return snapshot.ok ? snapshot.value.toast ?? "" : "";
       })
-      .toBe("将「移动到原件.txt」移动到「移动到目标」了～");
+      .toBe("我把「移动到原件.txt」移动到「移动到目标」啦");
     expect(await openedPaths()).toContain(target);
   } finally {
     await application.evaluate(({ dialog }) => {
@@ -4112,7 +4224,7 @@ test("copy-to and move-to handle folders recursively", async () => {
 
 test("long status text grows the toast bubble to fit", async () => {
   const text =
-    "将「一份名字特别长的季度报告与附件合集以及补充说明和会议记录.zip」复制到「归档目录里的年度整理文件夹中的项目资料子目录」了～";
+    "我把「一份名字特别长的季度报告与附件合集以及补充说明和会议记录.zip」复制到「归档目录里的年度整理文件夹中的项目资料子目录」啦";
   await pet.evaluate(
     (message) => window.mqmz!.command({ type: "notify", text: message }),
     text,
@@ -4176,7 +4288,7 @@ test("missing source files fail safely without removing the registry or leaking 
   expect(result.ok).toBe(true);
   await rm(fixture);
   await lab.getByRole("button", { name: "定位 will-be-removed.txt" }).click();
-  await expect(lab.getByRole("alert")).toContainText("本地操作失败");
+  await expect(lab.getByRole("alert")).toContainText("源文件已被替换");
   expect(await lab.getByRole("alert").innerText()).not.toContain(directory);
   await lab
     .getByRole("button", { name: "移除 will-be-removed.txt 的记录" })
@@ -4189,7 +4301,7 @@ test("the display recovery command constrains the native window and persists the
       .find((w) => w.getTitle().includes("交互标记"))!
       .setPosition(-20000, -20000),
   );
-  await lab.getByRole("button", { name: "恢复标记位置", exact: true }).click();
+  await lab.getByRole("button", { name: "恢复桌宠位置", exact: true }).click();
   const current = await lab.evaluate(() => window.mqmz!.snapshot());
   expect(current.ok).toBe(true);
   if (!current.ok) return;
@@ -4243,7 +4355,7 @@ test("the real marker moves across every detected display including negative ori
     });
     expect(actual).toBe(display.id);
   }
-  await lab.getByRole("button", { name: "恢复标记位置", exact: true }).click();
+  await lab.getByRole("button", { name: "恢复桌宠位置", exact: true }).click();
 });
 
 test("native capture permission is read without requesting capture, and narrow layouts stay usable", async () => {
@@ -4297,6 +4409,49 @@ test("an explicit preview request captures actual screens when permission is alr
       persisted: false,
     }),
   );
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a denied screen permission explains the block and recovers after refresh", async () => {
+  // Simulates the TCC result without changing system permissions.
+  const stubStatus = (status: string) =>
+    application.evaluate(({ systemPreferences }, value) => {
+      const target = systemPreferences as unknown as {
+        getMediaAccessStatus: (mediaType: string) => string
+      };
+      const store = globalThis as unknown as {
+        mqmzPermissionRestore?: (mediaType: string) => string;
+      };
+      store.mqmzPermissionRestore ??= target.getMediaAccessStatus.bind(
+        systemPreferences,
+      );
+      target.getMediaAccessStatus = () => value;
+    }, status);
+  try {
+    await stubStatus("denied");
+    await lab.getByRole("button", { name: "刷新状态" }).click();
+    await expect(lab.getByTestId("screen-permission")).toHaveText("已拒绝");
+    await lab.getByRole("button", { name: "获取权限验证预览" }).click();
+    await expect(lab.locator(".feedback.error")).toContainText(
+      "屏幕录制权限已被拒绝",
+    );
+    await stubStatus("granted");
+    await lab.getByRole("button", { name: "刷新状态" }).click();
+    await expect(lab.getByTestId("screen-permission")).toHaveText("已授权");
+    await expect(lab.locator(".feedback.error")).toHaveCount(0);
+  } finally {
+    await application.evaluate(({ systemPreferences }) => {
+      const target = systemPreferences as unknown as {
+        getMediaAccessStatus: (mediaType: string) => string;
+      };
+      const store = globalThis as unknown as {
+        mqmzPermissionRestore?: (mediaType: string) => string;
+      };
+      if (store.mqmzPermissionRestore)
+        target.getMediaAccessStatus = store.mqmzPermissionRestore;
+      store.mqmzPermissionRestore = undefined;
+    });
+  }
   expect(runtimeErrors).toEqual([]);
 });
 

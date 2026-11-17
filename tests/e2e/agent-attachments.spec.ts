@@ -237,7 +237,7 @@ test('attachments use local text, upload images, and respect the Pro model', asy
   await expect(agent.locator('.agent-attachment')).toHaveCount(2)
   await agent.getByLabel('给智能体发送指令').fill('看看附件')
   await agent.getByRole('button', { name: '发送' }).click()
-  await expect(agent.getByText('收到附件')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-messages').getByText('收到附件', { exact: true }).first()).toBeVisible({ timeout: 15_000 })
 
   const log = await application.evaluate(() => {
     return (
@@ -247,7 +247,7 @@ test('attachments use local text, upload images, and respect the Pro model', asy
     ).__mqmzFetchLog
   })
   expect(log.filter((entry) => entry.url.endsWith('/files'))).toHaveLength(1)
-  const chat = log.find((entry) => entry.url.includes('/chat/completions'))
+  const chat = log.find((entry) => entry.url.includes('/chat/completions') && entry.body.includes('attachment name'))
   expect(chat).toBeTruthy()
   expect(chat!.body).toContain('file-api-e2e')
   expect(chat!.body).toContain('<attachment name=\\"notes.md\\">')
@@ -410,10 +410,10 @@ test('keeps the draft when switching to the Pro model and can switch back', asyn
   )
   await expect(agent.locator('.agent-pro-hint')).toBeVisible()
   await expect(agent.locator('.agent-attachment')).toHaveCount(1)
-  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue('保留草稿')
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveText('保留草稿')
   await expect(agent.getByRole('button', { name: '发送' })).toBeDisabled()
   await agent.getByRole('button', { name: '切换 Flash 继续' }).click()
-  await expect(agent.getByText('收到附件')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-messages').getByText('收到附件', { exact: true }).first()).toBeVisible({ timeout: 15_000 })
   await expect(agent.locator('.agent-attachment')).toHaveCount(0)
   await expect(agent.locator('.agent-pro-hint')).toHaveCount(0)
 })
@@ -530,7 +530,7 @@ test('failed uploads keep the draft and can be retried', async () => {
   await expect(
     agent.getByRole('button', { name: '重试上传 photo.png' }),
   ).toBeVisible()
-  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue(
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveText(
     '看看这张图',
   )
   await agent.getByRole('button', { name: '重试上传 photo.png' }).click()

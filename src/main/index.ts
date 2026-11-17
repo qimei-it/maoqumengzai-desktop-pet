@@ -118,6 +118,7 @@ import {
   listVolcanoModels,
   resolveVolcanoImageModel,
   testVolcanoConnection,
+  volcanoModelManagementUrl,
 } from '../shared/volcano'
 import {
   generatePetPose,
@@ -125,11 +126,12 @@ import {
 import { normalizePetImage } from './pet-image'
 import {
   getPetStyle,
-  getPetStyleState,
   petPoseIds,
+  resolvePetStyleState,
   type PetPoseId,
 } from '../shared/pet-style'
 import { isPetSpecies, type PetSpecies } from '../shared/pet-species'
+import { normalizePetPrompt } from '../shared/pet-prompt'
 import {
   cleanupPetDrafts,
   listPetRecords,
@@ -199,6 +201,13 @@ import {
   type ReminderKind,
   type ReminderVars,
 } from '../shared/reminder-lines'
+import {
+  musicAiDailyLimitLine,
+  musicAiFallbackLine,
+  reminderSnoozeLine,
+  shelfReceivedLine,
+  todoDoneLine,
+} from '../shared/companion-lines'
 import {
   dueTodosToNotify,
   endOfLocalDay,
@@ -282,14 +291,32 @@ import type {
   BreakKind,
   SettingsSection,
   Snapshot,
+  ToastAction,
   ToastPart,
+  TodoFocusTarget,
   ClipboardConfig,
   TodoListColor,
   TodoRepeat,
   AgentAttachmentProgress,
   SettingsPrompt,
+  BackupState,
 } from '../shared/protocol'
 import { defaultTodoListIcon } from '../shared/protocol'
+import {
+  applyPendingRestore,
+  createSnapshot,
+  inspectSnapshot,
+  listSnapshots,
+  readRestoreResult,
+  rotateSnapshots,
+  snapshotFileName,
+  snapshotRetention,
+  snapshotsDirectory,
+  stageRestore,
+  verifyRestoredData,
+  type RestoreResult,
+  type SnapshotFile,
+} from './data-snapshot'
 import {
   fitToDisplays,
   hitOpaquePixel,
@@ -352,12 +379,18 @@ import {
   type OutgoingAttachment,
 } from './mail-smtp'
 import {
+  parseResolvedProxy,
+  setMailProxySettings,
+  setSystemMailProxy,
+} from './mail-proxy'
+import {
   mailAccountLabel,
   mailAttachmentLimit,
   mailAttachmentTotalLimit,
   mailGmailAppPasswordUrl,
   mailHelpUrls,
   mailLocalDraftsFolder,
+  mailProxyUrlError,
   mailRecipientAddresses,
   mailUnreadTotal,
   formatMailBadge,
@@ -600,6 +633,7 @@ function activePetProfile(): AgentPetProfile {
       id: activePet.id,
       name: activePet.name || settings.petName || '麻薯',
       ...(activePet.species ? { species: activePet.species } : {}),
+      ...(activePet.prompt ? { prompt: activePet.prompt } : {}),
       personality: '黏人、温和，喜欢待在主人身边',
     }
   }
@@ -634,6 +668,7 @@ let mailSyncTimer: ReturnType<typeof setInterval> | undefined
 let mailWindow: BrowserWindow | undefined
 let mailWindowMaximized = false
 let mailComposeWindow: BrowserWindow | undefined
+let mailComposeMaximized = false
 let mailComposeAccountId: string | undefined
 let mailComposeDraft: MailComposeDraft | undefined
 let mailComposeDraftId: string | undefined
@@ -686,7 +721,7 @@ let lastWaterRemaining: number | null = null
 let lastSittingRemaining: number | null = null
 let lastEyesRemaining: number | null = null
 const notifiedReminderDues = new Map<string, number>()
-let dropMode = false
+let dropArmed = false
 let wheelOpen = false
 let wheelOutsideSince = 0
 let baseBounds: Rect | undefined
@@ -738,6 +773,11 @@ let aiQuotaTimer: ReturnType<typeof setInterval> | undefined
 let aiQuotaBusy = false
 let aiQuotaQueued = false
 let aiQuotaAlertKeys: Record<string, number> = {}
+let backupBusy = false
+let backupError: string | undefined
+let backupSnapshots: SnapshotFile[] = []
+let backupRestoreResult: RestoreResult | undefined
+let backupTimer: ReturnType<typeof setInterval> | undefined
 let aiBusy = false
 let aiMessages: AiMessage[] = []
 let aiFiles: AiFile[] = []
@@ -772,6 +812,7 @@ type PetDraft = {
   directory: string
   name: string
   species: PetSpecies | ''
+  prompt: string
   model?: string
   step: 'edit' | 'generating' | 'preview'
   photos: PetDraftPhoto[]
@@ -825,8 +866,16 @@ let bubbleWindow: BrowserWindow | undefined
 let toastWindow: BrowserWindow | undefined
 let toastText: string | undefined
 let toastParts: ToastPart[] | undefined
+let toastAction: ToastAction | undefined
+let toastHovered = false
+let toastHoverTimer: ReturnType<typeof setTimeout> | undefined
+let todoFocus: TodoFocusTarget | undefined
+let todoFocusNonce = 0
+let todoFocusTimer: ReturnType<typeof setTimeout> | undefined
 let toastWidth = 190
 let toastHeight = 64
+const mailAlertHeight = 126
+const mailAlertGreetingHeight = 148
 let toastHideTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
@@ -1105,6 +1154,7 @@ const services = createServices({
       25 * 1024 * 1024
     )
       throw new Error('附件总大小不能超过 25 MB。')
+    await prepareMailProxy(account.provider)
     const result = await sendMailMessage({
       account,
       secret,
@@ -1553,7 +1603,7 @@ function snapshot(): Snapshot {
       scaleFactor: d.scaleFactor,
     })),
     scale,
-    dropMode,
+    dropArmed,
     wheelOpen,
     passthrough,
     maskReady: !!mask,
@@ -1666,11 +1716,19 @@ function snapshot(): Snapshot {
       sessions: focusData.sessions,
       waterLog: focusData.waterLog,
     },
+    backup: backupState(),
     ...(bubbleText
       ? { bubble: { text: bubbleText, mood: bubbleMood, ai: bubbleAiStyle } }
       : {}),
     musicAiCache: { ...musicAiCacheState },
-    ...(toastText ? { toast: toastText, ...(toastParts ? { toastParts } : {}) } : {}),
+    ...(toastText
+      ? {
+          toast: toastText,
+          ...(toastParts ? { toastParts } : {}),
+          ...(toastAction ? { toastAction } : {}),
+        }
+      : {}),
+    ...(todoFocus ? { todoFocus } : {}),
     ...(mailAlert ? { mailAlert } : {}),
   }
 }
@@ -1757,7 +1815,7 @@ function positionEye(): void {
 }
 function updateEyeWindow(): void {
   if (!eye || eye.isDestroyed()) return
-  if (music.title && !dropMode && !petHoverMode && !barVisible) {
+  if (music.title && !dropArmed && !petHoverMode && !barVisible) {
     positionEye()
     eye.showInactive()
     eye.moveTop()
@@ -1811,17 +1869,189 @@ function aiState(): AiState {
     },
   }
 }
+/** Data structure versions this build can read; newer backups are refused. */
+const supportedDataVersions: Record<string, number> = {
+  settings: 2,
+  focus: 5,
+  clipboard: 1,
+  agent: 1,
+  mail: 1,
+  pets: 1,
+  stats: 1,
+  skills: 1,
+}
+function sizeLabel(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+function backupState(): BackupState {
+  return {
+    autoEnabled: settings.autoBackupEnabled,
+    retention: snapshotRetention,
+    snapshots: backupSnapshots.map(({ id, createdAt, bytes }) => ({
+      id,
+      createdAt,
+      bytes,
+    })),
+    busy: backupBusy,
+    ...(backupSnapshots[0] ? { lastAt: backupSnapshots[0].createdAt } : {}),
+    ...(backupError ? { error: backupError } : {}),
+    ...(backupRestoreResult
+      ? {
+          restore: {
+            ok: backupRestoreResult.ok,
+            at: backupRestoreResult.at,
+            ...(backupRestoreResult.message
+              ? { message: backupRestoreResult.message }
+              : {}),
+          },
+        }
+      : {}),
+  }
+}
+async function refreshBackupSnapshots(): Promise<void> {
+  backupSnapshots = await listSnapshots(dataRoot)
+}
+/** Keep the SQLite WAL empty so a file-level copy stays consistent. */
+function checkpointMailDatabase(): void {
+  try {
+    mailDb?.checkpoint()
+  } catch {
+    // A busy or already-closed database leaves the main file consistent.
+  }
+}
+async function writeSnapshot(destination: string): Promise<SnapshotFile> {
+  checkpointMailDatabase()
+  return createSnapshot({
+    dataRoot,
+    destination,
+    appVersion: app.getVersion(),
+    versions: { ...supportedDataVersions },
+  })
+}
+async function runAutoBackup(): Promise<void> {
+  if (backupBusy || !settings.autoBackupEnabled) return
+  await refreshBackupSnapshots()
+  const newest = backupSnapshots[0]
+  if (newest && Date.now() - newest.createdAt < 24 * 60 * 60_000) return
+  backupBusy = true
+  backupError = undefined
+  broadcast()
+  try {
+    await mkdir(snapshotsDirectory(dataRoot), { recursive: true })
+    const file = await writeSnapshot(
+      join(snapshotsDirectory(dataRoot), snapshotFileName()),
+    )
+    await rotateSnapshots(dataRoot, snapshotRetention)
+    await refreshBackupSnapshots()
+    addEvent(`已生成本地备份（${sizeLabel(file.bytes)}）。`)
+  } catch (error) {
+    backupError = error instanceof Error ? error.message : '自动备份失败。'
+    addEvent(`自动备份失败：${backupError}`)
+  } finally {
+    backupBusy = false
+    broadcast()
+  }
+}
+async function exportBackup(): Promise<void> {
+  if (backupBusy) throw new Error('正在处理备份，请稍候。')
+  const target = await dialog.showSaveDialog(settingsWindow ?? pet, {
+    title: '导出本地备份',
+    defaultPath: join(app.getPath('documents'), snapshotFileName()),
+    filters: [{ name: 'ZIP', extensions: ['zip'] }],
+  })
+  if (target.canceled || !target.filePath) return
+  backupBusy = true
+  backupError = undefined
+  broadcast()
+  try {
+    const file = await writeSnapshot(target.filePath)
+    addEvent(`已导出本地备份（${sizeLabel(file.bytes)}）。`)
+  } catch (error) {
+    backupError = error instanceof Error ? error.message : '导出备份失败。'
+    throw error
+  } finally {
+    backupBusy = false
+    broadcast()
+  }
+}
+async function restoreBackup(snapshotId?: string): Promise<void> {
+  if (backupBusy) throw new Error('正在处理备份，请稍候。')
+  let archivePath: string | undefined
+  if (snapshotId) {
+    await refreshBackupSnapshots()
+    archivePath = backupSnapshots.find((item) => item.id === snapshotId)?.path
+    if (!archivePath) throw new Error('找不到该备份。')
+  } else {
+    const choice = await dialog.showOpenDialog(settingsWindow ?? pet, {
+      title: '选择备份文件',
+      properties: ['openFile'],
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    })
+    if (choice.canceled || !choice.filePaths[0]) return
+    archivePath = choice.filePaths[0]
+  }
+  const manifest = await inspectSnapshot(archivePath, supportedDataVersions)
+  const confirm = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '恢复本地数据',
+    message: `将用 ${new Date(manifest.createdAt).toLocaleString('zh-CN')} 的备份覆盖当前本地数据。`,
+    detail: '恢复后应用会重启。API Key 与邮箱授权码保持不变。',
+    buttons: ['取消', '恢复并重启'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (confirm.response !== 1) return
+  backupBusy = true
+  backupError = undefined
+  broadcast()
+  try {
+    await mkdir(snapshotsDirectory(dataRoot), { recursive: true })
+    await writeSnapshot(
+      join(snapshotsDirectory(dataRoot), snapshotFileName()),
+    )
+    await rotateSnapshots(dataRoot, snapshotRetention)
+    await stageRestore(dataRoot, archivePath, manifest)
+    await refreshBackupSnapshots()
+    addEvent('已准备恢复本地数据，正在重启应用。')
+  } catch (error) {
+    backupBusy = false
+    broadcast()
+    throw error
+  }
+  broadcast()
+  if (process.env.MQMZ_TEST_NO_RELAUNCH === '1') {
+    backupBusy = false
+    broadcast()
+    return
+  }
+  setTimeout(() => {
+    app.relaunch()
+    app.quit()
+  }, 400)
+}
 function currentPetNames(): string[] {
   const names = [...petNames]
   if (!activePet) names.push(settings.petName)
   return [...new Set(names)]
 }
+/** Pose labels follow the chosen species, so the wizard names each frame correctly. */
+function syncPetDraftPoseLabels(draft: PetDraft): void {
+  const style = getPetStyle()
+  for (const pose of draft.poses) {
+    const state = resolvePetStyleState(style, pose.id, draft.species)
+    if (state) pose.label = state.label
+  }
+}
+
 function petCreateState(): PetCreateState {
   const style = getPetStyle()
   const poses = (petDraft?.poses ??
     style.states.map((state) => ({
       id: state.id,
-      label: state.label,
+      label: resolvePetStyleState(style, state.id, '')?.label ?? state.id,
       status: 'pending' as const,
     }))) as PetDraftPose[]
   return {
@@ -1829,6 +2059,7 @@ function petCreateState(): PetCreateState {
     step: petDraft?.step ?? 'edit',
     name: petDraft?.name ?? '',
     species: petDraft?.species ?? '',
+    prompt: petDraft?.prompt ?? '',
     photos:
       petDraft?.photos.map(({ id, name, url }) => ({ id, name, url })) ?? [],
     poses: poses.map((pose) => ({
@@ -2302,7 +2533,7 @@ async function openPetCreateFromProfile(): Promise<void> {
         error instanceof Error ? error.message : '拉取火山方舟模型失败。'
       if (/API Key 无效/.test(message)) {
         await promptVolcanoKeySetup(
-          '当前火山方舟 API Key 无效，需要重新添加。',
+          'API Key 无效',
         )
       } else {
         await dialog.showMessageBox(settingsWindow ?? pet, {
@@ -2329,9 +2560,7 @@ async function openPetCreateFromProfile(): Promise<void> {
       noLink: true,
     })
     if (choice.response === 1)
-      await shell.openExternal(
-        'https://console.volcengine.com/ark/region:cn-beijing/openManagement?LLM=%7B%7D&OpenTokenDrawer=false',
-      )
+      await shell.openExternal(volcanoModelManagementUrl)
     return
   }
   await openPetCreate()
@@ -2352,11 +2581,12 @@ async function openPetCreate(): Promise<void> {
     directory,
     name: '',
     species: '',
+    prompt: '',
     step: 'edit',
     photos: [],
     poses: style.states.map((state) => ({
       id: state.id,
-      label: state.label,
+      label: resolvePetStyleState(style, state.id, '')?.label ?? state.id,
       status: 'pending',
     })),
     running: false,
@@ -2432,6 +2662,18 @@ async function removePetPhoto(id: string): Promise<void> {
   broadcast()
 }
 
+/** Keep draft species in sync so pose labels refresh while the wizard is open. */
+async function setPetDraftSpecies(species: PetSpecies): Promise<void> {
+  const draft = petDraft
+  if (!draft) return
+  if (draft.running) throw new Error('正在生成，请稍候。')
+  if (!isPetSpecies(species)) return
+  draft.species = species
+  syncPetDraftPoseLabels(draft)
+  draft.error = undefined
+  broadcast()
+}
+
 async function resolvePetModel(): Promise<string> {
   const models = await listVolcanoModels(volcanoKey ?? '').catch(() => undefined)
   return (
@@ -2461,7 +2703,7 @@ async function generateDraftPose(
   token: number,
 ): Promise<void> {
   const style = getPetStyle()
-  const state = getPetStyleState(style, id)
+  const state = resolvePetStyleState(style, id, draft.species)
   const pose = draft.poses.find((item) => item.id === id)
   if (!state || !pose) throw new Error('未知的桌宠状态。')
   if (token !== draft.runToken || draft.cancelled) return
@@ -2546,6 +2788,7 @@ async function runPetDraft(
 async function startPetCreate(
   name: string,
   species: PetSpecies,
+  prompt: string,
 ): Promise<void> {
   const draft = petDraft
   if (!draft) throw new Error('请先打开新建桌宠。')
@@ -2559,6 +2802,8 @@ async function startPetCreate(
     throw new Error(petNameConflictError)
   draft.name = trimmed
   draft.species = species
+  draft.prompt = normalizePetPrompt(prompt)
+  syncPetDraftPoseLabels(draft)
   const remaining = draft.poses.filter((pose) => pose.status !== 'done')
   if (!remaining.length) {
     draft.step = 'preview'
@@ -2665,6 +2910,7 @@ async function savePetCreate(): Promise<void> {
     draft.model ?? getPetStyle().source.model,
     Date.now(),
     draft.species,
+    draft.prompt,
   )
   await rm(join(draft.directory, 'photos'), { recursive: true, force: true })
   await writeFile(
@@ -2687,6 +2933,22 @@ async function savePetCreate(): Promise<void> {
   await updateSettings({ petId: record.id, petName: record.name }, false)
   broadcast()
   showToast('桌宠已切换')
+}
+
+async function savePetPrompt(prompt: string): Promise<void> {
+  const pet = activePet
+  if (!pet) throw new Error('默认桌宠没有可编辑的提示词。')
+  const next = normalizePetPrompt(prompt)
+  const updated: PetRecord = { ...pet }
+  if (next) updated.prompt = next
+  else delete updated.prompt
+  await writeFile(
+    join(petsRoot(dataRoot), pet.id, 'pet.json'),
+    JSON.stringify(updated, null, 2),
+  )
+  activePet = updated
+  activePetAssets = registerPetAssets(petsRoot(dataRoot), updated)
+  broadcast()
 }
 
 async function useDefaultPet(): Promise<void> {
@@ -3908,6 +4170,7 @@ function settingsState(): SettingsState {
     shelfClipboardImages: settings.shelfClipboardImages,
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
+    autoBackupEnabled: settings.autoBackupEnabled,
     aiModel: settings.aiModel,
     agentDefaultChatModel: settings.agentDefaultChatModel,
     aiImageModel: settings.aiImageModel,
@@ -4271,7 +4534,7 @@ async function scanScreenshots(): Promise<void> {
         if (added) {
           addEvent('截图已放入置物架。')
           if (settings.shelfScreenshotBubble)
-            showToast('截图已放入置物架')
+            showToast(shelfReceivedLine('screenshot'))
         }
       }
     }
@@ -4303,7 +4566,8 @@ async function addClipboardImageToShelf(
   const added = await addPathToShelf(path)
   if (!added) return
   addEvent('剪贴板图片已放入置物架。')
-  if (settings.shelfScreenshotBubble) showToast('图片已放入置物架')
+  if (settings.shelfScreenshotBubble)
+    showToast(shelfReceivedLine('clipboard'))
 }
 async function validateExecutable(path: string): Promise<void> {
   await new Promise<void>((done, fail) => {
@@ -4691,19 +4955,28 @@ function mailComposeState(): MailComposeState {
     ...(mailComposeDraft ? { draft: mailComposeDraft } : {}),
     attachments: composeAttachmentPicks(),
     contacts: mailComposeContacts,
+    maximized: mailComposeMaximized,
     ...(mailComposeError ? { error: mailComposeError } : {}),
   }
 }
-function positionMailCompose(): void {
-  if (!mailComposeWindow || mailComposeWindow.isDestroyed()) return
-  const b = pet.getBounds()
-  const a = screen.getDisplayMatching(b).workArea
+function mailComposeDefaultBounds(display: Electron.Display): Rect {
+  const area = display.workArea
   const width = 760
   const height = 620
-  const x = a.x + Math.round((a.width - width) / 2)
-  const y = a.y + Math.round((a.height - height) / 2)
+  return fitToDisplays(
+    {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + Math.round((area.height - height) / 2),
+      width,
+      height,
+    },
+    [area],
+  )
+}
+function positionMailCompose(): void {
+  if (!mailComposeWindow || mailComposeWindow.isDestroyed()) return
   mailComposeWindow.setBounds(
-    fitToDisplays({ x, y, width, height }, [a]),
+    mailComposeDefaultBounds(screen.getDisplayMatching(pet.getBounds())),
   )
 }
 function registerComposeAttachment(
@@ -4774,6 +5047,8 @@ function openMailCompose(
     positionPanelOnce(mailComposeWindow, positionMailCompose)
     if (process.platform === 'darwin' || mailComposeWindow.isMinimized())
       mailComposeWindow.restore()
+    if (mailComposeMaximized && !mailComposeWindow.isMaximized())
+      mailComposeWindow.maximize()
     mailComposeWindow.show()
     mailComposeWindow.moveTop()
     mailComposeWindow.focus()
@@ -5426,6 +5701,7 @@ async function sendMail(command: {
   mailComposeError = undefined
   broadcast()
   try {
+    await prepareMailProxy(account.provider)
     const result = await sendMailMessage({
       account,
       secret,
@@ -5770,10 +6046,48 @@ async function alertNewMail(
   }
   if (fallback) showMailAlert(fallback)
 }
+function applyMailProxySettings(): void {
+  setMailProxySettings({
+    mode: mailConfig.proxyMode,
+    url: mailConfig.proxyUrl,
+  })
+}
+async function refreshSystemMailProxy(): Promise<void> {
+  try {
+    const resolved = await session.defaultSession.resolveProxy(
+      'https://imap.gmail.com:993',
+    )
+    setSystemMailProxy(parseResolvedProxy(resolved))
+  } catch {
+    setSystemMailProxy(undefined)
+  }
+}
+/** Refreshes the system proxy only for the provider that can use it. */
+async function prepareMailProxy(provider: MailProvider): Promise<void> {
+  if (provider !== 'gmail' || mailConfig.proxyMode !== 'auto') return
+  await refreshSystemMailProxy()
+}
 async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
+  const next = {
+    ...mailConfig,
+    ...patch,
+    ...(patch.proxyUrl !== undefined
+      ? { proxyUrl: patch.proxyUrl.trim() }
+      : {}),
+  }
+  if (next.proxyUrl) {
+    const error = mailProxyUrlError(next.proxyUrl)
+    if (error) throw new Error(error)
+  }
+  const proxyChanged =
+    patch.proxyMode !== undefined || patch.proxyUrl !== undefined
   const prune = patch.retentionDays !== undefined
-  mailConfig = { ...mailConfig, ...patch }
+  mailConfig = next
   await saveMailConfig(mailConfigPath, mailConfig)
+  if (proxyChanged) {
+    applyMailProxySettings()
+    if (mailConfig.proxyMode === 'auto') await refreshSystemMailProxy()
+  }
   scheduleMailSync()
   if (prune) await pruneMailCache()
   if (mailPanelAccountId)
@@ -5794,6 +6108,7 @@ async function addMailAccount(
   broadcast()
   let accountId: string | undefined
   try {
+    await prepareMailProxy(provider)
     const probe = await probeMailAccount(provider, email, secret)
     const account = mailDb.addAccount({ provider, email, displayName })
     accountId = account.id
@@ -5833,6 +6148,7 @@ async function reauthorizeMail(
   mailError = undefined
   broadcast()
   try {
+    await prepareMailProxy(account.provider)
     const probe = await probeMailAccount(account.provider, account.email, secret)
     await saveMailSecret(mailSecretsPath, account.id, secret)
     mailDb.updateAccount(account.id, {
@@ -5928,6 +6244,7 @@ async function syncMailAccount(
   mailBusy = true
   broadcast()
   try {
+    await prepareMailProxy(account.provider)
     const probe = await syncMailInbox(
       account.provider,
       account.email,
@@ -6192,7 +6509,13 @@ function positionTodo(): void {
   const y = a.y + Math.round((a.height - height) / 2)
   todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
-function openTodo(): void {
+function openTodo(target?: { todoId: string; listId: string | null }): void {
+  if (target) {
+    hideToast()
+    todoFocus = { ...target, nonce: ++todoFocusNonce }
+    if (todoFocusTimer) clearTimeout(todoFocusTimer)
+    todoFocusTimer = setTimeout(clearTodoFocus, 15000)
+  }
   if (todoWindow && !todoWindow.isDestroyed()) {
     positionPanelOnce(todoWindow, positionTodo)
     if (process.platform === 'darwin' || todoWindow.isMinimized())
@@ -6234,6 +6557,7 @@ function syncPanelActivationPolicy(): void {
   app.setActivationPolicy('accessory')
 }
 function openSettings(): void {
+  if (!windowVisible(settingsWindow) && petDraft) void closePetCreate()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     positionPanelOnce(settingsWindow, positionSettings)
     if (process.platform === 'darwin' || settingsWindow.isMinimized())
@@ -6246,6 +6570,9 @@ function openSettings(): void {
 }
 function closeSettings(): void {
   settingsWindow?.hide()
+  settingsSection = 'appearance'
+  settingsPrompt = undefined
+  if (petDraft) void closePetCreate()
   broadcast()
 }
 function configuredModelProvider(provider: AgentProvider): boolean {
@@ -6467,11 +6794,18 @@ function reminderText(kind: ReminderKind, vars: ReminderVars = {}): string {
   lastReminderLines[kind] = [...recent, line].slice(-3)
   return line
 }
-function notifyFocus(title: string, body: string): void {
+function notifyFocus(title: string, body: string, action?: ToastAction): void {
   addEvent(`${title}：${body}`)
-  if (Notification.isSupported())
-    new Notification({ title, body, silent: false }).show()
-  showToast(body)
+  if (Notification.isSupported()) {
+    const notification = new Notification({ title, body, silent: false })
+    if (action)
+      notification.on('click', () => {
+        hideToast()
+        openTodo({ todoId: action.todoId, listId: action.listId })
+      })
+    notification.show()
+  }
+  showToast(body, undefined, action)
 }
 function checkTodoReminders(now: number): void {
   const due = filterUnnotifiedDueTodos(
@@ -6483,6 +6817,7 @@ function checkTodoReminders(now: number): void {
   notifyFocus(
     '待办提醒',
     reminderText('todo', { todo: due[0].text, more: due.length }),
+    { type: 'todo', todoId: due[0].id, listId: due[0].listId },
   )
 }
 function completeFocus(): void {
@@ -6911,7 +7246,7 @@ function snoozeWater(minutes = 10): void {
     ...focusData,
     waterNextAt: Date.now() + delay * 60_000,
   }
-  showToast(`喝水提醒已延后 ${delay} 分钟`)
+  showToast(reminderSnoozeLine('water', delay))
   persistFocus()
   broadcast()
 }
@@ -6971,9 +7306,7 @@ function snoozeBreak(kind: BreakKind, minutes = 10): void {
     kind === 'sitting'
       ? { ...focusData, breakSittingNextAt: next }
       : { ...focusData, breakEyesNextAt: next }
-  showToast(
-    `${kind === 'sitting' ? '久坐提醒' : '用眼提醒'}已延后 ${delay} 分钟`,
-  )
+  showToast(reminderSnoozeLine(kind, delay))
   persistFocus()
   broadcast()
 }
@@ -7109,7 +7442,10 @@ function toggleTodo(id: string): void {
   }
   persistFocus()
   broadcast()
-  if (completing) notePetInteraction('todo')
+  if (completing) {
+    notePetInteraction('todo')
+    showToast(todoDoneLine(source.text))
+  }
 }
 function updateTodo(
   id: string,
@@ -7328,12 +7664,15 @@ function positionWater(): void {
   )
   waterWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function profileWindowHeight(): number {
+  return activePet ? 620 : 490
+}
 function positionProfile(): void {
   if (!profileWindow || profileWindow.isDestroyed()) return
   const b = pet.getBounds()
   const a = screen.getDisplayMatching(b).workArea
   const width = 400
-  const height = 490
+  const height = profileWindowHeight()
   const x = a.x + Math.round((a.width - width) / 2)
   const y = a.y + Math.round((a.height - height) / 2)
   profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
@@ -7341,6 +7680,16 @@ function positionProfile(): void {
 function openProfile(): void {
   if (profileWindow && !profileWindow.isDestroyed()) {
     positionPanelOnce(profileWindow, positionProfile)
+    const height = profileWindowHeight()
+    const bounds = profileWindow.getBounds()
+    if (bounds.height !== height) {
+      profileWindow.setBounds(
+        fitToDisplays(
+          { ...bounds, height },
+          [screen.getDisplayMatching(bounds).workArea],
+        ),
+      )
+    }
     if (process.platform === 'darwin' || profileWindow.isMinimized())
       profileWindow.restore()
     profileWindow.show()
@@ -7460,7 +7809,7 @@ function updateFocusBadge(): void {
     focusData.running &&
     focusData.phase === 'focus' &&
     !panelVisible &&
-    !dropMode &&
+    !dropArmed &&
     !petHoverMode
   if (active) {
     positionFocusBadge()
@@ -7838,7 +8187,7 @@ function positionBubble(): void {
 }
 function updateBubbleWindow(): void {
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
-  if (bubbleText && !dropMode && barVisible && !toastText) {
+  if (bubbleText && !dropArmed && barVisible && !toastText) {
     positionBubble()
     bubbleWindow.showInactive()
     bubbleWindow.moveTop()
@@ -7850,16 +8199,20 @@ function positionToast(): void {
   if (!toastWindow || toastWindow.isDestroyed()) return
   const b = pet.getBounds()
   const width = mailAlert ? 300 : toastWidth
-  const height = mailAlert ? 126 : toastHeight
+  const height = mailAlert
+    ? mailAlert.code
+      ? mailAlertHeight
+      : mailAlertGreetingHeight
+    : toastHeight
   const x = Math.round(b.x + b.width / 2 - width / 2)
   const y = b.y + Math.round(9 * scale) - 6 - height
   toastWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateToastWindow(): void {
   if (!toastWindow || toastWindow.isDestroyed()) return
-  if ((toastText || mailAlert) && !dropMode) {
+  if ((toastText || mailAlert) && !dropArmed) {
     positionToast()
-    toastWindow.setIgnoreMouseEvents(!mailAlert)
+    toastWindow.setIgnoreMouseEvents(!mailAlert && !toastAction)
     toastWindow.showInactive()
     toastWindow.moveTop()
   } else if (toastWindow.isVisible()) {
@@ -7867,12 +8220,51 @@ function updateToastWindow(): void {
     toastWindow.hide()
   }
 }
-function showToast(text: string, parts?: ToastPart[]): void {
+/** Actionable bubbles linger longer so the click target stays reachable. */
+const toastActionHoldMs = 8000
+const toastPassiveHoldMs = 3200
+let toastHideAt = 0
+function scheduleToastHide(delay: number): void {
+  if (toastHideTimer) clearTimeout(toastHideTimer)
+  if (toastHoverTimer) {
+    clearTimeout(toastHoverTimer)
+    toastHoverTimer = undefined
+  }
+  toastHideAt = Date.now() + delay
+  toastHideTimer = setTimeout(hideToast, delay)
+}
+function setToastHovered(hovering: boolean): void {
+  if (!toastText || !toastAction || mailAlert) return
+  if (hovering === toastHovered) return
+  toastHovered = hovering
+  if (hovering) {
+    if (toastHideTimer) {
+      clearTimeout(toastHideTimer)
+      toastHideTimer = undefined
+    }
+    // Never pin the bubble forever if the pointer leaves without an event.
+    if (toastHoverTimer) clearTimeout(toastHoverTimer)
+    toastHoverTimer = setTimeout(hideToast, 60000)
+    return
+  }
+  if (toastHoverTimer) {
+    clearTimeout(toastHoverTimer)
+    toastHoverTimer = undefined
+  }
+  if (!toastHideTimer)
+    scheduleToastHide(Math.max(1200, toastHideAt - Date.now()))
+}
+function showToast(
+  text: string,
+  parts?: ToastPart[],
+  action?: ToastAction,
+): void {
   if (!settings.statusBubbles) return
   toastText = text
   toastParts = parts
-  if (toastHideTimer) clearTimeout(toastHideTimer)
-  toastHideTimer = setTimeout(hideToast, 3200)
+  toastAction = action
+  toastHovered = false
+  scheduleToastHide(action ? toastActionHoldMs : toastPassiveHoldMs)
   syncOverlays()
   broadcast()
 }
@@ -7881,10 +8273,28 @@ function hideToast(): void {
     clearTimeout(toastHideTimer)
     toastHideTimer = undefined
   }
+  if (toastHoverTimer) {
+    clearTimeout(toastHoverTimer)
+    toastHoverTimer = undefined
+  }
+  toastHovered = false
+  // A reminder that expires unclicked must not jump the panel open later.
+  clearTodoFocus()
   if (!toastText) return
   toastText = undefined
   toastParts = undefined
+  toastAction = undefined
   syncOverlays()
+  broadcast()
+}
+/** Drops a one-shot todo target once the panel consumed or abandoned it. */
+function clearTodoFocus(): void {
+  if (todoFocusTimer) {
+    clearTimeout(todoFocusTimer)
+    todoFocusTimer = undefined
+  }
+  if (!todoFocus) return
+  todoFocus = undefined
   broadcast()
 }
 const notesWindowSize = 240
@@ -7944,7 +8354,7 @@ function positionPill(): void {
 }
 function updatePillWindow(): void {
   if (!pill || pill.isDestroyed()) return
-  if (music.title && barVisible && !dropMode && !petHoverMode) {
+  if (music.title && barVisible && !dropArmed && !petHoverMode) {
     positionPill()
     pill.showInactive()
     pill.moveTop()
@@ -8030,7 +8440,7 @@ async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
 }
 function quotaBarBlocked(): boolean {
   if (
-    dropMode ||
+    dropArmed ||
     wheelOpen ||
     petHoverMode ||
     (music.title && barVisible) ||
@@ -8090,7 +8500,7 @@ function updateNotesWindow(): void {
   if (!notes || notes.isDestroyed()) return
   if (
     music.playing &&
-    !dropMode &&
+    !dropArmed &&
     !petHoverMode &&
     !bubbleText &&
     !toastText
@@ -8907,7 +9317,7 @@ function currentBubbleKey(): string | undefined {
   return `${music.title}|${music.artist ?? ''}`
 }
 function bubbleBlocked(): boolean {
-  return dropMode || !barVisible || Boolean(drag?.moving)
+  return dropArmed || !barVisible || Boolean(drag?.moving)
 }
 async function refreshMusicAiCacheStats(): Promise<void> {
   const stats = await getMusicAiCacheStats(dataRoot)
@@ -8919,12 +9329,11 @@ async function refreshMusicAiCacheStats(): Promise<void> {
   broadcast()
 }
 function musicAiFailureNotice(message: string): string {
-  if (/API Key|401|403/.test(message))
-    return 'DeepSeek Key 失效，已回退本地互动'
-  if (/余额|402/.test(message)) return 'DeepSeek 余额不足，已回退本地互动'
-  if (/频繁|429/.test(message)) return 'DeepSeek 请求过多，已回退本地互动'
-  if (/网络|连接/.test(message)) return 'DeepSeek 连接失败，已回退本地互动'
-  return 'AI 互动生成失败，已回退本地互动'
+  if (/API Key|401|403/.test(message)) return musicAiFallbackLine('key')
+  if (/余额|402/.test(message)) return musicAiFallbackLine('balance')
+  if (/频繁|429/.test(message)) return musicAiFallbackLine('rate')
+  if (/网络|连接/.test(message)) return musicAiFallbackLine('network')
+  return musicAiFallbackLine('other')
 }
 async function clearAiInteractionCache(): Promise<void> {
   if (!musicAiCacheState.count) {
@@ -8989,9 +9398,7 @@ async function ensureMusicAi(): Promise<void> {
     if (usage.count >= settings.musicAiDailyLimit) {
       if (!musicAiLimitNotified) {
         musicAiLimitNotified = true
-        showToast(
-          `今日 AI 互动已达 ${settings.musicAiDailyLimit} 首，先使用本地文案`,
-        )
+        showToast(musicAiDailyLimitLine())
       }
       return
     }
@@ -9530,7 +9937,7 @@ function persist(bounds = wheelOpen && baseBounds ? baseBounds : pet.getBounds()
 }
 function recover(): void {
   drag = undefined
-  dropMode = false
+  dropArmed = false
   wheelOpen = false
   baseBounds = undefined
   received = undefined
@@ -9549,7 +9956,7 @@ function recover(): void {
   )
   pet.showInactive()
   persist()
-  addEvent('已恢复标记位置与鼠标交互。')
+  addEvent('已恢复桌宠位置与鼠标交互。')
 }
 function reconcileDisplays(): void {
   drag = undefined
@@ -9638,7 +10045,7 @@ function handle<T>(
     } catch (error) {
       const errorMessage =
         error instanceof z.ZodError
-          ? '请求参数不符合约定。'
+          ? '请求参数不符合约定'
           : error instanceof Error && !('code' in error)
             ? error.message
             : '本地操作失败，请检查文件是否存在、权限和可用空间。'
@@ -9758,7 +10165,7 @@ async function receivePaths(paths: string[]): Promise<void> {
     })
     idByPath.set(item.path, id)
   }
-  dropMode = false
+  dropArmed = false
   receiveToken += 1
   const order: { id: string; kind: 'file' | 'folder' }[] = []
   const orderedIds = new Set<string>()
@@ -10610,7 +11017,7 @@ function setupIpc(): void {
   handle(channels.pointer, 'pet', (_event, payload) => {
     const phase = pointerSchema.parse(payload)
     if (phase === 'down') {
-      if (dropMode) return
+      if (dropArmed) return
       drag = {
         origin: screen.getCursorScreenPoint(),
         bounds: pet.getBounds(),
@@ -10647,7 +11054,7 @@ function setupIpc(): void {
     const sharedActions = [
       'show-pocket',
       'hide-pocket',
-      'drop-mode',
+      'drop-arm',
       'remove-file',
       'clear-shelf',
       'reveal-file',
@@ -10714,6 +11121,9 @@ function setupIpc(): void {
       'settings-open-agent-dir',
       'settings-clear-cache',
       'settings-clear-belly',
+      'settings-auto-backup',
+      'settings-backup-export',
+      'settings-backup-restore',
       'settings-open-licenses',
       'hover-mode',
       'pomodoro-open',
@@ -10777,6 +11187,7 @@ function setupIpc(): void {
       'mail-select',
       'mail-save-attachment',
       'todo-open',
+      'todo-focus-ack',
       'todo-close',
       'focus-start',
       'focus-pause',
@@ -10839,10 +11250,12 @@ function setupIpc(): void {
       'pet-create-close',
       'pet-create-pick-photos',
       'pet-create-remove-photo',
+      'pet-create-species',
       'pet-create-start',
       'pet-create-retry',
       'pet-create-cancel',
       'pet-create-save',
+      'pet-prompt-save',
       'pet-default',
     ]
     if (
@@ -10867,23 +11280,19 @@ function setupIpc(): void {
       case 'recover':
         recover()
         break
-      case 'drop-mode': {
-        // Drag events repeat while the cursor crosses the pet, so receiving
-        // "enabled" again must not tear down the wheel that is already open.
-        const enabling = command.enabled && !dropMode
-        dropMode = command.enabled
+      case 'drop-arm': {
+        // Every dragenter repeats this request, so arming again must not tear
+        // down the wheel that is already open. The arm lasts only while the
+        // file drag is over the pet; there is no manual receive mode.
+        const arming = command.armed && !dropArmed
+        dropArmed = command.armed
         drag = undefined
-        if (enabling) {
+        if (arming) {
           received = undefined
           closeWheelWindow()
         }
         setPassthrough(false)
         syncOverlays()
-        addEvent(
-          dropMode
-            ? '文件投递模式已开启，整块接收区域可投递。'
-            : '文件投递模式已关闭。',
-        )
         break
       }
       case 'scale': {
@@ -11177,8 +11586,11 @@ function setupIpc(): void {
       case 'pet-create-remove-photo':
         await removePetPhoto(command.id)
         break
+      case 'pet-create-species':
+        await setPetDraftSpecies(command.species)
+        break
       case 'pet-create-start':
-        await startPetCreate(command.name, command.species)
+        await startPetCreate(command.name, command.species, command.prompt)
         break
       case 'pet-create-retry':
         await retryPetPose(command.pose)
@@ -11188,6 +11600,9 @@ function setupIpc(): void {
         break
       case 'pet-create-save':
         await savePetCreate()
+        break
+      case 'pet-prompt-save':
+        await savePetPrompt(command.prompt)
         break
       case 'pet-default':
         await useDefaultPet()
@@ -11405,6 +11820,16 @@ function setupIpc(): void {
         closeSettings()
         break
       }
+      case 'settings-auto-backup':
+        await updateSettings({ autoBackupEnabled: command.enabled })
+        if (command.enabled) void runAutoBackup()
+        break
+      case 'settings-backup-export':
+        await exportBackup()
+        break
+      case 'settings-backup-restore':
+        await restoreBackup(command.snapshot)
+        break
       case 'settings-clear-cache':
         await clearAppCache()
         break
@@ -11654,7 +12079,14 @@ function setupIpc(): void {
         await saveMailAttachment(command.uid, command.part, command.open ?? false)
         break
       case 'todo-open':
-        openTodo()
+        openTodo(
+          command.todoId
+            ? { todoId: command.todoId, listId: command.listId ?? null }
+            : undefined,
+        )
+        break
+      case 'todo-focus-ack':
+        if (todoFocus?.nonce === command.nonce) clearTodoFocus()
         break
       case 'todo-close':
         closeTodo()
@@ -11754,7 +12186,9 @@ function setupIpc(): void {
           else owner.maximize()
         } else if (
           command.action === 'toggle-default' &&
-          (owner === askWindow || owner === mailWindow)
+          (owner === askWindow ||
+            owner === mailWindow ||
+            owner === mailComposeWindow)
         ) {
           if (!owner.isResizable()) break
           if (owner.isMaximized()) {
@@ -11763,9 +12197,13 @@ function setupIpc(): void {
                 ? agentDefaultBounds(
                     screen.getDisplayMatching(owner.getBounds()),
                   )
-                : mailDefaultBounds(
-                    screen.getDisplayMatching(owner.getBounds()),
-                  )
+                : owner === mailWindow
+                  ? mailDefaultBounds(
+                      screen.getDisplayMatching(owner.getBounds()),
+                    )
+                  : mailComposeDefaultBounds(
+                      screen.getDisplayMatching(owner.getBounds()),
+                    )
             owner.unmaximize()
             setTimeout(() => {
               if (!owner.isDestroyed()) owner.setBounds(next)
@@ -11879,21 +12317,21 @@ function setupIpc(): void {
   handle(channels.aiVerify, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!settingsWindow || window !== settingsWindow)
-      throw new Error('仅设置窗口可以验证 API Key。')
+      throw new Error('仅设置窗口可以验证 API Key')
     const key = z.string().trim().min(10).max(400).parse(payload)
     await testDeepSeekConnection(key)
   })
   handle(channels.minimaxVerify, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!settingsWindow || window !== settingsWindow)
-      throw new Error('仅设置窗口可以验证 API Key。')
+      throw new Error('仅设置窗口可以验证 API Key')
     const key = z.string().trim().min(10).max(400).parse(payload)
     await testMiniMaxConnection(key)
   })
   handle(channels.volcanoVerify, 'either', async (event, payload) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!settingsWindow || window !== settingsWindow)
-      throw new Error('仅设置窗口可以验证 API Key。')
+      throw new Error('仅设置窗口可以验证 API Key')
     const key = z.string().trim().min(10).max(400).parse(payload)
     await testVolcanoConnection(key)
   })
@@ -11992,10 +12430,16 @@ function setupIpc(): void {
     if (!size.success) return
     toastWidth = size.data.width
     toastHeight = size.data.height
-    if (toastText && !mailAlert && !dropMode && toastWindow.isVisible()) {
+    if (toastText && !mailAlert && !dropArmed && toastWindow.isVisible()) {
       positionToast()
       toastWindow.moveTop()
     }
+  })
+  ipcMain.on(channels.toastHover, (event, payload) => {
+    const source = BrowserWindow.fromWebContents(event.sender)
+    if (!toastWindow || toastWindow.isDestroyed() || source !== toastWindow)
+      return
+    setToastHovered(payload === true)
   })
   ipcMain.on(channels.startDrag, (event, payload) => {
     try {
@@ -12021,6 +12465,12 @@ function setupIpc(): void {
   })
   handle(channels.capture, 'lab', async () => {
     previews.clear()
+    const access =
+      process.platform === 'darwin'
+        ? systemPreferences.getMediaAccessStatus('screen')
+        : 'granted'
+    if (access === 'denied' || access === 'restricted')
+      throw new Error('屏幕录制权限已被拒绝，请在系统设置中开启后重试。')
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: { width: 640, height: 360 },
@@ -12069,7 +12519,7 @@ function secureWindow(window: BrowserWindow): void {
     drag = undefined
     mask = undefined
     setPassthrough(false)
-    addEvent('渲染进程异常，已恢复鼠标交互；请从托盘恢复或重启。')
+    addEvent('渲染进程异常，已恢复鼠标交互；请从托盘恢复桌宠或重启。')
   })
 }
 async function load(window: BrowserWindow, view: string): Promise<void> {
@@ -12611,8 +13061,8 @@ async function createWindows(): Promise<void> {
   mailComposeWindow = new BrowserWindow({
     width: 760,
     height: 620,
-    minWidth: 660,
-    minHeight: 520,
+    minWidth: 760,
+    minHeight: 620,
     title: '毛趣萌仔 · 撰写',
     icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
     ...panelChrome,
@@ -12630,6 +13080,14 @@ async function createWindows(): Promise<void> {
       nodeIntegration: false,
       sandbox: true,
     },
+  })
+  mailComposeWindow.on('maximize', () => {
+    mailComposeMaximized = true
+    broadcast()
+  })
+  mailComposeWindow.on('unmaximize', () => {
+    mailComposeMaximized = false
+    broadcast()
   })
   pomodoroWindow = new BrowserWindow({
     width: 360,
@@ -12774,7 +13232,10 @@ async function createWindows(): Promise<void> {
     todoWindow,
   ])
     configurePanelChrome(panel, {
-      maximizable: panel === askWindow || panel === mailWindow,
+      maximizable:
+        panel === askWindow ||
+        panel === mailWindow ||
+        panel === mailComposeWindow,
     })
   focusBadge = new BrowserWindow({
     width: 76,
@@ -13002,30 +13463,19 @@ async function createWindows(): Promise<void> {
   syncOverlays()
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')
   tray = new Tray(trayImage())
-  tray.setToolTip('毛趣萌仔 · P0 交互原型')
+  tray.setToolTip('毛趣萌仔')
+  // The tray only holds what the pet wheel cannot reach: the emergency
+  // reposition, the dev-only diagnostics, settings and quitting. Feature
+  // panels live in the hover wheel so the menu never grows a second copy.
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: '打开文件置物架', click: showPocket },
-      {
-        label: '开启文件投递',
-        click: () => {
-          dropMode = true
-          setPassthrough(false)
-          broadcast()
-        },
-      },
-      { label: '番茄时钟', click: openPomodoro },
-      { label: '喝水提醒', click: openWater },
-      { label: '休息提醒', click: openBreak },
-      { label: '待办清单', click: openTodo },
-      { label: '智能体', click: () => openAgentPanel() },
-      { label: '设置…', click: openSettings },
-      { label: '恢复标记位置', click: recover },
+      { label: '恢复桌宠位置', click: recover },
       ...(!app.isPackaged
-        ? [{ label: '开发诊断（非正式版页面）', click: showLab }]
+        ? [{ label: '开发诊断', click: showLab }]
         : []),
+      { label: '设置', click: openSettings },
       { type: 'separator' },
-      { label: '退出毛趣萌仔', click: () => app.quit() },
+      { label: '退出', click: () => app.quit() },
     ]),
   )
   tray.on('click', showPocket)
@@ -13112,7 +13562,7 @@ async function createWindows(): Promise<void> {
         cursor.y < b.y + b.height
       const opaque = hitOpaquePixel(mask, cursor.x - b.x, cursor.y - b.y)
       setPassthrough(
-        !dropMode && !wheelOpen && (!inside || !opaque),
+        !dropArmed && !wheelOpen && (!inside || !opaque),
       )
       const center =
         Math.hypot(
@@ -13120,7 +13570,7 @@ async function createWindows(): Promise<void> {
           cursor.y - (b.y + b.height / 2),
         ) <= 28 * scale
       const canHover =
-        !dropMode && !wheelOpen && inside && opaque && center && !drag
+        !dropArmed && !wheelOpen && inside && opaque && center && !drag
       if (canHover) {
         if (!hoverCenterSince) hoverCenterSince = Date.now()
         if (!hoverSent && Date.now() - hoverCenterSince >= 550) {
@@ -13166,6 +13616,8 @@ else {
         },
       )
       await mkdir(dataRoot, { recursive: true })
+      const restored = await applyPendingRestore(dataRoot)
+      if (restored) backupRestoreResult = restored
       const loadedSettings = await loadSettingsFile(settingsPath)
       settings = loadedSettings.settings
       if (loadedSettings.upgraded)
@@ -13240,6 +13692,8 @@ else {
         mailConfigPath,
         mailFilesDirectory(),
       )
+      applyMailProxySettings()
+      await refreshSystemMailProxy()
       try {
         await migrateLegacyMailStorage()
       } catch (error) {
@@ -13249,6 +13703,25 @@ else {
       void refreshMailCacheSize()
       void updateMailBadge()
       scheduleMailSync()
+      await refreshBackupSnapshots()
+      if (backupRestoreResult) {
+        if (!backupRestoreResult.ok)
+          addEvent(
+            `恢复失败：${backupRestoreResult.message ?? '已保留原数据。'}`,
+          )
+        else {
+          const issues = await verifyRestoredData(dataRoot)
+          addEvent(
+            issues.length
+              ? `本地数据已恢复，但存在问题：${issues.join('；')}`
+              : '本地数据已恢复。',
+          )
+          showToast('本地数据已恢复')
+        }
+      }
+      void runAutoBackup()
+      if (backupTimer) clearInterval(backupTimer)
+      backupTimer = setInterval(() => void runAutoBackup(), 60 * 60_000)
       setTimeout(() => {
         void syncAllMail(true).catch(() => {})
       }, 4000)
@@ -13342,7 +13815,8 @@ else {
       }, 1200)
       await startScreenshotWatcher()
     })
-    .catch(() => {
+    .catch((error) => {
+      console.error('startup failed', error)
       dialog.showErrorBox('毛趣萌仔启动失败', '请检查本地资源与数据目录权限。')
       app.exit(1)
     })
@@ -13365,6 +13839,10 @@ else {
     if (aiQuotaTimer) {
       clearInterval(aiQuotaTimer)
       aiQuotaTimer = undefined
+    }
+    if (backupTimer) {
+      clearInterval(backupTimer)
+      backupTimer = undefined
     }
     if (clipboardTimer) {
       clearInterval(clipboardTimer)

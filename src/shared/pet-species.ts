@@ -69,3 +69,68 @@ export function isPetSpecies(value: unknown): value is PetSpecies {
     (petSpeciesOptions as readonly string[]).includes(value)
   )
 }
+
+/**
+ * Art groups drive pose wording and body-plan wording in the generation prompt.
+ * Shrimp and crabs join the arthropods: they share an exoskeleton and many
+ * legs, so mammal pose wording fails on them just as badly.
+ */
+export const petSpeciesGroupIds = [
+  'mammal',
+  'bird',
+  'reptile',
+  'arthropod',
+  'aquatic',
+  'other',
+] as const
+
+export type PetSpeciesGroup = (typeof petSpeciesGroupIds)[number]
+
+const speciesGroupBySpecies: Record<PetSpecies, PetSpeciesGroup> = {
+  猫: 'mammal',
+  狗: 'mammal',
+  兔子: 'mammal',
+  鸟: 'bird',
+  仓鼠: 'mammal',
+  龙猫: 'mammal',
+  豚鼠: 'mammal',
+  花枝鼠: 'mammal',
+  松鼠: 'mammal',
+  刺猬: 'mammal',
+  蜜袋鼯: 'mammal',
+  鹦鹉: 'bird',
+  文鸟: 'bird',
+  八哥: 'bird',
+  柯尔鸭: 'bird',
+  鸡: 'bird',
+  蜥蜴: 'reptile',
+  守宫: 'reptile',
+  蛇: 'reptile',
+  龟: 'reptile',
+  蛙: 'reptile',
+  蜘蛛: 'arthropod',
+  蝎子: 'arthropod',
+  鱼: 'aquatic',
+  虾: 'arthropod',
+  蟹: 'arthropod',
+  雪貂: 'mammal',
+  狐狸: 'mammal',
+  浣熊: 'mammal',
+  迷你猪: 'mammal',
+  羊驼: 'mammal',
+  其他: 'other',
+}
+
+export function petSpeciesGroup(
+  species: string | undefined | null,
+): PetSpeciesGroup {
+  if (!species || !isPetSpecies(species)) return 'other'
+  return speciesGroupBySpecies[species]
+}
+
+export function isPetSpeciesGroup(value: unknown): value is PetSpeciesGroup {
+  return (
+    typeof value === 'string' &&
+    (petSpeciesGroupIds as readonly string[]).includes(value)
+  )
+}

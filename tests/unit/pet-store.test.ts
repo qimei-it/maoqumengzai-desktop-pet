@@ -85,6 +85,38 @@ describe('pet store', () => {
     })
   })
 
+  test('persists the companion prompt and exposes it on assets', async () => {
+    const base = await root()
+    const id = 'cccccccc-dddd-4eee-8fff-cccccccccccc'
+    const record = petRecordFor(
+      id,
+      '团子',
+      getPetStyle(),
+      'seedream',
+      Date.now(),
+      '狗',
+      '  像朋友一样陪我聊天  ',
+    )
+    expect(record.prompt).toBe('像朋友一样陪我聊天')
+    await writePet(base, id, record)
+    const loaded = await loadPetRecord(base, id)
+    expect(loaded?.prompt).toBe('像朋友一样陪我聊天')
+    expect(registerPetAssets(base, loaded!).prompt).toBe('像朋友一样陪我聊天')
+  })
+
+  test('caps the companion prompt at the shared limit', () => {
+    const record = petRecordFor(
+      'cccccccc-dddd-4eee-8fff-dddddddddddd',
+      '团子',
+      getPetStyle(),
+      'seedream',
+      Date.now(),
+      '狗',
+      '陪'.repeat(1200),
+    )
+    expect(record.prompt).toBe('陪'.repeat(1000))
+  })
+
   test('loads records created before species existed', async () => {
     const base = await root()
     const id = 'cccccccc-dddd-4eee-8fff-bbbbbbbbbbbb'
@@ -96,6 +128,7 @@ describe('pet store', () => {
       Date.now(),
     )
     expect(record.species).toBeUndefined()
+    expect(record.prompt).toBeUndefined()
     await writePet(base, id, record)
     await expect(loadPetRecord(base, id)).resolves.toMatchObject({
       id,

@@ -113,7 +113,7 @@ test('injects enabled skills and loads one during the conversation', async () =>
 
   await agent.getByLabel('给智能体发送指令').fill('写日报')
   await agent.getByRole('button', { name: '发送' }).click()
-  await expect(agent.getByLabel('给智能体发送指令')).toHaveValue('')
+  await expect(agent.getByLabel('给智能体发送指令')).toHaveText('')
   await expect(agent.getByText('日报已完成')).toBeVisible({
     timeout: 15_000,
   })

@@ -27,7 +27,7 @@ export type UploadOptions = {
 
 function friendlyFileError(status: number, detail?: string): Error {
   if (status === 401 || status === 403)
-    return new Error('API Key 无效，请在设置中更换。')
+    return new Error('API Key 无效')
   if (status === 402) return new Error('DeepSeek 账户余额不足。')
   if (status === 408) return new Error('附件上传超时，请换更小的文件。')
   if (status === 413) return new Error('附件超过 DeepSeek 的大小限制。')

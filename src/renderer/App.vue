@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import {
+  ChevronRight,
   Eye,
   EyeOff,
   Infinity as InfinityIcon,
@@ -30,6 +31,12 @@ import {
   fileKindFromMime,
   type FileKind,
 } from "../shared/file-kinds";
+import {
+  fileEatenLine,
+  fileTransferLine,
+  mailArrivalLine,
+  saveCopyLine,
+} from "../shared/companion-lines";
 import {
   actionAt,
   donutMetrics,
@@ -238,7 +245,7 @@ let unsubscribe: (() => void) | undefined;
 let unsubscribeHover: (() => void) | undefined;
 let observer: ResizeObserver | undefined;
 let pointerId: number | undefined;
-let dropModeChain: Promise<void> = Promise.resolve();
+let dropArmChain: Promise<void> = Promise.resolve();
 let blinkTimer: ReturnType<typeof setTimeout> | undefined;
 let blinkReset: ReturnType<typeof setTimeout> | undefined;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -271,12 +278,25 @@ async function command(value: Command): Promise<void> {
     if (api) state.value = unwrap(await api.command(value));
   });
 }
+const mailGreeting = mailArrivalLine();
 async function mailAlertClick(): Promise<void> {
   await command({
     type: state.value?.mailAlert?.code
       ? "mail-alert-copy"
       : "mail-alert-open",
   });
+}
+async function toastOpen(): Promise<void> {
+  const action = state.value?.toastAction;
+  if (!action) return;
+  await command({
+    type: "todo-open",
+    todoId: action.todoId,
+    listId: action.listId,
+  });
+}
+function toastHover(active: boolean): void {
+  api?.toastHover(active);
 }
 async function selectFiles(): Promise<void> {
   await attempt(async () => {
@@ -367,23 +387,20 @@ function armWatchdog(): void {
     dragWatchdog = undefined;
     resetDragState();
     if (donutOpen.value) void closeDonut();
-  }, 1500);
+  }, 3000);
 }
 function disarmWatchdog(): void {
   if (dragWatchdog) clearTimeout(dragWatchdog);
   dragWatchdog = undefined;
 }
-function syncDropMode(enabled: boolean): Promise<void> {
-  // Every dragenter repeats this request; the main process ignores an enable
-  // that is already active so the wheel is never torn down mid-drag. Keeping
-  // the renderer stateless also covers drop mode changed from another window.
-  dropModeChain = dropModeChain.then(() =>
-    command({ type: "drop-mode", enabled }),
+function syncDropArm(armed: boolean): Promise<void> {
+  // Every dragenter repeats this request; the main process ignores an arm that
+  // is already active so the wheel is never torn down mid-drag. A file drag
+  // arms the receive region automatically — there is no manual toggle.
+  dropArmChain = dropArmChain.then(() =>
+    command({ type: "drop-arm", armed }),
   );
-  return dropModeChain;
-}
-function toggleDropMode(): void {
-  void syncDropMode(!state.value?.dropMode);
+  return dropArmChain;
 }
 /** Clears a file drag that ended without a drop or dragleave. */
 function resetDragState(): void {
@@ -391,7 +408,7 @@ function resetDragState(): void {
   dragFileKinds = [];
   wheelHint.value = "";
   disarmWatchdog();
-  void syncDropMode(false);
+  void syncDropArm(false);
 }
 function kindsFromDrop(dataTransfer: DataTransfer | null): FileKind[] {
   if (!dataTransfer) return [];
@@ -538,15 +555,16 @@ function enter(event: DragEvent): void {
   petPose.value = "ponder";
   armWatchdog();
   donutActive.value = null;
-  // Enabling the receive region closes the wheel window; open only after that
+  // Arming the receive region closes the wheel window; open only after that
   // command has landed, otherwise its reply would close the fresh wheel.
-  void syncDropMode(true).then(() => {
+  void syncDropArm(true).then(() => {
     if (dragOver.value) void openDonut();
   });
 }
 function over(event: DragEvent): void {
   event.preventDefault();
   if (!petView) return;
+  armWatchdog();
   trackHover(event);
 }
 function leave(event: DragEvent): void {
@@ -623,16 +641,21 @@ function transferNotice(
   const count = names.length;
   const targetName = folderDisplayName(target);
   const verb = action === "copy-to" ? "复制到" : "移动到";
-  const source = count > 1 ? `「${name}」等 ${count} 项` : `「${name}」`;
   return {
-    text: `将${source}${verb}「${targetName}」了～`,
+    text: fileTransferLine(
+      action === "copy-to" ? "copy" : "move",
+      name,
+      count,
+      targetName,
+    ),
     parts: [
-      { text: "将 " },
+      { text: "我把「" },
       { text: name, code: true },
-      ...(count > 1 ? [{ text: ` 等 ${count} 项` }] : []),
-      { text: ` ${verb} ` },
+      { text: "」" },
+      ...(count > 1 ? [{ text: `等 ${count} 项` }] : []),
+      { text: `${verb}「` },
       { text: targetName, code: true },
-      { text: " 了～" },
+      { text: "」啦" },
     ],
   };
 }
@@ -683,7 +706,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
           folderIds,
         }),
       );
-      flash("吃掉了；7 天内在置物架可以取回。");
+      flash(fileEatenLine());
       flashMissedFolders(skipped, "未能吃掉");
       return;
     }
@@ -787,7 +810,7 @@ async function applyDrop(files: File[], action: DropAction): Promise<void> {
         state.value = unwrap(
           await api.command({ type: "save-copy", fileId: id }),
         );
-      flash("已保存副本");
+      flash(saveCopyLine());
     }
     flashMissedFolders(missed, folderResult);
   });
@@ -831,7 +854,7 @@ function fillEnclosed(alpha: number[], size: number): number[] {
   );
 }
 async function updateMask(): Promise<void> {
-  if (!api || !marker.value || !marker.value.complete || state.value?.dropMode)
+  if (!api || !marker.value || !marker.value.complete || state.value?.dropArmed)
     return;
   const canvas = document.createElement("canvas");
   canvas.width = 96;
@@ -900,7 +923,7 @@ async function openHoverDonut(): Promise<void> {
     dragOver.value ||
     pointerId !== undefined ||
     Date.now() < hoverSuppressedUntil ||
-    state.value?.dropMode
+    state.value?.dropArmed
   )
     return;
   petPose.value = "ponder";
@@ -1406,7 +1429,7 @@ const permissionLabel = computed(
     state.value?.screenPermission ||
     "读取中",
 );
-watch([() => state.value?.scale, () => state.value?.dropMode], async () => {
+watch([() => state.value?.scale, () => state.value?.dropArmed], async () => {
   await nextTick();
   await updateMask();
 });
@@ -1519,7 +1542,7 @@ onUnmounted(() => {
   <main
     v-if="petView"
     class="pet-surface"
-    :class="{ receiving: state?.dropMode, over: dragOver }"
+    :class="{ receiving: state?.dropArmed, over: dragOver }"
     @dragenter="enter"
     @dragover="over"
     @dragleave="leave"
@@ -1571,7 +1594,7 @@ onUnmounted(() => {
               donutOpen ||
               displayPose === 'lifted' ||
               displayPose === 'music' ||
-              (!!state?.music.title && !!state?.barVisible && !state?.dropMode) ||
+              (!!state?.music.title && !!state?.barVisible && !state?.dropArmed) ||
               !!state?.aiQuota.visible ||
               !!toast,
           }"
@@ -1822,11 +1845,15 @@ onUnmounted(() => {
   <main
     v-else-if="toastView"
     class="bubble-surface toast-surface"
-    :class="{ 'has-alert': !!state?.mailAlert }"
+    :class="{
+      'has-alert': !!state?.mailAlert,
+      'is-actionable': !!state?.toastAction,
+    }"
   >
     <div
       v-if="state?.mailAlert"
       class="mail-alert"
+      :class="{ 'has-greeting': !state.mailAlert.code }"
       role="button"
       tabindex="0"
       :title="state.mailAlert.code ? '复制验证码' : '打开邮件'"
@@ -1834,6 +1861,7 @@ onUnmounted(() => {
       @keydown.enter.prevent="mailAlertClick"
       @keydown.space.prevent="mailAlertClick"
     >
+      <span v-if="!state.mailAlert.code" class="mail-alert-greeting">{{ mailGreeting }}</span>
       <span class="mail-alert-sender">{{ state.mailAlert.sender }}</span>
       <template v-if="state.mailAlert.code">
         <span class="mail-alert-code">{{ state.mailAlert.code }}</span>
@@ -1841,10 +1869,21 @@ onUnmounted(() => {
       </template>
       <template v-else>
         <span class="mail-alert-subject">{{ state.mailAlert.subject }}</span>
-        <span class="mail-alert-hint">点击查看邮件</span>
+        <span class="mail-alert-hint">点我看看</span>
       </template>
     </div>
-    <div v-else class="bubble-body toast-body">
+    <div
+      v-else
+      class="bubble-body toast-body"
+      :class="{ 'is-actionable': !!state?.toastAction }"
+      :role="state?.toastAction ? 'button' : undefined"
+      :title="state?.toastAction ? '打开待办清单' : undefined"
+      @click="toastOpen"
+      @mouseenter="toastHover(true)"
+      @mouseleave="toastHover(false)"
+      @keydown.enter.prevent="toastOpen"
+      @keydown.space.prevent="toastOpen"
+    >
       <span ref="toastTextEl" class="bubble-text">
         <template v-if="state?.toastParts?.length">
           <template
@@ -1859,6 +1898,13 @@ onUnmounted(() => {
         </template>
         <template v-else>{{ state?.toast }}</template>
       </span>
+      <ChevronRight
+        v-if="state?.toastAction"
+        class="toast-open-icon"
+        :size="14"
+        :stroke-width="2.2"
+        aria-hidden="true"
+      />
     </div>
   </main>
 
@@ -2131,16 +2177,8 @@ onUnmounted(() => {
           <option :value="1.5">1.5 倍</option>
           <option :value="2">2 倍</option>
         </SelectField>
-        <button
-          class="primary full"
-          data-testid="drop-mode"
-          :aria-pressed="state?.dropMode || false"
-          @click="toggleDropMode"
-        >
-          {{ state?.dropMode ? "关闭文件投递区域" : "开启文件投递区域" }}
-        </button>
         <button class="full" @click="command({ type: 'recover' })">
-          恢复标记位置
+          恢复桌宠位置
         </button>
         <p class="hint">恢复快捷键：⌘ / Ctrl + Shift + M。也可使用系统托盘。</p>
       </section>

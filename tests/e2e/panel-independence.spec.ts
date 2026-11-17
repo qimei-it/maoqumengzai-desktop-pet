@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 
 let application: ElectronApplication;
 let pet: Page;
+let settings: Page;
 let directory: string;
 
 function panelVisible(title: string) {
@@ -51,6 +52,7 @@ test.beforeAll(async () => {
     })),
   );
   pet = windows.find((item) => item.title.includes("交互标记"))!.page;
+  settings = windows.find((item) => item.title.includes("设置"))!.page;
 });
 
 test.afterAll(async () => {
@@ -78,6 +80,52 @@ test("opening a panel no longer closes the panels opened before it", async () =>
 
   await command("break-close");
   await command("pomodoro-close");
+  await command("settings-close");
+});
+
+test("closing settings discards the pet wizard and resets to appearance", async () => {
+  await command("settings-open");
+  await expect.poll(() => panelVisible("设置")).toBe(true);
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: "settings-section", section: "profile" }),
+  );
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settingsSection : "";
+    })
+    .toBe("profile");
+  await settings.evaluate(() =>
+    window.mqmz!.command({ type: "pet-create-open" }),
+  );
+  const wizard = settings.getByRole("dialog", { name: "新建桌宠" });
+  await expect(wizard).toBeVisible();
+
+  await application.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((window) => window.getTitle().includes("设置"))
+      ?.close();
+  });
+  await expect.poll(() => panelVisible("设置")).toBe(false);
+  await command("settings-open");
+  await expect.poll(() => panelVisible("设置")).toBe(true);
+
+  await expect(wizard).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.petCreate.open : true;
+    })
+    .toBe(false);
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot());
+      return snapshot.ok ? snapshot.value.settingsSection : "";
+    })
+    .toBe("appearance");
+  await expect(
+    settings.getByRole("button", { name: "外观", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await command("settings-close");
 });
 

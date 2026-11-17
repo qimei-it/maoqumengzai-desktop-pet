@@ -64,6 +64,10 @@ describe('Volcano Ark provider', () => {
         'doubao-seedream-5-5-261028',
       ]),
     ).toBe(true)
+    expect(
+      hasVolcanoSeedreamModel(['doubao-seedream-5-5-270101']),
+      '新的日期后缀仍算 Seedream 5.5',
+    ).toBe(true)
     expect(hasVolcanoSeedreamModel(['doubao-seedream-5-0-flash-20260101'])).toBe(
       false,
     )
@@ -140,6 +144,32 @@ describe('Volcano Ark provider', () => {
     })
     await expect(
       testVolcanoConnection('ark-bad', { endpoint: `${base}/models` }),
-    ).rejects.toThrow('火山方舟 API Key 无效')
+    ).rejects.toThrow('API Key 无效')
+  })
+
+  test('names Seedream 5.5 when the model is not activated', async () => {
+    const base = await endpoint((_request, response) => {
+      response.writeHead(404, { 'Content-Type': 'application/json' })
+      response.end(
+        JSON.stringify({
+          error: {
+            code: 'ModelNotOpen',
+            message:
+              'The model doubao-seedream-5-5-261028 has not activated the model.',
+          },
+        }),
+      )
+    })
+    await expect(
+      generateVolcanoImage(
+        'ark-test',
+        {
+          model: 'doubao-seedream-5-5-261028',
+          prompt: 'cat',
+          responseFormat: 'b64_json',
+        },
+        { endpoint: `${base}/images/generations` },
+      ),
+    ).rejects.toThrow('火山方舟还没有开通 Doubao Seedream 5.5')
   })
 })

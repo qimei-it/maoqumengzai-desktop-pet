@@ -7,6 +7,7 @@ import { MailDatabase } from '../../src/main/mail-db'
 import {
   defaultMailConfig,
   loadMailConfig,
+  parseMailConfig,
   saveMailConfig,
 } from '../../src/main/mail-config'
 import {
@@ -460,6 +461,39 @@ describe('mail config', () => {
     expect(config.attachmentDir).toBe(attachments)
     expect(config.syncMinutes).toBe(15)
     expect(config.retentionDays).toBe(90)
+    expect(config.proxyMode).toBe('auto')
+    expect(config.proxyUrl).toBe('')
+  })
+
+  test('migrates v1 files without losing existing preferences', () => {
+    const config = parseMailConfig({
+      version: 1,
+      syncMinutes: 5,
+      notify: false,
+      unreadBadge: false,
+      attachmentDir: '/tmp/mqmz-mail',
+      retentionDays: 30,
+    })
+    expect(config).toMatchObject({
+      syncMinutes: 5,
+      notify: false,
+      unreadBadge: false,
+      attachmentDir: '/tmp/mqmz-mail',
+      retentionDays: 30,
+      proxyMode: 'auto',
+      proxyUrl: '',
+    })
+  })
+
+  test('keeps a configured manual proxy in v2 files', () => {
+    const config = parseMailConfig({
+      ...defaultMailConfig('/tmp/mqmz-mail'),
+      version: 2,
+      proxyMode: 'manual',
+      proxyUrl: 'socks5://127.0.0.1:6153',
+    })
+    expect(config.proxyMode).toBe('manual')
+    expect(config.proxyUrl).toBe('socks5://127.0.0.1:6153')
   })
 
   test('round-trips config and falls back on malformed files', async () => {

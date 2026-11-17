@@ -22,6 +22,8 @@ import {
   themeIds,
 } from '../shared/settings'
 import { petPoseIds } from '../shared/pet-style'
+import { maxPetNameChars } from '../shared/pet-name'
+import { maxPetPromptChars } from '../shared/pet-prompt'
 import { petSpeciesOptions } from '../shared/pet-species'
 import {
   hoverActions,
@@ -79,7 +81,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('show-lab') }).strict(),
   z.object({ type: z.literal('show-pocket') }).strict(),
   z.object({ type: z.literal('hide-pocket') }).strict(),
-  z.object({ type: z.literal('drop-mode'), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('drop-arm'), armed: z.boolean() }).strict(),
   z
     .object({
       type: z.literal('scale'),
@@ -404,7 +406,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       type: z.literal('settings-update'),
       patch: z
         .object({
-          petName: z.string().trim().min(1).max(20).optional(),
+          petName: z.string().trim().min(1).max(maxPetNameChars).optional(),
           theme: z.enum(themeIds).optional(),
           scale: z.union(petScales.map((value) => z.literal(value))).optional(),
           launchAtLogin: z.boolean().optional(),
@@ -438,6 +440,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('settings-open-data') }).strict(),
+  z
+    .object({
+      type: z.literal('settings-auto-backup'),
+      enabled: z.boolean(),
+    })
+    .strict(),
+  z.object({ type: z.literal('settings-backup-export') }).strict(),
+  z
+    .object({
+      type: z.literal('settings-backup-restore'),
+      snapshot: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict(),
   z.object({ type: z.literal('settings-choose-agent-dir') }).strict(),
   z.object({ type: z.literal('settings-open-agent-dir') }).strict(),
   z.object({ type: z.literal('settings-clear-cache') }).strict(),
@@ -454,7 +469,19 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('water-open') }).strict(),
   z.object({ type: z.literal('water-close') }).strict(),
   z.object({ type: z.literal('water-drink') }).strict(),
-  z.object({ type: z.literal('todo-open') }).strict(),
+  z
+    .object({
+      type: z.literal('todo-open'),
+      todoId: z.string().uuid().optional(),
+      listId: z.string().uuid().nullable().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-focus-ack'),
+      nonce: z.number().int(),
+    })
+    .strict(),
   z.object({ type: z.literal('todo-close') }).strict(),
   z.object({ type: z.literal('focus-start') }).strict(),
   z.object({ type: z.literal('focus-pause') }).strict(),
@@ -732,6 +759,8 @@ export const commandSchema = z.discriminatedUnion('type', [
           unreadBadge: z.boolean().optional(),
           attachmentDir: z.string().max(1024).optional(),
           retentionDays: z.number().int().min(0).max(3650).optional(),
+          proxyMode: z.enum(['auto', 'manual', 'off']).optional(),
+          proxyUrl: z.string().max(300).optional(),
         })
         .strict(),
     })
@@ -1133,9 +1162,16 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
-      type: z.literal('pet-create-start'),
-      name: z.string().trim().min(1).max(20),
+      type: z.literal('pet-create-species'),
       species: z.enum(petSpeciesOptions),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('pet-create-start'),
+      name: z.string().trim().min(1).max(maxPetNameChars),
+      species: z.enum(petSpeciesOptions),
+      prompt: z.string().trim().max(maxPetPromptChars),
     })
     .strict(),
   z
@@ -1146,6 +1182,12 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('pet-create-cancel') }).strict(),
   z.object({ type: z.literal('pet-create-save') }).strict(),
+  z
+    .object({
+      type: z.literal('pet-prompt-save'),
+      prompt: z.string().trim().max(maxPetPromptChars),
+    })
+    .strict(),
   z.object({ type: z.literal('pet-default') }).strict(),
 ])
 export const pathsSchema = z.array(z.string().min(1).max(4096)).min(1).max(32)

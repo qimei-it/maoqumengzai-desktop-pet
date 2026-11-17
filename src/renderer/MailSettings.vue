@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   ExternalLink,
   PenLine,
@@ -11,6 +11,7 @@ import type {
   MailAccount,
   MailConfig,
   MailProvider,
+  MailProxyMode,
   MailState,
 } from '../shared/mail'
 import {
@@ -18,6 +19,9 @@ import {
   mailDisplayNameError,
   mailDisplayNameLimit,
   mailProviderLabels,
+  mailProxyModeLabels,
+  mailProxyModes,
+  mailProxyUrlError,
   normalizeMailSecret,
   mailRetentionOptions,
   mailSyncOptions,
@@ -35,6 +39,8 @@ const fallbackConfig: MailConfig = {
   unreadBadge: true,
   attachmentDir: '',
   retentionDays: 90,
+  proxyMode: 'auto',
+  proxyUrl: '',
 }
 const config = computed<MailConfig>(() => props.mail?.config ?? fallbackConfig)
 const accounts = computed(() => props.mail?.accounts ?? [])
@@ -57,6 +63,28 @@ const providerOptions: Array<{
   { id: '163', label: mailProviderLabels['163'] },
   { id: 'gmail', label: mailProviderLabels.gmail },
 ]
+const proxyModeOptions = mailProxyModes.map((mode) => ({
+  value: mode,
+  label: mailProxyModeLabels[mode],
+}))
+const proxyUrlDraft = ref('')
+const proxyEditing = ref(false)
+const proxyInput = ref<HTMLInputElement | null>(null)
+watch(
+  () => props.mail?.config.proxyUrl ?? '',
+  (value) => {
+    if (!proxyEditing.value) proxyUrlDraft.value = value
+  },
+  { immediate: true },
+)
+watch(
+  () => config.value.proxyMode,
+  (mode) => {
+    if (mode === 'manual') return
+    proxyEditing.value = false
+    proxyUrlDraft.value = config.value.proxyUrl
+  },
+)
 
 const formOpen = ref(false)
 const formProvider = ref<MailProvider>('qq')
@@ -65,13 +93,6 @@ const providerIndex = computed(() =>
     0,
     providerOptions.findIndex((item) => item.id === formProvider.value),
   ),
-)
-watch(
-  () => [Boolean(props.mail), props.mail?.accounts.length ?? 0] as const,
-  ([loaded, count]) => {
-    if (loaded && count === 0 && !formOpen.value) openAdd()
-  },
-  { immediate: true },
 )
 const emailPlaceholders: Record<MailProvider, string> = {
   qq: 'name@qq.com',
@@ -99,6 +120,15 @@ function openAdd(): void {
   resetForm()
   formOpen.value = true
 }
+// Defer until every form ref exists: immediate registration before resetForm's
+// refs used to throw "Cannot access 'formEmail' before initialization".
+watch(
+  () => [Boolean(props.mail), props.mail?.accounts.length ?? 0] as const,
+  ([loaded, count]) => {
+    if (loaded && count === 0 && !formOpen.value) openAdd()
+  },
+  { immediate: true },
+)
 async function openReauthorize(account: MailAccount): Promise<void> {
   const result = await window.mqmz?.mailSecret(account.id)
   resetForm()
@@ -160,6 +190,41 @@ function removeAccount(accountId: string): void {
 }
 function updateConfig(patch: Partial<MailConfig>): void {
   emit('command', { type: 'mail-update-config', patch })
+}
+function onProxyModeChange(event: Event): void {
+  const mode = (event.target as HTMLSelectElement).value as MailProxyMode
+  if (!mailProxyModes.includes(mode)) return
+  updateConfig({ proxyMode: mode })
+}
+function startProxyEdit(): void {
+  proxyUrlDraft.value = config.value.proxyUrl
+  proxyEditing.value = true
+  void nextTick(() => {
+    proxyInput.value?.focus()
+    proxyInput.value?.select()
+  })
+}
+function saveProxyUrl(): void {
+  const value = proxyUrlDraft.value.trim()
+  if (!value) {
+    pushToast('请填写代理地址。', 'error')
+    return
+  }
+  const error = mailProxyUrlError(value)
+  if (error) {
+    pushToast(error, 'error')
+    return
+  }
+  proxyUrlDraft.value = value
+  proxyEditing.value = false
+  if (value !== config.value.proxyUrl) updateConfig({ proxyUrl: value })
+}
+function toggleProxyEdit(): void {
+  if (proxyEditing.value) saveProxyUrl()
+  else startProxyEdit()
+}
+function submitProxyOnEnter(): void {
+  if (proxyEditing.value) saveProxyUrl()
 }
 function chooseAttachmentDir(): void {
   emit('command', { type: 'mail-choose-attachment-dir' })
@@ -385,6 +450,48 @@ watch(
           </button>
         </div>
       </form>
+    </div>
+
+    <div class="mail-row">
+      <span class="mail-label">Gmail 代理</span>
+      <SelectField
+        :value="config.proxyMode"
+        :disabled="busy"
+        min-width="120px"
+        @change="onProxyModeChange"
+      >
+        <option
+          v-for="option in proxyModeOptions"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </SelectField>
+    </div>
+    <div v-if="config.proxyMode === 'manual'" class="mail-row">
+      <span class="mail-label">代理地址</span>
+      <input
+        ref="proxyInput"
+        v-model="proxyUrlDraft"
+        class="mail-proxy-input"
+        type="text"
+        inputmode="url"
+        spellcheck="false"
+        placeholder="http://127.0.0.1:7890"
+        :disabled="busy"
+        :readonly="!proxyEditing"
+        @keydown.enter.prevent="submitProxyOnEnter"
+      />
+      <button
+        type="button"
+        class="settings-button"
+        :class="{ primary: proxyEditing }"
+        :disabled="busy"
+        @click="toggleProxyEdit"
+      >
+        {{ proxyEditing ? '保存' : '编辑' }}
+      </button>
     </div>
 
     <div class="mail-row">
@@ -642,6 +749,25 @@ watch(
 .mail-field input:focus-visible {
   outline: 2px solid var(--color-brand-ink);
   outline-offset: 2px;
+}
+.mail-proxy-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+.mail-proxy-input:focus-visible {
+  outline: 2px solid var(--color-brand-ink);
+  outline-offset: 2px;
+}
+.mail-proxy-input[readonly] {
+  background: var(--color-surface-muted);
 }
 .mail-form-actions {
   display: flex;

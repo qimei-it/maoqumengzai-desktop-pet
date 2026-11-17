@@ -40,7 +40,7 @@ export type DeepSeekSearchResult = {
 
 function friendlySearchError(status: number, detail?: string): Error {
   if (status === 401 || status === 403)
-    return new Error('API Key 无效，请在设置中更换。')
+    return new Error('API Key 无效')
   if (status === 402) return new Error('DeepSeek 账户余额不足。')
   if (status === 429) return new Error('搜索请求太频繁，请稍后再试。')
   if (status >= 500) return new Error('DeepSeek 服务暂时不可用，请稍后重试。')
@@ -140,7 +140,7 @@ export async function requestCompletion(
   if (!response.ok) {
     const detail = data?.error?.message || data?.message
     if (response.status === 401)
-      throw new Error('API Key 无效，请在设置中更换。')
+      throw new Error('API Key 无效')
     if (response.status === 402) throw new Error('DeepSeek 账户余额不足。')
     if (response.status === 429)
       throw new Error('请求太频繁，请稍后再试。')
@@ -183,7 +183,7 @@ export async function listDeepSeekModels(
   }
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
-      throw new Error('API Key 无效，请重新添加。')
+      throw new Error('API Key 无效')
     if (response.status === 429)
       throw new Error('拉取模型过于频繁，请稍后再试。')
     if (response.status >= 500)
@@ -224,21 +224,21 @@ export async function testDeepSeekConnection(
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
     })
   } catch {
-    throw new Error('连接 DeepSeek 失败，请检查网络后重试。')
+    throw new Error('连接失败，请检查网络')
   }
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
-      throw new Error('API Key 无效，请重新添加。')
+      throw new Error('API Key 无效')
     if (response.status === 429)
-      throw new Error('测试请求过于频繁，请稍后再试。')
+      throw new Error('请求过于频繁')
     if (response.status >= 500)
-      throw new Error('DeepSeek 服务暂时不可用，请稍后重试。')
-    throw new Error(`DeepSeek 连接测试失败（${response.status}）。`)
+      throw new Error('服务暂不可用')
+    throw new Error(`连接失败（${response.status}）`)
   }
   const data = (await response.json().catch(() => null)) as
     | { data?: unknown }
     | null
   if (!data || !Array.isArray(data.data))
-    throw new Error('DeepSeek 模型列表返回了无效数据。')
+    throw new Error('返回数据异常')
   return Math.max(0, Math.round(performance.now() - started))
 }

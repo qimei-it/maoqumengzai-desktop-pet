@@ -261,6 +261,8 @@ export type AgentPetProfile = {
   name: string
   species?: string
   personality?: string
+  /** User-written companion note. Only shapes tone, never task rules. */
+  prompt?: string
 }
 
 export type AgentState = {

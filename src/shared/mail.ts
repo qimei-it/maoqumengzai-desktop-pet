@@ -33,12 +33,16 @@ export type MailAccount = {
   createdAt: number
 }
 
+export type MailProxyMode = 'auto' | 'manual' | 'off'
+
 export type MailConfig = {
   syncMinutes: number
   notify: boolean
   unreadBadge: boolean
   attachmentDir: string
   retentionDays: number
+  proxyMode: MailProxyMode
+  proxyUrl: string
 }
 
 export type MailState = {
@@ -183,6 +187,39 @@ export function mailSmtpServer(
 
 export const mailSyncOptions = [5, 10, 15, 30, 45, 60] as const
 export const mailRetentionOptions = [30, 90, 180, 0] as const
+export const mailProxyModes = ['auto', 'manual', 'off'] as const
+
+export const mailProxyModeLabels: Record<MailProxyMode, string> = {
+  auto: '自动（系统）',
+  manual: '手动',
+  off: '直连',
+}
+
+const mailProxyProtocols = new Set([
+  'http:',
+  'https:',
+  'socks:',
+  'socks4:',
+  'socks4a:',
+  'socks5:',
+])
+
+/** Validates a manually entered Gmail proxy before it reaches the socket layer. */
+export function mailProxyUrlError(value: string): string | undefined {
+  const text = value.trim()
+  if (!text) return '请填写代理地址。'
+  if (text.length > 300) return '代理地址不能超过 300 个字符。'
+  let url: URL
+  try {
+    url = new URL(text)
+  } catch {
+    return '代理地址格式不正确。'
+  }
+  if (!mailProxyProtocols.has(url.protocol))
+    return '代理仅支持 HTTP 或 SOCKS。'
+  if (!url.hostname) return '代理地址缺少主机。'
+  return undefined
+}
 
 export function mailUnreadTotal(
   accounts: ReadonlyArray<Pick<MailAccount, 'unread'>>,
@@ -286,6 +323,7 @@ export type MailComposeState = {
   draft?: MailComposeDraft
   attachments: MailAttachmentPick[]
   contacts: MailContact[]
+  maximized: boolean
   error?: string
 }
 

@@ -15,9 +15,12 @@ import {
   type PetSpecies,
 } from '../shared/pet-species'
 import {
+  maxPetNameChars,
   petNameConflict,
   petNameConflictError,
+  petNameLength,
 } from '../shared/pet-name'
+import { maxPetPromptChars, petPromptLength } from '../shared/pet-prompt'
 import SelectField from './SelectField.vue'
 
 const props = defineProps<{ state?: Snapshot }>()
@@ -25,6 +28,7 @@ const emit = defineEmits<{ command: [Command] }>()
 
 const name = ref('')
 const species = ref<PetSpecies | ''>('')
+const prompt = ref('')
 const dialog = ref<HTMLElement | null>(null)
 const create = computed(() => props.state?.petCreate)
 const open = computed(() => create.value?.open === true)
@@ -37,9 +41,17 @@ const existingNames = computed(() => create.value?.existingNames ?? [])
 const nameConflict = computed(() =>
   petNameConflict(name.value, existingNames.value),
 )
+const nameLength = computed(() => petNameLength(name.value))
+const nameOverLimit = computed(() => nameLength.value > maxPetNameChars)
+const promptLength = computed(() => petPromptLength(prompt.value))
+const promptOverLimit = computed(
+  () => promptLength.value > maxPetPromptChars,
+)
 const footerError = computed(() => {
   if (step.value === 'edit') {
     if (nameConflict.value) return petNameConflictError
+    if (nameOverLimit.value) return '桌宠名称超过上限，请按要求调整'
+    if (promptOverLimit.value) return '提示词超过上限，请酌情删除部分内容'
     if (!volcanoReady.value) return '请先添加火山方舟 API Key。'
     return create.value?.error ?? ''
   }
@@ -51,6 +63,8 @@ const canStart = computed(
     Boolean(name.value.trim()) &&
     Boolean(species.value) &&
     !nameConflict.value &&
+    !nameOverLimit.value &&
+    !promptOverLimit.value &&
     photos.value.length > 0 &&
     volcanoReady.value &&
     !busy.value,
@@ -74,8 +88,16 @@ watch(open, async (value) => {
   if (!value) return
   name.value = create.value?.name ?? ''
   species.value = create.value?.species ?? ''
+  prompt.value = create.value?.prompt ?? ''
   await nextTick()
   dialog.value?.focus()
+})
+
+/** Species changes the pose wording, so the main process relabels the grid. */
+watch(species, (value) => {
+  if (!open.value || !value) return
+  if (value === create.value?.species) return
+  emit('command', { type: 'pet-create-species', species: value })
 })
 
 function addPhotos(): void {
@@ -90,14 +112,17 @@ function start(): void {
     type: 'pet-create-start',
     name: name.value.trim(),
     species: species.value,
+    prompt: prompt.value,
   })
 }
 function continueSet(): void {
-  if (busy.value || !species.value) return
+  if (busy.value || !species.value || promptOverLimit.value) return
+  if (nameOverLimit.value) return
   emit('command', {
     type: 'pet-create-start',
     name: name.value.trim(),
     species: species.value,
+    prompt: prompt.value,
   })
 }
 function retry(pose: PetPoseId): void {
@@ -188,15 +213,21 @@ function save(): void {
           </div>
 
           <label class="pet-wizard-field">
-            <span class="pet-wizard-label">名字</span>
+            <span class="pet-wizard-label-line">
+              <span class="pet-wizard-label">名字</span>
+              <span
+                class="pet-wizard-count"
+                :class="{ 'is-over': nameOverLimit }"
+                >{{ nameLength }} / {{ maxPetNameChars }}</span
+              >
+            </span>
             <input
               v-model="name"
               class="pet-wizard-input"
               type="text"
-              maxlength="20"
               placeholder="给桌宠起个名字"
               aria-label="桌宠名字"
-              :aria-invalid="nameConflict"
+              :aria-invalid="nameConflict || nameOverLimit"
               :aria-describedby="nameConflict ? 'pet-name-conflict' : undefined"
               @keydown.enter.prevent="start"
             />
@@ -226,6 +257,37 @@ function save(): void {
                 </option>
               </optgroup>
             </SelectField>
+          </label>
+
+          <label class="pet-wizard-field">
+            <span class="pet-wizard-label-line">
+              <span class="pet-wizard-label">
+                提示词
+                <span
+                  class="pet-wizard-info"
+                  tabindex="0"
+                  aria-label="随这只桌宠保存，只影响称呼、语气与情感陪伴的表达，不改变助理规则、工具与安全边界。"
+                >
+                  <Info :size="13" :stroke-width="2" aria-hidden="true" />
+                  <span class="pet-wizard-tooltip" role="tooltip">
+                    随这只桌宠保存，只影响称呼、语气与情感陪伴的表达，不改变助理规则、工具与安全边界。
+                  </span>
+                </span>
+              </span>
+              <span
+                class="pet-wizard-count"
+                :class="{ 'is-over': promptOverLimit }"
+                >{{ promptLength }} / {{ maxPetPromptChars }}</span
+              >
+            </span>
+            <textarea
+              v-model="prompt"
+              class="pet-wizard-input pet-wizard-textarea"
+              rows="4"
+              placeholder="例如：用朋友的口吻陪我聊天，累的时候先听我说。"
+              aria-label="桌宠提示词"
+              :aria-invalid="promptOverLimit"
+            ></textarea>
           </label>
         </div>
 
@@ -401,6 +463,20 @@ function save(): void {
   color: var(--color-muted);
   font-size: var(--font-size-label);
 }
+.pet-wizard-label-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pet-wizard-count {
+  color: var(--color-muted);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+.pet-wizard-count.is-over {
+  color: var(--color-danger);
+}
 .pet-wizard-info {
   position: relative;
   display: inline-flex;
@@ -517,6 +593,13 @@ function save(): void {
   color: var(--color-ink);
   font: inherit;
 }
+.pet-wizard-textarea {
+  height: auto;
+  min-height: 92px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: none;
+}
 .pet-wizard-input:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 1px;
@@ -611,8 +694,7 @@ function save(): void {
   color: var(--color-danger);
   font-size: var(--font-size-label);
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .pet-wizard-enter-active,
 .pet-wizard-leave-active {

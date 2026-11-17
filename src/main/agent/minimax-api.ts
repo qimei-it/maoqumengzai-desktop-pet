@@ -56,7 +56,7 @@ async function apiRequest(
   const detail =
     data?.error?.message || data?.message || data?.base_resp?.status_msg || ''
   if (response.status === 401 || response.status === 403)
-    throw new Error('MiniMax API Key 无效，请重新添加。')
+    throw new Error('API Key 无效')
   if (response.status === 402)
     throw new Error('MiniMax 账户余额或套餐额度不足。')
   if (response.status === 422)

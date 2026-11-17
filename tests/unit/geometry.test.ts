@@ -102,6 +102,34 @@ describe('IPC boundary validation', () => {
       }).success,
     ).toBe(false)
   })
+  it('accepts a todo target and rejects malformed ids', () => {
+    const id = '00000000-0000-4000-8000-000000000000'
+    expect(commandSchema.safeParse({ type: 'todo-open' }).success).toBe(true)
+    expect(
+      commandSchema.safeParse({
+        type: 'todo-open',
+        todoId: id,
+        listId: id,
+      }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({
+        type: 'todo-open',
+        todoId: id,
+        listId: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({ type: 'todo-open', todoId: '../todo' })
+        .success,
+    ).toBe(false)
+    expect(
+      commandSchema.safeParse({ type: 'todo-focus-ack', nonce: 2 }).success,
+    ).toBe(true)
+    expect(
+      commandSchema.safeParse({ type: 'todo-focus-ack', nonce: 'two' }).success,
+    ).toBe(false)
+  })
   it('limits mask size, enforces pixel count, and rejects nonfinite positions', () => {
     expect(
       maskSchema.safeParse({

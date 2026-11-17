@@ -120,6 +120,8 @@ const api: PrototypeApi = {
     ipcRenderer.invoke(channels.pickDirectory, title),
   toastFit: (width: number, height: number) =>
     ipcRenderer.send(channels.toastFit, { width, height }),
+  toastHover: (hovering: boolean) =>
+    ipcRenderer.send(channels.toastHover, hovering),
   onSnapshot: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: Snapshot) =>
       listener(state)

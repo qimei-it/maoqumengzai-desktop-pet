@@ -391,13 +391,16 @@ test('邮件面板显示缓存正文、验证码与附件并可保存', async ()
   ).toBeVisible()
   const editor = compose.locator('.compose-content')
   await editor.click()
+  await expect(editor).toBeFocused()
   await editor.press('Tab')
   await editor.pressSequentially('x')
-  expect(
-    await editor.evaluate((element) =>
-      element.textContent?.startsWith('  x'),
-    ),
-  ).toBe(true)
+  await expect
+    .poll(() =>
+      editor.evaluate((element) =>
+        element.textContent?.startsWith('  x'),
+      ),
+    )
+    .toBe(true)
   await expect(
     compose.locator('#mail-contact-options option'),
   ).not.toHaveCount(0)
@@ -659,6 +662,148 @@ test('邮件窗口只放大正文区域并支持双击铺满与手动放大', as
   await expect
     .poll(async () => (await readWindow()).bounds)
     .toMatchObject({ width: 980, height: 680 })
+})
+
+test('compose window only grows and lists each attachment separately', async () => {
+  const names = ['a.txt', 'bb.txt', 'ccc.txt']
+  const paths = names.map((name) => join(directory, name))
+  await Promise.all(paths.map((path) => writeFile(path, 'attachment')))
+  await pet.evaluate(
+    (id) => window.mqmz!.command({ type: 'mail-compose-open', accountId: id }),
+    accountId,
+  )
+  await expect(compose.locator('.compose-surface')).toBeVisible()
+  await application.evaluate(({ dialog }, filePaths) => {
+    ;(dialog as unknown as { showOpenDialog: unknown }).showOpenDialog =
+      async () => ({ canceled: false, filePaths })
+  }, paths)
+  await compose.getByRole('button', { name: '添加附件', exact: true }).click()
+  await expect(compose.locator('.compose-attachments li')).toHaveCount(3)
+
+  const layout = await compose.evaluate(() => {
+    const body = document.querySelector<HTMLElement>('.compose-body')!
+    const items = [
+      ...document.querySelectorAll<HTMLElement>('.compose-attachments li'),
+    ].map((row) => ({
+      width: Math.round(row.getBoundingClientRect().width),
+      top: Math.round(row.getBoundingClientRect().top),
+    }))
+    const content = document.querySelector<HTMLElement>('.compose-content')!
+    const field = document.querySelector<HTMLElement>('.compose-field')!
+    return {
+      bodyWidth: Math.round(body.getBoundingClientRect().width),
+      rowWidths: items.map((item) => item.width),
+      rowTops: items.map((item) => item.top),
+      contentHeight: content.clientHeight,
+      fieldHeight: field.clientHeight,
+    }
+  })
+  expect(new Set(layout.rowWidths).size).toBe(3)
+  expect(layout.rowWidths.every((width) => width < layout.bodyWidth)).toBe(true)
+  // Small chips share a row and only wrap when they run out of width.
+  expect(new Set(layout.rowTops).size).toBeLessThan(3)
+
+  // A long attachment list stays reachable: the body scrolls and the send row
+  // stays pinned above the window edge instead of being clipped.
+  const more = Array.from({ length: 7 }, (_, index) =>
+    join(directory, `many-${index}.txt`),
+  )
+  await Promise.all(more.map((path) => writeFile(path, 'attachment')))
+  await application.evaluate(({ dialog }, filePaths) => {
+    ;(dialog as unknown as { showOpenDialog: unknown }).showOpenDialog =
+      async () => ({ canceled: false, filePaths })
+  }, more)
+  await compose.getByRole('button', { name: '添加附件', exact: true }).click()
+  await expect(compose.locator('.compose-attachments li')).toHaveCount(10)
+  const overflow = await compose.evaluate(() => {
+    const body = document.querySelector<HTMLElement>('.compose-body')!
+    const actions = document.querySelector<HTMLElement>('.compose-actions')!
+    const actionsBox = actions.getBoundingClientRect()
+    return {
+      scrollable: body.scrollHeight > body.clientHeight,
+      actionsVisible:
+        actionsBox.top >= 0 && actionsBox.bottom <= window.innerHeight,
+    }
+  })
+  expect(overflow.scrollable).toBe(true)
+  expect(overflow.actionsVisible).toBe(true)
+  await compose
+    .locator('.compose-body')
+    .evaluate((element) => element.scrollTo(0, element.scrollHeight))
+  await expect(compose.locator('.compose-attachments li').last()).toBeVisible()
+
+  const windowState = await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('撰写'),
+    )!
+    return {
+      minimum: window.getMinimumSize(),
+      resizable: window.isResizable(),
+      maximizable: window.isMaximizable(),
+      bounds: window.getBounds(),
+    }
+  })
+  expect(windowState.minimum).toEqual([760, 620])
+  expect(windowState.resizable).toBe(true)
+  expect(windowState.maximizable).toBe(true)
+  expect(windowState.bounds.width).toBeGreaterThanOrEqual(760)
+  expect(windowState.bounds.height).toBeGreaterThanOrEqual(620)
+
+  await application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((item) =>
+      item.getTitle().includes('撰写'),
+    )!
+    if (window.isMaximized()) window.unmaximize()
+  })
+  await expect
+    .poll(() =>
+      application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((item) => item.getTitle().includes('撰写'))!
+          .isMaximized(),
+      ),
+    )
+    .toBe(false)
+  await compose.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'toggle-default' }),
+  )
+  await expect
+    .poll(() =>
+      application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((item) => item.getTitle().includes('撰写'))!
+          .isMaximized(),
+      ),
+    )
+    .toBe(true)
+  const expanded = await compose.evaluate(() => {
+    const content = document.querySelector<HTMLElement>('.compose-content')!
+    const field = document.querySelector<HTMLElement>('.compose-field')!
+    return { contentHeight: content.clientHeight, fieldHeight: field.clientHeight }
+  })
+  expect(expanded.contentHeight).toBeGreaterThan(layout.contentHeight)
+  expect(expanded.fieldHeight).toBe(layout.fieldHeight)
+
+  await compose.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'toggle-default' }),
+  )
+  await expect
+    .poll(() =>
+      application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((item) => item.getTitle().includes('撰写'))!
+          .isMaximized(),
+      ),
+    )
+    .toBe(false)
+  const restored = await application.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .find((item) => item.getTitle().includes('撰写'))!
+      .getBounds(),
+  )
+  expect(restored.width).toBe(760)
+  expect(restored.height).toBe(620)
+  await compose.getByRole('button', { name: '取消', exact: true }).click()
 })
 
 test('删除当前账户后切换到下一个账户，删除全部后关闭邮件面板', async () => {

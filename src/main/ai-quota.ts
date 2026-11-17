@@ -48,7 +48,7 @@ function httpError(provider: 'OpenAI' | 'DeepSeek', status: number): Error {
     return new Error(
       provider === 'OpenAI'
         ? 'Codex 登录已失效，请在 Codex 中重新登录。'
-        : 'DeepSeek API Key 无效，请在设置中更换。',
+        : 'API Key 无效',
     )
   }
   if (status === 429)

@@ -34,21 +34,21 @@ async function requestModels(
     },
     signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
   }).catch(() => null)
-  if (!response) throw new Error('连接 MiniMax 失败，请检查网络后重试。')
+  if (!response) throw new Error('连接失败，请检查网络')
   if (!response.ok) {
     if (response.status === 401 || response.status === 403)
-      throw new Error('MiniMax API Key 无效，请重新添加。')
+      throw new Error('API Key 无效')
     if (response.status === 429)
-      throw new Error('MiniMax 请求过于频繁，请稍后再试。')
+      throw new Error('请求过于频繁')
     if (response.status >= 500)
-      throw new Error('MiniMax 服务暂时不可用，请稍后重试。')
-    throw new Error(`MiniMax 连接测试请求失败（${response.status}）。`)
+      throw new Error('服务暂不可用')
+    throw new Error(`连接失败（${response.status}）`)
   }
   const data = (await response.json().catch(() => null)) as {
     data?: unknown
   } | null
   if (!data || !Array.isArray(data.data))
-    throw new Error('MiniMax 连接测试返回了无效数据。')
+    throw new Error('返回数据异常')
   return data.data
     .map((item) =>
       item && typeof item === 'object' && 'id' in item

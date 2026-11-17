@@ -1,15 +1,34 @@
 import { connect as netConnect, type Socket } from 'node:net'
 import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import { SocksClient } from 'socks'
+import {
+  mailProxyUrlError,
+  type MailProxyMode,
+} from '../shared/mail'
 
 const proxyTimeoutMs = 20_000
 
+type MailProxySettings = {
+  mode: MailProxyMode
+  url: string
+}
+
 /**
- * Mail proxies are opt-in through the environment. Gmail is the provider that
- * commonly needs one on networks where imap.gmail.com is not reachable
- * directly; QQ and 163 continue to connect directly.
+ * Manual settings win over the environment, which in turn wins over the
+ * macOS system proxy. QQ and 163 never read this, so they stay direct.
  */
-export function mailProxyUrl(): string | undefined {
+let proxySettings: MailProxySettings = { mode: 'auto', url: '' }
+let systemProxyUrl: string | undefined
+
+export function setMailProxySettings(settings: MailProxySettings): void {
+  proxySettings = { mode: settings.mode, url: settings.url }
+}
+
+export function setSystemMailProxy(value: string | undefined): void {
+  systemProxyUrl = value
+}
+
+function envProxyUrl(): string | undefined {
   const candidates = [
     process.env.MQMZ_MAIL_PROXY,
     process.env.ALL_PROXY,
@@ -22,6 +41,52 @@ export function mailProxyUrl(): string | undefined {
   return candidates
     .map((value) => value?.trim())
     .find((value): value is string => Boolean(value))
+}
+
+/** Returns the Gmail proxy URL, or throws for a broken manual setting. */
+export function mailProxyUrl(): string | undefined {
+  if (proxySettings.mode === 'off') return undefined
+  if (proxySettings.mode === 'manual') {
+    const url = proxySettings.url.trim()
+    if (!url) throw new Error('请填写 Gmail 代理地址。')
+    const error = mailProxyUrlError(url)
+    if (error) throw new Error(error)
+    return url
+  }
+  return envProxyUrl() ?? systemProxyUrl
+}
+
+/**
+ * Chromium answers with entries such as `PROXY 127.0.0.1:7890; DIRECT`.
+ * The first usable entry becomes the tunnel target.
+ */
+export function parseResolvedProxy(value: string): string | undefined {
+  for (const entry of value.split(';')) {
+    const [kind, target] = entry.trim().split(/\s+/)
+    if (!kind || !target) continue
+    const normalized = kind.toUpperCase()
+    const scheme =
+      normalized === 'PROXY'
+        ? 'http'
+        : normalized === 'HTTPS'
+          ? 'https'
+          : normalized.startsWith('SOCKS')
+            ? normalized.toLowerCase().replace(/^socks$/, 'socks5')
+            : undefined
+    if (!scheme) continue
+    try {
+      const url = new URL(`${scheme}://${target}`)
+      if (!url.hostname || !url.port) continue
+      return `${scheme}://${target}`
+    } catch {
+      continue
+    }
+  }
+  return undefined
+}
+
+function proxyHost(proxy: URL): string {
+  return proxy.hostname.replace(/^\[|\]$/g, '')
 }
 
 function proxyAuth(proxy: URL): { userId?: string; password?: string } {
@@ -39,7 +104,7 @@ async function connectSocks(
 ): Promise<Socket> {
   const { socket } = await SocksClient.createConnection({
     proxy: {
-      host: proxy.hostname,
+      host: proxyHost(proxy),
       port: Number(proxy.port || 1080),
       type: proxy.protocol.startsWith('socks4') ? 4 : 5,
       ...proxyAuth(proxy),
@@ -61,11 +126,11 @@ function connectHttpProxy(
     const socket =
       proxy.protocol === 'https:'
         ? tlsConnect({
-            host: proxy.hostname,
+            host: proxyHost(proxy),
             port: proxyPort,
-            servername: proxy.hostname,
+            servername: proxyHost(proxy),
           })
-        : netConnect({ host: proxy.hostname, port: proxyPort })
+        : netConnect({ host: proxyHost(proxy), port: proxyPort })
     let settled = false
     let buffer = ''
     const fail = (error: Error) => {

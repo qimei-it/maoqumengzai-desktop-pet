@@ -1,6 +1,11 @@
-/** Built-in desktop pet art styles and their per-pose prompts. */
+/** Built-in desktop pet art styles and their per-species pose prompts. */
 
 import watercolor from './pet-styles/mqmz-watercolor.json'
+import {
+  petSpeciesGroup,
+  type PetSpecies,
+  type PetSpeciesGroup,
+} from './pet-species'
 
 export const petPoseIds = [
   'base',
@@ -13,11 +18,19 @@ export const petPoseIds = [
 
 export type PetPoseId = (typeof petPoseIds)[number]
 
+/**
+ * One pose rendered for one species group. Body-plan and pose wording change
+ * per group so a fish is never asked for fur, paws or a sitting posture.
+ */
+export type PetStyleVariant = {
+  label: string
+  prompt: string
+}
+
 export type PetStyleState = {
   id: PetPoseId
-  label: string
   reference: 'photos' | 'base'
-  prompt: string
+  variants: Record<PetSpeciesGroup, PetStyleVariant>
 }
 
 export type PetStyle = {
@@ -33,13 +46,23 @@ export type PetStyle = {
     sourceSize: number
     displaySize: number
     padding: number
+    /** Appended to every variant so transparency and margin rules live once. */
+    commonSuffix: string
   }
   states: PetStyleState[]
 }
 
+export type ResolvedPetStyleState = {
+  id: PetPoseId
+  label: string
+  reference: 'photos' | 'base'
+  /** Variant prompt plus the shared transparency and margin constraints. */
+  prompt: string
+}
+
 export const defaultPetStyleId = 'mqmz-watercolor'
 
-const styles = [watercolor as PetStyle]
+const styles: PetStyle[] = [watercolor as PetStyle]
 
 export function getPetStyle(id = defaultPetStyleId): PetStyle {
   return styles.find((style) => style.id === id) ?? (watercolor as PetStyle)
@@ -54,4 +77,23 @@ export function getPetStyleState(
   id: PetPoseId,
 ): PetStyleState | undefined {
   return style.states.find((state) => state.id === id)
+}
+
+/** Resolve the pose wording for a species; unknown species fall back to `other`. */
+export function resolvePetStyleState(
+  style: PetStyle,
+  id: PetPoseId,
+  species?: PetSpecies | '',
+): ResolvedPetStyleState | undefined {
+  const state = getPetStyleState(style, id)
+  if (!state) return undefined
+  const group = petSpeciesGroup(species)
+  const variant = state.variants[group] ?? state.variants.other
+  if (!variant) return undefined
+  return {
+    id: state.id,
+    label: variant.label,
+    reference: state.reference,
+    prompt: `${variant.prompt}${style.source.commonSuffix}`,
+  }
 }

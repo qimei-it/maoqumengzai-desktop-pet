@@ -43,7 +43,7 @@ test('agent window defaults, persists and restores its bounds', async () => {
     const window = BrowserWindow.getAllWindows().find((item) =>
       item.getTitle().includes('智能体'),
     )!
-    window.setBounds({ x: 120, y: 80, width: 860, height: 600 })
+    window.setBounds({ x: 120, y: 80, width: 1000, height: 700 })
   })
   await new Promise((resolve) => setTimeout(resolve, 800))
   await application.close()
@@ -54,7 +54,7 @@ test('agent window defaults, persists and restores its bounds', async () => {
   })
   await waitForAppWindows(application)
   const restored = await readAgent(application)
-  expect(restored.bounds.width).toBe(860)
-  expect(restored.bounds.height).toBe(600)
+  expect(restored.bounds.width).toBe(1000)
+  expect(restored.bounds.height).toBe(700)
   await application.close()
 })
