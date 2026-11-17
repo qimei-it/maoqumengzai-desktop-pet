@@ -33,6 +33,8 @@ extraResources:
       - "!concepts/**"
   - from: resources/licenses
     to: licenses
+  - from: THIRD-PARTY-NOTICES.md
+    to: licenses/THIRD-PARTY-NOTICES.md
   - from: resources/helpers
     to: helpers
   - from: resources/skills
@@ -45,6 +47,7 @@ extraResources:
     to: engines/ffmpeg/SOURCE.txt
 mac:
   icon: build/icon.icns
+  artifactName: mqmz-${version}-${arch}.${ext}
   extendInfo:
     NSMicrophoneUsageDescription: 毛趣萌仔需要使用麦克风把语音转成文字。
   extraResources:
@@ -56,8 +59,12 @@ mac:
     - target: dmg
       arch: [arm64]
   minimumSystemVersion: '13.0'
+# Stable mount point: the updater ejects /Volumes/<title> after an upgrade.
+dmg:
+  title: 毛趣萌仔
 win:
   icon: build/icon.ico
+  artifactName: mqmz-${version}-setup.${ext}
   extraResources:
     - from: resources/engines/qpdf/win32-x64
       to: engines/qpdf/win32-x64
@@ -71,4 +78,3 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
-# P0 仅构建窗口原型；完整首版的全量转换引擎在 P5 加入，当前包不代表发布包。

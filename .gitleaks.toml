@@ -1,0 +1,21 @@
+# gitleaks configuration.
+#
+# The default rule set is kept. The allowlist only covers vendored third-party
+# skill bundles under resources/skills, which ship placeholder tokens in
+# documentation and evaluation fixtures. Anything else must be reviewed.
+
+title = "毛趣萌仔"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Third-party skill bundles: documented placeholder tokens and eval fixtures"
+paths = [
+  '''^resources/skills/marketing/video/evals/evals\.json$''',
+  '''^resources/skills/seo/seo/references/cwv-thresholds\.md$''',
+  '''^resources/skills/baoyu/baoyu-image-gen/scripts/providers/jimeng\.test\.ts$''',
+  '''^resources/skills/hyperframes/media-use/scripts/lib/telemetry\.mjs$''',
+  '''^resources/skills/hyperframes/media-use/audio/scripts/lib/heygen\.mjs$''',
+  '''^resources/skills/k-dense/database-lookup/references/noaa\.md$''',
+]

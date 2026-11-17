@@ -1188,7 +1188,20 @@ export const commandSchema = z.discriminatedUnion('type', [
       prompt: z.string().trim().max(maxPetPromptChars),
     })
     .strict(),
+  z.object({ type: z.literal('update-check') }).strict(),
+  z.object({ type: z.literal('update-download') }).strict(),
+  z.object({ type: z.literal('update-install') }).strict(),
+  z
+    .object({
+      type: z.literal('dirty-state'),
+      scope: z.enum(['mail-compose', 'agent-input']),
+      dirty: z.boolean(),
+    })
+    .strict(),
   z.object({ type: z.literal('pet-default') }).strict(),
+  z
+    .object({ type: z.literal('pet-select'), id: z.string().min(1).max(80) })
+    .strict(),
 ])
 export const pathsSchema = z.array(z.string().min(1).max(4096)).min(1).max(32)
 export const fileIdSchema = fileId

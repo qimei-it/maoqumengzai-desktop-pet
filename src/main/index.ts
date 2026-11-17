@@ -131,6 +131,7 @@ import {
   type PetPoseId,
 } from '../shared/pet-style'
 import { isPetSpecies, type PetSpecies } from '../shared/pet-species'
+import { appSourceUrl, appUserAgent } from '../shared/app-version'
 import { normalizePetPrompt } from '../shared/pet-prompt'
 import {
   cleanupPetDrafts,
@@ -142,6 +143,14 @@ import {
   type PetAssets as SavedPetAssets,
   type PetRecord,
 } from './pet-store'
+import {
+  checkForUpdates,
+  disposeUpdater,
+  downloadUpdate,
+  initUpdater,
+  installUpdate,
+  updateSnapshot,
+} from './updater'
 import {
   loadAgentStore,
   migrateLegacyGeneratedStore,
@@ -300,6 +309,8 @@ import type {
   AgentAttachmentProgress,
   SettingsPrompt,
   BackupState,
+  DirtyScope,
+  PetCard,
 } from '../shared/protocol'
 import { defaultTodoListIcon } from '../shared/protocol'
 import {
@@ -799,6 +810,7 @@ let volcanoModelsFetchedAt = 0
 let activePet: PetRecord | undefined
 let activePetAssets: SavedPetAssets | undefined
 let petNames: string[] = []
+let petCards: PetCard[] = []
 type PetDraftPhoto = { id: string; name: string; path: string; url: string }
 type PetDraftPose = {
   id: PetPoseId
@@ -990,7 +1002,10 @@ async function migrateLegacyAgentStorage(): Promise<void> {
 async function cleanupLegacyGenerated(): Promise<void> {
   const directory = join(dataRoot, 'generated')
   if (!(await pathExists(directory))) return
-  const store = await loadAgentStore(agentPath)
+  const store = await loadAgentStore(agentPath, (backup) => {
+    addEvent(`智能体会话文件损坏，已备份为 ${basename(backup)}`)
+    showToast('智能体会话文件损坏，已备份')
+  })
   if (!storeReferencesLegacyGenerated(store, directory)) {
     await rm(directory, { recursive: true, force: true })
     return
@@ -1584,6 +1599,24 @@ function notePetPoke(): void {
   lastPetPokeAt = now
   notePetInteraction('poke', now)
 }
+/**
+ * Windows report whether they hold work a forced quit would lose, so the
+ * updater can ask before quitting to install.
+ */
+const dirtyScopes = new Set<DirtyScope>()
+
+function setDirtyScope(scope: DirtyScope, dirty: boolean): void {
+  const changed = dirty ? !dirtyScopes.has(scope) : dirtyScopes.has(scope)
+  if (!changed) return
+  if (dirty) dirtyScopes.add(scope)
+  else dirtyScopes.delete(scope)
+  broadcast()
+}
+
+function unsavedScopes(): DirtyScope[] {
+  return [...dirtyScopes]
+}
+
 function snapshot(): Snapshot {
   refreshPetDay()
   if (!pet || pet.isDestroyed()) throw new Error('窗口已关闭。')
@@ -1594,6 +1627,8 @@ function snapshot(): Snapshot {
       electron: process.versions.electron,
       version: app.getVersion(),
     },
+    updater: updateSnapshot(),
+    unsaved: unsavedScopes(),
     petBounds: pet.getBounds(),
     displays: screen.getAllDisplays().map((d) => ({
       id: d.id,
@@ -1666,6 +1701,7 @@ function snapshot(): Snapshot {
     clipboardOpen: windowVisible(clipboardWindow),
     clipboard: clipboardState(),
     ...(activePetAssets ? { petAssets: activePetAssets } : {}),
+    pets: petCards,
     petStats: petStatsView(petStats ?? defaultPetStats(Date.now())),
     petCreate: petCreateState(),
     shelfFolders: windowVisible(settingsWindow) ? screenshotFolders : [],
@@ -1814,6 +1850,8 @@ function positionEye(): void {
   eye.setBounds(fitToDisplays({ x, y, width: size, height: size }, [a]))
 }
 function updateEyeWindow(): void {
+  if (!eye && music.title && !dropArmed && !petHoverMode && !barVisible)
+    ensureOverlayWindows('eye')
   if (!eye || eye.isDestroyed()) return
   if (music.title && !dropArmed && !petHoverMode && !barVisible) {
     positionEye()
@@ -2269,6 +2307,7 @@ function positionAsk(): void {
   )
 }
 function openAgentPanel(): void {
+  ensurePanelWindows('agent')
   if (askWindow && !askWindow.isDestroyed()) {
     positionPanelOnce(askWindow, positionAsk)
     if (process.platform === 'darwin' || askWindow.isMinimized())
@@ -2284,6 +2323,7 @@ function openAgentPanel(): void {
 }
 function closeAsk(): void {
   askWindow?.hide()
+  schedulePanelTeardown('agent')
   broadcast()
 }
 async function configureAi(
@@ -2769,7 +2809,9 @@ async function runPetDraft(
         pose.status = 'error'
         pose.error =
           error instanceof Error ? error.message : '生成失败，请重试。'
-        draft.error = `${pose.label}生成失败`
+        draft.error = pose.error
+          ? `${pose.label}生成失败：${pose.error}`
+          : `${pose.label}生成失败`
         if (id === 'base') break
       }
       broadcast()
@@ -2951,10 +2993,44 @@ async function savePetPrompt(prompt: string): Promise<void> {
   broadcast()
 }
 
+/** Every pet the profile page can list: the built-in cat plus saved records. */
+async function refreshPetCards(): Promise<void> {
+  const records = await listPetRecords(petsRoot(dataRoot))
+  petCards = [
+    { id: 'default', name: '麻薯', active: !activePet },
+    ...records.map((record) => {
+      const assets = registerPetAssets(petsRoot(dataRoot), record)
+      return {
+        id: record.id,
+        name: record.name,
+        ...(record.species ? { species: record.species } : {}),
+        cover: assets.poses.base,
+        active: activePet?.id === record.id,
+      }
+    }),
+  ]
+}
+
+async function selectPet(id: string): Promise<void> {
+  if (id === 'default') {
+    await useDefaultPet()
+    return
+  }
+  const record = await loadPetRecord(petsRoot(dataRoot), id)
+  if (!record) throw new Error('桌宠不存在。')
+  activePet = record
+  activePetAssets = registerPetAssets(petsRoot(dataRoot), record)
+  await updateSettings({ petId: record.id, petName: record.name }, false)
+  await refreshPetCards()
+  broadcast()
+  showToast('桌宠已切换')
+}
+
 async function useDefaultPet(): Promise<void> {
   activePet = undefined
   activePetAssets = undefined
   await updateSettings({ petId: '', petName: '麻薯' }, false)
+  await refreshPetCards()
   broadcast()
   showToast('已恢复默认形象')
 }
@@ -3215,6 +3291,7 @@ function positionArchive(): void {
   archiveWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openArchive(fileIds: string[], folderIds: string[] = []): void {
+  ensurePanelWindows('archive')
   const selectedFiles = fileIds
     .map((id) => files.get(id))
     .filter(
@@ -3381,6 +3458,7 @@ async function openConvert(
   fileIds: string[],
   options: { mode?: 'convert' | 'audio' } = {},
 ): Promise<boolean> {
+  ensurePanelWindows('convert')
   const mode = options.mode ?? 'convert'
   const selected = fileIds
     .map((id) => files.get(id))
@@ -3496,6 +3574,7 @@ async function openConvert(
 function closeConvert(): void {
   cancelConvert()
   convertWindow?.hide()
+  schedulePanelTeardown('convert')
   broadcast()
 }
 function removeConvertFile(fileId: string): void {
@@ -4090,6 +4169,7 @@ function positionRename(): void {
   renameWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openRename(fileIds: string[], folderIds: string[] = []): void {
+  ensurePanelWindows('rename')
   const selectedFiles = fileIds
     .map((id) => files.get(id))
     .filter(
@@ -4995,6 +5075,7 @@ function openMailCompose(
   draft?: MailComposeDraft,
   draftId?: string,
 ): void {
+  ensurePanelWindows('compose')
   if (!mailDb) return
   const accounts = mailDb.listAccounts()
   if (!accounts.length) {
@@ -5128,6 +5209,7 @@ function positionMail(): void {
   )
 }
 async function openMail(accountId?: string, folder?: string): Promise<void> {
+  ensurePanelWindows('mail')
   if (!mailDb) return
   const accounts = mailDb.listAccounts()
   if (!accounts.length) {
@@ -6510,6 +6592,7 @@ function positionTodo(): void {
   todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openTodo(target?: { todoId: string; listId: string | null }): void {
+  ensurePanelWindows('todo')
   if (target) {
     hideToast()
     todoFocus = { ...target, nonce: ++todoFocusNonce }
@@ -6541,9 +6624,30 @@ let panelPolicyRegular = false
  * lists it in Command+Tab, Mission Control, Stage Manager and the Dock. The
  * pet-only state stays accessory, with the menu bar icon as the entry point.
  */
+/**
+ * Panels are normal app windows: flip to the regular activation policy before
+ * creating or showing one, so macOS files it under this app (Dock, Cmd+Tab,
+ * Show Desktop) instead of leaving it detached from the foreground app.
+ */
+function ensurePanelActivation(): void {
+  if (!app.isReady()) return
+  if (process.platform === 'darwin' && !panelPolicyRegular) {
+    panelPolicyRegular = true
+    app.setActivationPolicy('regular')
+    applyDockIcon()
+    // setActivationPolicy alone does not register an accessory app in Cmd+Tab;
+    // app.show() is the macOS call that re-activates it like a Dock click.
+    app.show()
+  }
+  // Every open raises the app above whatever the user was looking at, even
+  // when it is already regular. The pet keeps its own always-on-top level.
+  app.focus({ steal: true })
+}
+
 function syncPanelActivationPolicy(): void {
-  if (process.platform !== 'darwin' || !app.isReady()) return
+  if (!app.isReady()) return
   const anyPanel = panelWindowList().some((window) => windowVisible(window))
+  if (process.platform !== 'darwin') return
   if (anyPanel) {
     if (panelPolicyRegular) return
     panelPolicyRegular = true
@@ -6557,6 +6661,7 @@ function syncPanelActivationPolicy(): void {
   app.setActivationPolicy('accessory')
 }
 function openSettings(): void {
+  ensurePanelWindows('settings')
   if (!windowVisible(settingsWindow) && petDraft) void closePetCreate()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     positionPanelOnce(settingsWindow, positionSettings)
@@ -6759,10 +6864,17 @@ async function clearBellyContents(): Promise<void> {
   showToast('回收区已清空')
 }
 async function openLicenses(): Promise<void> {
-  const path = app.isPackaged
+  const directory = app.isPackaged
     ? join(process.resourcesPath, 'licenses')
     : join(app.getAppPath(), 'resources/licenses')
-  const error = await shell.openPath(path)
+  const notices = app.isPackaged
+    ? join(directory, 'THIRD-PARTY-NOTICES.md')
+    : join(app.getAppPath(), 'THIRD-PARTY-NOTICES.md')
+  if (existsSync(notices)) {
+    shell.showItemInFolder(notices)
+    return
+  }
+  const error = await shell.openPath(directory)
   if (error) throw new Error('无法打开第三方许可目录。')
 }
 function phaseDurationSeconds(phase: FocusData['phase']): number {
@@ -6807,11 +6919,20 @@ function notifyFocus(title: string, body: string, action?: ToastAction): void {
   }
   showToast(body, undefined, action)
 }
-function checkTodoReminders(now: number): void {
-  const due = filterUnnotifiedDueTodos(
-    dueTodosToNotify(focusData.todos, todoReminderCheck, now),
-    notifiedReminderDues,
+function checkTodoReminders(now: number, allowNotify = true): void {
+  const candidates = dueTodosToNotify(
+    focusData.todos,
+    todoReminderCheck,
+    now,
   )
+  if (!candidates.length) {
+    todoReminderCheck = now
+    return
+  }
+  // Only one reminder may speak per tick. Deferring must not consume the
+  // todo, because marking it as notified here would drop it for good.
+  if (!allowNotify) return
+  const due = filterUnnotifiedDueTodos(candidates, notifiedReminderDues)
   todoReminderCheck = now
   if (!due.length) return
   notifyFocus(
@@ -6961,7 +7082,14 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
       addEvent('检测到时区变化，已重新安排喝水与休息提醒。')
       lastTimezoneOffset = timezoneOffset
     }
-    checkTodoReminders(now)
+    // One notification per tick, highest priority first:
+    // focus completion > break > water > todo.
+    let noticeUsed = false
+    const claimNotice = (): boolean => {
+      if (noticeUsed) return false
+      noticeUsed = true
+      return true
+    }
     let changed = false
     if (focusData.running && focusData.endsAt) {
       const remaining = focusSnapshotRemaining()
@@ -6971,6 +7099,39 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
       }
       if (remaining <= 0) {
         completeFocus()
+        noticeUsed = true
+        changed = true
+      }
+    }
+    if (focusData.breakSitting) {
+      if (!focusData.breakSittingNextAt) {
+        focusData.breakSittingNextAt = scheduleBreak('sitting')
+        persistFocus()
+        changed = true
+      } else if (focusData.breakSittingNextAt <= now) {
+        const dueAt = focusData.breakSittingNextAt
+        focusData.breakSittingNextAt = scheduleBreak('sitting')
+        if (!quietForBreak(now) && reminderDue('sitting', dueAt)) {
+          if (claimNotice()) notifyFocus('久坐提醒', reminderText('sitting'))
+          else focusData.breakSittingNextAt = now + 1_500
+        }
+        persistFocus()
+        changed = true
+      }
+    }
+    if (focusData.breakEyes) {
+      if (!focusData.breakEyesNextAt) {
+        focusData.breakEyesNextAt = scheduleBreak('eyes')
+        persistFocus()
+        changed = true
+      } else if (focusData.breakEyesNextAt <= now) {
+        const dueAt = focusData.breakEyesNextAt
+        focusData.breakEyesNextAt = scheduleBreak('eyes')
+        if (!quietForBreak(now) && reminderDue('eyes', dueAt)) {
+          if (claimNotice()) notifyFocus('用眼提醒', reminderText('eyes'))
+          else focusData.breakEyesNextAt = now + 1_500
+        }
+        persistFocus()
         changed = true
       }
     }
@@ -6992,46 +7153,25 @@ function focusTick(reason: 'tick' | 'resume' = 'tick'): void {
           focusData.waterStart,
           focusData.waterEnd,
         )
+        if (reminderDue('water', dueAt)) {
+          if (claimNotice())
+            notifyFocus(
+              '喝水提醒',
+              reminderText('water', {
+                count: countToday(focusData.waterLog, (entry) => entry.at, now),
+                goal: focusData.waterGoal,
+              }),
+            )
+          else {
+            // Another reminder already spoke this tick; retry shortly.
+            focusData.waterNextAt = now + 1_500
+          }
+        }
         persistFocus()
-        if (reminderDue('water', dueAt))
-          notifyFocus(
-            '喝水提醒',
-            reminderText('water', {
-              count: countToday(focusData.waterLog, (entry) => entry.at, now),
-              goal: focusData.waterGoal,
-            }),
-          )
         changed = true
       }
     }
-    if (focusData.breakSitting) {
-      if (!focusData.breakSittingNextAt) {
-        focusData.breakSittingNextAt = scheduleBreak('sitting')
-        persistFocus()
-        changed = true
-      } else if (focusData.breakSittingNextAt <= now) {
-        const dueAt = focusData.breakSittingNextAt
-        focusData.breakSittingNextAt = scheduleBreak('sitting')
-        persistFocus()
-        if (!quietForBreak(now) && reminderDue('sitting', dueAt))
-          notifyFocus('久坐提醒', reminderText('sitting'))
-        changed = true
-      }
-    }
-    if (focusData.breakEyes) {
-      if (!focusData.breakEyesNextAt) {
-        focusData.breakEyesNextAt = scheduleBreak('eyes')
-        persistFocus()
-        changed = true
-      } else if (focusData.breakEyesNextAt <= now) {
-        const dueAt = focusData.breakEyesNextAt
-        focusData.breakEyesNextAt = scheduleBreak('eyes')
-        persistFocus()
-        if (!quietForBreak(now) && reminderDue('eyes', dueAt))
-          notifyFocus('用眼提醒', reminderText('eyes'))
-        changed = true
-      }
-    }
+    checkTodoReminders(now, !noticeUsed)
     lastSchedulerWall = now
     lastSchedulerMono = monotonic
     updateSchedulerRemaining(now)
@@ -7090,6 +7230,12 @@ function skipFocusTimer(): void {
   broadcast()
 }
 function setFocusPhase(phase: FocusData['phase']): void {
+  // A running timer must never be stopped by a view switch: pause or reset
+  // first, then pick another phase.
+  if (focusData.running) {
+    showToast('计时中，暂停或重置后可切换阶段')
+    return
+  }
   focusData = {
     ...focusData,
     phase,
@@ -7678,6 +7824,7 @@ function positionProfile(): void {
   profileWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openProfile(): void {
+  ensurePanelWindows('profile')
   if (profileWindow && !profileWindow.isDestroyed()) {
     positionPanelOnce(profileWindow, positionProfile)
     const height = profileWindowHeight()
@@ -7720,6 +7867,7 @@ function positionClipboard(): void {
   clipboardWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openClipboard(): void {
+  ensurePanelWindows('clipboard')
   if (clipboardWindow && !clipboardWindow.isDestroyed()) {
     positionPanelOnce(clipboardWindow, positionClipboard)
     if (process.platform === 'darwin' || clipboardWindow.isMinimized())
@@ -7752,6 +7900,7 @@ function positionBreak(): void {
   breakWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
 function openBreak(): void {
+  ensurePanelWindows('break')
   if (breakWindow && !breakWindow.isDestroyed()) {
     positionPanelOnce(breakWindow, positionBreak)
     if (process.platform === 'darwin' || breakWindow.isMinimized())
@@ -7769,6 +7918,7 @@ function closeBreak(): void {
   broadcast()
 }
 function openWater(): void {
+  ensurePanelWindows('water')
   if (waterWindow && !waterWindow.isDestroyed()) {
     positionPanelOnce(waterWindow, positionWater)
     if (process.platform === 'darwin' || waterWindow.isMinimized())
@@ -7802,15 +7952,15 @@ function positionFocusBadge(): void {
   focusBadge.setBounds(fitToDisplays({ x, y, width: size, height: size }, [a]))
 }
 function updateFocusBadge(): void {
-  if (!focusBadge || focusBadge.isDestroyed()) return
   const panelVisible =
     windowVisible(pomodoroWindow) && !pomodoroWindow?.isMinimized()
+  if (!focusBadge && focusData.running && !panelVisible && !dropArmed && !petHoverMode)
+    ensureOverlayWindows('badge')
+  if (!focusBadge || focusBadge.isDestroyed()) return
+  // Every phase (focus, short break, long break) shows the same countdown;
+  // only the ring colour differs.
   const active =
-    focusData.running &&
-    focusData.phase === 'focus' &&
-    !panelVisible &&
-    !dropArmed &&
-    !petHoverMode
+    focusData.running && !panelVisible && !dropArmed && !petHoverMode
   if (active) {
     positionFocusBadge()
     focusBadge.showInactive()
@@ -7820,6 +7970,7 @@ function updateFocusBadge(): void {
   }
 }
 function openPomodoro(): void {
+  ensurePanelWindows('focus')
   if (pomodoroWindow && !pomodoroWindow.isDestroyed()) {
     positionPanelOnce(pomodoroWindow, positionPomodoro)
     if (process.platform === 'darwin' || pomodoroWindow.isMinimized())
@@ -8186,6 +8337,8 @@ function positionBubble(): void {
   bubbleWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateBubbleWindow(): void {
+  if (!bubbleWindow && bubbleText && !dropArmed && barVisible && !toastText)
+    ensureOverlayWindows('bubble')
   if (!bubbleWindow || bubbleWindow.isDestroyed()) return
   if (bubbleText && !dropArmed && barVisible && !toastText) {
     positionBubble()
@@ -8209,6 +8362,8 @@ function positionToast(): void {
   toastWindow.setBounds(fitToDisplays({ x, y, width, height }, areas()))
 }
 function updateToastWindow(): void {
+  if (!toastWindow && (toastText || mailAlert) && !dropArmed)
+    ensureOverlayWindows('toast')
   if (!toastWindow || toastWindow.isDestroyed()) return
   if ((toastText || mailAlert) && !dropArmed) {
     positionToast()
@@ -8353,6 +8508,8 @@ function positionPill(): void {
   pill.setBounds(pillLayout(true))
 }
 function updatePillWindow(): void {
+  if (!pill && music.title && barVisible && !dropArmed && !petHoverMode)
+    ensureOverlayWindows('pill')
   if (!pill || pill.isDestroyed()) return
   if (music.title && barVisible && !dropArmed && !petHoverMode) {
     positionPill()
@@ -8466,7 +8623,11 @@ function quotaBarBlocked(): boolean {
   })
 }
 /** Panels are movable; keep the quota pill from sitting on top of one. */
+const watchedPanelOverlap = new WeakSet<BrowserWindow>()
+
 function watchPanelQuotaOverlap(window: BrowserWindow): void {
+  if (watchedPanelOverlap.has(window)) return
+  watchedPanelOverlap.add(window)
   let timer: ReturnType<typeof setTimeout> | undefined
   const refresh = (): void => {
     if (timer) clearTimeout(timer)
@@ -8497,6 +8658,15 @@ function updateQuotaWindow(): void {
   }
 }
 function updateNotesWindow(): void {
+  if (
+    !notes &&
+    music.playing &&
+    !dropArmed &&
+    !petHoverMode &&
+    !bubbleText &&
+    !toastText
+  )
+    ensureOverlayWindows('notes')
   if (!notes || notes.isDestroyed()) return
   if (
     music.playing &&
@@ -8518,6 +8688,7 @@ function clearPocketBlurTimer(): void {
   pocketBlurTimer = undefined
 }
 function showPocket(): void {
+  ensureOverlayWindows('pocket')
   clearPocketBlurTimer()
   pocketRequestedVisible = true
   positionPocket()
@@ -9143,6 +9314,20 @@ function mediaRemoteMiniPaths(): { loader: string; dylib: string } {
     dylib: join(directory, 'MediaRemoteMini.dylib'),
   }
 }
+/** Only these desktop players may drive the pet's music takeover. */
+const musicPlayerBundleIds = new Set([
+  'com.tencent.QQMusicMac',
+  'com.netease.163music',
+  'com.kugou.mac.Music',
+  'com.apple.Music',
+])
+function isMusicBundle(bundleId?: string): boolean {
+  return Boolean(bundleId && musicPlayerBundleIds.has(bundleId))
+}
+/** A reverse-DNS bundle id that is not one of our players (browsers, video). */
+function isForeignBundle(value?: string): boolean {
+  return Boolean(value && value.includes('.') && !isMusicBundle(value))
+}
 const axStateBundles = new Set([
   'com.tencent.QQMusicMac',
   'com.kugou.mac.Music',
@@ -9205,6 +9390,13 @@ function pollMediaRemoteMini(
       }
       try {
         const parsed = JSON.parse(stdout.trim() || '{}') as MediaRemotePayload
+        // Browsers and video players publish Now Playing too; only the four
+        // desktop music players should ever drive the pet.
+        if (!isMusicBundle(parsed.bundleIdentifier)) {
+          mediaRemoteArtwork = undefined
+          done(null)
+          return
+        }
         const state = musicStateFromPayload(parsed, true)
         if (!state) {
           mediaRemoteArtwork = undefined
@@ -9275,6 +9467,10 @@ function pollLegacySystemMusic(
     }
     try {
       const parsed = JSON.parse(stdout.trim() || '{}') as MediaRemotePayload
+      if (isForeignBundle(parsed.client)) {
+        done(null)
+        return
+      }
       const state = musicStateFromPayload(parsed, false)
       if (state) state.appName = systemPlayerName(parsed.client)
       done(state)
@@ -9614,8 +9810,7 @@ async function lrclibJson(
 ): Promise<unknown | undefined> {
   const response = await fetch(`https://lrclib.net/api/${path}?${params}`, {
     headers: {
-      'User-Agent':
-        'maoqumengzai-desktop/0.0.1 (https://github.com/qimei-it/maoqumengzai-desktop-pet)',
+      'User-Agent': `${appUserAgent} (${appSourceUrl})`,
     },
     signal: AbortSignal.timeout(5000),
   })
@@ -9805,6 +10000,7 @@ function setVolume(value: number): void {
   )
 }
 function setVolumePopup(show: boolean): void {
+  if (show) ensureOverlayWindows('volume')
   if (!volumePopup || volumePopup.isDestroyed()) return
   if (show) {
     if (volumeHideTimer) clearTimeout(volumeHideTimer)
@@ -11257,6 +11453,11 @@ function setupIpc(): void {
       'pet-create-save',
       'pet-prompt-save',
       'pet-default',
+      'pet-select',
+      'update-check',
+      'update-download',
+      'update-install',
+      'dirty-state',
     ]
     if (
       command.type.startsWith('agent-') &&
@@ -11606,6 +11807,21 @@ function setupIpc(): void {
         break
       case 'pet-default':
         await useDefaultPet()
+        break
+      case 'pet-select':
+        await selectPet(command.id)
+        break
+      case 'update-check':
+        await checkForUpdates()
+        break
+      case 'update-download':
+        await downloadUpdate()
+        break
+      case 'update-install':
+        await installUpdate()
+        break
+      case 'dirty-state':
+        setDirtyScope(command.scope, command.dirty)
         break
       case 'ai-close':
         closeAsk()
@@ -12001,6 +12217,7 @@ function setupIpc(): void {
         break
       case 'mail-compose-close':
         closeMailCompose()
+        setDirtyScope('mail-compose', false)
         break
       case 'mail-draft-save':
         await saveMailDraft(command)
@@ -12534,6 +12751,7 @@ async function load(window: BrowserWindow, view: string): Promise<void> {
  */
 /** Keep in sync with the 7px inset on every panel shell. */
 const panelInset = 7
+const eagerPanelWindows = process.env.MQMZ_EAGER_WINDOWS === '1'
 const panelChrome =
   process.platform === 'darwin'
     ? {
@@ -12659,642 +12877,393 @@ function installApplicationMenu(): void {
   )
 }
 
-async function createWindows(): Promise<void> {
-  const primary = screen.getPrimaryDisplay().workArea
-  let bounds: Rect = {
-    x: primary.x + primary.width - 280,
-    y: primary.y + primary.height - 280,
-    width: Math.round(basePetSize.width * scale),
-    height: Math.round(basePetSize.height * scale),
-  }
-  try {
-    const saved = z
-      .object({
-        version: z.literal(1),
-        scale: z.union([
-          z.literal(0.75),
-          z.literal(1),
-          z.literal(1.5),
-          z.literal(2),
-        ]),
-        bounds: z.object({
-          x: z.number().finite(),
-          y: z.number().finite(),
-          width: z.number().positive().max(1000),
-          height: z.number().positive().max(1000),
-        }),
-      })
-      .parse(JSON.parse(await readFile(statePath, 'utf8')))
-    if (!settingsExisted) {
-      settings = { ...settings, scale: saved.scale }
-      scale = saved.scale
-      settingsExisted = true
-      await saveSettingsFile(settingsPath, settings)
-    }
-    bounds = {
-      ...saved.bounds,
-      width: Math.round(basePetSize.width * scale),
-      height: Math.round(basePetSize.height * scale),
-    }
-  } catch {
-    /* First launch or invalid local state: use safe defaults. */
-  }
-  pet = new BrowserWindow({
-    ...fitToDisplays(bounds, areas()),
-    title: '毛趣萌仔 · 交互标记',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  if (process.platform === 'darwin')
-    pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  pocket = new BrowserWindow({
-    width: 352,
-    height: 438,
-    title: '毛趣萌仔 · 文件置物架',
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  notes = new BrowserWindow({
-    width: 240,
-    height: 240,
-    title: '毛趣萌仔 · 音符',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  notes.setIgnoreMouseEvents(true)
-  configurePetOverlay(notes)
-  pill = new BrowserWindow({
-    width: 256,
-    height: 40,
-    title: '毛趣萌仔 · 音乐控制',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  configurePetOverlay(pill)
-  volumePopup = new BrowserWindow({
-    width: 40,
-    height: 122,
-    title: '毛趣萌仔 · 音量',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  configurePetOverlay(volumePopup)
-  eye = new BrowserWindow({
-    width: 32,
-    height: 32,
-    title: '毛趣萌仔 · 音乐开关',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  configurePetOverlay(eye)
-  lyricsWindow = new BrowserWindow({
-    width: 240,
-    height: 88,
-    title: '毛趣萌仔 · 歌词',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  lyricsWindow.setIgnoreMouseEvents(true)
-  configurePetOverlay(lyricsWindow)
-  bubbleWindow = new BrowserWindow({
-    width: 216,
-    height: 84,
-    title: '毛趣萌仔 · 气泡',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  bubbleWindow.setIgnoreMouseEvents(true)
-  configurePetOverlay(bubbleWindow)
-  toastWindow = new BrowserWindow({
-    width: 190,
-    height: 64,
-    title: '毛趣萌仔 · 提示',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  toastWindow.setIgnoreMouseEvents(true)
-  configurePetOverlay(toastWindow)
-  const savedAgentWindow = await loadAgentWindowState()
-  agentWindowMaximized = savedAgentWindow?.maximized ?? false
-  askWindow = new BrowserWindow({
-    width: 920,
-    height: 640,
-    minWidth: 920,
-    minHeight: 640,
-    title: '毛趣萌仔 · 智能体',
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: true,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  if (savedAgentWindow) {
-    const bounds = fitToDisplays(savedAgentWindow.bounds, areas())
-    askWindow.setBounds({
-      ...bounds,
-      width: Math.max(920, bounds.width),
-      height: Math.max(640, bounds.height),
+
+let savedAgentWindowState: Awaited<
+  ReturnType<typeof loadAgentWindowState>
+> | undefined
+export type PanelKey =
+  | 'agent'
+  | 'convert'
+  | 'archive'
+  | 'rename'
+  | 'settings'
+  | 'mail'
+  | 'compose'
+  | 'focus'
+  | 'water'
+  | 'break'
+  | 'profile'
+  | 'clipboard'
+  | 'todo'
+
+export const panelKeys: readonly PanelKey[] = [
+  'agent',
+  'convert',
+  'archive',
+  'rename',
+  'settings',
+  'mail',
+  'compose',
+  'focus',
+  'water',
+  'break',
+  'profile',
+  'clipboard',
+  'todo',
+]
+
+const createdPanels = new Set<PanelKey>()
+
+/**
+ * Panels are built on first use: an unused panel would otherwise cost a
+ * renderer process (~130 MB) for the whole session.
+ */
+function createPanelWindows(keys: readonly PanelKey[]): void {
+  const pending = keys.filter((key) => !createdPanels.has(key))
+  for (const key of pending) createdPanels.add(key)
+  const wanted = (key: PanelKey) => pending.includes(key)
+  const savedAgentWindow = savedAgentWindowState
+  if (wanted('agent')) {
+    askWindow = new BrowserWindow({
+      width: 920,
+      height: 640,
+      minWidth: 920,
+      minHeight: 640,
+      title: '毛趣萌仔 · 智能体',
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: true,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
     })
-    positionedPanels.add(askWindow)
-  }
-  askWindow.on('resize', () => {
-    scheduleAgentWindowSave()
-    broadcast()
-  })
-  askWindow.on('move', scheduleAgentWindowSave)
-  askWindow.on('maximize', () => {
-    agentWindowMaximized = true
-    scheduleAgentWindowSave()
-    broadcast()
-  })
-  askWindow.on('unmaximize', () => {
-    agentWindowMaximized = false
-    scheduleAgentWindowSave()
-    broadcast()
-  })
-  convertWindow = new BrowserWindow({
-    width: 400,
-    height: 460,
-    title: '毛趣萌仔 · 文件转换',
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  archiveWindow = new BrowserWindow({
-    width: 400,
-    height: 440,
-    title: '毛趣萌仔 · 打包归档',
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  renameWindow = new BrowserWindow({
-    width: 560,
-    height: 480,
-    title: '毛趣萌仔 · 批量重命名',
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  settingsWindow = new BrowserWindow({
-    width: 760,
-    height: 620,
-    title: '毛趣萌仔 · 设置',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  mailWindow = new BrowserWindow({
-    width: 980,
-    height: 680,
-    minWidth: 980,
-    minHeight: 680,
-    title: '毛趣萌仔 · 邮件',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: true,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  mailWindow.on('maximize', () => {
-    mailWindowMaximized = true
-    broadcast()
-  })
-  mailWindow.on('unmaximize', () => {
-    mailWindowMaximized = false
-    broadcast()
-  })
-  mailComposeWindow = new BrowserWindow({
-    width: 760,
-    height: 620,
-    minWidth: 760,
-    minHeight: 620,
-    title: '毛趣萌仔 · 撰写',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: true,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  mailComposeWindow.on('maximize', () => {
-    mailComposeMaximized = true
-    broadcast()
-  })
-  mailComposeWindow.on('unmaximize', () => {
-    mailComposeMaximized = false
-    broadcast()
-  })
-  pomodoroWindow = new BrowserWindow({
-    width: 360,
-    height: 600,
-    title: '毛趣萌仔 · 番茄时钟',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  waterWindow = new BrowserWindow({
-    width: 360,
-    height: 420,
-    title: '毛趣萌仔 · 喝水提醒',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  breakWindow = new BrowserWindow({
-    width: 360,
-    height: 430,
-    title: '毛趣萌仔 · 休息提醒',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  profileWindow = new BrowserWindow({
-    width: 400,
-    height: 490,
-    title: '毛趣萌仔 · 宠物档案',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  clipboardWindow = new BrowserWindow({
-    width: 400,
-    height: 520,
-    title: '毛趣萌仔 · 剪贴板',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  todoWindow = new BrowserWindow({
-    width: 1000,
-    height: 800,
-    title: '毛趣萌仔 · 待办清单',
-    icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
-    ...panelChrome,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    skipTaskbar: false,
-    alwaysOnTop: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  for (const panel of [
-    pocket,
-    askWindow,
-    convertWindow,
-    archiveWindow,
-    renameWindow,
-    settingsWindow,
-    mailWindow,
-    mailComposeWindow,
-    pomodoroWindow,
-    waterWindow,
-    breakWindow,
-    profileWindow,
-    clipboardWindow,
-    todoWindow,
-  ])
-    configurePanelChrome(panel, {
-      maximizable:
-        panel === askWindow ||
-        panel === mailWindow ||
-        panel === mailComposeWindow,
-    })
-  focusBadge = new BrowserWindow({
-    width: 76,
-    height: 76,
-    title: '毛趣萌仔 · 计时环',
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    hasShadow: false,
-    resizable: false,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    focusable: false,
-    webPreferences: {
-      preload: preloadPath,
-      backgroundThrottling: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  })
-  focusBadge.setIgnoreMouseEvents(true)
-  configurePetOverlay(focusBadge)
-  lab = !app.isPackaged
-    ? new BrowserWindow({
-        width: 1024,
-        height: 800,
-        minWidth: 720,
-        minHeight: 560,
-        title: '毛趣萌仔 · P0 验证台',
-        show: false,
-        backgroundColor: '#f5f4f0',
-        webPreferences: {
-          preload: preloadPath,
-          backgroundThrottling: false,
-          contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true,
-        },
+    if (savedAgentWindow) {
+      const bounds = fitToDisplays(savedAgentWindow.bounds, areas())
+      askWindow.setBounds({
+        ...bounds,
+        width: Math.max(920, bounds.width),
+        height: Math.max(640, bounds.height),
       })
-    : undefined
-  for (const window of [pet, pocket, askWindow, convertWindow, archiveWindow, renameWindow, settingsWindow, mailComposeWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
-  pocket.on('close', (event) => {
-    if (!shuttingDown) {
-      event.preventDefault()
-      hidePocket()
+      positionedPanels.add(askWindow)
     }
-  })
-  pocket.on('blur', () => {
-    if (!shuttingDown) schedulePocketBlurHide()
-  })
-  pocket.on('focus', clearPocketBlurTimer)
-  lab?.on('close', (event) => {
-    if (!shuttingDown) {
-      event.preventDefault()
-      lab?.hide()
-    }
-  })
+    askWindow.on('resize', () => {
+      scheduleAgentWindowSave()
+      broadcast()
+    })
+    askWindow.on('move', scheduleAgentWindowSave)
+    askWindow.on('maximize', () => {
+      agentWindowMaximized = true
+      scheduleAgentWindowSave()
+      broadcast()
+    })
+    askWindow.on('unmaximize', () => {
+      agentWindowMaximized = false
+      scheduleAgentWindowSave()
+      broadcast()
+    })
+  }
+  if (wanted('convert')) {
+    convertWindow = new BrowserWindow({
+      width: 400,
+      height: 460,
+      title: '毛趣萌仔 · 文件转换',
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('archive')) {
+    archiveWindow = new BrowserWindow({
+      width: 400,
+      height: 440,
+      title: '毛趣萌仔 · 打包归档',
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('rename')) {
+    renameWindow = new BrowserWindow({
+      width: 560,
+      height: 480,
+      title: '毛趣萌仔 · 批量重命名',
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('settings')) {
+    settingsWindow = new BrowserWindow({
+      width: 760,
+      height: 620,
+      title: '毛趣萌仔 · 设置',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('mail')) {
+    mailWindow = new BrowserWindow({
+      width: 980,
+      height: 680,
+      minWidth: 980,
+      minHeight: 680,
+      title: '毛趣萌仔 · 邮件',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: true,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    mailWindow.on('maximize', () => {
+      mailWindowMaximized = true
+      broadcast()
+    })
+    mailWindow.on('unmaximize', () => {
+      mailWindowMaximized = false
+      broadcast()
+    })
+  }
+  if (wanted('compose')) {
+    mailComposeWindow = new BrowserWindow({
+      width: 760,
+      height: 620,
+      minWidth: 760,
+      minHeight: 620,
+      title: '毛趣萌仔 · 撰写',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: true,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    mailComposeWindow.on('maximize', () => {
+      mailComposeMaximized = true
+      broadcast()
+    })
+    mailComposeWindow.on('unmaximize', () => {
+      mailComposeMaximized = false
+      broadcast()
+    })
+  }
+  if (wanted('focus')) {
+    pomodoroWindow = new BrowserWindow({
+      width: 360,
+      height: 600,
+      title: '毛趣萌仔 · 番茄时钟',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('water')) {
+    waterWindow = new BrowserWindow({
+      width: 360,
+      height: 420,
+      title: '毛趣萌仔 · 喝水提醒',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('break')) {
+    breakWindow = new BrowserWindow({
+      width: 360,
+      height: 430,
+      title: '毛趣萌仔 · 休息提醒',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('profile')) {
+    profileWindow = new BrowserWindow({
+      width: 400,
+      height: 490,
+      title: '毛趣萌仔 · 宠物档案',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('clipboard')) {
+    clipboardWindow = new BrowserWindow({
+      width: 400,
+      height: 520,
+      title: '毛趣萌仔 · 剪贴板',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
+  if (wanted('todo')) {
+    todoWindow = new BrowserWindow({
+      width: 1000,
+      height: 800,
+      title: '毛趣萌仔 · 待办清单',
+      icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      skipTaskbar: false,
+      alwaysOnTop: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+  }
   askWindow?.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -13373,6 +13342,464 @@ async function createWindows(): Promise<void> {
       closeTodo()
     }
   })
+  for (const panel of [
+    pocket,
+    askWindow,
+    convertWindow,
+    archiveWindow,
+    renameWindow,
+    settingsWindow,
+    mailWindow,
+    mailComposeWindow,
+    pomodoroWindow,
+    waterWindow,
+    breakWindow,
+    profileWindow,
+    clipboardWindow,
+    todoWindow,
+  ].filter((entry): entry is BrowserWindow => Boolean(entry)))
+    configurePanelChrome(panel, {
+      maximizable:
+        panel === askWindow ||
+        panel === mailWindow ||
+        panel === mailComposeWindow,
+    })
+  for (const panel of panelWindowList()) watchPanelQuotaOverlap(panel)
+}
+
+/** Panels that are torn down, not hidden, once closed: they are the memory hogs. */
+const heavyPanelKeys: readonly PanelKey[] = ['agent', 'convert']
+
+/** Pending teardowns, so a quick close-then-open never destroys a live panel. */
+const pendingPanelTeardown = new Map<PanelKey, ReturnType<typeof setTimeout>>()
+
+function cancelPanelTeardown(key: PanelKey): void {
+  const timer = pendingPanelTeardown.get(key)
+  if (!timer) return
+  clearTimeout(timer)
+  pendingPanelTeardown.delete(key)
+}
+
+/** Runs after the close event unwinds; destroying inside it crashed the app. */
+function schedulePanelTeardown(key: PanelKey): void {
+  if (!heavyPanelKeys.includes(key)) return
+  cancelPanelTeardown(key)
+  const timer = setTimeout(() => {
+    pendingPanelTeardown.delete(key)
+    if (shuttingDown) return
+    const window =
+      key === 'agent'
+        ? askWindow
+        : key === 'mail'
+          ? mailWindow
+          : key === 'convert'
+            ? convertWindow
+            : settingsWindow
+    if (key === 'agent' && window && !window.isDestroyed()) {
+      // Keep the size and position the user chose for the next open.
+      const maximized = window.isMaximized()
+      savedAgentWindowState = {
+        bounds: maximized ? window.getNormalBounds() : window.getBounds(),
+        maximized,
+      }
+      agentWindowMaximized = maximized
+    }
+    createdPanels.delete(key)
+    if (window && !window.isDestroyed()) {
+      positionedPanels.delete(window)
+      window.destroy()
+    }
+    if (key === 'agent') askWindow = undefined
+    else if (key === 'mail') mailWindow = undefined
+    else if (key === 'convert') convertWindow = undefined
+    else settingsWindow = undefined
+    broadcast()
+  }, 1200)
+  pendingPanelTeardown.set(key, timer)
+}
+
+function loadPanelWindows(keys: readonly PanelKey[]): void {
+  const views: Record<PanelKey, [BrowserWindow | undefined, string]> = {
+    agent: [askWindow, 'agent'],
+    convert: [convertWindow, 'convert'],
+    archive: [archiveWindow, 'archive'],
+    rename: [renameWindow, 'rename'],
+    settings: [settingsWindow, 'settings'],
+    mail: [mailWindow, 'mail'],
+    compose: [mailComposeWindow, 'compose'],
+    focus: [pomodoroWindow, 'focus'],
+    water: [waterWindow, 'water'],
+    break: [breakWindow, 'break'],
+    profile: [profileWindow, 'profile'],
+    clipboard: [clipboardWindow, 'clipboard'],
+    todo: [todoWindow, 'todo'],
+  }
+  for (const key of keys) {
+    const entry = views[key]
+    if (entry[0]) void load(entry[0], entry[1])
+  }
+}
+
+/** Create and load one panel the first time it is opened. */
+function ensurePanelWindows(key: PanelKey): void {
+  ensurePanelActivation()
+  cancelPanelTeardown(key)
+  if (createdPanels.has(key)) return
+  createPanelWindows([key])
+  loadPanelWindows([key])
+}
+
+
+export type OverlayKey =
+  | 'pocket'
+  | 'notes'
+  | 'pill'
+  | 'volume'
+  | 'eye'
+  | 'bubble'
+  | 'toast'
+  | 'badge'
+
+export const overlayKeys: readonly OverlayKey[] = [
+  'pocket',
+  'notes',
+  'pill',
+  'volume',
+  'eye',
+  'bubble',
+  'toast',
+  'badge',
+]
+
+const createdOverlays = new Set<OverlayKey>()
+
+/** Overlays are built on first use; each one is a whole renderer process. */
+function createOverlayWindows(keys: readonly OverlayKey[]): void {
+  const pending = keys.filter((key) => !createdOverlays.has(key))
+  for (const key of pending) createdOverlays.add(key)
+  const wanted = (key: OverlayKey) => pending.includes(key)
+  if (wanted('pocket')) {
+    pocket = new BrowserWindow({
+      width: 352,
+      height: 438,
+      title: '毛趣萌仔 · 文件置物架',
+      ...panelChrome,
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      resizable: false,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    pocket.on('close', (event) => {
+      if (!shuttingDown) {
+        event.preventDefault()
+        hidePocket()
+      }
+    })
+    pocket.on('blur', () => {
+      if (!shuttingDown) schedulePocketBlurHide()
+    })
+    pocket.on('focus', clearPocketBlurTimer)
+  }
+  if (wanted('notes')) {
+    notes = new BrowserWindow({
+      width: 240,
+      height: 240,
+      title: '毛趣萌仔 · 音符',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    notes.setIgnoreMouseEvents(true)
+    configurePetOverlay(notes)
+  }
+  if (wanted('pill')) {
+    pill = new BrowserWindow({
+      width: 256,
+      height: 40,
+      title: '毛趣萌仔 · 音乐控制',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    configurePetOverlay(pill)
+  }
+  if (wanted('volume')) {
+    volumePopup = new BrowserWindow({
+      width: 40,
+      height: 122,
+      title: '毛趣萌仔 · 音量',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    configurePetOverlay(volumePopup)
+  }
+  if (wanted('eye')) {
+    eye = new BrowserWindow({
+      width: 32,
+      height: 32,
+      title: '毛趣萌仔 · 音乐开关',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    configurePetOverlay(eye)
+    // Lyrics moved into the music bar; the overlay window is no longer created.
+  }
+  if (wanted('bubble')) {
+    bubbleWindow = new BrowserWindow({
+      width: 216,
+      height: 84,
+      title: '毛趣萌仔 · 气泡',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    bubbleWindow.setIgnoreMouseEvents(true)
+    configurePetOverlay(bubbleWindow)
+  }
+  if (wanted('toast')) {
+    toastWindow = new BrowserWindow({
+      width: 190,
+      height: 64,
+      title: '毛趣萌仔 · 提示',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    toastWindow.setIgnoreMouseEvents(true)
+    configurePetOverlay(toastWindow)
+  }
+  if (wanted('badge')) {
+    focusBadge = new BrowserWindow({
+      width: 76,
+      height: 76,
+      title: '毛趣萌仔 · 计时环',
+      show: false,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      webPreferences: {
+        preload: preloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    })
+    focusBadge.setIgnoreMouseEvents(true)
+    configurePetOverlay(focusBadge)
+  }
+}
+
+function loadOverlayWindows(keys: readonly OverlayKey[]): void {
+  const views: Record<OverlayKey, [BrowserWindow | undefined, string]> = {
+    pocket: [pocket, 'pocket'],
+    notes: [notes, 'notes'],
+    pill: [pill, 'pill'],
+    volume: [volumePopup, 'volume'],
+    eye: [eye, 'eye'],
+    bubble: [bubbleWindow, 'bubble'],
+    toast: [toastWindow, 'toast'],
+    badge: [focusBadge, 'focus-badge'],
+  }
+  for (const key of keys) {
+    const entry = views[key]
+    if (entry[0]) void load(entry[0], entry[1])
+  }
+}
+
+function ensureOverlayWindows(key: OverlayKey): void {
+  if (createdOverlays.has(key)) return
+  createOverlayWindows([key])
+  loadOverlayWindows([key])
+}
+
+async function createWindows(): Promise<void> {
+  const primary = screen.getPrimaryDisplay().workArea
+  let bounds: Rect = {
+    x: primary.x + primary.width - 280,
+    y: primary.y + primary.height - 280,
+    width: Math.round(basePetSize.width * scale),
+    height: Math.round(basePetSize.height * scale),
+  }
+  try {
+    const saved = z
+      .object({
+        version: z.literal(1),
+        scale: z.union([
+          z.literal(0.75),
+          z.literal(1),
+          z.literal(1.5),
+          z.literal(2),
+        ]),
+        bounds: z.object({
+          x: z.number().finite(),
+          y: z.number().finite(),
+          width: z.number().positive().max(1000),
+          height: z.number().positive().max(1000),
+        }),
+      })
+      .parse(JSON.parse(await readFile(statePath, 'utf8')))
+    if (!settingsExisted) {
+      settings = { ...settings, scale: saved.scale }
+      scale = saved.scale
+      settingsExisted = true
+      await saveSettingsFile(settingsPath, settings)
+    }
+    bounds = {
+      ...saved.bounds,
+      width: Math.round(basePetSize.width * scale),
+      height: Math.round(basePetSize.height * scale),
+    }
+  } catch {
+    /* First launch or invalid local state: use safe defaults. */
+  }
+  pet = new BrowserWindow({
+    ...fitToDisplays(bounds, areas()),
+    title: '毛趣萌仔 · 交互标记',
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: false,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: preloadPath,
+      backgroundThrottling: false,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  })
+  if (process.platform === 'darwin')
+    pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  if (eagerPanelWindows) createOverlayWindows(overlayKeys)
+  if (pocket) configurePanelChrome(pocket, { maximizable: false })
+  savedAgentWindowState = await loadAgentWindowState()
+  agentWindowMaximized = savedAgentWindowState?.maximized ?? false
+  if (eagerPanelWindows) createPanelWindows(panelKeys)
+
+  lab = !app.isPackaged
+    ? new BrowserWindow({
+        width: 1024,
+        height: 800,
+        minWidth: 720,
+        minHeight: 560,
+        title: '毛趣萌仔 · P0 验证台',
+        show: false,
+        backgroundColor: '#f5f4f0',
+        webPreferences: {
+          preload: preloadPath,
+          backgroundThrottling: false,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      })
+    : undefined
+  for (const window of [pet, pocket, askWindow, convertWindow, archiveWindow, renameWindow, settingsWindow, mailComposeWindow, pomodoroWindow, waterWindow, breakWindow, profileWindow, clipboardWindow, todoWindow, focusBadge, lab, notes, pill, volumePopup, eye, lyricsWindow, bubbleWindow, toastWindow]) if (window) secureWindow(window)
+  lab?.on('close', (event) => {
+    if (!shuttingDown) {
+      event.preventDefault()
+      lab?.hide()
+    }
+  })
   pet.on('close', (event) => {
     if (!shuttingDown) {
       event.preventDefault()
@@ -13434,30 +13861,12 @@ async function createWindows(): Promise<void> {
   setupIpc()
   await Promise.all([
     load(pet, 'pet'),
-    load(pocket, 'pocket'),
-    load(notes, 'notes'),
-    load(pill, 'pill'),
-    load(volumePopup, 'volume'),
-    load(eye, 'eye'),
-    load(lyricsWindow, 'lyrics'),
-    load(bubbleWindow, 'bubble'),
-    load(toastWindow, 'toast'),
-    load(askWindow, 'agent'),
-    load(convertWindow, 'convert'),
-    load(archiveWindow, 'archive'),
-    load(renameWindow, 'rename'),
-    load(settingsWindow, 'settings'),
-    load(mailWindow, 'mail'),
-    load(mailComposeWindow, 'compose'),
-    load(pomodoroWindow, 'focus'),
-    load(waterWindow, 'water'),
-    load(breakWindow, 'break'),
-    load(profileWindow, 'profile'),
-    load(clipboardWindow, 'clipboard'),
-    load(todoWindow, 'todo'),
-    load(focusBadge, 'focus-badge'),
     ...(lab ? [load(lab, 'lab')] : []),
   ])
+  if (eagerPanelWindows) {
+    loadOverlayWindows(overlayKeys)
+    loadPanelWindows(panelKeys)
+  }
   pet.showInactive()
   for (const window of panelWindowList()) watchPanelQuotaOverlap(window)
   syncOverlays()
@@ -13520,13 +13929,22 @@ async function createWindows(): Promise<void> {
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
   bubbleTickTimer = setInterval(bubbleTick, 1000)
-  pointerTimer = setInterval(() => {
+  // Follow the cursor at ~60fps only while it is near the pet, dragging, or
+  // the wheel is open. Polling the pointer every 16ms for a pet in the corner
+  // costs a noticeable slice of idle CPU, so fall back to a slow tick.
+  const pointerFastMs = 16
+  const pointerIdleMs = 64
+  const pointerNearMargin = 48
+  const pointerTick = (): void => {
     if (pet.isDestroyed() || shuttingDown) return
     const cursor = screen.getCursorScreenPoint()
+    let nextDelay = pointerIdleMs
     if (drag) {
+      nextDelay = pointerFastMs
       if (Date.now() - drag.startedAt > 15_000) {
         drag = undefined
         reconcileDisplays()
+        schedulePointerTick(pointerIdleMs)
         return
       }
       if (!drag.moving && movedBeyondThreshold(drag.origin, cursor))
@@ -13540,6 +13958,7 @@ async function createWindows(): Promise<void> {
     } else {
       const b = pet.getBounds()
       if (wheelOpen) {
+        nextDelay = pointerFastMs
         const outside =
           cursor.x < b.x - 16 ||
           cursor.x > b.x + b.width + 16 ||
@@ -13549,6 +13968,7 @@ async function createWindows(): Promise<void> {
           if (!wheelOutsideSince) wheelOutsideSince = Date.now()
           else if (Date.now() - wheelOutsideSince > 600) {
             closeWheelWindow()
+            schedulePointerTick(pointerIdleMs)
             return
           }
         } else {
@@ -13581,8 +14001,22 @@ async function createWindows(): Promise<void> {
         hoverCenterSince = 0
         hoverSent = false
       }
+      const near =
+        !dropArmed &&
+        (wheelOpen ||
+          (cursor.x >= b.x - pointerNearMargin &&
+            cursor.x <= b.x + b.width + pointerNearMargin &&
+            cursor.y >= b.y - pointerNearMargin &&
+            cursor.y <= b.y + b.height + pointerNearMargin))
+      nextDelay = near ? pointerFastMs : pointerIdleMs
     }
-  }, 16)
+    schedulePointerTick(nextDelay)
+  }
+  function schedulePointerTick(delay: number): void {
+    if (shuttingDown) return
+    pointerTimer = setTimeout(pointerTick, delay)
+  }
+  schedulePointerTick(pointerFastMs)
   void updateMailBadge()
   addEvent('真实 Electron 窗口已启动；交互标记不代表正式角色素材。')
 }
@@ -13642,6 +14076,7 @@ else {
       petNames = (await listPetRecords(petsRoot(dataRoot))).map(
         (record) => record.name,
       )
+      await refreshPetCards()
       settingsExisted = loadedSettings.existed
       scale = settings.scale
       focusData = await loadFocusFile(focusPath)
@@ -13809,6 +14244,7 @@ else {
         }
       })
       await createWindows()
+      initUpdater(broadcast, showToast, unsavedScopes)
       scheduleAiQuotaRefresh()
       setTimeout(() => {
         void refreshAiQuota()
@@ -13825,6 +14261,7 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    disposeUpdater()
     agent.cancel()
     void agent.flush()
     void saveAgentWindowState().catch(() => {})

@@ -3,6 +3,7 @@ import { ImapFlow, type FetchMessageObject } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import sanitizeHtml from 'sanitize-html'
 import { detectVerificationCode } from '../shared/mail-code'
+import { appVersion } from '../shared/app-version'
 import { sanitizeMailBodyHtml } from './mail-html'
 import { mailProxyUrl } from './mail-proxy'
 import {
@@ -39,7 +40,7 @@ export type MailFetchedDetail = {
 
 const mailClientInfo = {
   name: 'MaoquMengzai',
-  version: '0.0.1',
+  version: appVersion,
   vendor: 'mqmz',
 } as const
 

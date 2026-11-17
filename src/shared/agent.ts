@@ -156,6 +156,8 @@ export type AgentSkillView = {
   enabled: boolean
   /** External service, CLI or credential the skill expects. */
   requires?: string
+  /** Requirement labels that are not satisfied on this machine. */
+  missing?: string[]
 }
 
 export type AgentSkillDetail = AgentSkillView & {
@@ -248,6 +250,8 @@ export type AgentApproval = {
   title: string
   args: string
   reason: string
+  /** Set when the tool call was flagged as risky; the card should stand out. */
+  danger?: boolean
 }
 
 export type AgentUsage = {

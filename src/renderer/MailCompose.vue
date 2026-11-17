@@ -173,6 +173,22 @@ function scheduleSave(): void {
 watch([to, cc, bcc, subject], scheduleSave)
 watch(bodyHtml, scheduleSave)
 
+/** Lets the updater warn before quitting mid-compose. */
+let lastDirty: boolean | undefined
+function reportDirty(): void {
+  const dirty = !isBlank()
+  if (dirty === lastDirty) return
+  lastDirty = dirty
+  emit('command', { type: 'dirty-state', scope: 'mail-compose', dirty })
+}
+// Watch the attachment count, not the array: every snapshot hands back a new
+// array, which would retrigger this watcher on each broadcast.
+watch(
+  [to, cc, bcc, subject, bodyHtml, () => attachments.value.length],
+  reportDirty,
+  { immediate: true },
+)
+
 async function chooseAttachments(): Promise<void> {
   const result = await window.mqmz?.mailChooseAttachments()
   if (!result) return
@@ -595,7 +611,7 @@ function size(bytes: number): string {
 }
 .compose-format-button:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .compose-format-separator {
   width: 1px;
@@ -695,7 +711,7 @@ function size(bytes: number): string {
 }
 .compose-remove:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .compose-actions {
   display: flex;

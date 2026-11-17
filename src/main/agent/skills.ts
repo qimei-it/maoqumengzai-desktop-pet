@@ -27,6 +27,7 @@ import {
   sep,
 } from 'node:path'
 import { copyFile } from 'node:fs/promises'
+import { missingSkillRequirements } from './requirements'
 import type {
   AgentSkillDetail,
   AgentSkillView,
@@ -357,6 +358,8 @@ export async function createSkillStore(
         : enabledOverrides.has(skill.id)
       : !disabled.has(skill.id)
 
+  const missingBySkill = new Map<string, string[]>()
+
   const view = (skill: LoadedSkill): AgentSkillView => ({
     id: skill.id,
     name: skill.name,
@@ -365,6 +368,9 @@ export async function createSkillStore(
     builtin: skill.builtin,
     enabled: enabledFor(skill),
     ...(skill.requires ? { requires: skill.requires } : {}),
+    ...(missingBySkill.has(skill.id)
+      ? { missing: missingBySkill.get(skill.id)! }
+      : {}),
   })
 
   const refresh = async (): Promise<AgentSkillView[]> => {
@@ -439,6 +445,19 @@ export async function createSkillStore(
     for (const id of [...enabledOverrides])
       if (!records.has(id)) enabledOverrides.delete(id)
     await saveIndex(indexPath, disabled, enabledOverrides)
+    const probes = await Promise.all(
+      [...records.values()].map(async (skill) => ({
+        id: skill.id,
+        missing: await missingSkillRequirements(
+          skill.requires,
+          `${skill.id}:${skill.requires ?? ''}`,
+        ),
+      })),
+    )
+    missingBySkill.clear()
+    for (const probe of probes) {
+      if (probe.missing.length) missingBySkill.set(probe.id, probe.missing)
+    }
     return [...records.values()]
       .map(view)
       .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))

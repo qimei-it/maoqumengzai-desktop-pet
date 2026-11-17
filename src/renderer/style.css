@@ -559,7 +559,7 @@ footer button {
   }
 }
 .marker-caption {
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   background: var(--color-brand-soft);
   padding: 2px 6px;
   border-radius: 5px;
@@ -744,7 +744,7 @@ footer button {
   overflow: hidden;
   border-radius: 9px;
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   box-shadow: var(--shadow-control);
 }
 .pill-cover img {
@@ -830,7 +830,7 @@ footer button {
   background: var(--color-brand-soft);
 }
 .pill-button.active {
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   background: var(--color-brand-soft);
 }
 .pill-button.transport,
@@ -974,7 +974,7 @@ footer button {
 }
 .eye-button:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .eye-view,
 .eye-view #app {

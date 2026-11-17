@@ -1,36 +1,43 @@
-# maoqumengzai-desktop-pet
-“毛趣萌仔”桌面端情感陪伴宠物，支持 macOS 与 Windows 操作系统，作为“毛趣映画”微信小程序的附属产品
+# 毛趣萌仔
 
-## 第一版实施资料
+毛趣萌仔是「毛趣映画」的桌面宠物客户端：一只常驻桌面的宠物，加上番茄钟、喝水与久坐提醒、待办、文件置物架、剪贴板、截图、格式转换、音乐控制和邮箱收发。
 
-- [需求基线、实施清单与 Agent 交接](docs/v1-implementation-handoff.md)
-- [开源策略与功能开放边界](docs/open-source-strategy.md)
-- [P0 技术验证进度](docs/p0-validation-progress.md)
-- [双平台支持矩阵](docs/platform-support-matrix.md)
-- [技术方案](docs/technical-architecture.md)
-- [57 项验收映射](docs/v1-acceptance-matrix.md)
-- [透明窗口与交互原型：运行及验证记录](docs/p0-window-prototype.md)
-- [与小程序统一的面板样式规范](docs/design/panel-style-contract.md)
-- [Lucide 与 Firefox Emoji 图标规范](docs/design/icon-system.md)
-- [默认宠物参考图](docs/references/README.md)
-- [歌词 API 调研与样例实测](docs/research/lyrics-api-evaluation.md)
-- [DeepSeek 智能问答接入](docs/research/deepseek-chat.md)
+- **本地优先**：日常动画、提醒与工具全部在本机执行，不调用模型，数据默认只存在本机。
+- **免账号**：所有本地功能不需要登录。
+- **开源**：客户端代码以 [MIT 许可](LICENSE) 发布。
 
-当前已实现 P0 第 3 项的 Electron + Vue 透明窗口验证原型，完整首版仍按验收清单推进。项目标识统一使用 `mqmz`。Git 提交与双远端推送规范见 [AGENTS.md](AGENTS.md)。
+## 下载
 
-## 开源与功能边界
+安装包从官网下载：<https://mqmz.qimeiit.cn/>
 
-本项目只维护一条公开开源的客户端代码线，按能力分层开放，不拆分“开源版 / 闭源版”两个安装包：
+| 平台 | 架构 | 最低系统 |
+| --- | --- | --- |
+| macOS | Apple Silicon（arm64） | macOS 13 Ventura |
+| Windows | x64 | Windows 10 22H2、Windows 11 |
 
-- 本地功能（桌宠、提醒、待办、置物架、剪贴板、截图、文件转换、音乐与歌词、邮箱收件）无需账号，离线可用。
-- 宠物档案与云端同步需要绑定毛趣映画账户。
-- 交友广场仅对已绑定账户开放，并移出首个公开开源版本；后续开放由服务端运营开关控制。
+macOS Intel 不在支持范围内，不提供构建。Windows ARM 同样不在支持范围内。
 
-客户端不存放任何密钥，接口地址按公开信息对待；账号、设备会话、资源归属与限流全部由服务端校验。完整决策与发布检查见 [开源策略与功能开放边界](docs/open-source-strategy.md)。
+## 功能
 
-## 本地运行
+| 模块 | 内容 |
+| --- | --- |
+| 桌宠 | 待机、拖动、听歌、思考与专注姿态；眨眼与呼吸动效；可缩放、可置顶 |
+| 自定义桌宠 | 上传 1–4 张照片生成同一只宠物的六个状态，按哺乳、鸟、爬宠、节肢、水族分类绘制 |
+| 番茄钟 | 专注/短休/长休、自定义时长、按天统计、宠物状态联动 |
+| 提醒 | 喝水与久坐/护眼提醒，可配置时段、间隔与免打扰 |
+| 待办 | 清单与分组、截止时间、重复规则、到期提醒 |
+| 文件置物架 | 拖入、打开、定位、拖出、移出索引（不动源文件）、一键清空 |
+| 剪贴板 | 文本与图片历史、搜索、固定、保留期与容量上限 |
+| 截图 | 快捷键框选、多屏、预览、复制、保存、联动置物架 |
+| 格式转换 | 图片、PDF、Office、OFD、影音、压缩包，内置引擎离线可用 |
+| 音乐 | QQ 音乐、网易云、Apple Music、酷狗的控制与歌词；可选 AI 互动文案 |
+| 邮件 | QQ、163、126、Gmail 的收件、正文、附件与发送，含数字验证码识别 |
+| 智能体 | 自备 Key 的对话与工具调用，可操作本机的置物架、待办、转换等 |
+| 数据 | 每日自动备份、手动导出与恢复快照 |
 
-使用 Node.js 24 或更新版本及 npm，在图形桌面会话中运行：
+## 从源码构建
+
+需要 Node.js 24 或更新版本，以及可用的图形桌面会话。
 
 ```sh
 npm ci
@@ -38,6 +45,44 @@ node node_modules/electron/install.js
 npm run dev
 ```
 
-macOS 开发模式启动前会执行 `scripts/set-dev-app-name.mjs`，把本地 Electron 开发包名称补成“毛趣萌仔”，让 Dock 和 Command+Tab 不再显示 Electron；打包应用使用 `productName`，不受影响。
+打包：
 
-生产渲染入口使用 `npm run build` 后运行 `npm start`。默认只显示桌宠交互标记；单击或投递文件后，在标记旁显示文件置物架，文件接收即持久化，按住文件本身拖出，可格式转换、另存副本或移出置物架；播放音乐时显示封面、标题和当前歌词的控制栏，可在设置中切换单行药丸或双行样式；鼠标停留在宠物中心会展开番茄时钟、喝水提醒、待办清单和智能体轮盘；置物架齿轮、macOS 菜单栏或托盘可打开设置面板。图片转换已接入 JPG / PNG / WEBP，并支持图片转 PDF、PDF 合并与拆分、批量重命名、ZIP 打包/解压和图片压缩；Office 与音视频仍待后续阶段；正式角色素材仍待制作。大型验证台仅为开发诊断入口，打包版本不会创建它。测试命令为 `npm test`、`npm run test:e2e`，具体实测范围和人工检查步骤见原型记录。
+```sh
+npm run pack:mac   # dist/mqmz-<version>-arm64.dmg
+npm run pack:win   # dist/mqmz-<version>-setup.exe
+```
+
+`pack:mac` 在 macOS 上执行，`pack:win` 可在 Windows 上执行，也可以在 macOS 上交叉构建 NSIS 安装包。打包完成后用 `npm run update:manifest` 生成应用内更新清单。
+
+## 应用内更新
+
+客户端读取 `https://mqmz.qimeiit.cn/latest.json`，比对版本后下载对应平台的安装包，校验 SHA-256，再打开安装程序并退出——macOS 上由你把它拖进「应用程序」，Windows 上运行安装向导。下次启动时如果版本已经更新，客户端会把下载好的安装包移进废纸篓；没装成则保留，下次再说。
+
+没有使用 Squirrel 式自动替换：macOS 上那套机制在当前分发方式下不可靠。清单生成见 `scripts/update-manifest.mjs`（`npm run update:manifest`），发布步骤见 `docs/release/v1.0.0.md`。
+
+开发模式下（未打包）不检查更新。
+
+站点根目录需要能被直接访问到 `latest.json` 与安装包；如果官网是单页应用，不要把更新文件纳入前端路由回退。
+
+## 数据与隐私
+
+本地数据默认不上传，也没有遥测或崩溃上报。只有在你自己配置了第三方服务时，客户端才会直接连接对应服务。完整说明见 [隐私政策](docs/privacy-policy.md)。
+
+## 许可
+
+- 客户端代码：[MIT](LICENSE)
+- 第三方组件、引擎、图标与素材：[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 与 `resources/licenses/`
+
+许可证只覆盖代码，不覆盖线上服务与用户数据。官方名称、官方服务与域名由运营方保留，第三方构建不代表获得官方服务授权。
+
+## 开发资料
+
+- [第一版需求与实施交接](docs/v1-implementation-handoff.md)
+- [开源策略与功能开放边界](docs/open-source-strategy.md)
+- [57 项验收映射](docs/v1-acceptance-matrix.md)
+- [双平台支持矩阵](docs/platform-support-matrix.md)
+- [技术方案](docs/technical-architecture.md)
+- [面板样式规范](docs/design/panel-style-contract.md)
+- [图标规范](docs/design/icon-system.md)
+- [自定义桌宠形象生成](docs/research/pet-generation.md)
+- [智能体 Harness](docs/research/agent-harness.md)

@@ -77,7 +77,7 @@ macOS 替身（Finder alias）没有扩展名，文件名通常就是目标名�
 - macOS：可见主体缩放到 824×824，居中放在 1024 透明画布，符合 Dock 图标网格
 - Windows：可见主体缩放到 236×236，居中放在 256 画布；ICO 内含 16–256 多尺寸
 - 开发模式在 macOS 激活策略切到 `regular` 后重新调用 `app.dock.setIcon`，避免显示 Electron 默认图标
-- `scripts/set-dev-app-name.mjs` 在 `npm run dev` / `npm start` 前把本地 Electron 开发包的 `CFBundleName`、`CFBundleDisplayName` 改为“毛趣萌仔”并重新 ad-hoc 签名，Dock 与 Command+Tab 显示正确名称
+- `scripts/set-dev-app-name.mjs` 在 `npm run dev` / `npm start` 前把本地 Electron 开发包的 `CFBundleName`、`CFBundleDisplayName` 改为“毛趣萌仔”并重新写入本地开发包，Dock 与 Command+Tab 显示正确名称
 - Windows 设置窗口使用 `resources/icons/app-icon-win.png`，打包后的任务栏图标来自 `build/icon.ico`
 
 ## 原生图标与离线分发

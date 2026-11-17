@@ -28,6 +28,10 @@ import type { SettingsState } from './settings'
 import type { PetStatsView } from './pet-stats'
 import type { PetPoseId } from './pet-style'
 import type { PetSpecies } from './pet-species'
+import type { UpdateState } from './update'
+
+/** Windows that can hold work which a forced quit would throw away. */
+export type DirtyScope = 'mail-compose' | 'agent-input'
 export type { ClipboardConfig, ClipboardEntry, ClipboardState } from './clipboard'
 export type {
   AgentApprovalMode,
@@ -449,6 +453,13 @@ export type SettingsPrompt = {
   action: 'add-key'
   at: number
 }
+export type PetCard = {
+  id: string
+  name: string
+  species?: PetSpecies
+  cover?: string
+  active: boolean
+}
 export type PetAssets = {
   id: string
   name: string
@@ -533,6 +544,8 @@ export type BackupState = {
 
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
+  updater: UpdateState
+  unsaved: DirtyScope[]
   petBounds: Rect
   displays: DisplayInfo[]
   scale: number
@@ -595,6 +608,7 @@ export type Snapshot = {
   clipboardOpen: boolean
   clipboard: ClipboardState
   petAssets?: PetAssets
+  pets: PetCard[]
   petStats: PetStatsView
   petCreate: PetCreateState
   shelfFolders: string[]
@@ -738,6 +752,11 @@ export type Command =
   | { type: 'pet-create-save' }
   | { type: 'pet-prompt-save'; prompt: string }
   | { type: 'pet-default' }
+  | { type: 'pet-select'; id: string }
+  | { type: 'update-check' }
+  | { type: 'update-download' }
+  | { type: 'update-install' }
+  | { type: 'dirty-state'; scope: DirtyScope; dirty: boolean }
   | { type: 'extract-audio'; fileIds: string[] }
   | { type: 'convert-open'; fileIds: string[] }
   | { type: 'convert-start'; action: ConvertAction; password?: string }

@@ -1,13 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Snapshot } from '../shared/protocol'
-import { focusDurations, formatFocus } from '../shared/focus'
+import {
+  focusDurations,
+  focusPhaseLabels,
+  formatFocus,
+} from '../shared/focus'
 
 const props = defineProps<{ state?: Snapshot }>()
 const focus = computed(() => props.state?.focus)
+const phase = computed(() => focus.value?.phase ?? 'focus')
 const remaining = computed(() => focus.value?.remaining ?? 0)
+const total = computed(() => {
+  const value = focus.value
+  if (!value) return focusDurations.focus
+  if (phase.value === 'short')
+    return value.shortMinutes * 60 + value.shortSeconds
+  if (phase.value === 'long') return value.longMinutes * 60 + value.longSeconds
+  return value.focusMinutes * 60 + value.focusSeconds
+})
 const progress = computed(() =>
-  Math.max(0, Math.min(1, remaining.value / focusDurations.focus)),
+  Math.max(0, Math.min(1, remaining.value / Math.max(1, total.value))),
 )
 const radius = 25
 const circumference = 2 * Math.PI * radius
@@ -17,13 +30,14 @@ const offset = computed(() => circumference * (1 - progress.value))
 <template>
   <main
     class="focus-badge-shell"
-    :aria-label="`专注剩余 ${formatFocus(remaining)}`"
+    :aria-label="`${focusPhaseLabels[phase]}剩余 ${formatFocus(remaining)}`"
   >
-    <div class="focus-badge-ring">
+    <div class="focus-badge-ring" :class="`is-${phase}`">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle class="focus-badge-track" cx="32" cy="32" :r="radius" />
         <circle
           class="focus-badge-progress"
+          :class="`is-${phase}`"
           cx="32"
           cy="32"
           :r="radius"
@@ -71,17 +85,37 @@ const offset = computed(() => circumference * (1 - progress.value))
   stroke: var(--color-brand-ink);
   stroke-width: 4;
   stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear;
+  transition:
+    stroke-dashoffset 1s linear,
+    stroke 220ms ease-out;
 }
 .focus-badge-ring span {
   position: relative;
   color: var(--color-brand-ink);
+  transition: color 220ms ease-out;
   font-size: 12.5px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
+/* The countdown text, colon included, follows the ring colour. */
+.focus-badge-ring.is-long span {
+  color: var(--color-success);
+}
+.focus-badge-ring.is-short span {
+  color: var(--color-danger);
+}
+.focus-badge-progress.is-focus {
+  stroke: var(--color-brand-ink);
+}
+.focus-badge-progress.is-long {
+  stroke: var(--color-success);
+}
+.focus-badge-progress.is-short {
+  stroke: var(--color-danger);
+}
 @media (prefers-reduced-motion: reduce) {
-  .focus-badge-progress {
+  .focus-badge-progress,
+  .focus-badge-ring span {
     transition: none;
   }
 }

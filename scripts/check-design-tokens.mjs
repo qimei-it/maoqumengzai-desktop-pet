@@ -24,6 +24,17 @@ assert(
 const definitions = new Set(
   [...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]),
 )
+// Desktop-owned palette layer: values live here instead of the generated file.
+const desktop = await readFile(
+  new URL('../src/renderer/styles/desktop-tokens.css', import.meta.url),
+  'utf8',
+)
+for (const match of desktop.matchAll(/(--[\w-]+)\s*:/g))
+  definitions.add(match[1])
+assert(
+  !/var\(--p-/.test(desktop),
+  'Desktop palette must reference semantic tokens, not primitives',
+)
 for (const file of [
   'src/renderer/FilePocket.vue',
   'src/renderer/style.css',

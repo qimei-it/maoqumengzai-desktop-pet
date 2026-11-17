@@ -848,7 +848,7 @@ watch(
 }
 .mail-folder.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .mail-folder svg {
   flex: none;
@@ -941,7 +941,7 @@ watch(
 }
 .mail-account.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .mail-unread {
   display: grid;
@@ -1229,7 +1229,7 @@ watch(
 }
 .mail-reader-icon:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .mail-reader-icon.danger:hover {
   background: var(--color-danger-soft);
@@ -1270,7 +1270,7 @@ watch(
 }
 .mail-move-menu > button:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .mail-move-empty {
   display: block;
@@ -1302,7 +1302,7 @@ watch(
   border: 0;
   border-radius: var(--radius-card);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font: inherit;
   font-size: 30px;
   font-weight: 700;

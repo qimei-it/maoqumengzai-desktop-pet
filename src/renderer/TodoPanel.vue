@@ -2442,7 +2442,7 @@ watch(groups, (value) => {
   padding: 0 4px 0 7px;
   border-radius: var(--radius-control);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-size: var(--font-size-label);
   font-weight: 600;
 }
@@ -2515,7 +2515,7 @@ watch(groups, (value) => {
 }
 .todo-tag-suggestions button:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .todo-edit-toolbar {
   display: flex;
@@ -2543,7 +2543,7 @@ watch(groups, (value) => {
 }
 .todo-edit-repeat.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .todo-edit-tool {
   display: grid;
@@ -2634,7 +2634,7 @@ watch(groups, (value) => {
 }
 .todo-group-menu button.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-weight: 600;
 }
 .todo-group-menu button.danger {
@@ -2975,7 +2975,7 @@ watch(groups, (value) => {
 }
 .todo-icon-tab.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 @media (prefers-reduced-motion: reduce) {
   .todo-smart,

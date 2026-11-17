@@ -55,7 +55,7 @@
 4. 真实 Gmail 账户在打包版中同步成功，状态 `ready`，收件箱 23 封、18 封未读；打开列表首封邮件，正文 13,341 字符且 HTML 正常。
 5. 打包版向账户自身发送纯文本邮件，返回「邮件已发送」；随后发送带 `mqmz-mail-attachment.txt` 的邮件，同样返回「邮件已发送」，已发送文件夹追加成功。
 6. 设置页显示 `Gmail 代理 = 自动（系统）`；切换到手动并保存 `http://127.0.0.1:6152` 后，`mqmz.mail.json` 写入 `proxyMode: manual` 与对应地址；切回自动后恢复 `proxyMode: auto`。
-7. 首次从 Finder 启动时出现一次「毛趣萌仔 Safe Storage」钥匙串授权提示，授权后正常启动；这是未签名 ad-hoc 安装包的首次授权行为，签名后的正式包不应反复出现。
+7. 首次从 Finder 启动时出现一次「毛趣萌仔 Safe Storage」钥匙串授权提示，授权后正常启动；这是首次启动时的一次性授权行为。
 
 测试：`mail-proxy`、`mail`、`mail-sync`、`mail-smtp` 定向单测 48 项通过；`npm run typecheck`、`npm run check:design`、`npm run check:icons` 通过；`prototype.spec.ts -g "邮件客户端设置可添加账户并调整偏好"` 通过；`mail-panel.spec.ts` 6 项通过（其中 Tab 缩进断言首次偶发失败，单独重跑通过）。
 
@@ -64,4 +64,4 @@
 - 本次网络在「直连」模式下也能连上 Gmail，因此不能靠直连失败来反证代理生效；代理路径由 `resolveProxy` 返回值、手动代理配置和单元测试共同确认。
 - 打包版仍只对 Gmail 使用代理；QQ/163 保持直连。
 - Windows x64 的系统代理读取、Gmail 收件与发送仍未验证。
-- 未签名安装包首次访问 `safeStorage` 会触发钥匙串授权；正式分发需要签名与公证。
+- 首次访问 `safeStorage` 会触发一次钥匙串授权。

@@ -6,7 +6,7 @@
 
 | 组件 | 许可 | 来源 | 使用位置 |
 | --- | --- | --- | --- |
-| Filee 轮盘几何与拖拽交互 | MIT，Copyright (c) 2026 Myeonggu Kim (KnifeLemon) and Filee contributors | https://github.com/KnifeLemon/Filee （`src/Filee.App/Controls/DonutGeometry.cs`、`DonutMenu.cs`、`Services/RadialController.cs`） | `src/shared/donut.ts`、`src/renderer/DonutMenu.vue`、`src/main/index.ts` 的窗口扩展；已改写为 TypeScript/Vue 并统一 mqmz 命名 |
+| Filee 轮盘几何、弹簧与拖拽交互 | MIT，Copyright (c) 2026 Myeonggu Kim (KnifeLemon) and Filee contributors | https://github.com/KnifeLemon/Filee （`src/Filee.App/Controls/DonutGeometry.cs`、`DonutMenu.cs`、`Services/RadialController.cs`） | `src/shared/donut.ts`、`src/shared/spring.ts`、`src/renderer/DonutMenu.vue`、`src/main/index.ts` 的窗口扩展、`tests/unit/donut.test.ts`；已改写为 TypeScript/Vue 并统一 mqmz 命名 |
 
 许可证原文：`resources/licenses/filee-MIT.txt`。
 

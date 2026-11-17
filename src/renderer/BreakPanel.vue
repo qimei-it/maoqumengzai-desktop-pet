@@ -306,10 +306,10 @@ function close(): void {
   color: var(--color-muted);
   font-size: var(--font-size-label);
   transition: color var(--motion-fast) var(--ease-standard);
+  font-weight: 600;
 }
 .break-tabs button.active {
   color: var(--color-brand-ink);
-  font-weight: 600;
 }
 .break-tabs button:focus-visible {
   outline-offset: -2px;

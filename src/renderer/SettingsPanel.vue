@@ -112,6 +112,53 @@ const settings = computed<SettingsState>(
   () => props.state?.settings ?? defaultSettings,
 )
 const backup = computed(() => props.state?.backup)
+const updater = computed(() => props.state?.updater)
+const updateText = computed(() => {
+  const state = updater.value
+  if (!state) return '未连接'
+  switch (state.status) {
+    case 'checking':
+      return '检查中'
+    case 'available':
+      return `发现 v${state.version ?? ''}`
+    case 'downloading':
+      return `下载中 ${state.percent ?? 0}%`
+    case 'downloaded':
+      return `v${state.version ?? ''} 已下载`
+    case 'up-to-date':
+      return '已是最新'
+    case 'error':
+      return '检查失败'
+    case 'unavailable':
+      return '当前版本不检查更新'
+    default:
+      return '待检查'
+  }
+})
+const updateAction = computed<'check' | 'download' | 'install' | null>(() => {
+  switch (updater.value?.status) {
+    case 'available':
+      return 'download'
+    case 'downloaded':
+      return 'install'
+    case 'downloading':
+    case 'unavailable':
+      return null
+    default:
+      return 'check'
+  }
+})
+const updateActionLabel = computed(() => {
+  if (updateAction.value === 'download') return '下载'
+  if (updateAction.value === 'install') return '安装并退出'
+  return '检查'
+})
+function runUpdateAction(): void {
+  const action = updateAction.value
+  if (action === 'download') emit('command', { type: 'update-download' })
+  else if (action === 'install') emit('command', { type: 'update-install' })
+  else if (action === 'check') emit('command', { type: 'update-check' })
+}
 const restoreOpen = ref(false)
 function backupSize(bytes: number): string {
   return bytes >= 1024 * 1024
@@ -178,14 +225,19 @@ const themes = themeIds.map((id) => ({ id, label: themeLabels[id] }))
 const activePetCover = computed(
   () => props.state?.petAssets?.poses.base ?? catBase,
 )
-const petProfiles = computed(() => [
-  {
-    id: props.state?.petAssets?.id ?? 'ragdoll',
-    name: settings.value.petName,
-    cover: activePetCover.value,
-    days: props.state?.petStats.daysTogether ?? 0,
-  },
-])
+const petProfiles = computed(() =>
+  (props.state?.pets ?? []).map((pet) => ({
+    id: pet.id,
+    name: pet.name,
+    cover: pet.cover ?? catBase,
+    active: pet.active,
+    note: pet.active
+      ? `已陪伴 ${props.state?.petStats.daysTogether ?? 0} 天`
+      : pet.id === 'default'
+        ? '内置形象'
+        : (pet.species ?? '自定义形象'),
+  })),
+)
 const configured = computed(() => Boolean(props.state?.ai.configured))
 const aiQuota = computed(() => props.state?.aiQuota)
 const openAiAccountStatus = computed(() =>
@@ -1085,14 +1137,6 @@ function onEscape(): void {
           <template v-else-if="section === 'profile'">
             <div class="pet-head">
               <button
-                v-if="state?.petAssets"
-                type="button"
-                class="settings-button"
-                @click="emit('command', { type: 'pet-default' })"
-              >
-                恢复默认
-              </button>
-              <button
                 type="button"
                 class="settings-button pet-create-button"
                 @click="emit('command', { type: 'profile-create' })"
@@ -1107,16 +1151,29 @@ function onEscape(): void {
                 :key="pet.id"
                 type="button"
                 class="pet-card"
-                :aria-label="`打开${pet.name}的宠物档案`"
+                :class="{ 'is-active': pet.active }"
+                :aria-label="
+                  pet.active
+                    ? `打开${pet.name}的宠物档案`
+                    : `切换到${pet.name}`
+                "
+                :aria-current="pet.active ? 'true' : undefined"
                 :title="pet.name"
-                @click="emit('command', { type: 'profile-open' })"
+                @click="
+                  emit(
+                    'command',
+                    pet.active
+                      ? { type: 'profile-open' }
+                      : { type: 'pet-select', id: pet.id },
+                  )
+                "
               >
                 <span class="pet-cover">
                   <img :src="pet.cover" alt="" draggable="false" />
                 </span>
                 <span class="pet-card-meta">
                   <span class="pet-card-name">{{ pet.name }}</span>
-                  <span class="pet-card-days">已陪伴 {{ pet.days }} 天</span>
+                  <span class="pet-card-days">{{ pet.note }}</span>
                 </span>
               </button>
             </div>
@@ -2354,8 +2411,26 @@ function onEscape(): void {
             <div class="settings-row">
               <span class="settings-label">版本</span>
               <span class="settings-value"
-                >v{{ state?.runtime.version ?? '0.0.1' }}</span
+                >v{{ state?.runtime.version ?? '—' }}</span
               >
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">更新</span>
+              <span class="settings-inline">
+                <span
+                  class="settings-value"
+                  :title="updater?.error"
+                  >{{ updateText }}</span
+                >
+                <button
+                  v-if="updateAction"
+                  type="button"
+                  class="settings-button"
+                  @click="runUpdateAction"
+                >
+                  {{ updateActionLabel }}
+                </button>
+              </span>
             </div>
             <div class="settings-row">
               <span class="settings-label">第三方许可</span>
@@ -2431,7 +2506,7 @@ function onEscape(): void {
 }
 .settings-nav button.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-weight: 600;
 }
 .settings-nav button:focus-visible,
@@ -2576,7 +2651,7 @@ function onEscape(): void {
 }
 .engine-status.downloading {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .engine-status.error {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
@@ -2641,6 +2716,9 @@ function onEscape(): void {
   background: transparent;
   color: var(--color-ink);
   text-align: left;
+}
+.pet-card.is-active .pet-cover {
+  border-color: var(--color-brand-on-soft);
 }
 .pet-cover {
   display: grid;
@@ -3009,7 +3087,7 @@ function onEscape(): void {
   text-align: center;
 }
 .bar-style.active {
-  border-color: var(--color-brand-ink);
+  border-color: var(--color-brand-on-soft);
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }

@@ -225,7 +225,9 @@ const petName = computed(() => state.value?.settings.petName || "麻薯");
 const petPose = ref<PetPose>("base");
 const focusActive = computed(() => {
   const focus = state.value?.focus;
-  return !!focus && focus.phase === "focus" && focus.running;
+  // Focus and both breaks share one pet state; only the countdown ring colour
+  // tells the phases apart.
+  return !!focus && focus.running;
 });
 /** Interaction poses win over listening; the blink is only a frame of the base. */
 const displayPose = computed<PetPose>(() => {
@@ -999,7 +1001,10 @@ async function runHoverAction(action: HoverAction): Promise<void> {
     return;
   }
   if (action === "profile") {
+    // Select the section first, then open so the window is raised and focused
+    // even when it is already open behind another app.
     await command({ type: "settings-section", section: "profile" });
+    await command({ type: "settings-open" });
     return;
   }
   if (action === "mail") {

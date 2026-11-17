@@ -537,7 +537,7 @@ onMounted(() => {
   padding: 0 12px;
   border-radius: 999px;
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-size: var(--font-size-label);
   line-height: 1.35;
   text-align: center;
@@ -612,7 +612,7 @@ onMounted(() => {
 .wheel-palette-chip:hover:not(:disabled) {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .wheel-palette-chip:disabled {
   cursor: not-allowed;

@@ -6,7 +6,8 @@
 
 小程序前端 `maoquyinghua-frontend` 中的以下文件作为依据：
 
-- `src/styles/tokens.css`：颜色、字阶、间距、圆角、材质、动效、默认/万圣/圣诞主题的单一事实源。
+- `src/styles/tokens.css`：由小程序生成的间距、字阶、圆角、材质、动效与默认/万圣/圣诞主题。
+- `src/renderer/styles/desktop-tokens.css`：桌面端自有配色层，只覆盖语义色；`sync:design` 不会改动它。
 - `src/styles/patterns.css`：卡片、状态块、按钮、双按钮行和分段控件等复用模式。
 - `docs/design/tokens.md`：主题可变/不变、语义 token 与组件使用规则。
 
@@ -76,7 +77,7 @@ npm run check:design
 
 同步命令默认读取同级工程中的小程序前端；其他目录可以用 `npm run sync:design -- --source <tokens.css路径>` 指定。同步由开发者主动执行；安装和运行桌面应用不依赖小程序仓库，不会在用户设备上下载样式。
 
-构建已包含 `check:design`，检查语义颜色、禁止组件直接引用 `--p-*`、移动单位残留和未定义变量。后续调整优先修改事实源后同步，桌面特有差异留在适配层并记录原因。
+构建已包含 `check:design`，检查语义颜色、禁止组件直接引用 `--p-*`、移动单位残留和未定义变量；`npm run check:contrast` 按 WCAG 2.1 审计三套主题的文本/背景对比度。结构与间距优先修改事实源后同步，桌面配色改 `desktop-tokens.css` 并记录原因。
 
 ## 验证口径
 

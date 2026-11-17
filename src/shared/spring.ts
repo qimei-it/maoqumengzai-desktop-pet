@@ -1,7 +1,12 @@
 /**
- * Minimal damped-spring integrator for the slice hover motion. Values are
- * integrated with semi-implicit Euler on sub-steps so a dropped frame cannot
- * make the animation explode.
+ * Minimal damped-spring integrator for the slice hover motion.
+ *
+ * Ported from Filee's DonutMenu.Spring (MIT, KnifeLemon/Filee): the
+ * stiffness 320 / damping 20 and 36 pair and the 1/120 s sub-steps.
+ * See THIRD-PARTY-NOTICES.md and resources/licenses/filee-MIT.txt.
+ *
+ * Values are integrated with semi-implicit Euler on sub-steps so a dropped
+ * frame cannot make the animation explode.
  */
 export interface SpringConfig {
   /** Higher pulls faster toward the target. */

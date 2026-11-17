@@ -86,6 +86,10 @@ test("opening a panel no longer closes the panels opened before it", async () =>
 test("closing settings discards the pet wizard and resets to appearance", async () => {
   await command("settings-open");
   await expect.poll(() => panelVisible("设置")).toBe(true);
+  // Settings is torn down on close, so always pick up the live page.
+  settings = application
+    .windows()
+    .find((page) => !page.isClosed() && page.url().includes("view=settings"))!;
   await settings.evaluate(() =>
     window.mqmz!.command({ type: "settings-section", section: "profile" }),
   );
@@ -109,8 +113,14 @@ test("closing settings discards the pet wizard and resets to appearance", async 
   await expect.poll(() => panelVisible("设置")).toBe(false);
   await command("settings-open");
   await expect.poll(() => panelVisible("设置")).toBe(true);
+  // The settings window is torn down on close, so the reopened one is a new page.
+  settings = application
+    .windows()
+    .find((page) => !page.isClosed() && page.url().includes("view=settings"))!;
 
-  await expect(wizard).toHaveCount(0);
+  await expect(
+    settings.getByRole("dialog", { name: "新建桌宠" }),
+  ).toHaveCount(0);
   await expect
     .poll(async () => {
       const snapshot = await pet.evaluate(() => window.mqmz!.snapshot());

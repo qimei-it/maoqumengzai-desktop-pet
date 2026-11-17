@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import sharp from 'sharp'
+import { appUserAgent } from '../shared/app-version'
 
 export type CoverTrack = {
   title?: string
@@ -80,7 +81,7 @@ async function fetchImage(url: string): Promise<Buffer | undefined> {
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(6000),
-      headers: { 'User-Agent': 'MaoquMengzai/0.0.1' },
+      headers: { 'User-Agent': appUserAgent },
     })
     if (!response.ok) return undefined
     const type = response.headers.get('content-type') ?? ''
@@ -153,7 +154,7 @@ async function searchItunes(
       `https://itunes.apple.com/search?${query.toString()}`,
       {
         signal: AbortSignal.timeout(6000),
-        headers: { 'User-Agent': 'MaoquMengzai/0.0.1' },
+        headers: { 'User-Agent': appUserAgent },
       },
     )
     if (!response.ok) return undefined

@@ -130,10 +130,13 @@ function close(): void {
           type="button"
           :class="{ active: activePhase === phase }"
           :aria-pressed="activePhase === phase"
+          :disabled="focus?.running === true"
           :title="
-            phase === 'focus'
-              ? '每 4 次专注后进入长休'
-              : undefined
+            focus?.running
+              ? '计时中，暂停或重置后可切换阶段'
+              : phase === 'focus'
+                ? '每 4 次专注后进入长休'
+                : undefined
           "
           @click="choosePhase(phase)"
         >
@@ -364,14 +367,23 @@ function close(): void {
   background: transparent;
   color: var(--color-muted);
   font-size: var(--font-size-label);
+  /* Labels stay bold in every state; icons are SVG and keep their own weight. */
+  font-weight: 600;
   transition: color var(--motion-fast) var(--ease-standard);
 }
 .focus-phases button.active {
   color: var(--color-brand-ink);
-  font-weight: 600;
 }
 .focus-phases button svg {
   flex: none;
+}
+.focus-phases button:disabled {
+  cursor: default;
+  color: var(--color-disabled-text);
+}
+.focus-phases button:disabled.active {
+  color: var(--color-brand-ink);
+  opacity: 0.6;
 }
 .focus-phases button:focus-visible {
   outline-offset: -2px;

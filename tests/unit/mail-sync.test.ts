@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { appVersion } from '../../src/shared/app-version'
 
 const mocks = vi.hoisted(() => ({
   connect: vi.fn(async () => {}),
@@ -265,7 +266,7 @@ describe('mail detail fetch', () => {
     await probeMailAccount('163', 'demo@163.com', 'auth-code')
     expect(mocks.run).toHaveBeenCalledWith('ID', {
       name: 'MaoquMengzai',
-      version: '0.0.1',
+      version: appVersion,
       vendor: 'mqmz',
     })
     const connectOrder = mocks.connect.mock.invocationCallOrder[0]

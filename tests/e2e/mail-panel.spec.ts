@@ -526,6 +526,11 @@ test('邮件列表支持 Delete 和 Backspace 删除并进入确认', async () =
 })
 
 test('添加或编辑账户时隐藏账户卡片', async () => {
+  await pet.evaluate(() => window.mqmz!.command({ type: 'settings-open' }))
+  // Settings is torn down on close; take the live page before driving it.
+  settings = application
+    .windows()
+    .find((page) => !page.isClosed() && page.url().includes('view=settings'))!
   await pet.evaluate(() =>
     window.mqmz!.command({ type: 'settings-section', section: 'mail' }),
   )
@@ -807,6 +812,14 @@ test('compose window only grows and lists each attachment separately', async () 
 })
 
 test('删除当前账户后切换到下一个账户，删除全部后关闭邮件面板', async () => {
+  // Open the panel explicitly so this test does not depend on test order.
+  await pet.evaluate(() => window.mqmz!.command({ type: 'mail-open' }))
+  await expect
+    .poll(async () => {
+      const snapshot = await pet.evaluate(() => window.mqmz!.snapshot())
+      return snapshot.ok ? snapshot.value.mailPanel.accountId : undefined
+    })
+    .toBe(accountId)
   await application.evaluate(({ dialog }) => {
     dialog.showMessageBox = async () => ({
       response: 1,
@@ -862,6 +875,10 @@ test('删除当前账户后切换到下一个账户，删除全部后关闭邮�
         : ''
     })
     .toBe('true:mail')
+  // Settings is torn down on close, so pick up the freshly opened window.
+  settings = application
+    .windows()
+    .find((page) => !page.isClosed() && page.url().includes('view=settings'))!
   await expect(settings.locator('.mail-form')).toBeVisible()
   await pet.evaluate(() => window.mqmz!.command({ type: 'settings-close' }))
 })

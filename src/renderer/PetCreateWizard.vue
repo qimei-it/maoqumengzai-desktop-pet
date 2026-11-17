@@ -323,6 +323,9 @@ function save(): void {
                   aria-hidden="true"
                 />
                 <span v-else class="pet-wizard-pending" aria-hidden="true" />
+              </div>
+              <div class="pet-wizard-pose-meta">
+                <span class="pet-wizard-pose-label">{{ pose.label }}</span>
                 <button
                   v-if="(pose.url || pose.status === 'error') && !busy"
                   type="button"
@@ -338,12 +341,11 @@ function save(): void {
                   />
                 </button>
               </div>
-              <span class="pet-wizard-pose-label">{{ pose.label }}</span>
               <span
                 v-if="pose.status === 'error'"
                 class="pet-wizard-pose-error"
                 :title="pose.error"
-                >失败</span
+                >{{ pose.error ? `失败：${pose.error}` : '失败' }}</span
               >
             </div>
           </div>
@@ -648,10 +650,8 @@ function save(): void {
   animation: pet-wizard-spin 0.9s linear infinite;
 }
 .pet-wizard-refresh {
-  position: absolute;
-  top: 5px;
-  right: 5px;
   display: grid;
+  flex: none;
   place-items: center;
   width: 24px;
   height: 24px;
@@ -663,9 +663,15 @@ function save(): void {
   opacity: 0.55;
   transition: opacity 0.15s ease;
 }
-.pet-wizard-pose:hover .pet-wizard-refresh,
 .pet-wizard-refresh:focus-visible {
   opacity: 1;
+}
+.pet-wizard-pose-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
 }
 .pet-wizard-pose-label {
   color: var(--color-ink);
@@ -673,9 +679,13 @@ function save(): void {
   text-align: center;
 }
 .pet-wizard-pose-error {
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-danger);
-  font-size: var(--font-size-label);
+  font-size: var(--font-size-caption);
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pet-wizard-foot {
   display: flex;

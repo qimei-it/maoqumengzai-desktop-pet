@@ -301,7 +301,7 @@
 - [x] 引擎来源、版本、校验、平台差异与许可材料已记录；内置引擎随包自检并在打包应用断网首用通过；FFmpeg 作为内置引擎随 macOS/Windows 安装包分发，LibreOffice 可选并支持本地选择与卸载清理，Windows x64 按用户要求暂缓。
 - [x] 图片、两页 PDF、CSV/Markdown/HTML、Office、OFD、音视频、复杂表格、透明图与损坏文件真实样例通过；最低系统与 Windows x64 按用户要求暂缓。
 - [x] 缺引擎、组件损坏、不支持、损坏文件、加密 PDF、权限不足、磁盘不足、密码错误与取消均有独立反馈；批量部分失败保留成功结果。
-- 当前证据（2026-11-12）：133 项单元测试、完整 Electron 套件 43 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 未签名 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
+- 当前证据（2026-11-12）：133 项单元测试、完整 Electron 套件 43 通过/1 跳过；HEIC/BMP/TIFF/GIF、PDF→PNG/JPG/TXT、CSV/XLSX、TXT/MD/HTML→PDF、OFD→PDF/PNG/JPG、FLV→MP4/OGG、7Z 打包解压、RAR 解压、LibreOffice 26.8.2.2 DOCX→PDF 与 DOC→DOCX 均已实测；复杂 XLSX（合并单元格与长中文）→ PDF 中文正常且可抽取文本；透明 PNG→JPG 白底；批量部分失败保留成功结果；提取音频复用转换成功面板；macOS arm64 本机构建 dir 包验证 OFD/7Z/RAR。macOS 27 上 LibreOffice 需用 `--invisible` 才能正确回退中文字体。qpdf 12.4.2 完成 PDF 加密、错误密码与解除密码实测；打包应用在内置引擎自检通过后断网完成图片转换，FFmpeg 下载按预期失败并提示检查网络。权限只读目录、磁盘不足与 7-Zip 组件缺失均已实测独立反馈。FFmpeg 已切换为 AgentDVR LGPL v3 9.0.2 构建，安装后确认无 GPL/nonfree 标志，MOV → MP4/MKV/WebM/GIF/动态 WebP/MP3、WAV → MP3、FLV → MP4/OGG 与提取音频均通过；macOS 使用 VideoToolbox，Windows 使用 Media Foundation。qpdf 12.4.2 已随包内置，PDF 加密/解除密码无需本机安装。
 
 ### P6：宠物档案与账号（下一版；交友延后）
 
@@ -345,7 +345,7 @@
 - [ ] 记录空闲、工作台打开、邮箱运行和转换期间的 CPU、内存、磁盘与通知表现，确定并核对资源预算。
 - [ ] 验证未联网、本地服务异常、Key 失效、云端不可用时的功能状态和数据保护。
 - [ ] 验证安装、更新、迁移、退出、卸载与保留/清理本地数据的行为。
-- [ ] 完成签名/公证、更新来源与校验、第三方声明及操作说明；所需证书和发布账户单独列明。
+- [ ] 完成更新来源与校验、第三方声明及操作说明；所需发布账户单独列明。
 - [ ] 逐条回查第一版需求；区分已实测、仅 mock、待凭据、待平台或其他外部条件，不把构建成功当成双平台交付完成。
 
 ## 7. 新对话开始时的执行方式
@@ -360,7 +360,7 @@
 
 这些不阻止工程初始化，但必须在相应功能交付前明确：
 
-- 最低操作系统版本、支持架构与直接安装包分发渠道已确认；签名/公证材料及矩阵中尚缺的测试环境待补。
+- 最低操作系统版本、支持架构与直接安装包分发渠道已确认；矩阵中尚缺的测试环境待补。
 - 默认麻薯的显示尺寸与现有动效验收；首版不涉及动作帧数/时长、自由活动范围与完整手势判定。
 - 档案图质量不足、遮挡、猫狗之外物种等专属制作策略。
 - 火山方舟模型选型、生成一致性、透明处理、积分定价和失败/重做规则。

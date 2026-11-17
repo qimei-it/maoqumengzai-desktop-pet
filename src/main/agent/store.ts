@@ -324,7 +324,10 @@ function normalizeSessions(
   }))
 }
 
-export async function loadAgentStore(path: string): Promise<AgentStore> {
+export async function loadAgentStore(
+  path: string,
+  onCorrupt?: (backupPath: string) => void,
+): Promise<AgentStore> {
   try {
     const raw = JSON.parse(await readFile(path, 'utf8')) as unknown
     if (!isRecord(raw) || !Array.isArray(raw.sessions))
@@ -356,7 +359,18 @@ export async function loadAgentStore(path: string): Promise<AgentStore> {
       ),
       projects,
     }
-  } catch {
+  } catch (error) {
+    // A damaged file is moved aside instead of being overwritten, so the user
+    // can still recover their history by hand.
+    const code =
+      typeof error === 'object' && error !== null
+        ? (error as { code?: string }).code
+        : undefined
+    if (code !== 'ENOENT') {
+      const backup = `${path}.corrupt-${Date.now()}`
+      await rename(path, backup).catch(() => {})
+      onCorrupt?.(backup)
+    }
     return { sessions: [], projects: [] }
   }
 }

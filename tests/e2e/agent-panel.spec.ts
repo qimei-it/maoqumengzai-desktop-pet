@@ -948,7 +948,9 @@ test('pet profile section exposes the create entry', async () => {
       '最多添加 4 张同一只宠物的照片，建议 2–4 张，可一次选择多张；如穿衣服或戴配饰，请保持同一套。照片仅用于本次生成，保存或放弃后会删除。',
     )
     .hover()
-  await expect(wizard.getByRole('tooltip')).toHaveCSS('opacity', '1')
+  await expect(
+    wizard.getByRole('tooltip').filter({ hasText: '最多添加 4 张' }),
+  ).toHaveCSS('opacity', '1')
   const nameInput = wizard.getByLabel('桌宠名字')
   await nameInput.fill('麻薯')
   await expect(

@@ -1812,7 +1812,12 @@ test("actual Electron windows render with isolation, transparency, and a pixel m
   await expect(pill.locator(".pill-cover")).toHaveCount(1);
   await expect(pill.locator(".pill-meta")).toHaveCount(1);
   const version = await lab.evaluate(() => window.mqmz!.snapshot());
-  expect(version.ok && version.value.runtime.version).toBe("0.0.1");
+  const packageVersion = JSON.parse(
+    await readFile(resolve("package.json"), "utf8"),
+  ) as { version: string };
+  expect(version.ok && version.value.runtime.version).toBe(
+    packageVersion.version,
+  );
   expect(await lab.locator("vite-error-overlay").count()).toBe(0);
   const details = await application.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().map((window) => ({

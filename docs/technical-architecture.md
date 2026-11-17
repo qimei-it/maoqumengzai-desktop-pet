@@ -89,7 +89,7 @@ tests/
 
 ## 5. 本地数据与凭据
 
-- 稳定应用 ID 拟定为 `com.mqmz.desktop`，凭据用途标识沿用 `com.mqmz.desktop.mail` 等；发布签名与 ID 固定后保持一致。
+- 稳定应用 ID 拟定为 `com.mqmz.desktop`，凭据用途标识沿用 `com.mqmz.desktop.mail` 等；应用 ID 固定后保持一致。
 - 在首个窗口/会话创建前显式设置本应用 `userData`：Windows 使用系统 LocalAppData 下的 `mqmz-desktop`，预期为 `%LOCALAPPDATA%/mqmz-desktop`；macOS 使用 `app.getPath('appData')` 下的 `mqmz-desktop`，预期为 `~/Library/Application Support/mqmz-desktop`。实际路径以系统解析为准，见 [Electron app 文档](https://www.electronjs.org/docs/latest/api/app)与 [Windows Known Folders](https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid)。Windows 采用本地目录，避免将设备历史默认放入漫游配置目录；应用不发起自动同步或云备份。
 - 子目录划分为 `db/`、`credentials/`、`cache/`、`assets/`、`jobs/`、`logs/` 与 Chromium 会话目录；数据库拟名 `mqmz.sqlite3`，表如 `mqmz_settings`、`mqmz_todos`、`mqmz_reminder_records`、`mqmz_clipboard_items`、`mqmz_conversion_jobs`。
 - P0 最小置物架已用 `mqmz.file-shelf.json` 持久化本地文件与文件夹索引，原件保留原处；索引 `version: 2` 记录 `kind`，读取时兼容只有文件的 `version: 1`。文件夹只在置物架保存引用，不统计体积、不支持拖出，可定位和移出。P3 接入 SQLite 时迁移并保留这些记录。文件卡片独立为旁侧轻窗口；大型开发诊断台不进入正式版。
@@ -98,7 +98,7 @@ tests/
 - 文件拖入桌宠时使用 Filee 式等分圆环（MIT 移植）：十个 36° 扇区为置物架、格式转换、打包归档、解压缩、压缩大小、吃掉、另存副本、发送邮件、批量重命名、智能问答，中心是宠物、松手取消；扇区间距 3px 等宽、圆角 6px、悬停弹出 7px；外缘用径向渐变光晕（外径 +22，峰值 20%）。圆环只在拖拽期间存在，不额外占用常驻窗口；展开时先把透明窗口从 132×156 瞬间切到 312×312 DIP、再挂载轮盘（窗口不参与动画，避免裁剪），关闭时先播完轮盘收起再恢复窗口。
 - 原始文件保持在原处；置物架保存索引。截图、附件、缓存、素材与引擎采用各自明确的所有权/清理策略。
 - 清理先展示类别与大小；固定项、凭据、历史、下载素材与临时文件分开处理，保护运行中的任务，不因移除索引删除用户源文件。SQLite 清理通过事务执行，不在运行中直接删除数据库文件。
-- 使用 Electron `safeStorage` 异步接口保护邮箱、DeepSeek 等凭据，密文写本机，UI 只展示脱敏状态；密钥不可用时停止相关认证，不回退明文存储。其 macOS Keychain、Windows DPAPI 语义和签名要求见 [safeStorage 文档](https://www.electronjs.org/docs/latest/api/safe-storage)。本方案不承诺防止同一已登录用户下的所有恶意进程读取数据。
+- 使用 Electron `safeStorage` 异步接口保护邮箱、DeepSeek 等凭据，密文写本机，UI 只展示脱敏状态；密钥不可用时停止相关认证，不回退明文存储。其 macOS Keychain 与 Windows DPAPI 语义见 [safeStorage 文档](https://www.electronjs.org/docs/latest/api/safe-storage)。本方案不承诺防止同一已登录用户下的所有恶意进程读取数据。
 - 系统凭据加密不代表 SQLite 与所有文件均已加密；历史保留、敏感剪贴板排除和清理仍需单独实现。
 - 云端账户缓存按业务账户隔离；切换/退出清理旧会话与旧额度状态。设备级离线工具记录不因云端退出被误删。
 - 日志不记录凭据、邮件正文、验证码、剪贴板/截图正文或本地文件内容；不开启自动上传日志、故障转储、遥测或自动云备份。
@@ -129,9 +129,9 @@ tests/
 
 Windows x64、macOS arm64 各自构建独立安装包，使用 electron-builder 的普通 NSIS 与 DMG 目标，不采用需要联网取主载荷的 Web installer。引擎及其动态库、资源、必要运行时放到 `extraResources`，避免放进只读 ASAR 后无法直接执行；打包设置依据见 [electron-builder 配置](https://www.electron.build/v26/docs/configuration/)。
 
-每个引擎制品必须有清单：ID、版本、来源、适用系统/架构、支持的转换方向、SHA-256、入口、附带运行时/资源、许可/源码材料、签名状态、压缩与安装后体积。校验失败、错架构或组件缺失时显示具体错误，不在后台偷偷下载修复。
+每个引擎制品必须有清单：ID、版本、来源、适用系统/架构、支持的转换方向、SHA-256、入口、附带运行时/资源、许可/源码材料、校验状态、压缩与安装后体积。校验失败、错架构或组件缺失时显示具体错误，不在后台偷偷下载修复。
 
-FFmpeg 作为内置引擎随安装包分发：macOS arm64 与 Windows x64 分别把 LGPL v3 9.0.2 制品放入 `extraResources/engines/ffmpeg`，安装后直接从只读资源目录运行，不依赖首次下载。历史在线安装器保留为开发环境或随包制品缺失时的兼容回退；直连 GitHub Release 失败时仍依次尝试 `gh-proxy.com`、`ghproxy.net`、`ghfast.top`，安装前以清单中的 SHA-256 校验。兰州大学 Jellyfin 镜像只有 GPL 构建，且 macOS 制品为未公证的便携包，不能替代当前 LGPL v3 制品。
+FFmpeg 作为内置引擎随安装包分发：macOS arm64 与 Windows x64 分别把 LGPL v3 9.0.2 制品放入 `extraResources/engines/ffmpeg`，安装后直接从只读资源目录运行，不依赖首次下载。历史在线安装器保留为开发环境或随包制品缺失时的兼容回退；直连 GitHub Release 失败时仍依次尝试 `gh-proxy.com`、`ghproxy.net`、`ghfast.top`，安装前以清单中的 SHA-256 校验。兰州大学 Jellyfin 镜像只有 GPL 构建，且 macOS 制品为未经校验的便携包，不能替代当前 LGPL v3 制品。
 
 以下只核实候选的许可起点，**尚未取得和验证三平台制品，也未固定最终引擎组合**：
 
@@ -151,7 +151,7 @@ P5 的引擎安装任务改为全量内置与完整性管理。卸载本地历�
 - 本轮完成文档方案、公开元数据核实、映射覆盖与一致性检查；不把它们计为 P1 构建或任何真实服务通过。
 - 全量离线验收：干净系统断网安装；不预装 Office/引擎/运行时；首次转换执行全部白名单方向，验证无下载、无外传、原件保留、失败可解释；双架构和最低系统分别留证。
 - 安装包体积与空闲/转换资源预算待实际引擎组成和原型测量后确定，不能当前估算为已达标。
-- 仍缺 Windows 10 与 macOS 13 的运行证据；Windows 11 细节待补；签名/公证材料、更新托管、各服务授权、引擎最终组合与许可清单待相应阶段落实。
+- 仍缺 Windows 10 与 macOS 13 的运行证据；Windows 11 细节待补；更新托管、各服务授权、引擎最终组合与许可清单待相应阶段落实。
 - 第 3 项已实现透明窗口与交互原型，实测范围和剩余项见 [窗口原型记录](p0-window-prototype.md)；播放器、邮箱、额度与动画按用户要求逐项推进。
 
 ## 9. 主要官方参考

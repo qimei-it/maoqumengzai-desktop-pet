@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { realpath, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
+import { shellRisk } from '../../shared/shell-safety'
+import { redactSecrets } from '../../shared/redact'
 import type {
   AgentApproval,
   AgentApprovalMode,
@@ -562,7 +564,7 @@ function escapeAttribute(value: string): string {
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback
+  return redactSecrets(error instanceof Error ? error.message : fallback)
 }
 
 function artifactKind(name: string): AgentArtifactKind {
@@ -1874,6 +1876,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     argsText: string,
   ): Promise<boolean> {
     return new Promise((resolve) => {
+      const risk =
+        tool.name === 'shell_run' && typeof args.command === 'string'
+          ? shellRisk(args.command)
+          : { level: 'medium' as const, reasons: [] as string[] }
       const info: AgentApproval = {
         id: randomUUID(),
         name: tool.name,
@@ -1881,10 +1887,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         args: truncate(argsText, 1500),
         reason:
           tool.name === 'shell_run'
-            ? '每条命令都需要确认'
+            ? risk.reasons.length
+              ? `命令包含高风险操作：${risk.reasons.join('、')}`
+              : '每条命令都需要确认'
             : paidTools.has(tool.name)
               ? '生成媒体会消耗额度，每次都需要确认'
               : '执行模式下的写操作需要确认',
+        ...(risk.reasons.length ? { danger: true } : {}),
       }
       pending = { info, resolve }
       emit()

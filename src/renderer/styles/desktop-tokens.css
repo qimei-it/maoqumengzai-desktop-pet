@@ -1,0 +1,28 @@
+/* Desktop-owned palette layer.
+ *
+ * tokens.css is generated from the mini-program design source and keeps the
+ * shared structure: spacing, radii, type scale, component patterns. This file
+ * is the desktop product's own colour identity and overrides semantic colours
+ * only. npm run sync:design never touches it.
+ *
+ * Keep every value here readable against the surface it is used on; run
+ * `npm run check:contrast` after changing anything.
+ */
+
+:root {
+  /* WCAG AA against #ffffff (5.06) and #fbf1e3 (4.53). */
+  --color-warning: #a05f1b;
+  /* WCAG AA against #ffffff (5.85) and #e8f3ec (5.15). */
+  --color-success: #287247;
+  /* Brand text that sits on --color-brand-soft; 4.58 there instead of 4.12. */
+  --color-brand-on-soft: #a45242;
+}
+
+/* The two seasonal themes already meet AA with their own brand inks. */
+.theme-halloween {
+  --color-brand-on-soft: #76567e;
+}
+
+.theme-christmas {
+  --color-brand-on-soft: #4d715e;
+}

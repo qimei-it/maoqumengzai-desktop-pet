@@ -1,11 +1,17 @@
 {
   "name": "mqmz-desktop-pet",
   "productName": "毛趣萌仔",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
-  "description": "毛趣萌仔 P0 桌面交互原型",
+  "description": "毛趣萌仔：本地优先的桌面宠物与效率工具",
+  "license": "MIT",
+  "author": "保定奇鹛信息技术有限公司",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qimei-it/mqyh-maoqumengzai.git"
+  },
   "scripts": {
     "dev": "node scripts/set-dev-app-name.mjs && electron-vite dev",
     "typecheck": "vue-tsc --noEmit",
@@ -14,6 +20,7 @@
     "sync:design": "node scripts/sync-design-tokens.mjs",
     "sync:fxemoji": "node scripts/fetch-fxemoji.mjs",
     "check:design": "node scripts/check-design-tokens.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "check:engines": "vitest run tests/unit/engines.test.ts",
     "generate:icons": "node scripts/generate-native-icons.mjs",
     "generate:app-icons": "node scripts/generate-app-icons.mjs",
@@ -21,7 +28,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "pack:mac": "npm run build && electron-builder --mac dmg --arm64 --publish never",
-    "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never"
+    "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "update:manifest": "node scripts/update-manifest.mjs"
   },
   "engines": {
     "node": ">=24"

@@ -789,7 +789,7 @@ function close(): void {
   border: 0;
   border-radius: var(--radius-control);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font: inherit;
   font-size: var(--font-size-label);
   font-weight: 600;

@@ -283,7 +283,7 @@ function start(): void {
   letter-spacing: 0.04em;
 }
 .archive-format.selected {
-  border-color: var(--color-brand-ink);
+  border-color: var(--color-brand-on-soft);
   background: var(--color-brand-soft);
   color: var(--color-brand-ink);
 }

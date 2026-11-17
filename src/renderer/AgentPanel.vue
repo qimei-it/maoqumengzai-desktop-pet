@@ -177,6 +177,19 @@ const progressLabel = computed(() => {
 const draft = ref('')
 const attachments = ref<AgentAttachmentPick[]>([])
 const attachmentError = ref('')
+
+/** Lets the updater warn before quitting with an unsent message. */
+let lastDirty: boolean | undefined
+watch(
+  [draft, () => attachments.value.length],
+  () => {
+    const dirty = Boolean(draft.value.trim()) || attachments.value.length > 0
+    if (dirty === lastDirty) return
+    lastDirty = dirty
+    emit('command', { type: 'dirty-state', scope: 'agent-input', dirty })
+  },
+  { immediate: true },
+)
 const attachmentPreviews = ref<Record<string, string>>({})
 const skillsOpen = ref(false)
 const skillQuery = ref('')
@@ -3281,8 +3294,15 @@ function statusLabel(status: string): string {
                         <span
                           v-if="skill.requires"
                           class="agent-skill-requires"
-                          :title="skill.requires"
-                          >需配置</span
+                          :class="{ 'is-missing': skill.missing?.length }"
+                          :title="
+                            skill.missing?.length
+                              ? `${skill.requires}（缺少：${skill.missing.join('、')}）`
+                              : skill.requires
+                          "
+                          >{{
+                            skill.missing?.length ? '缺少依赖' : '需配置'
+                          }}</span
                         >
                       </span>
                       <span class="agent-skill-description">{{
@@ -4084,14 +4104,18 @@ function statusLabel(status: string): string {
             </div>
           </div>
 
-          <div v-if="agent?.approval" class="agent-approval">
+          <div
+            v-if="agent?.approval"
+            class="agent-approval"
+            :class="{ 'is-danger': agent.approval.danger }"
+          >
             <div class="agent-approval-head">
               <AlertTriangle
                 :size="15"
                 :stroke-width="2"
                 aria-hidden="true"
               />
-              <span>需要确认</span>
+              <span>{{ agent.approval.danger ? '高风险命令' : '需要确认' }}</span>
               <span class="agent-approval-reason">{{
                 agent.approval.reason
               }}</span>
@@ -5556,7 +5580,7 @@ function statusLabel(status: string): string {
 }
 .agent-skills-entry.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-session-search {
   display: flex;
@@ -5642,7 +5666,7 @@ function statusLabel(status: string): string {
 }
 .agent-settings:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-settings:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -5694,7 +5718,7 @@ function statusLabel(status: string): string {
 }
 .agent-section-action:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-project {
   margin-top: var(--space-1);
@@ -5906,7 +5930,7 @@ function statusLabel(status: string): string {
   border: 1px dashed var(--color-brand);
   border-radius: var(--radius-card);
   background: color-mix(in srgb, var(--color-brand-soft) 92%, transparent);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   pointer-events: none;
 }
 .agent-drop-hint-inner {
@@ -6088,7 +6112,7 @@ function statusLabel(status: string): string {
 }
 .agent-message-file-save:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-message-file-save:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -6116,7 +6140,7 @@ function statusLabel(status: string): string {
 }
 .agent-message-action:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-message-action:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -6217,7 +6241,7 @@ function statusLabel(status: string): string {
 }
 .agent-tool-action:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-tool-action:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -6367,6 +6391,13 @@ function statusLabel(status: string): string {
   border-radius: var(--radius-card);
   background: var(--color-warning-soft);
   user-select: text;
+}
+.agent-approval.is-danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.agent-approval.is-danger .agent-approval-head {
+  color: var(--color-danger);
 }
 .agent-approval-head {
   display: flex;
@@ -6556,7 +6587,7 @@ function statusLabel(status: string): string {
   padding: 1px 4px;
   border-radius: var(--radius-xs);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--font-size-label);
   white-space: nowrap;
@@ -6634,7 +6665,7 @@ function statusLabel(status: string): string {
   padding: 0 6px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 18px;
@@ -6672,7 +6703,7 @@ function statusLabel(status: string): string {
 }
 .agent-attach:hover:not(:disabled) {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-attach:disabled {
   cursor: default;
@@ -6702,7 +6733,7 @@ function statusLabel(status: string): string {
 }
 .agent-workspace-select:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-workspace-select svg {
   flex: none;
@@ -6968,7 +6999,7 @@ function statusLabel(status: string): string {
 }
 .agent-approval-select:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-approval-select:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -7243,7 +7274,7 @@ function statusLabel(status: string): string {
   padding: 0 6px;
   border-radius: var(--radius-pill, 999px);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 18px;
@@ -7295,7 +7326,7 @@ function statusLabel(status: string): string {
 }
 .agent-generation-trigger:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-generation-trigger:focus-visible {
   outline: var(--mqmz-focus-ring);
@@ -7890,7 +7921,7 @@ function statusLabel(status: string): string {
 }
 .agent-icon-button:hover {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-icon-button:disabled {
   background: transparent;
@@ -8307,7 +8338,7 @@ function statusLabel(status: string): string {
   height: 34px;
   border-radius: var(--radius-control);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 .agent-skill-icon.is-large {
   width: 40px;
@@ -8334,12 +8365,16 @@ function statusLabel(status: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-skill-requires.is-missing {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
 .agent-skill-requires {
   flex: none;
   padding: 0 6px;
   border-radius: var(--radius-pill);
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
   font-size: var(--font-size-caption);
   line-height: 18px;
   white-space: nowrap;
@@ -8716,7 +8751,7 @@ function statusLabel(status: string): string {
 }
 .agent-move-row.active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
+  color: var(--color-brand-on-soft);
 }
 @keyframes agent-pulse {
   0%,

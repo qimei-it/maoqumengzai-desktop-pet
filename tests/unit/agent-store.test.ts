@@ -180,6 +180,26 @@ test('ignores corrupt or unknown files', async () => {
   })
 })
 
+test('backs up a damaged store instead of overwriting it', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
+  const path = join(directory, 'agent.json')
+  await writeFile(path, '{broken')
+  const backups: string[] = []
+  expect(await loadAgentStore(path, (backup) => backups.push(backup))).toEqual({
+    sessions: [],
+    projects: [],
+  })
+  expect(backups).toHaveLength(1)
+  expect(await readFile(backups[0]!, 'utf8')).toBe('{broken')
+
+  // A missing file is normal first-run state and must not create a backup.
+  const missingBackups: string[] = []
+  await loadAgentStore(join(directory, 'missing.json'), (backup) =>
+    missingBackups.push(backup),
+  )
+  expect(missingBackups).toEqual([])
+})
+
 test('filters invalid rows without dropping valid ones', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-agent-store-'))
   const path = join(directory, 'agent.json')

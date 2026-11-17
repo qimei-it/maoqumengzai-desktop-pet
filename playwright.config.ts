@@ -1,4 +1,9 @@
 import { defineConfig } from '@playwright/test'
+
+// Panels are created on demand in production; the existing suite expects every
+// window to exist after launch, so tests opt into eager creation.
+process.env.MQMZ_EAGER_WINDOWS = '1'
+
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 45_000,

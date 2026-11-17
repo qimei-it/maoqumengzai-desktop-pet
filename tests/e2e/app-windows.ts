@@ -24,7 +24,6 @@ export const requiredWindowTitles = [
   '音符',
   '音量',
   '音乐开关',
-  '歌词',
   '气泡',
   '提示',
 ] as const
