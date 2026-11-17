@@ -10649,6 +10649,7 @@ function setupIpc(): void {
       'hide-pocket',
       'drop-mode',
       'remove-file',
+      'clear-shelf',
       'reveal-file',
       'save-copy',
       'copy-to',
@@ -10928,6 +10929,22 @@ function setupIpc(): void {
         }
         refreshPocketLayout()
         addEvent('已移除文件索引；源文件保留。')
+        break
+      }
+      case 'clear-shelf': {
+        const count = files.size
+        if (!count) break
+        const previous = new Map(files)
+        files.clear()
+        try {
+          await saveShelf()
+        } catch (error) {
+          for (const [id, file] of previous) files.set(id, file)
+          throw error
+        }
+        shelfInvalidCount = 0
+        refreshPocketLayout()
+        addEvent(`已清空置物架 ${count} 项；源文件保留。`)
         break
       }
       case 'reveal-file':

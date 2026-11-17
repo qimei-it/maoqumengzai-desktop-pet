@@ -185,7 +185,7 @@ function commandForSelected(
           另存副本
         </button>
         <button
-          class="settings-button"
+          class="settings-button danger"
           :disabled="noSelection"
           @click="commandForSelected('remove-file')"
         >
@@ -197,6 +197,12 @@ function commandForSelected(
           @click="commandForSelected('reveal-file')"
         >
           定位源文件
+        </button>
+        <button
+          class="settings-button danger"
+          @click="emit('command', { type: 'clear-shelf' })"
+        >
+          清空置物架
         </button>
       </div>
     </section>

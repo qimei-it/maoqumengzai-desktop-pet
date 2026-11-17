@@ -582,6 +582,7 @@ export type Command =
   | { type: 'scale'; scale: number }
   | { type: 'move-display'; displayId: number }
   | { type: 'remove-file'; fileId: string }
+  | { type: 'clear-shelf' }
   | { type: 'reveal-file'; fileId: string }
   | { type: 'save-copy'; fileId: string }
   | { type: 'copy-to'; fileIds: string[]; folderIds: string[]; destination: string }

@@ -95,6 +95,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({ type: z.literal('move-display'), displayId: z.number().int() })
     .strict(),
   z.object({ type: z.literal('remove-file'), fileId }).strict(),
+  z.object({ type: z.literal('clear-shelf') }).strict(),
   z.object({ type: z.literal('reveal-file'), fileId }).strict(),
   z.object({ type: z.literal('save-copy'), fileId }).strict(),
   z
