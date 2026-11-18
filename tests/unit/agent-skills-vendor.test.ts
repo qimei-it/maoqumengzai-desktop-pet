@@ -33,30 +33,36 @@ describe('vendored research skills', () => {
       expect(skill.name.trim().length).toBeGreaterThan(0)
     }
     const enabled = list.filter((item) => item.enabled)
-    expect(enabled.length).toBe(37)
+    expect(enabled.length).toBe(27)
     expect(enabled.map((item) => item.name)).toEqual(
       expect.arrayContaining([
-        'research-lookup',
+        '桌宠形象生成',
+        '图像生成',
+        '视频生成',
+        '语音生成',
+        'pdf',
+        'academic-pptx',
+        'peer-review',
         'scientific-writing',
         'nature-writing',
         'nature-reviewer',
+        'nature-citation',
+        'nature-reader',
+        'nature-polishing',
+        'nature-paper-xray',
         'humanizer',
-        'docx',
         'web-search',
+        'skill-scanner',
+        'find-skills',
         'amazon-listing-optimization',
-        'academic-pptx',
         'impeccable',
-        'baoyu-format-markdown',
-        'ecommerce-visual-copywriting',
         'copywriting',
         'marketing-campaigns',
         'ecommerce-business-plan',
-        'tiktok-shop-operator',
-        'video-script-writer',
+        'ecommerce-visual-copywriting',
+        'geo-content-optimizer',
         'cinematic-giant-visual-prompts',
         'ads-audit',
-        'geo-content-optimizer',
-        '桌宠形象生成',
       ]),
     )
     const files = await store.files('builtin-k-dense-research-lookup')

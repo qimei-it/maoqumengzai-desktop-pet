@@ -4,10 +4,10 @@ import {
   formatMailListDate,
 } from '../../src/shared/mail-date'
 
-const now = new Date('2026-11-13T12:00:00+08:00').getTime()
-const today = new Date('2026-11-13T08:30:00+08:00').getTime()
-const thisYear = new Date('2026-03-05T08:30:00+08:00').getTime()
-const lastYear = new Date('2025-12-31T08:30:00+08:00').getTime()
+const now = new Date(2026, 10, 13, 12, 0).getTime()
+const today = new Date(2026, 10, 13, 8, 30).getTime()
+const thisYear = new Date(2026, 2, 5, 8, 30).getTime()
+const lastYear = new Date(2025, 11, 31, 8, 30).getTime()
 
 describe('mail date labels', () => {
   test('list dates hide the year for the current year', () => {
