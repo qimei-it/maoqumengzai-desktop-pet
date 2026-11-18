@@ -1,9 +1,21 @@
 /** Confirmed shell execution. Kept out of the tool layer so it can be tested alone. */
 
+import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import type { ServiceResult, ShellOutput } from './contracts'
 
 const maxOutput = 64 * 1024
+
+/** macOS keeps zsh; other Unix hosts may only ship bash or sh. */
+function unixShell(): string {
+  const candidates =
+    process.platform === 'darwin'
+      ? ['/bin/zsh', process.env.SHELL, '/bin/bash', '/bin/sh']
+      : [process.env.SHELL, '/bin/bash', '/bin/sh', '/bin/zsh']
+  for (const candidate of candidates)
+    if (candidate && existsSync(candidate)) return candidate
+  return '/bin/sh'
+}
 
 export type ShellInput = {
   command: string
@@ -32,7 +44,7 @@ export async function runShell(
 
   return new Promise((resolve) => {
     const child = spawn(
-      windows ? 'cmd.exe' : '/bin/zsh',
+      windows ? 'cmd.exe' : unixShell(),
       windows ? ['/d', '/s', '/c', command] : ['-lc', command],
       {
         cwd: input.workspace!,
