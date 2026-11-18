@@ -604,6 +604,7 @@ export type Snapshot = {
   waterOpen: boolean
   breakOpen: boolean
   todoOpen: boolean
+  todoMaximized: boolean
   profileOpen: boolean
   clipboardOpen: boolean
   clipboard: ClipboardState

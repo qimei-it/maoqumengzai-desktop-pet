@@ -1706,6 +1706,8 @@ function snapshot(): Snapshot {
     waterOpen: windowVisible(waterWindow),
     breakOpen: windowVisible(breakWindow),
     todoOpen: windowVisible(todoWindow),
+    todoMaximized:
+      !!todoWindow && !todoWindow.isDestroyed() && todoWindow.isMaximized(),
     profileOpen: windowVisible(profileWindow),
     clipboardOpen: windowVisible(clipboardWindow),
     clipboard: clipboardState(),
@@ -6590,15 +6592,25 @@ function positionSettings(): void {
   const y = a.y + Math.round((a.height - height) / 2)
   settingsWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
 }
+function todoDefaultBounds(display: Electron.Display): Rect {
+  const area = display.workArea
+  const width = Math.min(1000, area.width - 24)
+  const height = Math.min(800, area.height - 24)
+  return fitToDisplays(
+    {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + Math.round((area.height - height) / 2),
+      width,
+      height,
+    },
+    [area],
+  )
+}
 function positionTodo(): void {
   if (!todoWindow || todoWindow.isDestroyed()) return
-  const b = pet.getBounds()
-  const a = screen.getDisplayMatching(b).workArea
-  const width = 1000
-  const height = 800
-  const x = a.x + Math.round((a.width - width) / 2)
-  const y = a.y + Math.round((a.height - height) / 2)
-  todoWindow.setBounds(fitToDisplays({ x, y, width, height }, [a]))
+  todoWindow.setBounds(
+    todoDefaultBounds(screen.getDisplayMatching(pet.getBounds())),
+  )
 }
 function openTodo(target?: { todoId: string; listId: string | null }): void {
   ensurePanelWindows('todo')
@@ -12568,22 +12580,27 @@ function setupIpc(): void {
           command.action === 'toggle-default' &&
           (owner === askWindow ||
             owner === mailWindow ||
-            owner === mailComposeWindow)
+            owner === mailComposeWindow ||
+            owner === todoWindow)
         ) {
           if (!owner.isResizable()) break
           if (owner.isMaximized()) {
             const next =
-              owner === askWindow
-                ? agentDefaultBounds(
+              owner === todoWindow
+                ? todoDefaultBounds(
                     screen.getDisplayMatching(owner.getBounds()),
                   )
-                : owner === mailWindow
-                  ? mailDefaultBounds(
+                : owner === askWindow
+                  ? agentDefaultBounds(
                       screen.getDisplayMatching(owner.getBounds()),
                     )
-                  : mailComposeDefaultBounds(
-                      screen.getDisplayMatching(owner.getBounds()),
-                    )
+                  : owner === mailWindow
+                    ? mailDefaultBounds(
+                        screen.getDisplayMatching(owner.getBounds()),
+                      )
+                    : mailComposeDefaultBounds(
+                        screen.getDisplayMatching(owner.getBounds()),
+                      )
             owner.unmaximize()
             setTimeout(() => {
               if (!owner.isDestroyed()) owner.setBounds(next)
@@ -13408,6 +13425,8 @@ function createPanelWindows(keys: readonly PanelKey[]): void {
     todoWindow = new BrowserWindow({
       width: 1000,
       height: 800,
+      minWidth: 1000,
+      minHeight: 800,
       title: '毛趣萌仔 · 待办清单',
       icon: process.platform === 'win32' ? iconPath('app-icon-win.png') : undefined,
       ...panelChrome,
@@ -13415,7 +13434,8 @@ function createPanelWindows(keys: readonly PanelKey[]): void {
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
-      resizable: false,
+      resizable: true,
+      maximizable: true,
       skipTaskbar: false,
       alwaysOnTop: false,
       webPreferences: {
@@ -13525,7 +13545,8 @@ function createPanelWindows(keys: readonly PanelKey[]): void {
       maximizable:
         panel === askWindow ||
         panel === mailWindow ||
-        panel === mailComposeWindow,
+        panel === mailComposeWindow ||
+        panel === todoWindow,
     })
   for (const panel of panelWindowList()) watchPanelQuotaOverlap(panel)
 }

@@ -95,3 +95,51 @@ test('tags can be renamed and removed from their context menu', async () => {
     todo.locator('.todo-tag-chip', { hasText: '#生活' }),
   ).toHaveCount(0)
 })
+
+test('the todo window can grow and restores its default size', async () => {
+  await pet.evaluate(() => window.mqmz!.command({ type: 'todo-open' }))
+  await expect
+    .poll(() =>
+      application.evaluate(({ BrowserWindow }) => {
+        const target = BrowserWindow.getAllWindows().find((item) =>
+          item.getTitle().includes('待办清单'),
+        )
+        return target?.isVisible() ?? false
+      }),
+    )
+    .toBe(true)
+
+  const windowState = () =>
+    application.evaluate(({ BrowserWindow }) => {
+      const target = BrowserWindow.getAllWindows().find((item) =>
+        item.getTitle().includes('待办清单'),
+      )
+      if (!target) throw new Error('todo window missing')
+      return {
+        resizable: target.isResizable(),
+        maximizable: target.isMaximizable(),
+        minimum: target.getMinimumSize(),
+        maximized: target.isMaximized(),
+        size: target.getSize(),
+      }
+    })
+
+  const initial = await windowState()
+  expect(initial.resizable).toBe(true)
+  expect(initial.maximizable).toBe(true)
+  expect(initial.minimum).toEqual([1000, 800])
+
+  await todo.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'toggle-default' }),
+  )
+  await expect.poll(async () => (await windowState()).maximized).toBe(true)
+
+  await todo.evaluate(() =>
+    window.mqmz!.command({ type: 'panel-control', action: 'toggle-default' }),
+  )
+  await expect.poll(async () => (await windowState()).maximized).toBe(false)
+
+  const restored = await windowState()
+  expect(restored.size[0]).toBeGreaterThanOrEqual(1000)
+  expect(restored.size[1]).toBeGreaterThanOrEqual(800)
+})

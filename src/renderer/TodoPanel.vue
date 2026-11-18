@@ -49,6 +49,28 @@ import PanelHeader from './PanelHeader.vue'
 
 const props = defineProps<{ state?: Snapshot; error?: string }>()
 const emit = defineEmits<{ command: [command: Command] }>()
+const maximized = computed(() => props.state?.todoMaximized === true)
+
+function toggleDefault(): void {
+  emit('command', { type: 'panel-control', action: 'toggle-default' })
+}
+let headerPressMaximized = false
+function onHeaderMouseDown(): void {
+  headerPressMaximized = maximized.value
+}
+function onHeaderDoubleClick(event: MouseEvent): void {
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button')) return
+  const before = headerPressMaximized
+  window.setTimeout(() => {
+    if (maximized.value !== before) return
+    toggleDefault()
+  }, 220)
+}
+function onFrameDoubleClick(event: MouseEvent): void {
+  if (event.target !== event.currentTarget) return
+  toggleDefault()
+}
 
 type SmartId = 'all' | 'today' | 'urgent' | 'flagged' | 'open' | 'done'
 type Selection =
@@ -935,11 +957,22 @@ watch(todoTags, (value) => {
 </script>
 
 <template>
-  <main class="todo-shell" @keydown.esc="handleEscape" @click="handleShellClick">
+  <main
+    class="todo-shell"
+    :class="{ 'is-maximized': maximized }"
+    @keydown.esc="handleEscape"
+    @click="handleShellClick"
+    @dblclick="onFrameDoubleClick"
+  >
     <section class="todo-surface" aria-label="待办清单">
       <PanelHeader
         title="待办清单"
         :platform="state?.runtime.platform"
+        :resizable="true"
+        :maximized="maximized"
+        @mousedown="onHeaderMouseDown"
+        @dblclick="onHeaderDoubleClick"
+        @maximize="toggleDefault"
         @minimize="
           emit('command', { type: 'panel-control', action: 'minimize' })
         "
@@ -1912,6 +1945,13 @@ watch(todoTags, (value) => {
   color: var(--color-ink);
   user-select: none;
 }
+.todo-shell.is-maximized {
+  padding: 0;
+}
+.todo-shell.is-maximized .todo-surface {
+  border-radius: 0;
+  box-shadow: none;
+}
 .todo-surface {
   position: relative;
   height: 100%;
@@ -1936,8 +1976,7 @@ watch(todoTags, (value) => {
   gap: 12px;
 }
 .todo-lists-panel {
-  flex: 0 1 auto;
-  max-height: 60%;
+  flex: 1 1 0;
   min-height: 0;
   overflow: auto;
   padding: 8px;
@@ -2298,9 +2337,7 @@ watch(todoTags, (value) => {
   color: var(--color-disabled-text);
 }
 .todo-tags-panel {
-  flex: none;
-  margin-top: auto;
-  max-height: 34%;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   padding: 2px 2px 0;
@@ -2339,7 +2376,7 @@ watch(todoTags, (value) => {
   outline: none;
 }
 .todo-tags-empty {
-  margin: 6px 2px 0;
+  margin: 6px 2px 0 7px;
   color: var(--color-subtle);
   font-size: var(--font-size-caption);
 }
