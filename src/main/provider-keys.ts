@@ -35,12 +35,17 @@ async function writeStore(value: Stored): Promise<void> {
 
 function decrypted(value: string | undefined): string | undefined {
   if (!value) return undefined
-  if (value.startsWith('enc:')) {
-    if (!safeStorage.isEncryptionAvailable()) return undefined
-    return safeStorage.decryptString(Buffer.from(value.slice(4), 'base64'))
+  try {
+    if (value.startsWith('enc:')) {
+      if (!safeStorage.isEncryptionAvailable()) return undefined
+      return safeStorage.decryptString(Buffer.from(value.slice(4), 'base64'))
+    }
+    if (value.startsWith('plain:')) return value.slice(6)
+    return undefined
+  } catch {
+    // A key encrypted by another build identity must not crash startup.
+    return undefined
   }
-  if (value.startsWith('plain:')) return value.slice(6)
-  return undefined
 }
 
 export async function loadProviderKey(
