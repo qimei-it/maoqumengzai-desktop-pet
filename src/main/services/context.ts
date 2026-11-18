@@ -66,6 +66,8 @@ export type ServiceContext = {
   toggleTodo(id: string): boolean
   updateTodo(id: string, patch: UpdateTodoPatch): void
   removeTodo(id: string): void
+  renameTodoTag(from: string, to: string): void
+  removeTodoTag(tag: string): void
   clearDoneTodos(): number
   addTodoList(name: string): void
 

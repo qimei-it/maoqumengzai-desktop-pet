@@ -885,6 +885,19 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z
     .object({
+      type: z.literal('todo-tag-rename'),
+      from: z.string().trim().min(1).max(20),
+      to: z.string().trim().min(1).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('todo-tag-remove'),
+      tag: z.string().trim().min(1).max(20),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal('todo-list-add'),
       name: z.string().trim().min(1).max(40),
       groupId: z.string().uuid().nullable().optional(),

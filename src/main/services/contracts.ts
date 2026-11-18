@@ -235,6 +235,11 @@ export type TodoService = {
   complete(id: string): Promise<ServiceResult<{ text: string; changed: boolean }>>
   update(id: string, patch: UpdateTodoPatch): Promise<ServiceResult<{ text: string }>>
   remove(id: string): Promise<ServiceResult<{ text: string }>>
+  renameTag(
+    from: string,
+    to: string,
+  ): Promise<ServiceResult<{ from: string; to: string }>>
+  removeTag(tag: string): Promise<ServiceResult<{ tag: string }>>
   clearDone(): Promise<ServiceResult<{ count: number }>>
   createList(name: string): Promise<ServiceResult<{ name: string }>>
 }

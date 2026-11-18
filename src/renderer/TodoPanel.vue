@@ -239,6 +239,10 @@ const groupInput = ref<HTMLInputElement>()
 const collapsedGroups = ref<Record<string, boolean>>({})
 const UNGROUPED_ID = '__ungrouped__'
 const groupMenu = ref<{ id: string; x: number; y: number } | null>(null)
+const tagMenu = ref<{ tag: string; x: number; y: number } | null>(null)
+const renamingTag = ref<string | null>(null)
+const tagRenameDraft = ref('')
+const tagRenameInput = ref<HTMLInputElement | null>(null)
 const repeatMenu = ref<{ id: string; x: number; y: number } | null>(null)
 const renamingGroupId = ref<string | null>(null)
 const renameDraft = ref('')
@@ -246,6 +250,9 @@ const renameInput = ref<HTMLInputElement | null>(null)
 
 function setRenameInput(element: unknown): void {
   renameInput.value = (element as HTMLInputElement | null) ?? null
+}
+function setTagRenameInput(element: unknown): void {
+  tagRenameInput.value = (element as HTMLInputElement | null) ?? null
 }
 
 function isGroupCollapsed(id: string): boolean {
@@ -551,6 +558,14 @@ function handleEscape(): void {
     closeGroupMenu()
     return
   }
+  if (tagMenu.value) {
+    closeTagMenu()
+    return
+  }
+  if (renamingTag.value) {
+    cancelTagRename()
+    return
+  }
   if (editingId.value) {
     closeEditing()
     return
@@ -835,6 +850,46 @@ function saveGroupRename(id: string): void {
   emit('command', { type: 'todo-group-update', id, name })
   cancelGroupRename()
 }
+async function openTagMenu(event: MouseEvent, tag: string): Promise<void> {
+  const x = Math.max(8, Math.min(event.clientX, window.innerWidth - 172))
+  const y = Math.max(8, Math.min(event.clientY, window.innerHeight - 96))
+  tagMenu.value = { tag, x, y }
+  await nextTick()
+  document.querySelector<HTMLButtonElement>('.todo-tag-menu button')?.focus()
+}
+function closeTagMenu(): void {
+  tagMenu.value = null
+}
+async function startRenameTag(tag: string): Promise<void> {
+  closeTagMenu()
+  renamingTag.value = tag
+  tagRenameDraft.value = tag
+  await nextTick()
+  tagRenameInput.value?.focus()
+  tagRenameInput.value?.select()
+}
+function cancelTagRename(): void {
+  renamingTag.value = null
+  tagRenameDraft.value = ''
+}
+function saveTagRename(tag: string): void {
+  if (renamingTag.value !== tag) return
+  const next = tagRenameDraft.value.trim().replace(/^#+/, '').slice(0, 20)
+  if (!next || next === tag) {
+    cancelTagRename()
+    return
+  }
+  if (selection.value.kind === 'tag' && selection.value.id === tag)
+    selection.value = { kind: 'tag', id: next }
+  emit('command', { type: 'todo-tag-rename', from: tag, to: next })
+  cancelTagRename()
+}
+function deleteTagFromMenu(tag: string): void {
+  closeTagMenu()
+  if (selection.value.kind === 'tag' && selection.value.id === tag)
+    selection.value = { kind: 'tag', id: '' }
+  emit('command', { type: 'todo-tag-remove', tag })
+}
 
 watch(lists, (value) => {
   const current = selection.value
@@ -868,6 +923,14 @@ watch(groups, (value) => {
     !value.some((group) => group.id === groupMenu.value?.id)
   )
     closeGroupMenu()
+})
+watch(todoTags, (value) => {
+  const current = selection.value
+  if (current.kind === 'tag' && current.id && !value.includes(current.id))
+    selection.value = { kind: 'tag', id: '' }
+  if (renamingTag.value && !value.includes(renamingTag.value))
+    cancelTagRename()
+  if (tagMenu.value && !value.includes(tagMenu.value.tag)) closeTagMenu()
 })
 </script>
 
@@ -1205,15 +1268,11 @@ watch(groups, (value) => {
           </div>
 
           </div>
-          <section
-            v-if="todoTags.length"
-            class="todo-tags-panel panel-scroll"
-            aria-label="标签"
-          >
+          <section class="todo-tags-panel panel-scroll" aria-label="我的标签">
             <div class="todo-rail-title">
-              <span>标签</span>
+              <span>我的标签</span>
             </div>
-            <div class="todo-tag-chips">
+            <div v-if="todoTags.length" class="todo-tag-chips">
               <button
                 type="button"
                 class="todo-tag-chip"
@@ -1222,17 +1281,33 @@ watch(groups, (value) => {
               >
                 所有标签
               </button>
-              <button
-                v-for="tag in todoTags"
-                :key="tag"
-                type="button"
-                class="todo-tag-chip"
-                :class="{ active: activeTag === tag }"
-                @click="selectTag(tag)"
-              >
-                #{{ tag }}
-              </button>
+              <template v-for="tag in todoTags" :key="tag">
+                <input
+                  v-if="renamingTag === tag"
+                  :ref="setTagRenameInput"
+                  v-model="tagRenameDraft"
+                  class="todo-tag-chip todo-tag-rename"
+                  type="text"
+                  maxlength="20"
+                  aria-label="标签名称"
+                  @click.stop
+                  @keydown.enter.prevent="saveTagRename(tag)"
+                  @keydown.esc.stop.prevent="cancelTagRename"
+                  @blur="saveTagRename(tag)"
+                />
+                <button
+                  v-else
+                  type="button"
+                  class="todo-tag-chip"
+                  :class="{ active: activeTag === tag }"
+                  @click="selectTag(tag)"
+                  @contextmenu.prevent.stop="openTagMenu($event, tag)"
+                >
+                  #{{ tag }}
+                </button>
+              </template>
             </div>
+            <p v-else class="todo-tags-empty">还没有标签</p>
           </section>
         </aside>
 
@@ -1566,6 +1641,39 @@ watch(groups, (value) => {
       </div>
 
       <div
+        v-if="tagMenu"
+        class="todo-group-menu-backdrop"
+        @pointerdown.self="closeTagMenu"
+        @contextmenu.prevent
+      >
+        <div
+          class="todo-group-menu todo-tag-menu"
+          role="menu"
+          :style="{
+            left: `${tagMenu.x}px`,
+            top: `${tagMenu.y}px`,
+          }"
+          @click.stop
+        >
+          <button
+            type="button"
+            role="menuitem"
+            @click="startRenameTag(tagMenu.tag)"
+          >
+            重命名
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            class="danger"
+            @click="deleteTagFromMenu(tagMenu.tag)"
+          >
+            删除
+          </button>
+        </div>
+      </div>
+
+      <div
         v-if="repeatMenu"
         class="todo-group-menu-backdrop"
         @pointerdown.self="closeRepeatMenu"
@@ -1828,7 +1936,8 @@ watch(groups, (value) => {
   gap: 12px;
 }
 .todo-lists-panel {
-  flex: 1;
+  flex: 0 1 auto;
+  max-height: 60%;
   min-height: 0;
   overflow: auto;
   padding: 8px;
@@ -2190,7 +2299,9 @@ watch(groups, (value) => {
 }
 .todo-tags-panel {
   flex: none;
-  max-height: 140px;
+  margin-top: auto;
+  max-height: 34%;
+  min-height: 0;
   overflow-y: auto;
   padding: 2px 2px 0;
 }
@@ -2219,6 +2330,18 @@ watch(groups, (value) => {
 .todo-tag-chip.active {
   background: var(--color-brand-ink);
   color: var(--color-on-brand);
+}
+.todo-tag-rename {
+  width: 96px;
+  height: 26px;
+  border: 1px solid var(--color-brand);
+  background: var(--color-surface);
+  outline: none;
+}
+.todo-tags-empty {
+  margin: 6px 2px 0;
+  color: var(--color-subtle);
+  font-size: var(--font-size-caption);
 }
 .todo-main {
   min-width: 0;

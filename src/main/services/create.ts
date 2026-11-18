@@ -12,6 +12,7 @@ import {
   themeIds,
   type SettingsState,
 } from '../../shared/settings'
+import { normalizeTag } from '../../shared/todo-tags'
 import type { ServiceContext } from './context'
 import type {
   ArchiveSummary,
@@ -264,6 +265,16 @@ export function createServices(ctx: ServiceContext): Services {
           if (!todo) throw new Error('找不到这条待办。')
           ctx.removeTodo(id)
           return { text: todo.text }
+        }),
+      renameTag: (from, to) =>
+        guard(() => {
+          ctx.renameTodoTag(from, to)
+          return { from: normalizeTag(from), to: normalizeTag(to) }
+        }),
+      removeTag: (tag) =>
+        guard(() => {
+          ctx.removeTodoTag(tag)
+          return { tag: normalizeTag(tag) }
         }),
       clearDone: () =>
         guard(() => ({ count: ctx.clearDoneTodos() })),

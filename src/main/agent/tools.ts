@@ -982,6 +982,54 @@ export function createTools(
       },
     },
     {
+      name: 'todo_tag_rename',
+      description:
+        '重命名一个待办标签，所有使用该标签的待办会一起更新。标签名不含 #。',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: '原标签名，不含 #' },
+          to: { type: 'string', description: '新标签名，不含 #，1-20 字' },
+        },
+        required: ['from', 'to'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) =>
+        `重命名标签：${String(args.from ?? '')} → ${String(args.to ?? '')}`,
+      async run(args) {
+        const from = text(args.from, 'from', 20)
+        const to = text(args.to, 'to', 20)
+        const result = await call(services.todo.renameTag(from, to))
+        return {
+          ok: true,
+          text: `已把标签 #${result.from} 重命名为 #${result.to}。`,
+        }
+      },
+    },
+    {
+      name: 'todo_tag_remove',
+      description:
+        '删除一个待办标签，并从所有待办里移除。标签名不含 #。',
+      parameters: {
+        type: 'object',
+        properties: {
+          tag: { type: 'string', description: '要删除的标签名，不含 #' },
+        },
+        required: ['tag'],
+        additionalProperties: false,
+      },
+      plan: 'deny',
+      build: 'ask',
+      title: (args) => `删除标签：${String(args.tag ?? '')}`,
+      async run(args) {
+        const tag = text(args.tag, 'tag', 20)
+        const result = await call(services.todo.removeTag(tag))
+        return { ok: true, text: `已删除标签 #${result.tag}。` }
+      },
+    },
+    {
       name: 'music_status',
       description: '查看当前播放器、歌曲、歌手、播放状态、音量和歌词。',
       parameters: {

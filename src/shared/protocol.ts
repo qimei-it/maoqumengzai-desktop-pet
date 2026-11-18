@@ -947,6 +947,8 @@ export type Command =
   | { type: 'todo-toggle'; id: string }
   | { type: 'todo-remove'; id: string }
   | { type: 'todo-clear-done'; ids?: string[] }
+  | { type: 'todo-tag-rename'; from: string; to: string }
+  | { type: 'todo-tag-remove'; tag: string }
   | {
       type: 'todo-update'
       id: string

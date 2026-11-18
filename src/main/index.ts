@@ -134,6 +134,11 @@ import { isPetSpecies, type PetSpecies } from '../shared/pet-species'
 import { appSourceUrl, appUserAgent } from '../shared/app-version'
 import { normalizePetPrompt } from '../shared/pet-prompt'
 import {
+  normalizeTag,
+  removeTagFromList,
+  renameTagInList,
+} from '../shared/todo-tags'
+import {
   cleanupPetDrafts,
   listPetRecords,
   loadPetRecord,
@@ -1130,6 +1135,8 @@ const services = createServices({
     return true
   },
   updateTodo: (id, patch) => updateTodo(id, patch),
+  renameTodoTag: (from, to) => renameTodoTag(from, to),
+  removeTodoTag: (tag) => removeTodoTag(tag),
   removeTodo: (id) => removeTodo(id),
   clearDoneTodos: () => clearDoneTodos(),
   addTodoList: (name) => addTodoList(name),
@@ -7574,13 +7581,7 @@ function setBreakDnd(enabled: boolean, start: number, end: number): void {
 }
 function normalizeTags(values: string[] | undefined): string[] {
   if (!values) return []
-  return [
-    ...new Set(
-      values
-        .map((value) => value.trim().replace(/^#+/, '').slice(0, 20))
-        .filter(Boolean),
-    ),
-  ].slice(0, 10)
+  return [...new Set(values.map(normalizeTag).filter(Boolean))].slice(0, 10)
 }
 function mergeTodoTags(tags: string[]): void {
   if (!tags.length) return
@@ -7728,6 +7729,52 @@ function updateTodo(
     }),
   }
   if (tags) mergeTodoTags(tags)
+  persistFocus()
+  broadcast()
+}
+function renameTodoTag(from: string, to: string): void {
+  const source = normalizeTag(from)
+  const target = normalizeTag(to)
+  if (!source) throw new Error('缺少原标签。')
+  if (!target) throw new Error('标签名不能为空。')
+  if (source === target) return
+  const existed =
+    focusData.todoTags.includes(source) ||
+    focusData.todos.some((todo) => todo.tags.includes(source))
+  if (!existed) throw new Error('没有找到这个标签。')
+  focusData = {
+    ...focusData,
+    todoTags: [
+      ...new Set([
+        ...focusData.todoTags.map((tag) => (tag === source ? target : tag)),
+        target,
+      ]),
+    ].slice(0, 100),
+    todos: focusData.todos.map((todo) =>
+      todo.tags.includes(source)
+        ? { ...todo, tags: renameTagInList(todo.tags, source, target) }
+        : todo,
+    ),
+  }
+  persistFocus()
+  broadcast()
+}
+function removeTodoTag(tag: string): void {
+  const value = normalizeTag(tag)
+  if (!value) throw new Error('缺少标签。')
+  const existed =
+    focusData.todoTags.includes(value) ||
+    focusData.todos.some((todo) => todo.tags.includes(value))
+  if (!existed) throw new Error('没有找到这个标签。')
+  focusData = {
+    ...focusData,
+    todoTags: focusData.todoTags.filter((item) => item !== value),
+    todos: focusData.todos.map((todo) =>
+      todo.tags.includes(value)
+        ? { ...todo, tags: removeTagFromList(todo.tags, value) }
+        : todo,
+    ),
+  }
   persistFocus()
   broadcast()
 }
@@ -11506,6 +11553,8 @@ function setupIpc(): void {
       'todo-update',
       'todo-remove',
       'todo-clear-done',
+      'todo-tag-rename',
+      'todo-tag-remove',
       'todo-list-add',
       'todo-list-update',
       'todo-list-remove',
@@ -12476,6 +12525,12 @@ function setupIpc(): void {
         break
       case 'todo-clear-done':
         clearDoneTodos(command.ids)
+        break
+      case 'todo-tag-rename':
+        renameTodoTag(command.from, command.to)
+        break
+      case 'todo-tag-remove':
+        removeTodoTag(command.tag)
         break
       case 'todo-list-add':
         addTodoList(command.name, command.groupId, command.color, command.icon)

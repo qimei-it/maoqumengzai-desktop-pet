@@ -71,6 +71,8 @@ describe('agent tool registry', () => {
       'todo_remove',
       'todo_clear_done',
       'todo_list_create',
+      'todo_tag_rename',
+      'todo_tag_remove',
       'clipboard_copy',
       'clipboard_pin',
       'shell_run',
@@ -255,6 +257,17 @@ describe('agent tool registry', () => {
     expect(calls.some((call) => call.startsWith(`updateTodo:${todoId}`))).toBe(
       true,
     )
+
+    const renamed = await tools.todo_tag_rename.run(
+      { from: '工作', to: '项目' },
+      ctx,
+    )
+    expect(renamed.text).toContain('已把标签 #工作 重命名为 #项目')
+    expect(calls).toContain('renameTag:工作:项目')
+
+    const removedTag = await tools.todo_tag_remove.run({ tag: '生活' }, ctx)
+    expect(removedTag.text).toContain('已删除标签 #生活')
+    expect(calls).toContain('removeTag:生活')
 
     const convert = await tools.convert_start.run(
       { fileIds: [shelfFileId], action: 'pdf' },

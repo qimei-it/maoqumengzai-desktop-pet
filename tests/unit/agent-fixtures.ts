@@ -135,6 +135,14 @@ export function makeServices(calls: string[] = []): Services {
         calls.push(`removeTodo:${id}`)
         return { ok: true, value: { text: '买猫粮' } }
       },
+      renameTag: async (from, to) => {
+        calls.push(`renameTag:${from}:${to}`)
+        return { ok: true, value: { from, to } }
+      },
+      removeTag: async (tag) => {
+        calls.push(`removeTag:${tag}`)
+        return { ok: true, value: { tag } }
+      },
       clearDone: async () => ({ ok: true, value: { count: 2 } }),
       createList: async (name) => {
         calls.push(`addTodoList:${name}`)

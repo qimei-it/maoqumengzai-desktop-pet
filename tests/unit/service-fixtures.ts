@@ -60,6 +60,12 @@ export function makeContext(
     toggleTodo: () => true,
     updateTodo: () => {},
     removeTodo: () => {},
+    renameTodoTag: (from, to) => {
+      calls.push(`renameTodoTag:${from}:${to}`)
+    },
+    removeTodoTag: (tag) => {
+      calls.push(`removeTodoTag:${tag}`)
+    },
     clearDoneTodos: () => 3,
     addTodoList: () => {},
     music: () => ({ playing: false }),
