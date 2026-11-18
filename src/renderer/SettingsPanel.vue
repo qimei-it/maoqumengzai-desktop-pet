@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Archive, Boxes, ClipboardList, CpuAi, Database, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes, SquareArrowOutUpRight } from '@lucide/vue'
+import { Archive, Boxes, ClipboardList, CpuAi, Database, ExternalLink, Info, Mail, Monitor, Palette, PawPrint, Plus, SixteenthNotes } from '@lucide/vue'
 import {
   formatOpenAiAccountStatus,
   formatQuotaClock,
@@ -1693,7 +1693,7 @@ function onEscape(): void {
                 @click="openProviderKeys('deepseek')"
               >
                 <span>获取 API Key</span>
-                <SquareArrowOutUpRight
+                <ExternalLink
                   :size="13"
                   :stroke-width="2"
                   aria-hidden="true"
@@ -1884,7 +1884,7 @@ function onEscape(): void {
                 @click="openProviderKeys('minimax')"
               >
                 <span>获取 API Key</span>
-                <SquareArrowOutUpRight
+                <ExternalLink
                   :size="13"
                   :stroke-width="2"
                   aria-hidden="true"
@@ -2090,7 +2090,7 @@ function onEscape(): void {
                   @click="openProviderKeys('volcano')"
                 >
                   <span>获取 API Key</span>
-                  <SquareArrowOutUpRight
+                  <ExternalLink
                     :size="13"
                     :stroke-width="2"
                     aria-hidden="true"
@@ -2102,7 +2102,7 @@ function onEscape(): void {
                   @click="openVolcanoModels"
                 >
                   <span>开通大模型</span>
-                  <SquareArrowOutUpRight
+                  <ExternalLink
                     :size="13"
                     :stroke-width="2"
                     aria-hidden="true"

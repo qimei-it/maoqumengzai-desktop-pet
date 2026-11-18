@@ -22,6 +22,7 @@ import {
   Download,
   Ellipsis,
   Eraser,
+  ExternalLink,
   Film,
   Folder,
   FolderClosed,
@@ -47,7 +48,6 @@ import {
   ShieldQuestionMark,
   SlidersHorizontal,
   Square,
-  SquareArrowOutUpRight,
   Trash2,
   Wrench,
   X,
@@ -3487,7 +3487,7 @@ function statusLabel(status: string): string {
                         @click="getKey(provider)"
                       >
                         获取 API Key
-                        <SquareArrowOutUpRight
+                        <ExternalLink
                           class="agent-external-icon"
                           :size="14"
                           :stroke-width="2"
@@ -3501,7 +3501,7 @@ function statusLabel(status: string): string {
                         @click="openModels(provider)"
                       >
                         开通大模型
-                        <SquareArrowOutUpRight
+                        <ExternalLink
                           class="agent-external-icon"
                           :size="14"
                           :stroke-width="2"
@@ -3620,7 +3620,7 @@ function statusLabel(status: string): string {
                       :title="`打开 ${file.name}`"
                       @click="openSource(file.id)"
                     >
-                      <SquareArrowOutUpRight
+                      <ExternalLink
                         :size="12"
                         :stroke-width="2"
                         aria-hidden="true"
@@ -3989,7 +3989,7 @@ function statusLabel(status: string): string {
                           :title="`打开 ${artifact.name}`"
                           @click="openSource(artifact.id)"
                         >
-                          <SquareArrowOutUpRight
+                          <ExternalLink
                             :size="12"
                             :stroke-width="2"
                             aria-hidden="true"
