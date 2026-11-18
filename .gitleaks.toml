@@ -19,3 +19,9 @@ paths = [
   '''^resources/skills/hyperframes/media-use/audio/scripts/lib/heygen\.mjs$''',
   '''^resources/skills/k-dense/database-lookup/references/noaa\.md$''',
 ]
+
+[[allowlists]]
+description = "Synthetic JWT fixture: tests/unit/redact.test.ts proves JWTs are masked"
+regexes = [
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.abcdefghijk''',
+]

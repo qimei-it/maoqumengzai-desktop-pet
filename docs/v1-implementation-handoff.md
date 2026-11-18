@@ -8,9 +8,9 @@
 
 - 产品名称：毛趣萌仔。
 - 定位：毛趣映画微信小程序的配套桌面宠物，提供情感陪伴、桌面效率工具；本地宠物档案在首版可用；账号绑定、宠物档案云同步、交友广场、Outlook、跨端 DeepSeek 会话与专属宠物制作移至下一版。
-- 桌面项目：`/Users/liyifan/Documents/Workspace/Project/electron-project/maoqumengzai-desktop-pet`。
-- 小程序后端：`/Users/liyifan/Documents/Workspace/Project/wechat-miniprogram/maoquyinghua/maoquyinghua-backend`。
-- 小程序前端：`/Users/liyifan/Documents/Workspace/Project/wechat-miniprogram/maoquyinghua/maoquyinghua-frontend`。
+- 桌面项目：当前仓库根目录（`maoqumengzai-desktop-pet`）。
+- 小程序后端：同级小程序仓库的 `maoquyinghua-backend`。
+- 小程序前端：同级小程序仓库的 `maoquyinghua-frontend`。
 - 旧桌面目录 `maoquyinghau-desktop-pet` 不作为本次默认实现目录。
 - 技术方向：Electron + Vue 3 + TypeScript；构建、状态、数据库、进程与安全边界已记录到 [技术方案](technical-architecture.md)，候选精确版本已核实公开元数据，P1 初始化时执行安装与组合构建验证。
 - Windows 与 macOS 同期交付；分阶段开发不等于取消后续模块或只交付一个平台。
