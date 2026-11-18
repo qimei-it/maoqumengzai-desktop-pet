@@ -50,7 +50,10 @@ test.beforeAll(async () => {
     '文件转换',
     '批量重命名',
     '番茄时钟',
+    '喝水提醒',
     '休息提醒',
+    '音乐控制',
+    '打包归档',
   ].map((name) => ({
     name,
     page: windows.find((item) => item.title.includes(name))!.page,
