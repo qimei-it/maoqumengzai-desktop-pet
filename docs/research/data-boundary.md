@@ -106,10 +106,48 @@ lsof -nP -a -p <pid> -i
 - 置物架与待办标记均未出现在任何请求体。
 - 四款播放器都能被客户端接管，详见 [资源预算](resource-budget.md#音乐播放场景2026-11-18-已量测)。
 
-未覆盖：图像生成、邮件收发与技能安装的逐请求体复核；这些路径的目标已列在第 2 节，后续按同样方法补测。
+### 图像生成路径（2026-11-18）
+
+用智能体的 `image_generate` 工具真实出图一次，通过反向代理抓取请求体：
+
+| 请求 | 请求体 | 字段 | 本地标记泄漏 |
+| --- | --- | --- | --- |
+| `POST api.minimax.cn/v1/images/generations` | 165 B | model / prompt / n / response_format / output_format / aspect_ratio / area | 无 |
+| `POST ark.cn-beijing.volces.com/api/v3/images/generations` | 199 B | model / prompt / size / output_format / background / response_format / watermark | 无 |
+
+- 本次未带参考图，请求体只有提示词与生成参数。
+- 带参考图时客户端会先把图片重编码并去除元数据，再作为 JPEG 发送；原始照片与元数据不会上传。
+
+### 邮件同步路径（2026-11-18）
+
+用 163 账户做一次只读同步，不发信，采样主进程的 TCP 连接：
+
+| 目标 | 端口 | 说明 |
+| --- | --- | --- |
+| `imap.163.com`（111.124.203.50） | 993 | 唯一邮件相关连接，IMAP over TLS |
+| `mqmz.qimeistudio.com`（43.161.254.199） | 443 | 应用内更新检查，与邮件无关 |
+| `127.0.0.1` 高位端口 | — | 本地调试/渲染进程连接 |
+
+- 未出现 SMTP 连接（本轮不发信）。
+- 未连接其他邮件服务商或第三方地址。
+- 邮件正文与凭据走 TLS，只复核「连到哪」，不复核正文内容。
+
+### 技能安装路径（2026-11-18）
+
+触发 `skill_install_url` 安装公开仓库：
+
+| 请求 | 请求体 | 目标 |
+| --- | --- | --- |
+| `GET codeload.github.com/<owner>/<repo>/zip/refs/heads/main` | 0 B | 白名单 |
+| `GET codeload.github.com/<owner>/<repo>/zip/refs/heads/master` | 0 B | 白名单 |
+
+- 请求体为空；URL 中只有仓库地址，不含本地路径或账号信息。
+- **复核中发现并修复**：技能下载原先使用 Electron `net.fetch`，会被应用自身的请求过滤取消（`ERR_BLOCKED_BY_CLIENT`），导致 URL 安装失败。已改为主进程 `fetch`，安装链路恢复。
+
+首版所有出站路径至此均已复核：HTTP 请求体用注入或反向代理抓取，邮件用连接目标采样。
 
 ## 8. 结论与限制
 
 - 已知联网点全部在上表；渲染层无法自行联网。
-- 智能体对话与音乐播放已完成注入级或字节级请求体复核；其余联网路径仍为代码审计结论。
+- 智能体对话、音乐播放、图像生成与技能安装已完成请求体级复核；邮件完成连接目标级复核。
 - 邮件附件与正文会经用户自己的 IMAP/SMTP 服务器传输，这部分由邮箱服务商处理。
