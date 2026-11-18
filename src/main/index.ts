@@ -137,6 +137,7 @@ import {
   cleanupPetDrafts,
   listPetRecords,
   loadPetRecord,
+  measurePetDirectories,
   petRecordFor,
   petsRoot,
   registerPetAssets,
@@ -6864,6 +6865,48 @@ async function clearBellyContents(): Promise<void> {
   addEvent('回收区已清空。')
   showToast('回收区已清空')
 }
+async function clearOldPetAssets(): Promise<void> {
+  const root = petsRoot(dataRoot)
+  const directories = await measurePetDirectories(root)
+  const keepId = activePet?.id ?? (settings.petId || undefined)
+  const removable = directories.filter((entry) => entry.id !== keepId)
+  if (!removable.length) {
+    showToast('没有可清理的桌宠素材')
+    return
+  }
+  const records = await listPetRecords(root)
+  const names = new Map(records.map((record) => [record.id, record.name]))
+  const bytes = removable.reduce((total, entry) => total + entry.bytes, 0)
+  const options = {
+    type: 'warning' as const,
+    buttons: ['取消', '清理'],
+    defaultId: 0,
+    cancelId: 0,
+    message: '清理旧桌宠素材？',
+    detail: `${removable
+      .map((entry) => names.get(entry.id) ?? '未识别的素材目录')
+      .join('、')} 会被永久删除，共 ${petAssetSize(bytes)}。当前使用的桌宠会保留。`,
+  }
+  const result = settingsWindow
+    ? await dialog.showMessageBox(settingsWindow, options)
+    : await dialog.showMessageBox(options)
+  if (result.response !== 1) return
+  for (const entry of removable)
+    await rm(join(root, entry.id), { recursive: true, force: true }).catch(
+      () => {},
+    )
+  await refreshPetCards()
+  broadcast()
+  addEvent(`已清理 ${removable.length} 套旧桌宠素材。`)
+  showToast(`已清理 ${removable.length} 套桌宠素材`)
+}
+function petAssetSize(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
 async function openLicenses(): Promise<void> {
   const directory = app.isPackaged
     ? join(process.resourcesPath, 'licenses')
@@ -11374,6 +11417,7 @@ function setupIpc(): void {
       'settings-open-agent-dir',
       'settings-clear-cache',
       'settings-clear-belly',
+      'settings-clear-pets',
       'settings-auto-backup',
       'settings-backup-export',
       'settings-backup-restore',
@@ -12108,6 +12152,9 @@ function setupIpc(): void {
         break
       case 'settings-clear-belly':
         await clearBellyContents()
+        break
+      case 'settings-clear-pets':
+        await clearOldPetAssets()
         break
       case 'settings-open-licenses':
         await openLicenses()

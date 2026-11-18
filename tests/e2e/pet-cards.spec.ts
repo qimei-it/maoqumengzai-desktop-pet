@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from '@playwright/test'
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { waitForAppWindows } from './app-windows'
@@ -9,11 +9,12 @@ let application: ElectronApplication
 let pet: Page
 let settings: Page
 let directory: string
+let data: string
 const petId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1'
 
 test.beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'mqmz-pet-cards-'))
-  const data = join(directory, 'data')
+  data = join(directory, 'data')
   const pets = join(data, 'pets', petId)
   await mkdir(pets, { recursive: true })
   const poses = ['base', 'blink', 'focus', 'lifted', 'music', 'ponder']
@@ -112,7 +113,9 @@ test('clicking a saved pet switches to it and back', async () => {
     'true',
   )
 
-  await pet.evaluate(() => window.mqmz!.command({ type: 'pet-select', id: 'default' }))
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: 'pet-select', id: 'default' }),
+  )
   await expect
     .poll(async () => {
       const result = await pet.evaluate(() => window.mqmz!.snapshot())
@@ -121,4 +124,54 @@ test('clicking a saved pet switches to it and back', async () => {
         : undefined
     })
     .toBe('default')
+})
+
+test('the data cleanup removes old pet assets but keeps the active one', async () => {
+  await pet.evaluate((id) => window.mqmz!.command({ type: 'pet-select', id }), petId)
+  await expect
+    .poll(async () => {
+      const result = await pet.evaluate(() => window.mqmz!.snapshot())
+      return result.ok
+        ? result.value.pets.find((item) => item.active)?.id
+        : undefined
+    })
+    .toBe(petId)
+
+  const staleId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2'
+  const staleDirectory = join(data, 'pets', staleId)
+  await mkdir(join(staleDirectory, 'source'), { recursive: true })
+  await writeFile(join(staleDirectory, 'base.png'), Buffer.alloc(4096))
+  await writeFile(join(staleDirectory, 'source', 'base.png'), Buffer.alloc(8192))
+
+  await application.evaluate(({ dialog }) => {
+    dialog.showMessageBox = (async () => ({
+      response: 1,
+      checkboxChecked: false,
+    })) as typeof dialog.showMessageBox
+  })
+  await pet.evaluate(() =>
+    window.mqmz!.command({ type: 'settings-clear-pets' }),
+  )
+
+  await expect
+    .poll(async () => {
+      try {
+        await access(staleDirectory)
+        return true
+      } catch {
+        return false
+      }
+    })
+    .toBe(false)
+  await expect(
+    access(join(data, 'pets', petId)).then(
+      () => true,
+      () => false,
+    ),
+  ).resolves.toBe(true)
+  const result = await pet.evaluate(() => window.mqmz!.snapshot())
+  expect(result.ok ? result.value.pets.map((item) => item.id) : []).toEqual([
+    'default',
+    petId,
+  ])
 })

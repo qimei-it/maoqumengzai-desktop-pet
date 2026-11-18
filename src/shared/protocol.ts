@@ -793,6 +793,7 @@ export type Command =
   | { type: 'settings-open-agent-dir' }
   | { type: 'settings-clear-cache' }
   | { type: 'settings-clear-belly' }
+  | { type: 'settings-clear-pets' }
   | { type: 'settings-open-licenses' }
   | { type: 'hover-mode'; active: boolean }
   | { type: 'pomodoro-open' }

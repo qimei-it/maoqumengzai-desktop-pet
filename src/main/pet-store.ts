@@ -1,6 +1,6 @@
 /** Saved custom desktop pets under the local data directory. */
 
-import { access, readFile, readdir, rm } from 'node:fs/promises'
+import { access, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { mediaUrl } from '../shared/media'
@@ -99,6 +99,48 @@ export async function cleanupPetDrafts(root: string): Promise<void> {
   } catch {
     // No pets directory yet.
   }
+}
+
+export type PetDirectoryUsage = { id: string; bytes: number }
+
+/** Every saved pet directory and its on-disk size, for the cleanup entry. */
+export async function measurePetDirectories(
+  root: string,
+): Promise<PetDirectoryUsage[]> {
+  let entries
+  try {
+    entries = await readdir(root, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const usage: PetDirectoryUsage[] = []
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    usage.push({
+      id: entry.name,
+      bytes: await directoryBytes(join(root, entry.name)),
+    })
+  }
+  return usage
+}
+
+async function directoryBytes(directory: string): Promise<number> {
+  let entries
+  try {
+    entries = await readdir(directory, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+  let total = 0
+  for (const entry of entries) {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) total += await directoryBytes(path)
+    else if (entry.isFile()) {
+      const info = await stat(path).catch(() => undefined)
+      total += info?.size ?? 0
+    }
+  }
+  return total
 }
 
 export function registerPetAssets(

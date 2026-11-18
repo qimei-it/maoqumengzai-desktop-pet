@@ -1007,6 +1007,16 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
+              <span class="settings-label">桌宠素材</span>
+              <button
+                type="button"
+                class="settings-button danger"
+                @click="emit('command', { type: 'settings-clear-pets' })"
+              >
+                清理
+              </button>
+            </div>
+            <div class="settings-row">
               <span class="settings-label">回收区</span>
               <span class="settings-inline">
                 <span class="settings-value">{{ bellyCount }} 项</span>
