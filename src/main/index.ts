@@ -98,7 +98,7 @@ import { createServices } from './services/create'
 import { parseShelfIndex, serializeShelfIndex } from './shelf-index'
 import type { ShelfRecord } from './shelf-index'
 import { isFinderAlias } from './alias'
-import { detectClockJump } from '../shared/scheduler'
+import { detectClockJump, nextWakeDelay } from '../shared/scheduler'
 import {
   pickLyricsCandidate,
   type LyricsCandidate,
@@ -719,7 +719,8 @@ let settingsPrompt: SettingsPrompt | undefined
 let petHoverMode = false
 let hoverCenterSince = 0
 let hoverSent = false
-let focusTimer: ReturnType<typeof setInterval> | undefined
+let focusTimer: ReturnType<typeof setTimeout> | undefined
+let focusSchedulerActive = false
 let maintenanceTimer: ReturnType<typeof setInterval> | undefined
 let maintenanceBusy = false
 let todoReminderCheck = Date.now()
@@ -893,7 +894,7 @@ let bubbleText: string | undefined
 let bubbleMood: MusicMood = 'generic'
 let bubbleAiStyle = false
 let bubbleHideTimer: ReturnType<typeof setTimeout> | undefined
-let bubbleTickTimer: ReturnType<typeof setInterval> | undefined
+let bubbleTickTimer: ReturnType<typeof setTimeout> | undefined
 let bubbleTrackKey: string | undefined
 let bubbleElapsed = 0
 let bubbleNextAt = 30
@@ -6893,6 +6894,9 @@ function persistFocus(): void {
   void saveFocusFile(focusPath, focusData).catch(() => {
     addEvent('专注状态保存失败；当前计时仍可使用。')
   })
+  // Every timer change goes through here, so the idle wake-up stays in step
+  // with a newly started countdown or a reminder that was just rescheduled.
+  scheduleFocusTick()
 }
 /** Last few lines per reminder kind so consecutive prompts do not repeat. */
 const lastReminderLines: Partial<Record<ReminderKind, string[]>> = {}
@@ -6980,6 +6984,41 @@ function reminderDue(key: string, dueAt: number): boolean {
   if (notifiedReminderDues.get(key) === dueAt) return false
   notifiedReminderDues.set(key, dueAt)
   return true
+}
+// A running countdown needs a one-second refresh; an idle scheduler only wakes
+// for the next due reminder, with a cap that keeps clock-jump detection prompt.
+const focusTickRunningMs = 1000
+const focusTickIdleMaxMs = 15_000
+const focusTickRetryMs = 250
+function nextFocusTickDelay(now: number): number {
+  const dueAt: (number | null | undefined)[] = [
+    focusData.water ? focusData.waterNextAt : null,
+    focusData.breakSitting ? focusData.breakSittingNextAt : null,
+    focusData.breakEyes ? focusData.breakEyesNextAt : null,
+  ]
+  for (const todo of focusData.todos) {
+    if (!todo.done && todo.dueAt !== null && todo.dueAt > now)
+      dueAt.push(todo.dueAt)
+  }
+  return nextWakeDelay({
+    now,
+    running: focusData.running,
+    runningMs: focusTickRunningMs,
+    idleMs: focusTickIdleMaxMs,
+    retryMs: focusTickRetryMs,
+    dueAt,
+    // A reminder deferred to the next tick must not wait for the idle cap.
+    retry: dueTodosToNotify(focusData.todos, todoReminderCheck, now).length > 0,
+  })
+}
+function scheduleFocusTick(delay?: number): void {
+  if (!focusSchedulerActive || shuttingDown || schedulerBusy) return
+  if (focusTimer) clearTimeout(focusTimer)
+  focusTimer = setTimeout(() => {
+    focusTimer = undefined
+    focusTick()
+    scheduleFocusTick()
+  }, delay ?? nextFocusTickDelay(Date.now()))
 }
 function updateSchedulerRemaining(now: number): void {
   lastFocusRemaining = focusData.running ? focusSnapshotRemaining() : 0
@@ -9016,6 +9055,7 @@ function musicHelperPath(): string {
 }
 function applyMusic(next: MusicState): void {
   const previousKey = currentBubbleKey()
+  const wasPlaying = music.playing
   const previousCoverKey = coverKey(music)
   const nextCoverKey = coverKey(next)
   const artwork = mediaRemoteArtwork
@@ -9048,6 +9088,7 @@ function applyMusic(next: MusicState): void {
       ? { cover: music.cover }
       : {}),
   }
+  if (wasPlaying !== music.playing) scheduleBubbleTick()
   if (nextCoverKey !== previousCoverKey || needsArtwork) {
     coverRequest += 1
     const request = coverRequest
@@ -9768,6 +9809,22 @@ function bubbleTick(): void {
     bubbleNextAt = nextMusicBubbleAt(bubbleElapsed)
     showBubble()
   }
+}
+// Only a playing track needs a one-second bubble clock; otherwise the idle
+// tick can be much slower without changing when bubbles appear.
+const bubbleTickPlayingMs = 1000
+const bubbleTickIdleMs = 5000
+function scheduleBubbleTick(delay?: number): void {
+  if (shuttingDown) return
+  if (bubbleTickTimer) clearTimeout(bubbleTickTimer)
+  bubbleTickTimer = setTimeout(
+    () => {
+      bubbleTickTimer = undefined
+      bubbleTick()
+      scheduleBubbleTick()
+    },
+    delay ?? (music.playing ? bubbleTickPlayingMs : bubbleTickIdleMs),
+  )
 }
 const lyricsCacheVersion = 3
 function normalizeLyricsState(state: LyricsState): LyricsState {
@@ -13908,6 +13965,7 @@ async function createWindows(): Promise<void> {
     lastSchedulerWall = 0
     lastSchedulerMono = 0
     focusTick('resume')
+    scheduleFocusTick()
     if (settings.aiQuotaEnabled) {
       scheduleAiQuotaRefresh()
       void refreshAiQuota()
@@ -13918,9 +13976,10 @@ async function createWindows(): Promise<void> {
   lastSchedulerMono = performance.now()
   lastTimezoneOffset = new Date().getTimezoneOffset()
   updateSchedulerRemaining(lastSchedulerWall)
-  // ~60fps while dragging: the window follows the cursor from this loop, so a
-  // slower tick reads as a low frame rate.
-  focusTimer = setInterval(focusTick, 1000)
+  // A running countdown ticks every second; otherwise the scheduler sleeps
+  // until the next reminder is due (capped for clock-jump detection).
+  focusSchedulerActive = true
+  scheduleFocusTick()
   maintenanceTimer = setInterval(() => {
     void runMaintenance()
   }, 15 * 60_000)
@@ -13928,7 +13987,7 @@ async function createWindows(): Promise<void> {
   void pruneMusicAiCache(dataRoot).then(() => refreshMusicAiCacheStats())
   scheduleMusicPoll(2500)
   bubbleLastTick = Date.now()
-  bubbleTickTimer = setInterval(bubbleTick, 1000)
+  scheduleBubbleTick()
   // Follow the cursor at ~60fps only while it is near the pet, dragging, or
   // the wheel is open. Polling the pointer every 16ms for a pet in the corner
   // costs a noticeable slice of idle CPU, so fall back to a slow tick.
@@ -14266,7 +14325,7 @@ else {
     void agent.flush()
     void saveAgentWindowState().catch(() => {})
     if (focusTimer) {
-      clearInterval(focusTimer)
+      clearTimeout(focusTimer)
       focusTimer = undefined
     }
     if (maintenanceTimer) {
@@ -14309,7 +14368,7 @@ else {
     }
     if (pointerTimer) clearInterval(pointerTimer)
     if (musicTimer) clearInterval(musicTimer)
-    if (bubbleTickTimer) clearInterval(bubbleTickTimer)
+    if (bubbleTickTimer) clearTimeout(bubbleTickTimer)
     notes?.destroy()
     pill?.destroy()
     volumePopup?.destroy()
