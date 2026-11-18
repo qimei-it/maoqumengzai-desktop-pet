@@ -6891,10 +6891,14 @@ async function clearOldPetAssets(): Promise<void> {
     ? await dialog.showMessageBox(settingsWindow, options)
     : await dialog.showMessageBox(options)
   if (result.response !== 1) return
+  const removed = new Set(removable.map((entry) => entry.id))
   for (const entry of removable)
     await rm(join(root, entry.id), { recursive: true, force: true }).catch(
       () => {},
     )
+  petNames = records
+    .filter((record) => !removed.has(record.id))
+    .map((record) => record.name)
   await refreshPetCards()
   broadcast()
   addEvent(`已清理 ${removable.length} 套旧桌宠素材。`)
