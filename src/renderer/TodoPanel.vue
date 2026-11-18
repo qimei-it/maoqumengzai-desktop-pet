@@ -1976,7 +1976,7 @@ watch(todoTags, (value) => {
   gap: 12px;
 }
 .todo-lists-panel {
-  flex: 1 1 0;
+  flex: 3 1 0;
   min-height: 0;
   overflow: auto;
   padding: 8px;
