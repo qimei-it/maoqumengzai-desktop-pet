@@ -30,7 +30,7 @@
 | 封面与专辑信息 | `itunes.apple.com/search` | GET | 歌曲名与歌手 | 播放音乐且缺少封面 |
 | AI 音乐互动文案 | `api.deepseek.com/chat/completions` | POST | 歌曲名、歌手、风格、阶段 | 用户开启「AI 智能互动」 |
 | 技能安装 | `github.com`、`codeload.github.com`、`gh-proxy.com`、`ghproxy.net`、`ghfast.top` | GET | 技能包地址 | 用户主动安装技能 |
-| 应用内更新 | `mqmz.qimeiit.cn/latest.json` 与安装包 | GET | 当前版本号 | 打包版启动 15 秒后检查、或手动检查 |
+| 应用内更新 | `mqmz.qimeistudio.com/latest.json` 与安装包 | GET | 当前版本号 | 打包版启动 15 秒后检查、或手动检查 |
 
 没有任何请求指向自家服务端：首版不含账号、云同步与交友，客户端也没有配置云端网关地址。
 

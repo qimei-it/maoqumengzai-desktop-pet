@@ -69,9 +69,9 @@ describe('update manifest', () => {
 
   test('resolves asset URLs against the manifest directory', () => {
     expect(updateAssetUrl('mqmz-1.0.1-arm64.dmg')).toBe(
-      'https://mqmz.qimeiit.cn/mqmz-1.0.1-arm64.dmg',
+      'https://mqmz.qimeistudio.com/mqmz-1.0.1-arm64.dmg',
     )
-    expect(updateManifestUrl).toBe('https://mqmz.qimeiit.cn/latest.json')
+    expect(updateManifestUrl).toBe('https://mqmz.qimeistudio.com/latest.json')
   })
 })
 

@@ -70,7 +70,7 @@
 - [x] CI 密钥扫描：`.github/workflows/ci.yml` 使用固定版本 gitleaks 扫描全部提交历史与工作区，规则见 `.gitleaks.toml`；发布前仍人工复核改动范围与构建产物。
 - [x] 隐私政策：`docs/privacy-policy.md`，区分本地数据默认不上传与已配置第三方服务的联网范围；官网上线后同步一份。
 - [x] 默认接口地址已配置化；README 已说明官方服务范围、支持的架构与第三方构建的区别。
-- [x] 自建分发：只发布 DMG 与 NSIS 安装包，不进入 App Store 或 Microsoft Store；应用内更新读取 `https://mqmz.qimeiit.cn/latest.json`，不做 Squirrel 自动替换（其替换机制在当前分发方式下不可靠）。
+- [x] 自建分发：只发布 DMG 与 NSIS 安装包，不进入 App Store 或 Microsoft Store；应用内更新读取 `https://mqmz.qimeistudio.com/latest.json`，不做 Squirrel 自动替换（其替换机制在当前分发方式下不可靠）。
 - [x] 下载页素材：`docs/release/v1.0.0.md` 提供上传清单、SHA-256、支持范围与首次打开指引。
 - [ ] 公开仓库提交历史已核对，不含私有仓库内容。
 - [ ] 站点上传后用真实版本跑一次完整的检查、下载与安装。

@@ -65,7 +65,7 @@ export type UpdateManifest = z.infer<typeof updateManifestSchema>
 export type UpdateAsset = z.infer<typeof updateAssetSchema>
 
 /** Manifest location. Self-built copies read it too; that is the official feed. */
-export const updateManifestUrl = 'https://mqmz.qimeiit.cn/latest.json'
+export const updateManifestUrl = 'https://mqmz.qimeistudio.com/latest.json'
 
 /** How long a check may take before it is treated as a failure. */
 export const updateCheckTimeoutMs = 12_000

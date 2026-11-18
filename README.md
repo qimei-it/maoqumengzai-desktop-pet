@@ -8,7 +8,7 @@
 
 ## 下载
 
-安装包从官网下载：<https://mqmz.qimeiit.cn/>
+安装包从官网下载：<https://mqmz.qimeistudio.com/>
 
 | 平台 | 架构 | 最低系统 |
 | --- | --- | --- |
@@ -56,7 +56,7 @@ npm run pack:win   # dist/mqmz-<version>-setup.exe
 
 ## 应用内更新
 
-客户端读取 `https://mqmz.qimeiit.cn/latest.json`，比对版本后下载对应平台的安装包，校验 SHA-256，再打开安装程序并退出——macOS 上由你把它拖进「应用程序」，Windows 上运行安装向导。下次启动时如果版本已经更新，客户端会把下载好的安装包移进废纸篓；没装成则保留，下次再说。
+客户端读取 `https://mqmz.qimeistudio.com/latest.json`，比对版本后下载对应平台的安装包，校验 SHA-256，再打开安装程序并退出——macOS 上由你把它拖进「应用程序」，Windows 上运行安装向导。下次启动时如果版本已经更新，客户端会把下载好的安装包移进废纸篓；没装成则保留，下次再说。
 
 没有使用 Squirrel 式自动替换：macOS 上那套机制在当前分发方式下不可靠。清单生成见 `scripts/update-manifest.mjs`（`npm run update:manifest`），发布步骤见 `docs/release/v1.0.0.md`。
 
