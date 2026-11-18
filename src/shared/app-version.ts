@@ -5,7 +5,7 @@
  * an Electron runtime. `tests/unit/app-version.test.ts` fails when this drifts
  * from package.json.
  */
-export const appVersion = '1.0.0'
+export const appVersion = '1.0.1'
 
 export const appUserAgent = `MaoquMengzai/${appVersion}`
 
