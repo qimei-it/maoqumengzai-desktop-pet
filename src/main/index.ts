@@ -14210,7 +14210,9 @@ else {
         agentSkillAdmin = await createSkillAdmin({
           store: agentSkillStore,
           scansPath: agentSkillScansPath,
-          fetch: (input, init) => net.fetch(input as string, init),
+          // Main-process fetch bypasses the renderer request filter; net.fetch
+          // would be cancelled by it and break URL installs.
+          fetch: (input, init) => fetch(input as string, init),
           onChange: () => {
             if (!agentSkillStore) return
             agentSkills = agentSkillStore.list()

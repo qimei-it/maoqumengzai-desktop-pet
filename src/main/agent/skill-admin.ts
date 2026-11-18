@@ -51,7 +51,7 @@ type SkillAdminOptions = {
   scansPath: string
   /** Absolute path to the bundled skill-scanner script, when available. */
   scannerScript?: string
-  /** Electron net.fetch in production so system proxies apply. */
+  /** Download implementation; defaults to the main-process global fetch. */
   fetch?: typeof fetch
   resolve?: typeof resolveSkillSource
   scanDirectory?: typeof scanSkillDirectory
