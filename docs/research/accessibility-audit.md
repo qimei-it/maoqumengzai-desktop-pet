@@ -33,6 +33,10 @@
 
 `--color-brand-ink` 本身未改：它压在白色和画布上是 4.89，已经合格；全站 116 处文字与 12 处选中态背景保持原样。halloween 与 christmas 两个主题沿用各自的品牌墨色，本来已达标。
 
+### 复核（2026-11-18）
+
+`tests/e2e/a11y.spec.ts` 4 项、`npm run check:contrast`、`npm run check:design`、`npm run check:icons` 全部通过；结论与上表一致，人工项仍未验证。
+
 ## 仍需人工核验
 
 | 项目 | 原因 |
