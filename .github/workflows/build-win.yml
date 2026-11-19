@@ -1,0 +1,54 @@
+name: Build Windows
+
+# Windows 安装包必须在 Windows 上构建：sharp / @napi-rs/canvas 的原生二进制
+# 按平台安装，在 macOS 上打包会得到 win32 启动即崩溃的安装包。
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: build-win-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  installer:
+    name: NSIS installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify native binaries
+        run: npm run check:natives -- --platform win32 --arch x64
+      - name: Package
+        run: npm run pack:win
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem dist -Filter 'mqmz-*-setup.exe' | Select-Object -First 1
+          if (-not $file) { throw '没有生成安装包' }
+          $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower()
+          "version=$((Get-Content package.json | ConvertFrom-Json).version)" | Set-Content dist/win-build.txt
+          "file=$($file.Name)" | Add-Content dist/win-build.txt
+          "size=$($file.Length)" | Add-Content dist/win-build.txt
+          "sha256=$hash" | Add-Content dist/win-build.txt
+          Get-Content dist/win-build.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mqmz-win-installer
+          if-no-files-found: error
+          path: |
+            dist/mqmz-*-setup.exe
+            dist/win-build.txt

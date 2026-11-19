@@ -1,7 +1,7 @@
 {
   "name": "mqmz-desktop-pet",
   "productName": "毛趣萌仔",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
@@ -22,13 +22,14 @@
     "check:design": "node scripts/check-design-tokens.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:engines": "vitest run tests/unit/engines.test.ts",
+    "check:natives": "node scripts/check-native-binaries.cjs",
     "generate:icons": "node scripts/generate-native-icons.mjs",
     "generate:app-icons": "node scripts/generate-app-icons.mjs",
     "start": "node scripts/set-dev-app-name.mjs && electron .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "pack:mac": "npm run build && electron-builder --mac dmg --arm64 --publish never",
-    "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "pack:mac": "npm run build && node scripts/check-native-binaries.cjs --platform darwin --arch arm64 && electron-builder --mac dmg --arm64 --publish never",
+    "pack:win": "npm run build && node scripts/check-native-binaries.cjs --platform win32 --arch x64 && electron-builder --win nsis --x64 --publish never",
     "update:manifest": "node scripts/update-manifest.mjs"
   },
   "engines": {
