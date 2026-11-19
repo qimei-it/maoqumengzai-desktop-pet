@@ -43,7 +43,7 @@
 ## 桌面上的那个小可爱
 
 <p align="center">
-  <img src=".github/assets/readme/shot-music.webp" alt="桌宠听歌：双行歌词与播放控制" width="380" />
+  <img src=".github/assets/readme/shot-music.webp" alt="桌宠听歌：双行歌词与播放控制" width="340" />
 </p>
 
 桌宠常驻桌面、始终置顶，可以缩放与拖动。它有待机、拖动、听歌、思考与专注几种姿态，会眨眼、呼吸，跟着音乐轻轻晃。打开面板时它仍在最上层，但不会被面板盖住。
