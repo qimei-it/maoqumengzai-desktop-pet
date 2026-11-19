@@ -9,7 +9,7 @@
 
 ## 1. 保存在本机的数据
 
-客户端把数据存放在系统的应用数据目录下（macOS 为 `~/Library/Application Support/mqmz-desktop/`，Windows 为 `%APPDATA%\mqmz-desktop\`），包括：
+客户端把数据存放在系统的应用数据目录下（macOS 为 `~/Library/Application Support/mqmz-desktop/`，Windows 为 `%LOCALAPPDATA%\mqmz-desktop\`），包括：
 
 - 桌宠档案与生成的自定义形象素材
 - 番茄钟、喝水与久坐提醒、待办的记录
