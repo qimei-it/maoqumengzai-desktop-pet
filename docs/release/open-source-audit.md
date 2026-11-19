@@ -33,7 +33,7 @@
 
 - 全部 427 个提交的作者统一为 `Yifan Li <yifan.li@qimeistudio.cn>`（公司邮箱）。
 - 已清理项目自有文件中的本机绝对路径：
-  - `docs/v1-implementation-handoff.md`
+  - `docs/archive/v1-implementation-handoff.md`
   - `resources/pet/ragdoll/source/*.txt`
 - **仍保留**：`AGENTS.md` 与 `docs/p0-validation-progress.md` 中的内部 GitLab 主机名 `gitlab.qimei.com`。它只是远端地址，不含凭据；公开版是否需要保留由维护者决定。
 - 第三方技能样例中的 `/Users/...` 与示例邮箱未改动，属上游内容。

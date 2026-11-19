@@ -1,9 +1,9 @@
 # 默认宠物参考图
 
-这两张图片由用户在需求讨论中提供，保存原图副本用于后续视觉设计：
+布偶猫参考图保留在本目录；柯基参考图已归档到 `../archive/references/default-corgi-reference.png`（首版不交付柯基）。
 
 - `default-ragdoll-reference.png`：布偶猫，黏人性格。
-- `default-corgi-reference.png`：柯基犬，活泼性格。
+- `../archive/references/default-corgi-reference.png`：柯基犬，活泼性格。
 
 默认麻薯沿用当前美术风格，透明背景；后续自定义宠物可由用户选择风格，不强制 2.5D 像素风。首版只交付麻薯，柯基延后。两只都不穿衣服；柯基图中的卫衣、背景、图标与其他装饰不进入桌宠。
 

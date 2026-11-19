@@ -24,7 +24,7 @@
 | Windows 10 22H2 | x64 | 测试设备尚未确认 | 待验证 |
 | Windows 11 | x64 目标 | 用户已提供系统版本；具体发行版本、构建号、设备架构待核实 | 待验证 |
 | macOS 13 | Apple Silicon / arm64 | 最低版本测试环境尚未确认 | 待验证 |
-| macOS 27.0.1（26A434） | Apple Silicon / arm64 | 已运行原型并实测两块不同缩放屏幕的窗口归属及实际屏幕预览 | 部分通过；完整清单见 [验证记录](p0-window-prototype.md) |
+| macOS 27.0.1（26A434） | Apple Silicon / arm64 | 已运行原型并实测两块不同缩放屏幕的窗口归属及实际屏幕预览 | 部分通过；完整清单见 [验证记录](archive/p0-window-prototype.md) |
 
 ## 官方依据与判断
 

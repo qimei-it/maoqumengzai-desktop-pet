@@ -1,6 +1,6 @@
 # 开源策略与功能开放边界
 
-确认日期：2026-11-12（Asia/Shanghai）。关联 [实施交接](v1-implementation-handoff.md) §2.4、§4.5、P6，[完整交友模块](social-module-v1-scope.md)，[技术方案](technical-architecture.md) §6，[验收映射](v1-acceptance-matrix.md) H-P1-04、H-P6-01～04。
+确认日期：2026-11-12（Asia/Shanghai）。关联 [实施交接](archive/v1-implementation-handoff.md) §2.4、§4.5、P6，[完整交友模块](social-module-v1-scope.md)，[技术方案](technical-architecture.md) §6，[验收映射](archive/v1-acceptance-matrix.md) H-P1-04、H-P6-01～04。
 
 本文件记录已确认的开源形态与功能开放顺序。除明确标注为已实现的部分，各项均为待实现或待验证，不作为交付证据。
 

@@ -77,9 +77,9 @@ npm run pack:win   # dist/mqmz-<version>-setup.exe
 
 ## 开发资料
 
-- [第一版需求与实施交接](docs/v1-implementation-handoff.md)
+- [第一版需求与实施交接](docs/archive/v1-implementation-handoff.md)
 - [开源策略与功能开放边界](docs/open-source-strategy.md)
-- [57 项验收映射](docs/v1-acceptance-matrix.md)
+- [57 项验收映射](docs/archive/v1-acceptance-matrix.md)
 - [双平台支持矩阵](docs/platform-support-matrix.md)
 - [技术方案](docs/technical-architecture.md)
 - [面板样式规范](docs/design/panel-style-contract.md)
