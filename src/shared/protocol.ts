@@ -619,6 +619,7 @@ export type Snapshot = {
   petStats: PetStatsView
   petCreate: PetCreateState
   shelfFolders: ShelfFolderView[]
+  dataDir: string
   shelfInvalidCount: number
   engines: {
     ffmpeg: FfmpegEngineState

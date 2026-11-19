@@ -55,10 +55,10 @@ export function saveCopyLine(): string {
 }
 
 export function musicAiFallbackLine(reason: MusicAiFallbackReason): string {
-  if (reason === 'key') return 'DeepSeek Key 失效，我先用自己的话陪你听'
-  if (reason === 'balance') return 'DeepSeek 余额不足，我先用自己的话陪你听'
-  if (reason === 'rate') return 'DeepSeek 请求过多，我先用自己的话陪你听'
-  if (reason === 'network') return '连不上 DeepSeek，我先用自己的话陪你听'
+  if (reason === 'key') return '模型 Key 失效，我先用自己的话陪你听'
+  if (reason === 'balance') return '账户余额不足，我先用自己的话陪你听'
+  if (reason === 'rate') return '模型请求过多，我先用自己的话陪你听'
+  if (reason === 'network') return '连不上模型服务，我先用自己的话陪你听'
   return 'AI 生成失败，我先用自己的话陪你听'
 }
 

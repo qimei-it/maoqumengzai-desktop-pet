@@ -1,14 +1,16 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { requestCompletion, searchWeb } from '../shared/deepseek'
+import type { AgentModelId, AgentProvider } from '../shared/agent-models'
+import { searchWeb } from '../shared/deepseek'
+import { requestMusicAiReply } from './music-ai-text'
 import type { MusicMood } from '../shared/music-bubbles'
 
 /**
  * Bump whenever the prompt or the JSON contract changes so every track is
  * regenerated once instead of silently mixing old and new copy.
  */
-export const MUSIC_AI_PROMPT_VERSION = 4
+export const MUSIC_AI_PROMPT_VERSION = 5
 
 export type MusicAiTrack = {
   title: string
@@ -47,9 +49,9 @@ function clip(text: string, max: number): string {
   return chars.length > max ? `${chars.slice(0, max).join('')}…` : chars.join('')
 }
 
-export function musicAiCacheKey(trackKey: string): string {
+export function musicAiCacheKey(trackKey: string, model = ''): string {
   return createHash('sha1')
-    .update(`${MUSIC_AI_PROMPT_VERSION}\u0000${trackKey}`)
+    .update(`${MUSIC_AI_PROMPT_VERSION}\u0000${model}\u0000${trackKey}`)
     .digest('hex')
 }
 
@@ -57,8 +59,15 @@ export function musicAiDirectory(dataRoot: string): string {
   return join(dataRoot, 'music-ai')
 }
 
-export function musicAiCachePath(dataRoot: string, trackKey: string): string {
-  return join(musicAiDirectory(dataRoot), `${musicAiCacheKey(trackKey)}.json`)
+export function musicAiCachePath(
+  dataRoot: string,
+  trackKey: string,
+  model = '',
+): string {
+  return join(
+    musicAiDirectory(dataRoot),
+    `${musicAiCacheKey(trackKey, model)}.json`,
+  )
 }
 
 export type MusicAiUsage = { date: string; count: number }
@@ -236,9 +245,13 @@ export function parseMusicAiContent(
 export async function readMusicAiCache(
   dataRoot: string,
   trackKey: string,
+  model = '',
 ): Promise<MusicAiContent | null> {
   try {
-    const text = await readFile(musicAiCachePath(dataRoot, trackKey), 'utf8')
+    const text = await readFile(
+      musicAiCachePath(dataRoot, trackKey, model),
+      'utf8',
+    )
     const parsed = parseMusicAiContent(JSON.parse(text), trackKey)
     if (!parsed || parsed.promptVersion !== MUSIC_AI_PROMPT_VERSION) return null
     return parsed
@@ -304,6 +317,7 @@ function buildUserPrompt(
   track: MusicAiTrack,
   lyrics: string,
   materials: string,
+  inlineSearch: boolean,
 ): string {
   const meta = [
     `歌名：${track.title}`,
@@ -317,18 +331,20 @@ function buildUserPrompt(
     .filter(Boolean)
     .join('\n')
   const body = track.instrumental
-    ? '这首歌没有可读歌词，请只根据歌名、歌手、专辑和搜索资料写画面与情绪。'
+    ? '这首歌没有可读歌词，请只根据歌名、歌手、专辑写画面与情绪。'
     : lyrics
       ? `歌词：\n${lyrics}`
-      : '没有拿到歌词，请只根据歌名、歌手、专辑和搜索资料写情绪。'
+      : '没有拿到歌词，请只根据歌名、歌手、专辑写情绪。'
+  const reference = inlineSearch
+    ? '需要时可以联网搜索这首歌的公开背景资料；不确定的信息不要写，也不要输出搜索过程。'
+    : `联网搜索资料（可能不完整、过时或与歌曲无关，只作参考）：\n${materials}`
   return [
     '歌曲信息：',
     meta,
     '',
     body,
     '',
-    '联网搜索资料（可能不完整、过时或与歌曲无关，只作参考）：',
-    materials,
+    reference,
     '',
     '请按系统要求输出四个阶段、每阶段五条 30–44 个汉字的互动文案 JSON。',
   ].join('\n')
@@ -436,104 +452,127 @@ export function aiMoodToMusicMood(mood: string): MusicMood {
   return 'generic'
 }
 
+const inlineSearchHint =
+  '你可以使用供应商提供的联网搜索了解歌曲的公开背景；不确定的事实不要写，不要输出搜索过程或引用列表。'
+
 export async function generateMusicAiContent(options: {
+  provider: AgentProvider
+  model: AgentModelId
   apiKey: string
   dataRoot: string
   trackKey: string
   track: MusicAiTrack
+  search: boolean
 }): Promise<MusicAiContent> {
-  const { apiKey, dataRoot, trackKey, track } = options
+  const { provider, model, apiKey, dataRoot, trackKey, track, search } = options
   const lyrics = cleanLyrics(track)
-  const query = clip(
-    `${track.title} ${track.artist ?? ''} 创作背景 曲风`.trim(),
-    120,
-  )
+  const inlineSearch = search && provider !== 'deepseek'
+
   let materials = '没有可用的联网搜索资料。'
   let sources: MusicAiSource[] = []
-  try {
-    const results = await searchWeb(apiKey, query, {
-      count: 5,
-      oriQuestion: clip(
-        `${track.title} ${track.artist ?? ''} 歌曲创作背景与情绪解读`,
-        120,
-      ),
-      timeoutMs: 15_000,
-    })
-    materials = searchMaterials(results)
-    sources = results.slice(0, 4).map((result) => ({
-      title: clip(result.title, 120),
-      url: result.url,
-      ...(result.site_name ? { site: clip(result.site_name, 40) } : {}),
-    }))
-  } catch (error) {
-    console.warn(
-      '[music-ai] search failed, generating from lyrics only:',
-      error instanceof Error ? error.message : error,
+  if (search && provider === 'deepseek') {
+    const query = clip(
+      `${track.title} ${track.artist ?? ''} 创作背景 曲风`.trim(),
+      120,
     )
+    try {
+      const results = await searchWeb(apiKey, query, {
+        count: 5,
+        oriQuestion: clip(
+          `${track.title} ${track.artist ?? ''} 歌曲创作背景与情绪解读`,
+          120,
+        ),
+        timeoutMs: 15_000,
+      })
+      materials = searchMaterials(results)
+      sources = results.slice(0, 4).map((result) => ({
+        title: clip(result.title, 120),
+        url: result.url,
+        ...(result.site_name ? { site: clip(result.site_name, 40) } : {}),
+      }))
+    } catch (error) {
+      console.warn(
+        '[music-ai] search failed, generating from lyrics only:',
+        error instanceof Error ? error.message : error,
+      )
+    }
   }
 
-  const answer = await requestCompletion(
-    apiKey,
-    [
-      { role: 'system', content: systemPrompt },
-      {
-        role: 'user',
-        content: buildUserPrompt(track, lyrics, materials),
-      },
-    ],
-    {
-      model: 'deepseek-flash',
+  async function generate(allowInlineSearch: boolean): Promise<MusicAiContent> {
+    const reply = await requestMusicAiReply({
+      provider,
+      model,
+      apiKey,
+      system: allowInlineSearch
+        ? `${systemPrompt}\n${inlineSearchHint}`
+        : systemPrompt,
+      user: buildUserPrompt(track, lyrics, materials, allowInlineSearch),
+      json: true,
       temperature: 0.9,
       maxTokens: 2400,
-      json: true,
-      timeoutMs: 45_000,
-    },
-  )
-  const parsed = parseMusicAiAnswer(answer)
-  if (!parsed || typeof parsed !== 'object') {
-    console.warn('[music-ai] unparsable answer:', answer.slice(0, 2000))
-    throw new Error('DeepSeek 没有返回可解析的互动内容。')
-  }
-  const data = parsed as Record<string, unknown>
-  const rawStages = Array.isArray(data.stages) ? data.stages : []
-  const stages: string[][] = []
-  for (const stage of rawStages.slice(0, stageCount)) {
-    const lines = Array.isArray(stage)
-      ? stage
-      : (stage as Record<string, unknown>)?.lines
-    if (!isStringArray(lines)) continue
-    const cleaned = lines
-      .map((line) => clip(line, maxLineChars))
-      .filter((line) => line.length > 0)
-      .slice(0, linesPerStage)
-    if (cleaned.length) stages.push(cleaned)
-  }
-  if (stages.length < stageCount) {
-    console.warn(
-      '[music-ai] incomplete stages:',
-      rawStages.length,
-      stages.map((stage) => stage.length),
-      answer.slice(0, 2000),
+      search: allowInlineSearch,
+      timeoutMs: 60_000,
+    })
+    const answer = reply.text
+    const parsed = parseMusicAiAnswer(answer)
+    if (!parsed || typeof parsed !== 'object') {
+      console.warn('[music-ai] unparsable answer:', answer.slice(0, 2000))
+      throw new Error('模型没有返回可解析的互动内容。')
+    }
+    const data = parsed as Record<string, unknown>
+    const rawStages = Array.isArray(data.stages) ? data.stages : []
+    const stages: string[][] = []
+    for (const stage of rawStages.slice(0, stageCount)) {
+      const lines = Array.isArray(stage)
+        ? stage
+        : (stage as Record<string, unknown>)?.lines
+      if (!isStringArray(lines)) continue
+      const cleaned = lines
+        .map((line) => clip(line, maxLineChars))
+        .filter((line) => line.length > 0)
+        .slice(0, linesPerStage)
+      if (cleaned.length) stages.push(cleaned)
+    }
+    if (stages.length < stageCount) {
+      console.warn(
+        '[music-ai] incomplete stages:',
+        rawStages.length,
+        stages.map((stage) => stage.length),
+        answer.slice(0, 2000),
+      )
+      throw new Error('模型返回的互动内容阶段不完整。')
+    }
+
+    const content: MusicAiContent = {
+      version: 1,
+      promptVersion: MUSIC_AI_PROMPT_VERSION,
+      trackKey,
+      mood:
+        clip(typeof data.mood === 'string' ? data.mood : '其他', 12) || '其他',
+      energy:
+        data.energy === 'low' || data.energy === 'high' ? data.energy : 'medium',
+      stages,
+      sources: reply.sources.length ? reply.sources : sources,
+      createdAt: Date.now(),
+    }
+    await mkdir(musicAiDirectory(dataRoot), { recursive: true })
+    await writeFile(
+      musicAiCachePath(dataRoot, trackKey, model),
+      `${JSON.stringify(content, null, 2)}\n`,
+      'utf8',
     )
-    throw new Error('DeepSeek 返回的互动内容阶段不完整。')
+    return content
   }
 
-  const content: MusicAiContent = {
-    version: 1,
-    promptVersion: MUSIC_AI_PROMPT_VERSION,
-    trackKey,
-    mood: clip(typeof data.mood === 'string' ? data.mood : '其他', 12) || '其他',
-    energy:
-      data.energy === 'low' || data.energy === 'high' ? data.energy : 'medium',
-    stages,
-    sources,
-    createdAt: Date.now(),
+  if (inlineSearch) {
+    try {
+      return await generate(true)
+    } catch (error) {
+      console.warn(
+        '[music-ai] inline search failed, retrying without search:',
+        error instanceof Error ? error.message : error,
+      )
+    }
   }
-  await mkdir(musicAiDirectory(dataRoot), { recursive: true })
-  await writeFile(
-    musicAiCachePath(dataRoot, trackKey),
-    `${JSON.stringify(content, null, 2)}\n`,
-    'utf8',
-  )
-  return content
+  return generate(false)
 }

@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import {
   ExternalLink,
+  Info,
   PenLine,
   RefreshCw,
   Trash2,
@@ -63,6 +64,8 @@ const providerOptions: Array<{
   { id: '163', label: mailProviderLabels['163'] },
   { id: 'gmail', label: mailProviderLabels.gmail },
 ]
+const proxyDescription =
+  'Gmail 在中国大陆通常需要代理才能收发；「自动」会读取系统代理，「手动」可填写代理地址。'
 const proxyModeOptions = mailProxyModes.map((mode) => ({
   value: mode,
   label: mailProxyModeLabels[mode],
@@ -453,7 +456,13 @@ watch(
     </div>
 
     <div class="mail-row">
-      <span class="mail-label">Gmail 代理</span>
+      <span class="mail-label-icon">
+        <span class="mail-label">Gmail 代理</span>
+        <span class="mail-info" tabindex="0" :aria-label="proxyDescription">
+          <Info :size="14" :stroke-width="2" aria-hidden="true" />
+          <span class="mail-tooltip" role="tooltip">{{ proxyDescription }}</span>
+        </span>
+      </span>
       <SelectField
         :value="config.proxyMode"
         :disabled="busy"
@@ -608,6 +617,55 @@ watch(
   flex: none;
   color: var(--color-ink);
   font-size: var(--font-size-body);
+}
+.mail-label-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.mail-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink);
+  cursor: help;
+}
+.mail-info:focus-visible {
+  outline: var(--mqmz-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+.mail-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: var(--font-size-caption);
+  font-weight: 400;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.mail-info:hover .mail-tooltip,
+.mail-info:focus-visible .mail-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-tooltip {
+    transition: none;
+  }
 }
 .mail-icon-action:focus-visible,
 .mail-provider:focus-visible,

@@ -175,6 +175,23 @@ function backupTime(at: number): string {
 }
 const manualBackupDescription = '立即把本地数据打包导出为 ZIP 文件。'
 const restoreDescription = '用备份覆盖当前本地数据并重启应用。'
+const cacheDescription = '浏览器缓存与临时文件，清理后不影响设置、待办与素材。'
+const appDataDescription =
+  '设置、密钥、待办、邮件缓存与桌宠素材，删除后应用会重启并回到初始状态。'
+const petAssetsDescription =
+  '删除除当前正在使用的桌宠之外的自定义素材，删除后无法恢复。'
+const bellyDescription =
+  '拖给桌宠「吃掉」的文件，7 天内可在置物架取回，过期后自动删除。'
+const chatModelDescription = '用于智能体对话、工具调用与音乐互动。'
+const imageModelDescription =
+  '用于自定义桌宠出图与图像生成，未设置时这些功能不可用。'
+const videoModelDescription = '用于视频生成工具，未设置时该功能不可用。'
+const audioModelDescription = '用于智能体语音合成，未设置时该功能不可用。'
+const musicAiDescription = computed(() =>
+  textModelConfigured.value
+    ? '根据歌曲信息与歌词生成互动内容，使用「默认对话模型」，可能联网搜索并把歌曲信息与歌词发送给对应供应商。'
+    : '根据歌曲信息与歌词生成互动内容；需要先在设置中配置一个文本模型。',
+)
 const autoBackupDescription = computed(
   () =>
     `每天自动备份一次本地数据，保留最近 ${backup.value?.retention ?? 7} 份。`,
@@ -266,6 +283,10 @@ const minimaxLatencyClass = computed(() => {
 })
 const volcano = computed(() => props.state?.ai.volcano)
 const volcanoConfigured = computed(() => volcano.value?.configured === true)
+/** 任意一家配置了 Key 就能提供一个文本模型，音乐互动跟随默认对话模型。 */
+const textModelConfigured = computed(
+  () => configured.value || minimaxConfigured.value || volcanoConfigured.value,
+)
 const volcanoTest = computed<AiTestState>(
   () => volcano.value?.test ?? { status: 'idle' },
 )
@@ -745,17 +766,18 @@ function toggle(
     | 'aiQuotaEnabled'
     | 'aiQuotaAlerts',
 ): void {
-  if (key === 'musicAiEnabled' && !configured.value) return
+  if (key === 'musicAiEnabled' && !textModelConfigured.value) return
   if (key === 'aiQuotaAlerts' && !settings.value.aiQuotaEnabled) return
   update({ [key]: !settings.value[key] })
 }
 const shelfFolders = computed(() => props.state?.shelfFolders ?? [])
+const dataDir = computed(() => props.state?.dataDir ?? '')
 const shelfFolderLabel = computed(() => {
   const folders = shelfFolders.value
   if (!folders.length) return '读取中'
   return folders
     .map((folder) =>
-      folder.exists ? folder.label : `${folder.label}（不存在）`,
+      folder.exists ? folder.path : `${folder.path}（不存在）`,
     )
     .join(' · ')
 })
@@ -997,16 +1019,56 @@ function onEscape(): void {
           <template v-else-if="section === 'data'">
             <div class="settings-row">
               <span class="settings-label">数据目录</span>
+              <span class="settings-inline settings-path-inline">
+                <span class="settings-path" :title="dataDir">{{
+                  dataDir
+                }}</span>
+                <button
+                  type="button"
+                  class="settings-button primary"
+                  @click="emit('command', { type: 'settings-open-data' })"
+                >
+                  打开
+                </button>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label-icon">
+                <span class="settings-label">应用数据</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="appDataDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    appDataDescription
+                  }}</span>
+                </span>
+              </span>
               <button
                 type="button"
-                class="settings-button primary"
-                @click="emit('command', { type: 'settings-open-data' })"
+                class="settings-button danger"
+                aria-label="删除应用数据"
+                @click="emit('command', { type: 'settings-delete-data' })"
               >
-                打开
+                删除
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">缓存</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">可清理缓存</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="cacheDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    cacheDescription
+                  }}</span>
+                </span>
+              </span>
               <button
                 type="button"
                 class="settings-button danger"
@@ -1016,7 +1078,19 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">桌宠素材</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">桌宠素材</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="petAssetsDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    petAssetsDescription
+                  }}</span>
+                </span>
+              </span>
               <button
                 type="button"
                 class="settings-button danger"
@@ -1026,7 +1100,19 @@ function onEscape(): void {
               </button>
             </div>
             <div class="settings-row">
-              <span class="settings-label">回收区</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">吃掉的文件</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="bellyDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    bellyDescription
+                  }}</span>
+                </span>
+              </span>
               <span class="settings-inline">
                 <span class="settings-value">{{ bellyCount }} 项</span>
                 <button
@@ -1151,17 +1237,6 @@ function onEscape(): void {
             <p v-if="backup?.error" class="settings-error" role="alert">
               {{ backup.error }}
             </p>
-            <div class="settings-row">
-              <span class="settings-label">本地数据</span>
-              <button
-                type="button"
-                class="settings-button danger"
-                aria-label="删除本地数据"
-                @click="emit('command', { type: 'settings-delete-data' })"
-              >
-                删除
-              </button>
-            </div>
           </template>
 
           <template v-else-if="section === 'profile'">
@@ -1557,21 +1632,28 @@ function onEscape(): void {
                 </button>
               </div>
               <div class="settings-row">
-                <span id="setting-music-ai" class="settings-label"
-                  >AI 智能互动</span
-                >
+                <span class="settings-label-icon">
+                  <span id="setting-music-ai" class="settings-label"
+                    >AI 智能互动</span
+                  >
+                  <span
+                    class="settings-info"
+                    tabindex="0"
+                    :aria-label="musicAiDescription"
+                  >
+                    <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                    <span class="settings-tooltip" role="tooltip">{{
+                      musicAiDescription
+                    }}</span>
+                  </span>
+                </span>
                 <button
                   type="button"
                   class="settings-switch"
                   role="switch"
                   aria-labelledby="setting-music-ai"
-                  :aria-checked="configured && settings.musicAiEnabled"
-                  :aria-disabled="!configured"
-                  :title="
-                    configured
-                      ? '根据歌曲信息与歌词生成互动内容，生成时会把歌曲信息与歌词发送至 DeepSeek'
-                      : '请先在 API Key 设置中添加 DeepSeek API Key'
-                  "
+                  :aria-checked="textModelConfigured && settings.musicAiEnabled"
+                  :aria-disabled="!textModelConfigured"
                   @click="toggle('musicAiEnabled')"
                 >
                   <span class="settings-switch-thumb" />
@@ -2216,7 +2298,19 @@ function onEscape(): void {
               </p>
             </div>
             <div class="settings-row">
-              <span class="settings-label">默认对话模型</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">默认对话模型</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="chatModelDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    chatModelDescription
+                  }}</span>
+                </span>
+              </span>
               <SelectField
                 :model-value="settings.agentDefaultChatModel"
                 aria-label="默认对话模型"
@@ -2245,7 +2339,19 @@ function onEscape(): void {
               </SelectField>
             </div>
             <div class="settings-row">
-              <span class="settings-label">默认图像模型</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">默认图像模型</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="imageModelDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    imageModelDescription
+                  }}</span>
+                </span>
+              </span>
               <SelectField
                 :model-value="settings.aiImageModel"
                 aria-label="默认图像模型"
@@ -2271,7 +2377,19 @@ function onEscape(): void {
               </SelectField>
             </div>
             <div class="settings-row">
-              <span class="settings-label">默认视频模型</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">默认视频模型</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="videoModelDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    videoModelDescription
+                  }}</span>
+                </span>
+              </span>
               <SelectField
                 :model-value="settings.agentDefaultVideoModel"
                 aria-label="默认视频模型"
@@ -2300,7 +2418,19 @@ function onEscape(): void {
               </SelectField>
             </div>
             <div class="settings-row">
-              <span class="settings-label">默认音频模型</span>
+              <span class="settings-label-icon">
+                <span class="settings-label">默认音频模型</span>
+                <span
+                  class="settings-info"
+                  tabindex="0"
+                  :aria-label="audioModelDescription"
+                >
+                  <Info :size="14" :stroke-width="2" aria-hidden="true" />
+                  <span class="settings-tooltip" role="tooltip">{{
+                    audioModelDescription
+                  }}</span>
+                </span>
+              </span>
               <SelectField
                 :model-value="settings.agentDefaultAudioModel"
                 aria-label="默认音频模型"

@@ -44,6 +44,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import sharp from 'sharp'
 import { channels } from '../shared/protocol'
+import { resolveTextModel, type TextModelChoice } from '../shared/music-ai-model'
 import {
   agentModels,
   isGenerationModel,
@@ -1738,6 +1739,7 @@ function snapshot(): Snapshot {
     petStats: petStatsView(petStats ?? defaultPetStats(Date.now())),
     petCreate: petCreateState(),
     shelfFolders: windowVisible(settingsWindow) ? screenshotFolderState : [],
+    dataDir: windowVisible(settingsWindow) ? dataRoot : '',
     shelfInvalidCount,
     engines: {
       ffmpeg: ffmpegState(),
@@ -6818,8 +6820,8 @@ async function updateSettings(
   patch: Partial<SettingsState>,
   syncPetName = true,
 ): Promise<void> {
-  if (patch.musicAiEnabled === true && !aiKey)
-    throw new Error('请先在 API Key 设置中配置 DeepSeek API Key。')
+  if (patch.musicAiEnabled === true && !resolveMusicAiModel())
+    throw new Error('请先在设置中配置一个文本模型。')
   if (syncPetName && patch.petName) {
     const others = activePet
       ? petNames.filter(
@@ -9766,6 +9768,14 @@ async function refreshMusicAiCacheStats(): Promise<void> {
   musicAiCacheState.limit = settings.musicAiDailyLimit
   broadcast()
 }
+function resolveMusicAiModel(): TextModelChoice | undefined {
+  return resolveTextModel(settings.agentDefaultChatModel, {
+    deepseek: aiKey,
+    minimax: minimaxKey,
+    volcano: volcanoKey,
+  })
+}
+
 function musicAiFailureNotice(message: string): string {
   if (/API Key|401|403/.test(message)) return musicAiFallbackLine('key')
   if (/余额|402/.test(message)) return musicAiFallbackLine('balance')
@@ -9782,7 +9792,7 @@ async function clearAiInteractionCache(): Promise<void> {
     type: 'warning',
     title: '清除 AI 互动缓存',
     message: `清除 ${musicAiCacheState.count} 首歌曲的 AI 互动缓存？`,
-    detail: '下次播放会重新请求 DeepSeek 生成；今日生成次数不会重置。',
+    detail: '下次播放会重新请求文本模型生成；今日生成次数不会重置。',
     buttons: ['取消', '清除'],
     defaultId: 0,
     cancelId: 0,
@@ -9798,14 +9808,17 @@ function scheduleMusicAi(): void {
     clearTimeout(bubbleAiTimer)
     bubbleAiTimer = undefined
   }
-  if (!settings.musicAiEnabled || !aiKey || !settings.musicBubbles) return
+  if (!settings.musicAiEnabled || !settings.musicBubbles) return
+  if (!resolveMusicAiModel()) return
   bubbleAiTimer = setTimeout(() => {
     bubbleAiTimer = undefined
     void ensureMusicAi()
   }, 1600)
 }
 async function ensureMusicAi(): Promise<void> {
-  if (!settings.musicAiEnabled || !aiKey || !settings.musicBubbles) return
+  if (!settings.musicAiEnabled || !settings.musicBubbles) return
+  const choice = resolveMusicAiModel()
+  if (!choice) return
   const key = currentTrackKey()
   if (!key || !music.title) return
   if (bubbleAiContent?.key === key) return
@@ -9822,7 +9835,7 @@ async function ensureMusicAi(): Promise<void> {
     instrumental: bubbleLyrics?.instrumental,
   }
   try {
-    const cached = await readMusicAiCache(dataRoot, trackKey)
+    const cached = await readMusicAiCache(dataRoot, trackKey, choice.model)
     if (cached) {
       if (currentTrackKey() === trackKey)
         bubbleAiContent = { key: trackKey, data: cached }
@@ -9842,10 +9855,13 @@ async function ensureMusicAi(): Promise<void> {
     }
     musicAiLimitNotified = false
     const data = await generateMusicAiContent({
-      apiKey: aiKey,
+      provider: choice.provider,
+      model: choice.model,
+      apiKey: choice.key,
       dataRoot,
       trackKey,
       track,
+      search: true,
     })
     await incrementMusicAiUsage(dataRoot)
     musicAiErrorNotified = false
@@ -9861,7 +9877,7 @@ async function ensureMusicAi(): Promise<void> {
     }
   } finally {
     if (bubbleAiGeneratingKey === trackKey) bubbleAiGeneratingKey = undefined
-    if (settings.musicAiEnabled && aiKey && currentTrackKey() !== trackKey)
+    if (settings.musicAiEnabled && resolveMusicAiModel() && currentTrackKey() !== trackKey)
       void ensureMusicAi()
   }
 }
