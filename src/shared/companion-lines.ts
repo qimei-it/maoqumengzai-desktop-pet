@@ -21,6 +21,10 @@ export function shelfReceivedLine(kind: ShelfKind): string {
     : '图片我收进置物架啦'
 }
 
+export function clipboardCapturedLine(): string {
+  return '复制好啦，我记下来了'
+}
+
 export function reminderSnoozeLine(
   kind: SnoozeKind,
   minutes: number,

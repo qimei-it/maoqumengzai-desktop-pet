@@ -542,6 +542,12 @@ export type BackupState = {
   restore?: { ok: boolean; at: number; message?: string }
 }
 
+export type ShelfFolderView = {
+  path: string
+  label: string
+  exists: boolean
+}
+
 export type Snapshot = {
   runtime: { platform: string; arch: string; electron: string; version: string }
   updater: UpdateState
@@ -612,7 +618,7 @@ export type Snapshot = {
   pets: PetCard[]
   petStats: PetStatsView
   petCreate: PetCreateState
-  shelfFolders: string[]
+  shelfFolders: ShelfFolderView[]
   shelfInvalidCount: number
   engines: {
     ffmpeg: FfmpegEngineState
@@ -848,6 +854,7 @@ export type Command =
   | { type: 'clipboard-config'; patch: Partial<ClipboardConfig> }
   | { type: 'shelf-scan' }
   | { type: 'shelf-clear-invalid' }
+  | { type: 'shelf-choose-folder' }
   | { type: 'engine-install'; id: 'ffmpeg' | 'libreoffice' }
   | { type: 'engine-cancel'; id: 'ffmpeg' }
   | { type: 'engine-recheck'; id: 'ffmpeg' }

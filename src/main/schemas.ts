@@ -421,6 +421,7 @@ export const commandSchema = z.discriminatedUnion('type', [
           shelfClipboardImages: z.boolean().optional(),
           shelfScreenshotBubble: z.boolean().optional(),
           shelfMaxRecords: z.number().int().min(50).max(500).optional(),
+          screenshotFolder: z.string().max(1024).optional(),
           aiModel: z
             .custom<AgentModelId>((value) => isAgentModelId(value))
             .optional(),
@@ -565,6 +566,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('clipboard-clear') }).strict(),
   z.object({ type: z.literal('shelf-scan') }).strict(),
   z.object({ type: z.literal('shelf-clear-invalid') }).strict(),
+  z.object({ type: z.literal('shelf-choose-folder') }).strict(),
   z
     .object({
       type: z.literal('engine-install'),

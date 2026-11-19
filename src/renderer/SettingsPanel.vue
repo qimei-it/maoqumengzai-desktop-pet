@@ -749,10 +749,19 @@ function toggle(
   if (key === 'aiQuotaAlerts' && !settings.value.aiQuotaEnabled) return
   update({ [key]: !settings.value[key] })
 }
+const shelfFolders = computed(() => props.state?.shelfFolders ?? [])
 const shelfFolderLabel = computed(() => {
-  const folders = props.state?.shelfFolders ?? []
-  return folders.length ? folders.join('  ·  ') : '读取中'
+  const folders = shelfFolders.value
+  if (!folders.length) return '读取中'
+  return folders
+    .map((folder) =>
+      folder.exists ? folder.label : `${folder.label}（不存在）`,
+    )
+    .join(' · ')
 })
+const shelfFolderTitle = computed(() =>
+  shelfFolders.value.map((folder) => folder.path).join('\n'),
+)
 function addKey(): void {
   apiKey.value = ''
   editingKey.value = true
@@ -1266,8 +1275,17 @@ function onEscape(): void {
             </div>
             <div class="settings-row">
               <span class="settings-label">截图目录</span>
-              <span class="settings-value settings-path" :title="shelfFolderLabel">
-                {{ shelfFolderLabel }}
+              <span class="settings-inline settings-path-inline">
+                <span class="settings-path" :title="shelfFolderTitle">{{
+                  shelfFolderLabel
+                }}</span>
+                <button
+                  type="button"
+                  class="settings-button"
+                  @click="emit('command', { type: 'shelf-choose-folder' })"
+                >
+                  选择
+                </button>
               </span>
             </div>
             <div class="settings-row">

@@ -217,6 +217,7 @@ import {
   type ReminderVars,
 } from '../shared/reminder-lines'
 import {
+  clipboardCapturedLine,
   musicAiDailyLimitLine,
   musicAiFallbackLine,
   reminderSnoozeLine,
@@ -317,6 +318,7 @@ import type {
   BackupState,
   DirtyScope,
   PetCard,
+  ShelfFolderView,
 } from '../shared/protocol'
 import { defaultTodoListIcon } from '../shared/protocol'
 import {
@@ -683,6 +685,7 @@ function activePetProfile(): AgentPetProfile {
 let clipboardTimer: ReturnType<typeof setInterval> | undefined
 let screenshotTimer: ReturnType<typeof setInterval> | undefined
 let screenshotFolders: string[] = []
+let screenshotFolderState: ShelfFolderView[] = []
 let screenshotSince = 0
 let screenshotScanning = false
 const screenshotSeen = new Set<string>()
@@ -1734,7 +1737,7 @@ function snapshot(): Snapshot {
     pets: petCards,
     petStats: petStatsView(petStats ?? defaultPetStats(Date.now())),
     petCreate: petCreateState(),
-    shelfFolders: windowVisible(settingsWindow) ? screenshotFolders : [],
+    shelfFolders: windowVisible(settingsWindow) ? screenshotFolderState : [],
     shelfInvalidCount,
     engines: {
       ffmpeg: ffmpegState(),
@@ -4280,6 +4283,7 @@ function settingsState(): SettingsState {
     shelfClipboardImages: settings.shelfClipboardImages,
     shelfScreenshotBubble: settings.shelfScreenshotBubble,
     shelfMaxRecords: settings.shelfMaxRecords,
+    screenshotFolder: settings.screenshotFolder,
     autoBackupEnabled: settings.autoBackupEnabled,
     aiModel: settings.aiModel,
     agentDefaultChatModel: settings.agentDefaultChatModel,
@@ -4380,6 +4384,7 @@ function addClipboardText(text: string): void {
   pruneClipboard()
   persistClipboard()
   broadcast()
+  if (!existing) showToast(clipboardCapturedLine())
 }
 async function readClipboardImage(): Promise<{
   image: Electron.NativeImage
@@ -4582,6 +4587,7 @@ async function resolveScreenshotFolders(): Promise<string[]> {
     ? process.env.MQMZ_SCREENSHOT_DIR
     : undefined
   if (override && isAbsolute(override)) return [override]
+  if (settings.screenshotFolder) return [settings.screenshotFolder]
   if (process.platform === 'darwin') {
     const location = await macScreenshotLocation()
     let folder = location || app.getPath('desktop')
@@ -4596,6 +4602,28 @@ async function resolveScreenshotFolders(): Promise<string[]> {
     ]
   return [app.getPath('desktop')]
 }
+function screenshotFolderLabel(path: string): string {
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  const tail = parts.slice(-2)
+  const separator = process.platform === 'win32' ? '\\' : '/'
+  return tail.join(separator) || path
+}
+
+async function refreshScreenshotFolders(): Promise<void> {
+  screenshotFolders = await resolveScreenshotFolders()
+  const state: ShelfFolderView[] = []
+  for (const path of screenshotFolders) {
+    let exists = false
+    try {
+      exists = (await stat(path)).isDirectory()
+    } catch {
+      exists = false
+    }
+    state.push({ path, label: screenshotFolderLabel(path), exists })
+  }
+  screenshotFolderState = state
+}
+
 async function scanScreenshots(): Promise<void> {
   if (screenshotScanning || !settings.shelfAutoScreenshots) return
   screenshotScanning = true
@@ -4653,8 +4681,9 @@ async function scanScreenshots(): Promise<void> {
   }
 }
 async function startScreenshotWatcher(): Promise<void> {
-  screenshotFolders = await resolveScreenshotFolders()
+  await refreshScreenshotFolders()
   screenshotSince = Date.now()
+  if (screenshotTimer) clearInterval(screenshotTimer)
   screenshotTimer = setInterval(() => {
     void scanScreenshots()
   }, 2000)
@@ -6818,6 +6847,10 @@ async function updateSettings(
   ) {
     screenshotSince = Date.now()
     screenshotSeen.clear()
+  }
+  if (patch.screenshotFolder !== undefined) {
+    await refreshScreenshotFolders()
+    broadcast()
   }
   if (syncPetName && patch.petName && activePet) {
     const updated = { ...activePet, name: settings.petName }
@@ -11572,6 +11605,7 @@ function setupIpc(): void {
       'clipboard-config',
       'shelf-scan',
       'shelf-clear-invalid',
+      'shelf-choose-folder',
       'engine-install',
       'engine-cancel',
       'engine-recheck',
@@ -12366,6 +12400,18 @@ function setupIpc(): void {
         const count = await clearInvalidShelf()
         if (count > 0) showToast(`已清理 ${count} 条失效记录`)
         else showToast('没有失效的置物架记录')
+        break
+      }
+      case 'shelf-choose-folder': {
+        const result = await dialog.showOpenDialog(settingsWindow ?? pet, {
+          title: '选择截图目录',
+          properties: ['openDirectory', 'createDirectory'],
+        })
+        const path = result.filePaths[0]
+        if (!result.canceled && path) {
+          await updateSettings({ screenshotFolder: path })
+          showToast('截图目录已更新')
+        }
         break
       }
       case 'engine-install':
@@ -14118,6 +14164,12 @@ async function createWindows(): Promise<void> {
     loadPanelWindows(panelKeys)
   }
   pet.showInactive()
+  // 某些 Windows 组合下构造参数里的 alwaysOnTop 不会落到窗口样式上，
+  // 显示后显式再声明一次，确保 WS_EX_TOPMOST 存在。
+  pet.setAlwaysOnTop(true)
+  pet.on('show', () => {
+    if (!shuttingDown && !pet.isDestroyed()) pet.setAlwaysOnTop(true)
+  })
   for (const window of panelWindowList()) watchPanelQuotaOverlap(window)
   syncOverlays()
   if (process.platform === 'darwin') app.setActivationPolicy('accessory')

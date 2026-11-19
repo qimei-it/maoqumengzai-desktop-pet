@@ -136,6 +136,7 @@ const settingsSchema = z
     shelfClipboardImages: z.boolean().default(false),
     shelfScreenshotBubble: z.boolean().default(true),
     shelfMaxRecords: z.number().int().min(50).max(500).default(100),
+    screenshotFolder: z.string().max(1024).default(''),
     autoBackupEnabled: z.boolean().default(true),
     aiModel: z.enum(deepseekModelIds).default('deepseek-flash'),
     agentDefaultChatModel: modelOfKind('text').optional().catch(undefined),

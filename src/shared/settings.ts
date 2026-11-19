@@ -47,6 +47,7 @@ export type Settings = {
   shelfClipboardImages: boolean
   shelfScreenshotBubble: boolean
   shelfMaxRecords: number
+  screenshotFolder: string
   autoBackupEnabled: boolean
   aiModel: AgentModelId
   agentDefaultChatModel: AgentModelId | ''
@@ -80,6 +81,7 @@ export const defaultSettings: Settings = {
   shelfClipboardImages: false,
   shelfScreenshotBubble: true,
   shelfMaxRecords: 100,
+  screenshotFolder: '',
   autoBackupEnabled: true,
   aiModel: 'deepseek-flash',
   agentDefaultChatModel: 'deepseek-flash',
