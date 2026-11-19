@@ -40,13 +40,15 @@
   </tr>
 </table>
 
-## 桌面上的那只猫
+## 桌面上的那个小可爱
 
-![桌宠听歌：双行歌词与播放控制](.github/assets/readme/shot-music.webp)
+<p align="center">
+  <img src=".github/assets/readme/shot-music.webp" alt="桌宠听歌：双行歌词与播放控制" width="380" />
+</p>
 
 桌宠常驻桌面、始终置顶，可以缩放与拖动。它有待机、拖动、听歌、思考与专注几种姿态，会眨眼、呼吸，跟着音乐轻轻晃。打开面板时它仍在最上层，但不会被面板盖住。
 
-- **音乐**：QQ 音乐、网易云、Apple Music、酷狗的播放、切歌、进度与音量；歌词逐行滚动，可只留封面。
+- **音乐**（仅 macOS）：QQ 音乐、网易云、Apple Music、酷狗的播放、切歌、进度与音量；歌词逐行滚动，可只留封面。
 - **专注**：番茄钟的专注、短休、长休三阶段共用同一只桌宠，只有环形进度条的颜色不同。
 - **宠物档案**：内置麻薯与所有自定义桌宠放在一起，点一下就能切换。
 
@@ -88,19 +90,6 @@
   </tr>
 </table>
 
-## 下载
-
-安装包从官网下载：<https://mqmz.qimeistudio.com/>
-
-| 平台 | 架构 | 最低系统 |
-| --- | --- | --- |
-| macOS | Apple Silicon（arm64） | macOS 13 Ventura |
-| Windows | x64 | Windows 10 22H2、Windows 11 |
-
-macOS Intel 与 Windows ARM 不在支持范围内，不提供构建。安装包未做代码签名：Windows 会提示 SmartScreen，macOS 首次打开需要在「隐私与安全性」中允许。
-
-> 音乐控制与歌词目前只在 macOS 上实现；Windows 版本暂未接入系统媒体会话。
-
 ## 从源码构建
 
 需要 Node.js 24 或更新版本，以及可用的图形桌面会话。
@@ -134,19 +123,6 @@ npm run check:icons      # 图标来源
 npm run update:manifest  # 生成应用内更新清单 dist/latest.json
 ```
 
-## 项目结构
-
-```text
-src/main       Electron 主进程：窗口与托盘、提醒调度、转换引擎、邮件、智能体、更新
-src/preload    预加载脚本与 IPC 桥
-src/renderer   Vue 3 渲染层：桌宠、轮盘、各功能面板与设置
-src/shared     主进程与渲染层共用的类型、协议与默认设置
-resources      图标、宠物素材、内置技能、qpdf 与 FFmpeg 引擎
-scripts        构建、校验与发布辅助脚本
-tests          Vitest 单元测试与 Playwright 端到端用例
-docs           技术方案、设计规范、发布记录与验收资料
-```
-
 ## 应用内更新
 
 客户端读取 `https://mqmz.qimeistudio.com/latest.json`，比对版本后下载对应平台的安装包，校验 SHA-256，再打开安装程序并退出：macOS 上由你把它拖进「应用程序」，Windows 上运行安装向导。下次启动时如果版本已经更新，客户端会把下载好的安装包移进废纸篓；没装成则保留，下次再说。
@@ -170,13 +146,3 @@ docs           技术方案、设计规范、发布记录与验收资料
 - 第三方组件、引擎、图标与素材：[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 与 `resources/licenses/`
 
 许可证只覆盖代码，不覆盖线上服务与用户数据。官方名称、官方服务与域名由运营方保留，第三方构建不代表获得官方服务授权。
-
-## 延伸阅读
-
-- [技术方案](docs/technical-architecture.md)
-- [双平台支持矩阵](docs/platform-support-matrix.md)
-- [面板样式规范](docs/design/panel-style-contract.md)
-- [图标规范](docs/design/icon-system.md)
-- [开源策略与功能边界](docs/open-source-strategy.md)
-- [自定义桌宠形象生成](docs/research/pet-generation.md)
-- [智能体 Harness](docs/research/agent-harness.md)
