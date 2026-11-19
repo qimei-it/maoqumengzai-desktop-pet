@@ -10,7 +10,7 @@
   "author": "保定奇鹛信息技术有限公司",
   "repository": {
     "type": "git",
-    "url": "https://github.com/qimei-it/mqyh-maoqumengzai.git"
+    "url": "https://github.com/qimei-it/maoqumengzai-desktop-pet.git"
   },
   "scripts": {
     "dev": "node scripts/set-dev-app-name.mjs && electron-vite dev",
