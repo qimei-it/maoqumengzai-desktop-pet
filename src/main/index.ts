@@ -335,6 +335,11 @@ import {
   type SnapshotFile,
 } from './data-snapshot'
 import {
+  consumePurgeRequest,
+  purgeMarkerPath,
+  requestDataPurge,
+} from './data-purge'
+import {
   fitToDisplays,
   hitOpaquePixel,
   intersectionArea,
@@ -485,6 +490,20 @@ const override = process.env.MQMZ_DATA_DIR
 if (override && !isAbsolute(override))
   throw new Error('MQMZ_DATA_DIR must be absolute')
 const dataRoot = override || join(base, 'mqmz-desktop')
+const roaming =
+  process.platform === 'win32' ? (process.env.APPDATA ?? '') : base
+const legacyDataRoots =
+  !override && roaming && isAbsolute(roaming)
+    ? [join(roaming, '毛趣萌仔'), join(roaming, 'mqmz-desktop-pet')]
+    : []
+if (
+  consumePurgeRequest({
+    markerPath: purgeMarkerPath(dataRoot),
+    dataRoot,
+    extraRoots: legacyDataRoots,
+  })
+)
+  console.log('local data removed before startup')
 mkdirSync(dataRoot, { recursive: true })
 mkdirSync(join(dataRoot, 'session'), { recursive: true })
 app.setPath('userData', dataRoot)
@@ -6857,6 +6876,28 @@ async function clearAppCache(): Promise<void> {
   addEvent('应用缓存已清理。')
   showToast('缓存已清理')
 }
+async function deleteLocalData(): Promise<void> {
+  const choice = await dialog.showMessageBox(settingsWindow ?? pet, {
+    type: 'warning',
+    title: '删除本地数据',
+    message: '确定删除全部本地数据？',
+    detail:
+      '桌宠素材、聊天与邮件缓存、设置和已保存的密钥都会被删除，应用随后重启。下载目录中的安装包与已导出的备份不受影响。',
+    buttons: ['取消', '删除并重启'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  if (choice.response !== 1) return
+  requestDataPurge(purgeMarkerPath(dataRoot), dataRoot)
+  app.setLoginItemSettings({ openAtLogin: false })
+  addEvent('已删除本地数据，正在重启应用。')
+  if (process.env.MQMZ_TEST_NO_RELAUNCH === '1') return
+  setTimeout(() => {
+    app.relaunch()
+    app.quit()
+  }, 400)
+}
 async function clearBellyContents(): Promise<void> {
   if (!belly.length) {
     showToast('回收区已经是空的')
@@ -8696,8 +8737,15 @@ function quotaBarLayout(liftPet: boolean): Rect {
   return fitToDisplays({ x, y, width, height }, [a])
 }
 function positionQuotaBar(): void {
-  if (!quotaBar || quotaBar.isDestroyed() || pillPositioning) return
-  quotaBar.setBounds(quotaBarLayout(true))
+  if (!quotaBar || quotaBar.isDestroyed() || pillPositioning) {
+    if (quotaBar?.isDestroyed()) quotaBar = undefined
+    return
+  }
+  try {
+    quotaBar.setBounds(quotaBarLayout(true))
+  } catch {
+    quotaBar = undefined
+  }
 }
 async function ensureQuotaBar(): Promise<BrowserWindow | undefined> {
   if (shuttingDown) return undefined
@@ -8788,7 +8836,9 @@ function watchPanelQuotaOverlap(window: BrowserWindow): void {
   })
 }
 function updateQuotaWindow(): void {
+  if (shuttingDown) return
   if (!quotaBar || quotaBar.isDestroyed()) {
+    quotaBar = undefined
     if (aiQuota.visible && !quotaBarBlocked()) {
       void ensureQuotaBar().then(() => updateQuotaWindow())
     }
@@ -8796,10 +8846,22 @@ function updateQuotaWindow(): void {
   }
   if (aiQuota.visible && !quotaBarBlocked()) {
     positionQuotaBar()
-    quotaBar.showInactive()
-    quotaBar.moveTop()
-  } else if (quotaBar.isVisible()) {
-    quotaBar.hide()
+    const bar = quotaBar
+    if (!bar) return
+    // 原生窗口可能在检查与调用之间被销毁，此时再 show/hide 会抛
+    // “Object has been destroyed”；丢弃引用，等下次再建。
+    try {
+      bar.showInactive()
+      bar.moveTop()
+    } catch {
+      quotaBar = undefined
+    }
+    return
+  }
+  try {
+    if (quotaBar.isVisible()) quotaBar.hide()
+  } catch {
+    quotaBar = undefined
   }
 }
 function updateNotesWindow(): void {
@@ -11481,6 +11543,7 @@ function setupIpc(): void {
       'settings-clear-cache',
       'settings-clear-belly',
       'settings-clear-pets',
+      'settings-delete-data',
       'settings-auto-backup',
       'settings-backup-export',
       'settings-backup-restore',
@@ -12220,6 +12283,9 @@ function setupIpc(): void {
         break
       case 'settings-clear-pets':
         await clearOldPetAssets()
+        break
+      case 'settings-delete-data':
+        await deleteLocalData()
         break
       case 'settings-open-licenses':
         await openLicenses()

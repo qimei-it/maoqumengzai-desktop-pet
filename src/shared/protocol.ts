@@ -795,6 +795,7 @@ export type Command =
   | { type: 'settings-clear-cache' }
   | { type: 'settings-clear-belly' }
   | { type: 'settings-clear-pets' }
+  | { type: 'settings-delete-data' }
   | { type: 'settings-open-licenses' }
   | { type: 'hover-mode'; active: boolean }
   | { type: 'pomodoro-open' }

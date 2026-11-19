@@ -68,6 +68,8 @@ npm run pack:win   # dist/mqmz-<version>-setup.exe
 
 本地数据默认不上传，也没有遥测或崩溃上报。只有在你自己配置了第三方服务时，客户端才会直接连接对应服务。完整说明见 [隐私政策](docs/privacy-policy.md)。
 
+本地数据位于 `~/Library/Application Support/mqmz-desktop`（macOS）或 `%LOCALAPPDATA%\mqmz-desktop`（Windows）。在「设置 → 数据」可以删除全部本地数据；卸载默认保留数据，Windows 卸载向导会询问是否一并删除，macOS 可在 DMG 中运行「卸载.command」按提示操作。
+
 ## 许可
 
 - 客户端代码：[MIT](LICENSE)

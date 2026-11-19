@@ -62,6 +62,24 @@ mac:
 # Stable mount point: the updater ejects /Volumes/<title> after an upgrade.
 dmg:
   title: 毛趣萌仔
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+    - x: 130
+      y: 310
+      type: file
+      path: resources/dmg/卸载说明.txt
+    - x: 410
+      y: 310
+      type: file
+      path: resources/dmg/卸载.command
 win:
   icon: build/icon.ico
   artifactName: mqmz-${version}-setup.${ext}

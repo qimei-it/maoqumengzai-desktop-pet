@@ -5,7 +5,7 @@
 ## 发布
 
 - [ ] 官网页面部署：把 `index.html`、`privacy.html`、`about.html`、`changelog.html`、`404.html` 与 `assets/` 上传到 `/opt/maoqumengzai-website`，验证根路径 200、`latest.json` 与两个安装包可下载；Nginx vhost 与证书已就绪。
-- [ ] 重新打包并发布：把待办标签、待办面板放大、供应商密钥解密容错打进安装包；更新 `latest.json`、`docs/release/v1.0.1.md`（或新建 v1.0.2）与官网下载页。
+- [ ] 重新打包并发布 1.0.2：已包含待办标签、待办面板放大、供应商密钥解密容错与 `sharp` 原生模块修复；待 Windows 实机确认启动后再更新 `latest.json` 与官网下载页。
 - [ ] 新包发布后跑一次 1.0.x → 新版本的升级回归：检查 → 下载 → 安装并退出 → 重启清理安装包。
 
 ## 待人工核验
@@ -32,7 +32,7 @@
 
 ## Windows 验收（macOS 完成后）
 
-- [ ] Windows x64 安装包与实机验收：托盘、窗口层级、通知、拖入拖出、截图监听、多屏与缩放、面板交互。
+- [ ] Windows x64 安装包与实机验收：1.0.0/1.0.1 因缺少 `sharp` 原生模块无法启动，从 1.0.2 开始验收；托盘、窗口层级、通知、拖入拖出、截图监听、多屏与缩放、面板交互。
 - [ ] Windows 播放器与邮件：QQ、酷狗、网易云、Apple Music 的 SMTC 控制与进度；QQ/163/Gmail 收件、正文、附件、发送与角标，含 Gmail 系统代理；OpenAI/DeepSeek 额度。
 - [ ] Windows NSIS 安装、升级、卸载与断网恢复。
 - [ ] Windows 正式安装包与分发：图标、文件关联、卸载回归。

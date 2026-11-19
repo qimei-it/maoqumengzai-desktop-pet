@@ -1142,6 +1142,17 @@ function onEscape(): void {
             <p v-if="backup?.error" class="settings-error" role="alert">
               {{ backup.error }}
             </p>
+            <div class="settings-row">
+              <span class="settings-label">本地数据</span>
+              <button
+                type="button"
+                class="settings-button danger"
+                aria-label="删除本地数据"
+                @click="emit('command', { type: 'settings-delete-data' })"
+              >
+                删除
+              </button>
+            </div>
           </template>
 
           <template v-else-if="section === 'profile'">

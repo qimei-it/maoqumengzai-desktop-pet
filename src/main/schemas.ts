@@ -458,6 +458,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('settings-clear-cache') }).strict(),
   z.object({ type: z.literal('settings-clear-belly') }).strict(),
   z.object({ type: z.literal('settings-clear-pets') }).strict(),
+  z.object({ type: z.literal('settings-delete-data') }).strict(),
   z.object({ type: z.literal('settings-open-licenses') }).strict(),
   z
     .object({
