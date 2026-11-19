@@ -35,8 +35,6 @@ extraResources:
     to: licenses
   - from: THIRD-PARTY-NOTICES.md
     to: licenses/THIRD-PARTY-NOTICES.md
-  - from: resources/helpers
-    to: helpers
   - from: resources/skills
     to: skills
   - from: resources/engines/qpdf/LICENSE.txt
@@ -51,6 +49,8 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: 毛趣萌仔需要使用麦克风把语音转成文字。
   extraResources:
+    - from: resources/helpers
+      to: helpers
     - from: resources/engines/qpdf/darwin-arm64
       to: engines/qpdf/darwin-arm64
     - from: resources/engines/ffmpeg/darwin-arm64

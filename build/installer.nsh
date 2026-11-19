@@ -12,10 +12,10 @@
 
 !macro mqmzRemoveLoginItems
   ; setLoginItemSettings 写入的值名取决于 AppUserModelId，逐一清理。
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "com.mqmz.desktop"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "毛趣萌仔"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "mqmz-desktop-pet"
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "com.mqmz.desktop"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "${APP_ID}"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "毛趣萌仔"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "mqmz-desktop-pet"
 !macroend
@@ -25,17 +25,24 @@
   ; 卸载后不应留下“下次启动时清空数据”的请求。
   Delete "$LOCALAPPDATA\mqmz-data-purge.json"
 
+  StrCpy $R2 "0"
   ${ifNot} ${isUpdated}
-    ${if} ${isDeleteAppData}
-      !insertmacro mqmzRemoveLocalData
+    ${GetParameters} $R0
+    ${GetOptions} $R0 "--delete-app-data" $R1
+    ${ifNot} ${Errors}
+      StrCpy $R2 "1"
     ${elseifNot} ${Silent}
       ${if} ${FileExists} "$LOCALAPPDATA\mqmz-desktop\*.*"
         MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "是否同时删除毛趣萌仔的本地数据？$\r$\n$\r$\n包含桌宠素材、聊天与邮件缓存、设置和已保存的密钥：$\r$\n$LOCALAPPDATA\mqmz-desktop$\r$\n$\r$\n选择“否”会保留这些数据，便于以后重新安装。" IDYES mqmz_delete_local_data
         Goto mqmz_keep_local_data
         mqmz_delete_local_data:
-          !insertmacro mqmzRemoveLocalData
+          StrCpy $R2 "1"
         mqmz_keep_local_data:
       ${endif}
     ${endif}
+  ${endif}
+
+  ${if} $R2 == "1"
+    !insertmacro mqmzRemoveLocalData
   ${endif}
 !macroend
