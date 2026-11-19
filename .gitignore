@@ -157,3 +157,6 @@ playwright-report/
 output
 
 .DS_Store
+
+# 内部协作规则，不对外发布
+/AGENTS.md
