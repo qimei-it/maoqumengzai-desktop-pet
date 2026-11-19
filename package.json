@@ -28,8 +28,8 @@
     "start": "node scripts/set-dev-app-name.mjs && electron .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "pack:mac": "npm run build && node scripts/check-native-binaries.cjs --platform darwin --arch arm64 && electron-builder --mac dmg --arm64 --publish never",
-    "pack:win": "npm run build && node scripts/check-native-binaries.cjs --platform win32 --arch x64 && electron-builder --win nsis --x64 --publish never",
+    "pack:mac": "npm run build && node scripts/check-native-binaries.cjs --platform darwin --arch arm64 && electron-builder --mac dmg --arm64 --publish never && node scripts/update-manifest.mjs --if-complete",
+    "pack:win": "npm run build && node scripts/check-native-binaries.cjs --platform win32 --arch x64 && electron-builder --win nsis --x64 --publish never && node scripts/update-manifest.mjs --if-complete",
     "update:manifest": "node scripts/update-manifest.mjs"
   },
   "engines": {

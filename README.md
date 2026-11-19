@@ -111,6 +111,8 @@ npm run pack:win   # dist/mqmz-<version>-setup.exe
 
 Windows 安装包由 GitHub Actions 在 `windows-latest` 上构建，工作流见 `.github/workflows/build-win.yml`。
 
+`dist/latest.json`（应用内更新清单）会自动刷新：`pack:mac` / `pack:win` 在打包结束时检查 `dist/`，两个平台的安装包都在就重新生成清单，缺包则跳过（不会写出只有单平台的清单）。发版时打 tag 后，`.github/workflows/update-manifest.yml` 会从 Release 资产里取两个安装包，生成清单并挂回 Release。
+
 其他常用脚本：
 
 ```sh
@@ -120,7 +122,7 @@ npm run test:e2e         # Playwright Electron 端到端
 npm run check:design     # 设计 token 与组件规范
 npm run check:contrast   # 对比度
 npm run check:icons      # 图标来源
-npm run update:manifest  # 生成应用内更新清单 dist/latest.json
+npm run update:manifest  # 生成 dist/latest.json；两个平台包齐全时才写，可加 --partial 只出单平台
 ```
 
 ## 应用内更新
