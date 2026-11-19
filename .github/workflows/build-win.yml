@@ -64,4 +64,3 @@ jobs:
             gh release create $tag --title "毛趣萌仔 $($tag.TrimStart('v'))" --generate-notes
           }
           gh release upload $tag (Get-ChildItem dist -Filter 'mqmz-*-setup.exe').FullName --clobber
-          gh release upload $tag dist/win-build.txt --clobber
