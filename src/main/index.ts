@@ -3380,6 +3380,7 @@ function closeArchive(): void {
   archiveToken += 1
   archiveBusy = false
   archiveWindow?.hide()
+  schedulePanelTeardown('archive')
   broadcast()
 }
 async function startArchive(format: ArchiveFormat): Promise<void> {
@@ -4264,6 +4265,7 @@ function openRename(fileIds: string[], folderIds: string[] = []): void {
 }
 function closeRename(): void {
   renameWindow?.hide()
+  schedulePanelTeardown('rename')
   renameFolders = new Map()
   renameUndo = undefined
   renameOutcome = undefined
@@ -5305,6 +5307,7 @@ async function openMail(accountId?: string, folder?: string): Promise<void> {
 }
 function closeMail(): void {
   mailWindow?.hide()
+  schedulePanelTeardown('mail')
   broadcast()
 }
 async function refreshMailFolders(accountId: string): Promise<void> {
@@ -6682,6 +6685,7 @@ function openTodo(target?: { todoId: string; listId: string | null }): void {
 }
 function closeTodo(): void {
   todoWindow?.hide()
+  schedulePanelTeardown('todo')
   broadcast()
 }
 function applyDockIcon(): void {
@@ -6746,6 +6750,7 @@ function openSettings(): void {
 }
 function closeSettings(): void {
   settingsWindow?.hide()
+  schedulePanelTeardown('settings')
   settingsSection = 'appearance'
   settingsPrompt = undefined
   if (petDraft) void closePetCreate()
@@ -8069,6 +8074,7 @@ function openProfile(): void {
 }
 function closeProfile(): void {
   profileWindow?.hide()
+  schedulePanelTeardown('profile')
   syncOverlays()
   broadcast()
 }
@@ -8102,6 +8108,7 @@ function openClipboard(): void {
 }
 function closeClipboard(): void {
   clipboardWindow?.hide()
+  schedulePanelTeardown('clipboard')
   syncOverlays()
   broadcast()
 }
@@ -8135,6 +8142,7 @@ function openBreak(): void {
 }
 function closeBreak(): void {
   breakWindow?.hide()
+  schedulePanelTeardown('break')
   syncOverlays()
   broadcast()
 }
@@ -8153,6 +8161,7 @@ function openWater(): void {
 }
 function closeWater(): void {
   waterWindow?.hide()
+  schedulePanelTeardown('water')
   syncOverlays()
   broadcast()
 }
@@ -8205,6 +8214,7 @@ function openPomodoro(): void {
 }
 function closePomodoro(): void {
   pomodoroWindow?.hide()
+  schedulePanelTeardown('focus')
   syncOverlays()
   broadcast()
 }
@@ -13653,6 +13663,11 @@ function createPanelWindows(keys: readonly PanelKey[]): void {
       closeTodo()
     }
   })
+  for (const key of ['todo', 'mail'] as PanelKey[]) {
+    const cached = panelBoundsCache.get(key)
+    const window = panelWindowByKey(key)
+    if (window && cached) window.setBounds(cached)
+  }
   for (const panel of [
     pocket,
     askWindow,
@@ -13680,7 +13695,20 @@ function createPanelWindows(keys: readonly PanelKey[]): void {
 }
 
 /** Panels that are torn down, not hidden, once closed: they are the memory hogs. */
-const heavyPanelKeys: readonly PanelKey[] = ['agent', 'convert']
+const heavyPanelKeys: readonly PanelKey[] = [
+  'agent',
+  'convert',
+  'settings',
+  'mail',
+  'todo',
+  'focus',
+  'water',
+  'break',
+  'profile',
+  'clipboard',
+  'archive',
+  'rename',
+]
 
 /** Pending teardowns, so a quick close-then-open never destroys a live panel. */
 const pendingPanelTeardown = new Map<PanelKey, ReturnType<typeof setTimeout>>()
@@ -13692,6 +13720,42 @@ function cancelPanelTeardown(key: PanelKey): void {
   pendingPanelTeardown.delete(key)
 }
 
+function panelWindowByKey(key: PanelKey): BrowserWindow | undefined {
+  if (key === 'agent') return askWindow
+  if (key === 'convert') return convertWindow
+  if (key === 'archive') return archiveWindow
+  if (key === 'rename') return renameWindow
+  if (key === 'settings') return settingsWindow
+  if (key === 'mail') return mailWindow
+  if (key === 'compose') return mailComposeWindow
+  if (key === 'focus') return pomodoroWindow
+  if (key === 'water') return waterWindow
+  if (key === 'break') return breakWindow
+  if (key === 'profile') return profileWindow
+  if (key === 'clipboard') return clipboardWindow
+  if (key === 'todo') return todoWindow
+  return undefined
+}
+
+function clearPanelWindowByKey(key: PanelKey): void {
+  if (key === 'agent') askWindow = undefined
+  else if (key === 'convert') convertWindow = undefined
+  else if (key === 'archive') archiveWindow = undefined
+  else if (key === 'rename') renameWindow = undefined
+  else if (key === 'settings') settingsWindow = undefined
+  else if (key === 'mail') mailWindow = undefined
+  else if (key === 'compose') mailComposeWindow = undefined
+  else if (key === 'focus') pomodoroWindow = undefined
+  else if (key === 'water') waterWindow = undefined
+  else if (key === 'break') breakWindow = undefined
+  else if (key === 'profile') profileWindow = undefined
+  else if (key === 'clipboard') clipboardWindow = undefined
+  else if (key === 'todo') todoWindow = undefined
+}
+
+/** 关闭后销毁的窗口尺寸，下次打开时恢复。 */
+const panelBoundsCache = new Map<PanelKey, Rect>()
+
 /** Runs after the close event unwinds; destroying inside it crashed the app. */
 function schedulePanelTeardown(key: PanelKey): void {
   if (!heavyPanelKeys.includes(key)) return
@@ -13699,14 +13763,7 @@ function schedulePanelTeardown(key: PanelKey): void {
   const timer = setTimeout(() => {
     pendingPanelTeardown.delete(key)
     if (shuttingDown) return
-    const window =
-      key === 'agent'
-        ? askWindow
-        : key === 'mail'
-          ? mailWindow
-          : key === 'convert'
-            ? convertWindow
-            : settingsWindow
+    const window = panelWindowByKey(key)
     if (key === 'agent' && window && !window.isDestroyed()) {
       // Keep the size and position the user chose for the next open.
       const maximized = window.isMaximized()
@@ -13716,15 +13773,19 @@ function schedulePanelTeardown(key: PanelKey): void {
       }
       agentWindowMaximized = maximized
     }
+    if (
+      window &&
+      !window.isDestroyed() &&
+      (key === 'todo' || key === 'mail')
+    ) {
+      panelBoundsCache.set(key, window.getBounds())
+    }
     createdPanels.delete(key)
     if (window && !window.isDestroyed()) {
       positionedPanels.delete(window)
       window.destroy()
     }
-    if (key === 'agent') askWindow = undefined
-    else if (key === 'mail') mailWindow = undefined
-    else if (key === 'convert') convertWindow = undefined
-    else settingsWindow = undefined
+    clearPanelWindowByKey(key)
     broadcast()
   }, 1200)
   pendingPanelTeardown.set(key, timer)
