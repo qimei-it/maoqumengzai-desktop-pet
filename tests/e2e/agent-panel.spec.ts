@@ -230,31 +230,32 @@ test('projects group sessions and support session actions', async () => {
     })
     .toBe(true)
 
+  const baseline = await agent.evaluate(() => window.mqmz!.snapshot())
+  const baselineCount = baseline.ok ? baseline.value.agent.sessions.length : 0
   await agent.evaluate(
-    (id) => window.mqmz!.command({ type: 'agent-project-new', projectId: id }),
+    (id) => window.mqmz!.command({ type: 'agent-project-open', projectId: id }),
     projectId,
   )
-
-  let sessionId = ''
   await expect
     .poll(async () => {
       const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
-      const session = snapshot.ok
-        ? snapshot.value.agent.sessions.find(
-            (item) => item.projectId === projectId,
-          )
-        : undefined
-      sessionId = session?.id ?? ''
-      return Boolean(sessionId)
+      return snapshot.ok
+        ? {
+            sessionId: snapshot.value.agent.sessionId,
+            projectId: snapshot.value.agent.projectId,
+            sessions: snapshot.value.agent.sessions.length,
+          }
+        : null
     })
-    .toBe(true)
+    .toEqual({
+      sessionId: null,
+      projectId,
+      sessions: baselineCount,
+    })
 
   const sessionProjectId = async () => {
     const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
-    return snapshot.ok
-      ? (snapshot.value.agent.sessions.find((item) => item.id === sessionId)
-          ?.projectId ?? null)
-      : projectId
+    return snapshot.ok ? snapshot.value.agent.projectId : projectId
   }
 
   const empty = agent.locator('.agent-empty')
@@ -302,6 +303,50 @@ test('projects group sessions and support session actions', async () => {
   await agent.getByRole('option', { name, exact: true }).click()
   await expect.poll(sessionProjectId).toBe(projectId)
   await expect(empty.locator('.agent-empty-project-name')).toHaveText(name)
+
+  await application.evaluate(() => {
+    globalThis.fetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      if (!String(input).includes('/chat/completions'))
+        return new Response('{}', { status: 503 })
+      const body = typeof init?.body === 'string' ? init.body : ''
+      const text = body.includes('会话标题生成器') ? '项目讨论' : '收到。'
+      return new Response(
+        [
+          `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}`,
+          '',
+          `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+          '',
+          'data: [DONE]',
+          '',
+          '',
+        ].join('\n'),
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    }
+  })
+  await agent.getByLabel('给智能体发送指令').fill('整理项目计划')
+  await agent.getByRole('button', { name: '发送' }).click()
+  let sessionId = ''
+  await expect
+    .poll(async () => {
+      const snapshot = await agent.evaluate(() => window.mqmz!.snapshot())
+      const session = snapshot.ok
+        ? snapshot.value.agent.sessions.find(
+            (item) => item.projectId === projectId && item.id ===
+              snapshot.value.agent.sessionId,
+          )
+        : undefined
+      sessionId = session?.id ?? ''
+      return Boolean(sessionId)
+    })
+    .toBe(true)
+  await expect(empty).toHaveCount(0)
+  await expect(agent.locator('.agent-message.user')).toContainText(
+    '整理项目计划',
+  )
 
   await expect(agent.getByText('项目', { exact: true })).toBeVisible()
   const projectRow = agent

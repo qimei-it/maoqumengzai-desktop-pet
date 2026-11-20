@@ -164,14 +164,13 @@ export type AgentRuntime = {
   retry(): Promise<void>
   /** Re-runs the last turn from its user message. */
   regenerate(): Promise<void>
-  /** Replaces a user message and resends it, dropping later turns. */
-  editMessage(id: string, prompt: string): Promise<void>
   cancel(): void
   approve(id: string): void
   approveSame(id: string): void
   deny(id: string): void
   newSession(): void
-  newSessionIn(projectId: string): void
+  /** Opens an empty project context without creating a stored session. */
+  openProject(projectId: string): void
   createProject(name: string, workspace: string): void
   updateProject(
     id: string,
@@ -1544,6 +1543,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   let projects: StoredProject[] = []
   const titleTasks = new Set<Promise<void>>()
   let activeId: string | null = null
+  /** Empty project context; promoted to a stored session on the first send. */
+  let draft: StoredSession | null = null
   let busy = false
   let controller: AbortController | null = null
   let pending: {
@@ -1571,6 +1572,58 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
   function activeSession(): StoredSession | undefined {
     return sessions.find((session) => session.id === activeId)
+  }
+
+  /** The session that receives settings changes: a real one or the draft. */
+  function currentSession(): StoredSession | undefined {
+    return draft ?? activeSession()
+  }
+
+  /** Holds settings chosen before any conversation exists. */
+  function settingsSession(): StoredSession {
+    const current = currentSession()
+    if (current) return current
+    draft = newSession(defaultChatModel())
+    return draft
+  }
+
+  function releaseEvicted(list: StoredSession[]): void {
+    for (const item of list) releaseSessionFiles(item)
+  }
+
+  function promoteDraft(): StoredSession | null {
+    if (!draft) return null
+    const session = draft
+    draft = null
+    sessions.unshift(session)
+    if (sessions.length > maxAgentSessions)
+      releaseEvicted(sessions.splice(maxAgentSessions))
+    activeId = session.id
+    return session
+  }
+
+  function draftForProject(
+    projectId: string,
+    source: StoredSession | undefined = currentSession(),
+  ): StoredSession | null {
+    const project = projects.find((item) => item.id === projectId)
+    if (!project) return null
+    const session = newSession(
+      defaultChatModel(),
+      project.id,
+      project.workspace,
+    )
+    if (source) {
+      session.mode = source.mode
+      if (source.approvalMode) session.approvalMode = source.approvalMode
+      session.model = source.model
+      session.selectedModel = source.selectedModel ?? source.model
+      session.reasoning = source.reasoning
+      if (source.imageModel) session.imageModel = source.imageModel
+      if (source.videoModel) session.videoModel = source.videoModel
+      if (source.audioModel) session.audioModel = source.audioModel
+    }
+    return session
   }
 
   function defaultChatModel(): AgentModelId {
@@ -2719,8 +2772,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       await pruneOrphanFileRefs()
     },
     state(): AgentState {
-      const session = activeSession()
-      const retryLabel = retryLabelFor(session)
+      const stored = activeSession()
+      const session = draft ?? stored
+      const retryLabel = retryLabelFor(stored)
       return {
         configured: Boolean(
           deps.getKey() || deps.getMiniMaxKey?.() || deps.getVolcanoKey?.(),
@@ -2750,7 +2804,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             toolPolicy: project.toolPolicy ?? 'ask',
             createdAt: project.createdAt,
           })),
-        sessionId: session?.id ?? null,
+        sessionId: draft ? null : (stored?.id ?? null),
+        projectId: session?.projectId ?? null,
         mode: session?.mode ?? 'build',
         approvalMode: session?.approvalMode ?? 'ask',
         model: session?.model ?? defaultChatModel(),
@@ -2782,7 +2837,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const value = prompt.trim()
       if (!value) return
       if (busy) throw new Error('正在执行，请稍候。')
-      const session = ensureSession()
+      const session = promoteDraft() ?? ensureSession()
       if (generationKindForModel(session.model)) {
         const generationKey = deps.getMiniMaxKey?.()
         if (!generationKey)
@@ -2912,7 +2967,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     async retry() {
       if (busy) throw new Error('正在执行，请稍候。')
-      const session = ensureSession()
+      const session = currentSession()
+      if (!session) throw new Error('没有可以重试的内容。')
       if (generationKindForModel(session.model)) {
         const key = deps.getMiniMaxKey?.()
         if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
@@ -2955,7 +3011,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     async regenerate() {
       if (busy) throw new Error('正在执行，请稍候。')
-      const session = ensureSession()
+      const session = currentSession()
+      if (!session) throw new Error('没有可以重新生成的内容。')
       if (generationKindForModel(session.model)) {
         const key = deps.getMiniMaxKey?.()
         if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
@@ -3012,33 +3069,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       session.ui = session.ui.slice(0, uiIndex + 1)
       await runLoopTurn(session, key)
     },
-    async editMessage(id: string, prompt: string) {
-      const value = prompt.trim()
-      if (!value) return
-      if (busy) throw new Error('正在执行，请稍候。')
-      const session = ensureSession()
-      const uiIndex = session.ui.findIndex(
-        (message) => message.id === id && message.role === 'user',
-      )
-      if (uiIndex < 0) throw new Error('找不到要编辑的消息。')
-      const usersAfter = session.ui
-        .slice(uiIndex + 1)
-        .filter((message) => message.role === 'user').length
-      let remaining = usersAfter + 1
-      let historyIndex = -1
-      for (let index = session.history.length - 1; index >= 0; index -= 1) {
-        if (session.history[index].role !== 'user') continue
-        remaining -= 1
-        if (remaining === 0) {
-          historyIndex = index
-          break
-        }
-      }
-      if (historyIndex < 0) throw new Error('无法重新发送这条消息。')
-      session.history = session.history.slice(0, historyIndex)
-      session.ui = session.ui.slice(0, uiIndex)
-      await this.send(value)
-    },
     cancel() {
       if (!busy && !pending) return
       settleApproval(false)
@@ -3068,6 +3098,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     newSession() {
       if (busy) this.cancel()
+      draft = null
       const session = newSession(defaultChatModel())
       sessions.unshift(session)
       if (sessions.length > maxAgentSessions) {
@@ -3079,23 +3110,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       persist()
       emit()
     },
-    newSessionIn(projectId: string) {
-      const project = projects.find((item) => item.id === projectId)
-      if (!project) return
+    openProject(projectId: string) {
       if (busy) this.cancel()
-      const session = newSession(
-        defaultChatModel(),
-        project.id,
-        project.workspace,
-      )
-      sessions.unshift(session)
-      if (sessions.length > maxAgentSessions) {
-        const evicted = sessions.splice(maxAgentSessions)
-        for (const item of evicted) releaseSessionFiles(item)
-      }
-      activeId = session.id
+      const session = draftForProject(projectId)
+      if (!session) return
+      draft = session
+      activeId = null
       errorText = undefined
-      persist()
       emit()
     },
     createProject(name: string, workspace: string) {
@@ -3137,6 +3158,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         for (const session of sessions) {
           if (session.projectId === id) session.workspace = workspace
         }
+        if (draft?.projectId === id) draft.workspace = workspace
       }
       persist()
       emit()
@@ -3147,6 +3169,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       projects.splice(index, 1)
       for (const session of sessions) {
         if (session.projectId === id) session.projectId = null
+      }
+      if (draft?.projectId === id) {
+        draft.projectId = null
+        draft.workspace = null
       }
       persist()
       emit()
@@ -3230,8 +3256,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     select(id: string) {
       if (!sessions.some((session) => session.id === id)) return
-      if (id === activeId) return
+      if (id === activeId && !draft) return
       if (busy) this.cancel()
+      draft = null
       activeId = id
       errorText = undefined
       emit()
@@ -3242,14 +3269,35 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (busy && activeId === id) this.cancel()
       const removed = sessions[index]
       sessions.splice(index, 1)
-      if (activeId === id) activeId = sessions[0]?.id ?? null
+      if (activeId === id) {
+        const project = removed.projectId
+          ? projects.find((item) => item.id === removed.projectId)
+          : undefined
+        if (project) {
+          const sibling = sessions
+            .filter(
+              (session) =>
+                session.projectId === project.id && !session.archived,
+            )
+            .sort((left, right) => right.updatedAt - left.updatedAt)[0]
+          if (sibling) {
+            activeId = sibling.id
+            draft = null
+          } else {
+            draft = draftForProject(project.id)
+            activeId = null
+          }
+        } else {
+          activeId = sessions[0]?.id ?? null
+        }
+      }
       releaseSessionFiles(removed)
       persist()
       emit()
     },
     setMode(mode: AgentMode) {
       if (busy) return
-      const session = ensureSession()
+      const session = settingsSession()
       if (session.mode === mode) return
       session.mode = mode
       session.updatedAt = now()
@@ -3257,7 +3305,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       emit()
     },
     setApprovalMode(mode: AgentApprovalMode) {
-      const session = ensureSession()
+      if (busy) return
+      const session = settingsSession()
       if (session.approvalMode === mode) return
       session.approvalMode = mode
       session.updatedAt = now()
@@ -3266,7 +3315,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     setModel(model: AgentModelId) {
       if (busy) return
-      const session = ensureSession()
+      const session = settingsSession()
       if (session.model === model && session.selectedModel === model) return
       session.model = model
       session.selectedModel = model
@@ -3276,7 +3325,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     syncModelWithKeys() {
       if (busy) return
-      const session = activeSession()
+      const session = currentSession()
       if (!session) return
       const fallback = availableChatModel()
       if (!fallback) return
@@ -3324,7 +3373,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (busy) return
       const info = modelInfo(model)
       if (!info || info.kind !== kind) return
-      const session = ensureSession()
+      const session = settingsSession()
       if (session.selectedModel === model) return
       session.selectedModel = model
       session.model = defaultChatModel()
@@ -3337,7 +3386,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     setReasoning(reasoning: AgentReasoning) {
       if (busy) return
-      const session = ensureSession()
+      const session = settingsSession()
       if (session.reasoning === reasoning) return
       session.reasoning = reasoning
       session.updatedAt = now()
@@ -3346,7 +3395,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     },
     setWorkspace(projectId: string | null) {
       if (busy) return
-      const session = ensureSession()
+      const session = settingsSession()
       if (projectId) {
         const project = projects.find((item) => item.id === projectId)
         if (!project) return

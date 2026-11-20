@@ -1,7 +1,7 @@
 {
   "name": "mqmz-desktop-pet",
   "productName": "毛趣萌仔",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "main": "out/main/index.js",

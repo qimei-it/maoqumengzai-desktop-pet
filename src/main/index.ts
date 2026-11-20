@@ -11701,13 +11701,12 @@ function setupIpc(): void {
       'agent-send',
       'agent-retry',
       'agent-message-regenerate',
-      'agent-message-edit',
       'agent-cancel',
       'agent-approve',
       'agent-approve-same',
       'agent-deny',
       'agent-session-new',
-      'agent-project-new',
+      'agent-project-open',
       'agent-project-create',
       'agent-project-update',
       'agent-project-delete',
@@ -11912,15 +11911,6 @@ function setupIpc(): void {
           showToast(error instanceof Error ? error.message : '重新生成失败。')
         })
         break
-      case 'agent-message-edit':
-        void agent
-          .editMessage(command.id, command.prompt)
-          .catch((error) => {
-            showToast(
-              error instanceof Error ? error.message : '重新发送失败。',
-            )
-          })
-        break
       case 'agent-send': {
         const ids = command.attachmentIds ?? []
         const attachments = ids
@@ -11963,9 +11953,9 @@ function setupIpc(): void {
         clearAgentDrafts()
         agent.newSession()
         break
-      case 'agent-project-new':
+      case 'agent-project-open':
         clearAgentDrafts()
-        agent.newSessionIn(command.projectId)
+        agent.openProject(command.projectId)
         break
       case 'agent-project-create': {
         const info = await stat(command.workspace).catch(() => null)

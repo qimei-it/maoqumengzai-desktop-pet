@@ -693,13 +693,12 @@ export type Command =
     }
   | { type: 'agent-retry' }
   | { type: 'agent-message-regenerate' }
-  | { type: 'agent-message-edit'; id: string; prompt: string }
   | { type: 'agent-cancel' }
   | { type: 'agent-approve'; id: string }
   | { type: 'agent-approve-same'; id: string }
   | { type: 'agent-deny'; id: string }
   | { type: 'agent-session-new' }
-  | { type: 'agent-project-new'; projectId: string }
+  | { type: 'agent-project-open'; projectId: string }
   | {
       type: 'agent-project-create'
       name: string

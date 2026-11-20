@@ -39,7 +39,7 @@ test.afterAll(async () => {
   await application.close()
 })
 
-test('edits and regenerates a turn', async () => {
+test('copies a user message and regenerates a turn', async () => {
   await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
@@ -86,38 +86,29 @@ test('edits and regenerates a turn', async () => {
   await agent.getByRole('button', { name: '发送' }).click()
   await expect(agent.locator('.agent-message').getByText('回答 1')).toBeVisible({ timeout: 15_000 })
 
-  await agent
+  const userMessage = agent
     .locator('.agent-message.user')
     .filter({ hasText: '原始问题' })
-    .getByRole('button', { name: '编辑并重发' })
-    .click()
-  await expect(agent.getByRole('dialog', { name: '编辑消息' })).toBeVisible()
-  await agent.getByLabel('消息内容').fill('修改后的问题')
-  await agent.getByRole('button', { name: '保存并发送' }).click()
+  await userMessage.getByRole('button', { name: '复制' }).click()
   await expect(
-    agent.locator('.agent-message').getByText('修改后的问题'),
+    userMessage.getByRole('button', { name: '已复制' }),
   ).toBeVisible()
-  await expect(
-    agent.locator('.agent-message').getByText('原始问题'),
-  ).toHaveCount(0)
-  await expect(
-    agent.locator('.agent-message').getByText('回答 1'),
-  ).toHaveCount(0)
-  await expect(agent.locator('.agent-message').getByText('回答 2')).toBeVisible({ timeout: 15_000 })
-  await expect(agent.locator('.agent-message.user')).toHaveCount(1)
+  expect(
+    await application.evaluate(({ clipboard }) => clipboard.readText()),
+  ).toBe('原始问题')
 
   await agent
     .locator('.agent-message.assistant')
     .last()
     .getByRole('button', { name: '重新生成' })
     .click()
-  await expect(agent.locator('.agent-message').getByText('回答 3')).toBeVisible({ timeout: 15_000 })
+  await expect(agent.locator('.agent-message').getByText('回答 2')).toBeVisible({ timeout: 15_000 })
   await expect(
-    agent.locator('.agent-message').getByText('回答 2'),
+    agent.locator('.agent-message').getByText('回答 1'),
   ).toHaveCount(0)
   await expect(agent.locator('.agent-message.user')).toHaveCount(1)
   await expect(
-    agent.locator('.agent-message').getByText('修改后的问题'),
+    agent.locator('.agent-message').getByText('原始问题'),
   ).toBeVisible()
 })
 

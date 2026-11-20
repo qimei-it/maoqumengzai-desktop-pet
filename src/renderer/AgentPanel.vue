@@ -357,9 +357,6 @@ let voiceRecorder:
     }
   | undefined
 const expandedReasoning = ref<Record<string, boolean>>({})
-const editingMessage = ref<{ id: string } | null>(null)
-const editDraft = ref('')
-const editInput = ref<HTMLTextAreaElement>()
 const sessionSearchInput = ref<HTMLInputElement>()
 const skillSearchInput = ref<HTMLInputElement>()
 const composerInput = ref<HTMLElement>()
@@ -686,9 +683,7 @@ const activeSession = computed(() =>
   sessions.value.find((item) => item.id === agent.value?.sessionId),
 )
 const activeProject = computed(() =>
-  projects.value.find(
-    (item) => item.id === activeSession.value?.projectId,
-  ),
+  projects.value.find((item) => item.id === agent.value?.projectId),
 )
 const workspaceLabel = computed(() => {
   if (activeProject.value) return activeProject.value.name
@@ -944,7 +939,7 @@ function scrollButtonClick(): void {
 }
 
 watch(
-  () => agent.value?.sessionId,
+  [() => agent.value?.sessionId, () => agent.value?.projectId],
   () => {
     following.value = true
     scrollHover.value = false
@@ -1032,24 +1027,6 @@ function assistantText(message: AgentMessageView): string {
     .trim()
 }
 
-function startEdit(message: AgentMessageView): void {
-  if (busy.value) return
-  editingMessage.value = { id: message.id }
-  editDraft.value = assistantText(message)
-  void nextTick(() => editInput.value?.focus())
-}
-function submitEdit(): void {
-  if (!editingMessage.value || !editDraft.value.trim()) return
-  emit('command', {
-    type: 'agent-message-edit',
-    id: editingMessage.value.id,
-    prompt: editDraft.value.trim(),
-  })
-  editingMessage.value = null
-  following.value = true
-  scrollHover.value = false
-  void nextTick(() => scheduleFollow())
-}
 function regenerateLast(): void {
   if (busy.value) return
   emit('command', { type: 'agent-message-regenerate' })
@@ -1057,7 +1034,7 @@ function regenerateLast(): void {
   scrollHover.value = false
   void nextTick(() => scheduleFollow())
 }
-async function copyOutput(message: AgentMessageView): Promise<void> {
+async function copyMessage(message: AgentMessageView): Promise<void> {
   const text = assistantText(message)
   if (!text) return
   const result = await window.mqmz?.copyAgentOutput(text)
@@ -1934,9 +1911,17 @@ function newSession(): void {
   emit('command', { type: 'agent-session-new' })
 }
 function newChatIn(projectId: string): void {
+  expanded.value = { ...expanded.value, [projectId]: true }
+  openProject(projectId)
+}
+function openProject(projectId: string): void {
   skillsOpen.value = false
   skillDetail.value = null
-  emit('command', { type: 'agent-project-new', projectId })
+  emit('command', { type: 'agent-project-open', projectId })
+}
+function openProjectRow(projectId: string): void {
+  toggleProject(projectId)
+  openProject(projectId)
 }
 function selectSession(id: string): void {
   skillsOpen.value = false
@@ -2492,8 +2477,7 @@ function onKeydown(event: KeyboardEvent): void {
     }
   }
   if (event.key !== 'Escape') return
-  if (editingMessage.value) editingMessage.value = null
-  else if (confirm.value) confirm.value = null
+  if (confirm.value) confirm.value = null
   else if (generationMenuOpen.value) generationMenuOpen.value = false
   else if (modelMenuOpen.value) modelMenuOpen.value = false
   else if (approvalMenuOpen.value) approvalMenuOpen.value = false
@@ -2804,7 +2788,7 @@ function statusLabel(status: string): string {
                 <div
                   class="agent-project-row"
                   :title="project.workspace"
-                  @click="toggleProject(project.id)"
+                  @click="openProjectRow(project.id)"
                 >
                   <FolderOpen
                     v-if="isProjectOpen(project.id)"
@@ -4016,7 +4000,7 @@ function statusLabel(status: string): string {
                         copiedId === message.id ? '已复制' : '复制'
                       "
                       :title="copiedId === message.id ? '已复制' : '复制'"
-                      @click="copyOutput(message)"
+                      @click="copyMessage(message)"
                     >
                       <Check
                         v-if="copiedId === message.id"
@@ -4068,12 +4052,20 @@ function statusLabel(status: string): string {
                     v-else
                     type="button"
                     class="agent-message-action"
-                    :disabled="busy"
-                    aria-label="编辑并重发"
-                    title="编辑并重发"
-                    @click="startEdit(message)"
+                    :aria-label="
+                      copiedId === message.id ? '已复制' : '复制'
+                    "
+                    :title="copiedId === message.id ? '已复制' : '复制'"
+                    @click="copyMessage(message)"
                   >
-                    <PenLine
+                    <Check
+                      v-if="copiedId === message.id"
+                      :size="14"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                    <Copy
+                      v-else
                       :size="14"
                       :stroke-width="2"
                       aria-hidden="true"
@@ -5402,50 +5394,6 @@ function statusLabel(status: string): string {
             </button>
           </footer>
         </template>
-      </div>
-    </div>
-
-    <div
-      v-if="editingMessage"
-      class="agent-modal-layer"
-      @mousedown.self="editingMessage = null"
-    >
-      <div
-        class="agent-modal agent-edit-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="编辑消息"
-      >
-        <header class="agent-modal-head">
-          <h2>编辑消息</h2>
-        </header>
-        <textarea
-          ref="editInput"
-          v-model="editDraft"
-          class="agent-edit-input"
-          rows="6"
-          aria-label="消息内容"
-          @keydown.enter.meta.prevent="submitEdit"
-          @keydown.enter.ctrl.prevent="submitEdit"
-        ></textarea>
-        <footer class="agent-modal-foot">
-          <span class="agent-modal-spacer" />
-          <button
-            type="button"
-            class="agent-button"
-            @click="editingMessage = null"
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            class="agent-button primary"
-            :disabled="!editDraft.trim()"
-            @click="submitEdit"
-          >
-            保存并发送
-          </button>
-        </footer>
       </div>
     </div>
 
@@ -8644,23 +8592,6 @@ function statusLabel(status: string): string {
 }
 .agent-field-count.is-over {
   color: var(--color-danger);
-}
-.agent-edit-input {
-  width: 100%;
-  min-height: 132px;
-  padding: var(--space-3);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-  outline: none;
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--font-size-body);
-  line-height: 1.55;
-  resize: vertical;
-}
-.agent-edit-input:focus {
-  border-color: var(--color-brand);
 }
 .agent-modal-label {
   margin: var(--space-5) 0 var(--space-2);

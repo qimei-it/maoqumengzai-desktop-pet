@@ -275,6 +275,8 @@ export type AgentState = {
   sessions: AgentSessionSummary[]
   projects: AgentProjectView[]
   sessionId: string | null
+  /** Project context, including an empty project that has no session yet. */
+  projectId: string | null
   mode: AgentMode
   approvalMode: AgentApprovalMode
   model: AgentModelId
@@ -303,6 +305,7 @@ export const agentEmptyState: AgentState = {
   sessions: [],
   projects: [],
   sessionId: null,
+  projectId: null,
   mode: 'build',
   approvalMode: 'ask',
   model: 'deepseek-flash',

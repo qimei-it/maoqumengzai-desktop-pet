@@ -1200,6 +1200,70 @@ describe('agent runtime', () => {
     )
   })
 
+  test('opens an empty project without creating a session, then sends into it', async () => {
+    const { runtime } = await makeRuntime([{ text: '好的', toolCalls: [] }])
+    runtime.createProject('计划项目', `/tmp/mqmz-project-${Date.now()}`)
+    const project = runtime
+      .state()
+      .projects.find((item) => item.name === '计划项目')!
+    const before = runtime.state().sessions.length
+
+    runtime.openProject(project.id)
+    let state = runtime.state()
+    expect(state.sessionId).toBeNull()
+    expect(state.projectId).toBe(project.id)
+    expect(state.messages).toEqual([])
+    expect(state.sessions).toHaveLength(before)
+
+    await runtime.send('整理项目计划')
+    state = runtime.state()
+    expect(state.sessionId).toBeTruthy()
+    expect(state.projectId).toBe(project.id)
+    const created = state.sessions.find((item) => item.id === state.sessionId)
+    expect(created?.projectId).toBe(project.id)
+    expect(created?.title).toBe('整理项目计划')
+    expect(state.sessions).toHaveLength(before + 1)
+  })
+
+  test('returns to the project empty state after deleting its last session', async () => {
+    const { runtime } = await makeRuntime([{ text: '好的', toolCalls: [] }])
+    runtime.createProject('收尾项目', `/tmp/mqmz-project-${Date.now()}`)
+    const project = runtime
+      .state()
+      .projects.find((item) => item.name === '收尾项目')!
+    runtime.openProject(project.id)
+    await runtime.send('唯一的对话')
+    const id = runtime.state().sessionId!
+    runtime.remove(id)
+    const state = runtime.state()
+    expect(state.sessionId).toBeNull()
+    expect(state.projectId).toBe(project.id)
+    expect(state.messages).toEqual([])
+    expect(state.sessions.some((item) => item.id === id)).toBe(false)
+  })
+
+  test('selects the remaining project session after deleting a sibling', async () => {
+    const { runtime } = await makeRuntime([
+      { text: '第一次', toolCalls: [] },
+      { text: '第二次', toolCalls: [] },
+    ])
+    runtime.createProject('多对话项目', `/tmp/mqmz-project-${Date.now()}`)
+    const project = runtime
+      .state()
+      .projects.find((item) => item.name === '多对话项目')!
+    runtime.openProject(project.id)
+    await runtime.send('第一轮')
+    const first = runtime.state().sessionId!
+    runtime.openProject(project.id)
+    await runtime.send('第二轮')
+    const second = runtime.state().sessionId!
+    expect(second).not.toBe(first)
+    runtime.remove(second)
+    const state = runtime.state()
+    expect(state.sessionId).toBe(first)
+    expect(state.projectId).toBe(project.id)
+  })
+
   test('clears a conversation while keeping the session entry', async () => {
     const { runtime } = await makeRuntime([])
     await runtime.send('你好')
@@ -1240,45 +1304,6 @@ describe('agent runtime', () => {
       ),
     ).toBe(true)
     expect(attempts).toBe(2)
-  })
-
-  test('edits an earlier user message and drops later turns', async () => {
-    const seen: StreamOptions['messages'][] = []
-    const { runtime } = await makeRuntime([], [], {
-      stream: async (_key, options) => {
-        seen.push(options.messages)
-        const text = `回答 ${seen.length}`
-        options.onText?.(text)
-        return { text, toolCalls: [] }
-      },
-    })
-    await runtime.send('第一问')
-    const firstUser = runtime
-      .state()
-      .messages.find((message) => message.role === 'user')!
-    await runtime.send('第二问')
-    await runtime.editMessage(firstUser.id, '修改后的问题')
-    const state = runtime.state()
-    expect(
-      state.messages
-        .filter((message) => message.role === 'user')
-        .map((message) =>
-          message.parts
-            .map((part) => (part.type === 'text' ? part.text : ''))
-            .join(''),
-        ),
-    ).toEqual(['修改后的问题'])
-    const lastRequest = seen.at(-1)!
-    expect(
-      lastRequest.filter((message) => message.role === 'user'),
-    ).toHaveLength(1)
-    expect(
-      lastRequest.some(
-        (message) =>
-          message.role === 'assistant' &&
-          message.content === '回答 1',
-      ),
-    ).toBe(false)
   })
 
   test('streams reasoning into a collapsible part', async () => {
@@ -1400,7 +1425,7 @@ describe('agent runtime', () => {
     const allowProject = runtime
       .state()
       .projects.find((project) => project.name === '允许项目')!
-    runtime.newSessionIn(allowProject.id)
+    runtime.openProject(allowProject.id)
     runtime.setProjectToolPolicy(allowProject.id, 'allow')
     await runtime.send('建个待办')
     expect(calls).toContain('addTodo:项目任务')
@@ -1410,7 +1435,7 @@ describe('agent runtime', () => {
     const denyProject = runtime
       .state()
       .projects.find((project) => project.name === '禁止项目')!
-    runtime.newSessionIn(denyProject.id)
+    runtime.openProject(denyProject.id)
     runtime.setProjectToolPolicy(denyProject.id, 'deny')
     await runtime.send('再建一个')
     expect(
@@ -1476,7 +1501,7 @@ describe('agent runtime', () => {
     const project = runtime
       .state()
       .projects.find((item) => item.name === '代码项目')!
-    runtime.newSessionIn(project.id)
+    runtime.openProject(project.id)
     await runtime.send('调查一下代码')
 
     const part = toolParts(runtime).find(
