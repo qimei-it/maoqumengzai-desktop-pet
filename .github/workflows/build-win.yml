@@ -52,6 +52,30 @@ jobs:
           path: |
             dist/mqmz-*-setup.exe
             dist/win-build.txt
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $lines = Get-Content CHANGELOG.md
+          $pattern = '^## ' + [regex]::Escape($version) + '\s'
+          $heading = $lines | Select-String -Pattern $pattern
+          $notes = ''
+          if ($heading) {
+            $start = $heading[0].LineNumber
+            $collected = @()
+            for ($i = $start; $i -lt $lines.Count; $i++) {
+              if ($lines[$i] -match '^## ') { break }
+              $collected += $lines[$i]
+            }
+            $notes = ($collected -join "`n").Trim()
+          }
+          if ($notes) {
+            Set-Content dist/release-notes.md $notes -Encoding utf8
+            Write-Output $notes
+          } else {
+            Write-Output "CHANGELOG.md 中没有 $version 的条目，回退到 GitHub 自动生成的说明"
+          }
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -59,8 +83,16 @@ jobs:
         shell: pwsh
         run: |
           $tag = $env:GITHUB_REF_NAME
+          $notesFile = 'dist/release-notes.md'
+          $hasNotes = Test-Path $notesFile
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "毛趣萌仔 $($tag.TrimStart('v'))" --generate-notes
+            if ($hasNotes) {
+              gh release create $tag --title "毛趣萌仔 $($tag.TrimStart('v'))" --notes-file $notesFile
+            } else {
+              gh release create $tag --title "毛趣萌仔 $($tag.TrimStart('v'))" --generate-notes
+            }
+          } elseif ($hasNotes) {
+            gh release edit $tag --notes-file $notesFile
           }
           gh release upload $tag (Get-ChildItem dist -Filter 'mqmz-*-setup.exe').FullName --clobber
