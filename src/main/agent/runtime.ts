@@ -1,9 +1,9 @@
 /** Agent loop: streaming, tool calls, approvals, cancellation and sessions. */
 
 import { randomUUID } from 'node:crypto'
-import { realpath, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { shellRisk } from '../../shared/shell-safety'
 import { redactSecrets } from '../../shared/redact'
 import type {
@@ -215,7 +215,6 @@ const maxShellHistory = 60
 /** Kept behind the approval card even in 自动审批; 完全访问 skips all of them. */
 const alwaysConfirmTools = new Set([
   'shell_run',
-  'workspace_set',
   'skill_install_local',
   'skill_install_url',
   'skill_remove',
@@ -496,6 +495,7 @@ function systemPrompt(
   workspace: string | null,
   pet: AgentPetProfile,
   skills: AgentSkillPrompt[] = [],
+  project: { name: string; workspace: string } | null = null,
 ): string {
   return [
     '你是“毛趣萌仔”桌面宠物里的个人助理智能体。默认使用中文，回答简洁直接。',
@@ -505,12 +505,20 @@ function systemPrompt(
     '用户给出本地路径要求安装技能时，直接用 skill_install_local，不要先用 shell 查看目录。',
     '任务明显需要某个未启用的技能时，先用 skill_list 搜索；找到后调用 skill_set_enabled 启用（会请求批准），不要直接放弃。',
     '技能标注需要外部依赖时，先说明缺什么；用户批准后可以帮忙安装或配置，再启用技能。',
-    '需要 shell 或工作区文件工具但还没有工作区时，先调用 workspace_set 申请绑定目录；不要直接运行 shell_run。',
+    '需要 shell 或工作区文件工具但还没有工作区时，让用户在输入框下方选择项目；不要自行绑定或切换目录。',
     mode === 'plan'
       ? '当前是计划模式：只允许只读工具。需要修改时，说明打算怎么做，让用户切换到执行模式。'
       : '当前是执行模式：写操作会请求用户确认，被拒绝时不要重复尝试同一条操作。',
     `当前时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
-    workspace ? `Shell 工作区：${workspace}` : 'Shell 工作区：尚未选择',
+    project
+      ? `当前项目：${project.name}`
+      : '当前项目：未选择',
+    project
+      ? `项目根目录（固定工作区）：${project.workspace}`
+      : workspace
+        ? `Shell 工作区：${workspace}`
+        : 'Shell 工作区：尚未选择',
+    '用户消息里提到的其他目录只作为读取目标，不能当作项目根目录，也不能修改工作区或切换目录；读取项目外内容时使用 shell_run 的绝对路径。',
     '',
     '# 当前桌宠（只影响表达方式）',
     `名字：${pet.name}`,
@@ -1026,35 +1034,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return { ok: true, text: `已卸载技能“${skill.name}”。` }
     },
   }
-  const workspaceSetTool: AgentTool = {
-    name: 'workspace_set',
-    description:
-      '把当前会话的工作区绑定到一个本地目录。绑定后 Shell 与工作区文件工具都使用它；需要用户确认。',
-    parameters: {
-      type: 'object',
-      properties: {
-        path: { type: 'string', description: '本地目录的绝对路径' },
-      },
-      required: ['path'],
-      additionalProperties: false,
-    },
-    plan: 'deny',
-    build: 'ask',
-    title: (args) => `绑定工作区 ${String(args.path ?? '')}`.slice(0, 80),
-    async run(args, ctx) {
-      const value = String(args.path ?? '').trim()
-      if (!value) return { ok: false, text: '缺少目录路径。' }
-      if (!isAbsolute(value))
-        return { ok: false, text: '请提供绝对目录路径。' }
-      const real = await realpath(value).catch(() => null)
-      if (!real) return { ok: false, text: '目录不存在。' }
-      const info = await stat(real).catch(() => null)
-      if (!info?.isDirectory())
-        return { ok: false, text: '这个路径不是目录。' }
-      ctx.bindWorkspace?.(real)
-      return { ok: true, text: `已绑定工作区：${real}` }
-    },
-  }
   const imageGenerateTool: AgentTool = {
     name: 'image_generate',
     description:
@@ -1396,7 +1375,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     skillInstallLocalTool,
     skillInstallUrlTool,
     skillRemoveTool,
-    workspaceSetTool,
     imageGenerateTool,
     videoGenerateTool,
     speechGenerateTool,
@@ -2005,12 +1983,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     const unrestricted =
       session.approvalMode === 'full' && session.mode === 'build'
     const effectiveWorkspace =
-      session.workspace ?? (unrestricted ? homedir() : null)
+      project?.workspace ??
+      session.workspace ??
+      (unrestricted ? homedir() : null)
     if (tool.name === 'shell_run' && !effectiveWorkspace) {
       return {
         allowed: false,
         ok: false,
-        text: '还没有绑定工作区，命令未执行。先调用 workspace_set 绑定目录，或让用户在输入框下方选择项目。',
+        text: '还没有绑定工作区，命令未执行。请让用户在输入框下方选择项目。',
       }
     }
     if (
@@ -2035,16 +2015,6 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(onProgress ? { onProgress } : {}),
         references,
         ...(generation ? { generation } : {}),
-        bindWorkspace: (path: string) => {
-          if (session.projectId)
-            throw new Error(
-              '当前会话属于项目，请在项目设置里修改工作区。',
-            )
-          session.workspace = path
-          session.updatedAt = now()
-          persist()
-          emit()
-        },
       })
       return {
         allowed: true,
@@ -2098,6 +2068,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const context = compactHistory(session.history, session.model)
       if (context.summarized) session.compacted = context.summarized
       else delete session.compacted
+      const project = session.projectId
+        ? projects.find((item) => item.id === session.projectId)
+        : undefined
       try {
         result = await activeStream(activeKey, {
           model: session.model,
@@ -2108,9 +2081,15 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
               content: [
                 systemPrompt(
                   session.mode,
-                  session.workspace,
+                  project?.workspace ?? session.workspace,
                   deps.getPetProfile(),
                   skills,
+                  project
+                    ? {
+                        name: project.name,
+                        workspace: project.workspace,
+                      }
+                    : null,
                 ),
                 ...(context.summary
                   ? [`\n\n本会话较早内容的摘要：\n${context.summary}`]
@@ -2743,6 +2722,23 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const store = await loadAgentStore(deps.storePath)
       sessions = store.sessions
       projects = store.projects
+      let normalized = false
+      for (const session of sessions) {
+        if (!session.projectId) continue
+        const project = projects.find(
+          (item) => item.id === session.projectId,
+        )
+        if (!project) {
+          session.projectId = null
+          normalized = true
+          continue
+        }
+        if (session.workspace !== project.workspace) {
+          session.workspace = project.workspace
+          normalized = true
+        }
+      }
+      if (normalized) persist()
       activeId = sessions[0]?.id ?? null
       for (const session of sessions) {
         const sourcePaths = new Map(
@@ -2775,6 +2771,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const stored = activeSession()
       const session = draft ?? stored
       const retryLabel = retryLabelFor(stored)
+      const project = session?.projectId
+        ? projects.find((item) => item.id === session.projectId)
+        : undefined
       return {
         configured: Boolean(
           deps.getKey() || deps.getMiniMaxKey?.() || deps.getVolcanoKey?.(),
@@ -2816,7 +2815,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         ...(session?.audioModel ? { audioModel: session.audioModel } : {}),
         defaultChatModelMissing: !deps.getSettings().agentDefaultChatModel,
         reasoning: session?.reasoning ?? 'high',
-        workspace: session?.workspace ?? null,
+        workspace: project?.workspace ?? session?.workspace ?? null,
         messages: session?.ui.slice(-80) ?? [],
         approval: pending?.info ?? null,
         usage: session?.usage ?? { input: 0, output: 0 },

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
@@ -1667,7 +1667,6 @@ describe('agent runtime', () => {
 
   test('auto approval skips routine writes but keeps risky tools gated', async () => {
     const calls: string[] = []
-    const directory = await mkdtemp(join(tmpdir(), 'mqmz-approval-'))
     const seen: StreamOptions['messages'][] = []
     const { runtime } = await makeRuntime([], calls, {
         stream: async (_key, options) => {
@@ -1688,13 +1687,13 @@ describe('agent runtime', () => {
               text: '',
               toolCalls: [
                 {
-                  id: 'ws-auto',
-                  name: 'workspace_set',
-                  arguments: JSON.stringify({ path: directory }),
+                  id: 'skill-auto',
+                  name: 'skill_install_url',
+                  arguments: '{"url":"https://example.com/demo.zip"}',
                 },
               ],
             },
-            { text: '已绑定。', toolCalls: [] },
+            { text: '已取消。', toolCalls: [] },
           ][seen.length - 1]
           return result ?? { text: '完成', toolCalls: [] }
         },
@@ -1705,11 +1704,18 @@ describe('agent runtime', () => {
     expect(calls).toContain('addTodo:自动审批待办')
     expect(runtime.state().approval).toBeNull()
 
-    const running = runtime.send('绑定工作区')
-    await waitFor(() => runtime.state().approval?.name === 'workspace_set')
-    runtime.approve(runtime.state().approval!.id)
+    const running = runtime.send('安装技能')
+    await waitFor(
+      () => runtime.state().approval?.name === 'skill_install_url',
+    )
+    runtime.deny(runtime.state().approval!.id)
     await running
-    expect(runtime.state().workspace).toBe(await realpath(directory))
+    expect(runtime.state().approval).toBeNull()
+    expect(
+      toolParts(runtime).find(
+        (part) => part.type === 'tool' && part.name === 'skill_install_url',
+      ),
+    ).toMatchObject({ status: 'denied' })
   })
 
   test('full access skips approvals but plan mode still blocks writes', async () => {
@@ -1850,8 +1856,9 @@ describe('agent runtime', () => {
     expect(seen[0].some((message) => message.role === 'system')).toBe(true)
   })
 
-  test('binds a workspace only after approval', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'mqmz-workspace-'))
+  test('keeps the project root fixed and drops workspace_set calls', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-project-root-'))
+    const other = await mkdtemp(join(tmpdir(), 'mqmz-other-root-'))
     const seen: StreamOptions['messages'][] = []
     const { runtime } = await makeRuntime([], [], {
       stream: async (_key, options) => {
@@ -1863,21 +1870,86 @@ describe('agent runtime', () => {
               {
                 id: 'ws-1',
                 name: 'workspace_set',
-                arguments: JSON.stringify({ path: directory }),
+                arguments: JSON.stringify({ path: other }),
               },
             ],
           }
-        return { text: '已绑定。', toolCalls: [] }
+        return { text: '只读取目标目录。', toolCalls: [] }
       },
     })
-    expect(runtime.state().workspace).toBeNull()
-    const running = runtime.send('绑定工作区')
-    await waitFor(() => runtime.state().approval?.name === 'workspace_set')
-    const approval = runtime.state().approval!
-    expect(approval.title).toBe(`绑定工作区 ${directory}`)
-    runtime.approve(approval.id)
-    await running
-    expect(runtime.state().workspace).toBe(await realpath(directory))
+    runtime.createProject('固定项目', directory)
+    const project = runtime
+      .state()
+      .projects.find((item) => item.name === '固定项目')!
+    runtime.openProject(project.id)
+    await runtime.send('分析一下另一个目录')
+
+    const state = runtime.state()
+    expect(state.projectId).toBe(project.id)
+    expect(state.workspace).toBe(directory)
+    expect(state.approval).toBeNull()
+    const part = state.messages
+      .flatMap((message) => message.parts)
+      .find(
+        (item) => item.type === 'tool' && item.name === 'workspace_set',
+      )
+    expect(part).toMatchObject({
+      type: 'tool',
+      status: 'error',
+      output: '未知工具：workspace_set',
+    })
+    expect(
+      state.sessions.find((item) => item.id === state.sessionId)?.workspace,
+    ).toBe(directory)
+
+    const system = seen[0]?.find((message) => message.role === 'system')
+    expect(String(system?.content)).toContain(
+      `项目根目录（固定工作区）：${directory}`,
+    )
+    expect(String(system?.content)).not.toContain('workspace_set')
+  })
+
+  test('normalizes a drifted project session workspace on load', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-project-fixed-'))
+    const other = await mkdtemp(join(tmpdir(), 'mqmz-project-drift-'))
+    const { runtime } = await makeRuntime([], [], {
+      seedStore: async (path) => {
+        await saveAgentStore(path, {
+          projects: [
+            {
+              id: 'project-fixed',
+              name: '固定项目',
+              workspace: directory,
+              pinned: false,
+              createdAt: 1,
+            },
+          ],
+          sessions: [
+            {
+              id: 'session-fixed',
+              title: '会话',
+              mode: 'build',
+              model: 'deepseek-flash',
+              reasoning: 'high',
+              workspace: other,
+              projectId: 'project-fixed',
+              pinned: false,
+              createdAt: 1,
+              updatedAt: 1,
+              ui: [],
+              history: [],
+              usage: { input: 0, output: 0 },
+            },
+          ],
+        })
+      },
+    })
+    runtime.select('session-fixed')
+    const state = runtime.state()
+    expect(state.workspace).toBe(directory)
+    expect(
+      state.sessions.find((item) => item.id === 'session-fixed')?.workspace,
+    ).toBe(directory)
   })
 
   test('refuses shell without a workspace instead of opening a picker', async () => {
