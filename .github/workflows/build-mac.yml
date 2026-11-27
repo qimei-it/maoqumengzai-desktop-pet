@@ -1,0 +1,48 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '待发布的版本标签（例如 v1.0.8）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    name: macOS arm64 DMG
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Check version and draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          test "v$version" = "$RELEASE_TAG"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = true
+      - name: Install dependencies
+        run: npm ci
+      - name: Package
+        run: npm run pack:mac
+      - name: Verify and upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          file="dist/mqmz-${version}-arm64.dmg"
+          hdiutil verify "$file"
+          shasum -a 256 "$file"
+          stat -f '%z bytes' "$file"
+          gh release upload "$RELEASE_TAG" "$file"
