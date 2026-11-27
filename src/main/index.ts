@@ -398,6 +398,7 @@ import {
   probeMailAccount,
   setMailSeen,
   syncMailInbox,
+  watchMailInbox,
 } from './mail-sync'
 import {
   sendMailMessage,
@@ -705,6 +706,8 @@ let mailBusy = false
 let mailSyncing = false
 let mailError: string | undefined
 let mailSyncTimer: ReturnType<typeof setInterval> | undefined
+const mailWatchers = new Map<string, AbortController>()
+const mailAccountSyncs = new Map<string, Promise<void>>()
 let mailWindow: BrowserWindow | undefined
 let mailWindowMaximized = false
 let mailComposeWindow: BrowserWindow | undefined
@@ -6020,6 +6023,48 @@ function scheduleMailSync(): void {
     void syncAllMail(true).catch(() => {})
   }, mailConfig.syncMinutes * 60_000)
 }
+function stopMailWatchers(): void {
+  for (const controller of mailWatchers.values()) controller.abort()
+  mailWatchers.clear()
+}
+function startMailWatcher(accountId: string): void {
+  mailWatchers.get(accountId)?.abort()
+  const controller = new AbortController()
+  mailWatchers.set(accountId, controller)
+  const run = async (): Promise<void> => {
+    const account = mailDb?.account(accountId)
+    if (!account || controller.signal.aborted) return
+    try {
+      const secret = await loadMailSecret(mailSecretsPath, accountId)
+      if (!secret || controller.signal.aborted) return
+      await prepareMailProxy(account.provider)
+      if (controller.signal.aborted) return
+      const result = await watchMailInbox(
+        account.provider, account.email, secret, controller.signal,
+        () => { void syncMailAccount(accountId, true).catch(() => {}) },
+      )
+      if (result === 'unsupported') return
+    } catch {
+      // The periodic sync records account errors and remains the fallback.
+    }
+    if (!controller.signal.aborted)
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer)
+          controller.signal.removeEventListener('abort', done)
+          resolve()
+        }
+        const timer = setTimeout(done, 30_000)
+        controller.signal.addEventListener('abort', done, { once: true })
+      })
+    if (!controller.signal.aborted) void run()
+  }
+  void run()
+}
+function restartMailWatchers(): void {
+  stopMailWatchers()
+  for (const account of mailDb?.listAccounts() ?? []) startMailWatcher(account.id)
+}
 async function directoryBytes(path: string): Promise<number> {
   let total = 0
   try {
@@ -6233,6 +6278,7 @@ async function updateMailConfig(patch: Partial<MailConfig>): Promise<void> {
   if (proxyChanged) {
     applyMailProxySettings()
     if (mailConfig.proxyMode === 'auto') await refreshSystemMailProxy()
+    restartMailWatchers()
   }
   scheduleMailSync()
   if (prune) await pruneMailCache()
@@ -6267,6 +6313,7 @@ async function addMailAccount(
     })
     void updateMailBadge()
     void refreshMailFolders(account.id)
+    startMailWatcher(account.id)
     addEvent(`邮件账户 ${email} 已添加。`)
     showToast('邮箱账户已添加')
   } catch (error) {
@@ -6308,6 +6355,7 @@ async function reauthorizeMail(
     })
     void updateMailBadge()
     void refreshMailFolders(account.id)
+    startMailWatcher(account.id)
     showToast('邮箱账户已保存')
   } catch (error) {
     mailError = error instanceof Error ? error.message : '邮箱授权更新失败。'
@@ -6332,6 +6380,8 @@ async function removeMailAccount(accountId: string): Promise<void> {
     noLink: true,
   })
   if (choice.response !== 1) return
+  mailWatchers.get(accountId)?.abort()
+  mailWatchers.delete(accountId)
   mailDb.removeAccount(accountId)
   await removeMailSecret(mailSecretsPath, accountId).catch(() => {})
   await rm(join(dataRoot, 'mail-cache', accountId), {
@@ -6369,6 +6419,20 @@ async function syncMailAccount(
   silent = false,
   folder = 'INBOX',
 ): Promise<void> {
+  const previous = mailAccountSyncs.get(accountId) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(() => performMailAccountSync(accountId, silent, folder))
+  mailAccountSyncs.set(accountId, current)
+  try {
+    await current
+  } finally {
+    if (mailAccountSyncs.get(accountId) === current) mailAccountSyncs.delete(accountId)
+  }
+}
+async function performMailAccountSync(
+  accountId: string,
+  silent = false,
+  folder = 'INBOX',
+): Promise<void> {
   if (!mailDb) return
   if (folder === mailLocalDraftsFolder) return
   const account = mailDb.account(accountId)
@@ -6397,6 +6461,7 @@ async function syncMailAccount(
       secret,
       folder,
     )
+    if (!mailDb.account(accountId)) return
     const newcomers =
       folder === 'INBOX' && hadCache
         ? probe.messages
@@ -6426,7 +6491,7 @@ async function syncMailAccount(
       loadMailMessages(accountId, folder)
     }
     void updateMailBadge()
-    if (folder === 'INBOX' && probe.unread > account.unread)
+    if (folder === 'INBOX' && (newcomers.length > 0 || probe.unread > account.unread))
       notifyMail(account, probe.unread)
     if (newcomers.length) void alertNewMail(accountId, newcomers)
   } catch (error) {
@@ -14269,10 +14334,13 @@ async function createWindows(): Promise<void> {
   screen.on('display-removed', reconcileDisplays)
   screen.on('display-metrics-changed', reconcileDisplays)
   powerMonitor.on('suspend', () => {
+    stopMailWatchers()
     persistFocus()
     addEvent('系统即将休眠，计时状态已保存。')
   })
   powerMonitor.on('resume', () => {
+    restartMailWatchers()
+    void syncAllMail(true).catch(() => {})
     reconcileDisplays()
     lastSchedulerWall = 0
     lastSchedulerMono = 0
@@ -14511,6 +14579,7 @@ else {
       void refreshMailCacheSize()
       void updateMailBadge()
       scheduleMailSync()
+      restartMailWatchers()
       await refreshBackupSnapshots()
       if (backupRestoreResult) {
         if (!backupRestoreResult.ok)
@@ -14634,6 +14703,7 @@ else {
   })
   app.on('before-quit', () => {
     shuttingDown = true
+    stopMailWatchers()
     disposeUpdater()
     agent.cancel()
     void agent.flush()

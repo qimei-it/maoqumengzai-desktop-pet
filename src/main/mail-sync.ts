@@ -48,6 +48,7 @@ function providerClient(
   provider: MailProvider,
   email: string,
   secret: string,
+  watch = false,
 ): ImapFlow {
   const server = mailImapServer(provider, email)
   const proxy = provider === 'gmail' ? mailProxyUrl() : undefined
@@ -57,7 +58,8 @@ function providerClient(
     secure: true,
     auth: { user: email, pass: secret },
     logger: false,
-    socketTimeout: 20_000,
+    socketTimeout: watch ? 30 * 60_000 : 20_000,
+    ...(watch ? { maxIdleTime: 25 * 60_000, connectionTimeout: 20_000 } : {}),
     ...(proxy ? { proxy } : {}),
     ...(provider === '163' ? { clientInfo: mailClientInfo } : {}),
   })
@@ -65,6 +67,38 @@ function providerClient(
   // 'error' event would escape as an uncaught main-process exception.
   client.on('error', () => {})
   return client
+}
+
+/** Keep one selected inbox open; a closed connection is handled by the caller. */
+export async function watchMailInbox(
+  provider: MailProvider,
+  email: string,
+  secret: string,
+  signal: AbortSignal,
+  changed: () => void,
+): Promise<'closed' | 'unsupported'> {
+  if (signal.aborted) return 'closed'
+  const client = providerClient(provider, email, secret, true)
+  const abort = () => client.close()
+  signal.addEventListener('abort', abort, { once: true })
+  let closed = false
+  let resolveClosed: () => void = () => {}
+  const closedPromise = new Promise<void>((resolve) => { resolveClosed = resolve })
+  client.on('close', () => { closed = true; resolveClosed() })
+  client.on('exists', changed)
+  try {
+    await client.connect()
+    if (signal.aborted || closed) return 'closed'
+    if (!client.capabilities.has('IDLE')) return 'unsupported'
+    await identifyClient(client, provider)
+    await client.mailboxOpen('INBOX', { readOnly: true })
+    if (!signal.aborted && !closed) changed()
+    await closedPromise
+    return 'closed'
+  } finally {
+    signal.removeEventListener('abort', abort)
+    client.close()
+  }
 }
 
 /**
