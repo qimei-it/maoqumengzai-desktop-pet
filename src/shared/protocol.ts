@@ -762,6 +762,7 @@ export type Command =
   | { type: 'pet-select'; id: string }
   | { type: 'update-check' }
   | { type: 'update-download' }
+  | { type: 'update-cancel' }
   | { type: 'update-install' }
   | { type: 'dirty-state'; scope: DirtyScope; dirty: boolean }
   | { type: 'extract-audio'; fileIds: string[] }

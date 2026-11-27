@@ -33,6 +33,7 @@ import {
   type AgentProvider,
 } from '../shared/agent-models'
 import PetCreateWizard from './PetCreateWizard.vue'
+import UpdateDialog from './UpdateDialog.vue'
 import {
   defaultSettings,
   musicBarStyleLabels,
@@ -113,6 +114,12 @@ const settings = computed<SettingsState>(
 )
 const backup = computed(() => props.state?.backup)
 const updater = computed(() => props.state?.updater)
+const updateDialogOpen = ref(false)
+watch(
+  () => updater.value?.status,
+  (status) => { updateDialogOpen.value = status === 'downloading' || status === 'downloaded' },
+  { immediate: true },
+)
 const updateText = computed(() => {
   const state = updater.value
   if (!state) return '未连接'
@@ -150,13 +157,13 @@ const updateAction = computed<'check' | 'download' | 'install' | null>(() => {
 })
 const updateActionLabel = computed(() => {
   if (updateAction.value === 'download') return '下载'
-  if (updateAction.value === 'install') return '安装并退出'
+  if (updateAction.value === 'install') return '查看'
   return '检查'
 })
 function runUpdateAction(): void {
   const action = updateAction.value
   if (action === 'download') emit('command', { type: 'update-download' })
-  else if (action === 'install') emit('command', { type: 'update-install' })
+  else if (action === 'install') updateDialogOpen.value = true
   else if (action === 'check') emit('command', { type: 'update-check' })
 }
 const restoreOpen = ref(false)
@@ -2618,6 +2625,13 @@ function onEscape(): void {
       </div>
     </section>
     <PetCreateWizard :state="state" @command="emit('command', $event)" />
+    <UpdateDialog
+      v-if="updateDialogOpen && updater"
+      :state="updater"
+      @cancel="emit('command', { type: 'update-cancel' })"
+      @install="emit('command', { type: 'update-install' })"
+      @close="updateDialogOpen = false"
+    />
   </main>
 </template>
 

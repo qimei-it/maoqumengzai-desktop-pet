@@ -21,6 +21,7 @@
 
 ## 已完成的自动化与真实验证
 
+- 2026-11-27：1.0.9 更新弹窗在 macOS arm64 运行 `tests/unit/updater.test.ts`、`tests/unit/update-manifest.test.ts`、`tests/unit/app-version.test.ts` 和 `update-dialog` / `update-row` 定向 Electron 用例，覆盖下载进度、取消、重试及安装入口；下载和安装交互使用模拟数据，未完成双平台真实安装升级回归。
 - 单元测试覆盖调度、清单/标签、提醒文案、邮件验证码、数据快照、技能、转换、额度提醒等模块；CI 在 Linux 上通过。
 - Electron 定向用例覆盖面板懒加载、面板独立、宠物多形象与素材清理、待办标签右键菜单、待办窗口放大、草稿、邮件、备份、恢复、本地数据清除、时钟跳变、时区、免打扰、番茄钟三阶段、无障碍。
 - 真实账户：QQ、163、Gmail 收发；真实 Key：DeepSeek、火山方舟、MiniMax；真实播放器：四款本地音乐客户端。

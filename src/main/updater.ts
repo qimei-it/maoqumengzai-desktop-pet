@@ -1,7 +1,8 @@
 /**
  * In-app updates through a self-hosted manifest.
  *
- * The client reads `latest.json`, downloads the installer next to it, verifies
+ * The client reads `latest.json`, downloads the named installer into its local
+ * update directory, verifies
  * its SHA-256, opens it for the user and quits so the app bundle can be
  * replaced. On the next launch the downloaded installer is moved to the trash
  * once the running version has caught up.
@@ -19,7 +20,7 @@ import {
   existsSync,
   statSync,
 } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -58,6 +59,8 @@ let startupTimer: ReturnType<typeof setTimeout> | undefined
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let quitTimer: ReturnType<typeof setTimeout> | undefined
 let unsavedReader: (() => string[]) | undefined
+let downloadController: AbortController | undefined
+let downloadedPath: string | undefined
 
 /** Human names for the windows that can hold work worth confirming. */
 const unsavedLabels: Record<string, string> = {
@@ -191,7 +194,7 @@ export async function checkForUpdates(): Promise<UpdateState> {
     setState({ status: 'unavailable' })
     return state
   }
-  if (state.status === 'checking' || state.status === 'downloading') return state
+  if (state.status === 'checking' || state.status === 'downloading' || state.status === 'downloaded') return state
   setState({ status: 'checking' })
   try {
     const url = new URL(updateManifestUrl)
@@ -268,17 +271,21 @@ export async function downloadUpdate(): Promise<UpdateState> {
   }
   if (state.status === 'downloading') return state
   const { version, asset } = pending
-  const directory = app.getPath('downloads')
+  const directory = join(app.getPath('userData'), 'updates')
   const target = join(directory, asset.file)
+  const partial = `${target}.part`
+  const controller = new AbortController()
+  downloadController = controller
   setState({ status: 'downloading', version, percent: 0 })
 
   try {
     await mkdir(directory, { recursive: true })
     if (!(await reuseDownloaded(target, asset))) {
-      await rm(target, { force: true })
+      controller.signal.throwIfAborted()
+      await rm(partial, { force: true })
       const response = await fetch(updateAssetUrl(asset.file), {
         redirect: 'follow',
-        signal: AbortSignal.timeout(updateDownloadTimeoutMs),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(updateDownloadTimeoutMs)]),
       })
       if (!response.ok || !response.body)
         throw new Error(`HTTP ${response.status}`)
@@ -291,6 +298,7 @@ export async function downloadUpdate(): Promise<UpdateState> {
         response.body as Parameters<typeof Readable.fromWeb>[0],
       )
       source.on('data', (chunk: Buffer) => {
+        if (controller.signal.aborted) return
         received += chunk.length
         const percent =
           total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0
@@ -301,17 +309,28 @@ export async function downloadUpdate(): Promise<UpdateState> {
           setState({ status: 'downloading', version, percent })
         }
       })
-      await pipeline(source, createWriteStream(target))
-      if (asset.size && statSync(target).size !== asset.size)
+      await pipeline(source, createWriteStream(partial), { signal: controller.signal })
+      if (asset.size && statSync(partial).size !== asset.size)
         throw new Error('安装包大小与清单不一致。')
-      if ((await sha256File(target)).toLowerCase() !== asset.sha256.toLowerCase())
+      if ((await sha256File(partial)).toLowerCase() !== asset.sha256.toLowerCase())
         throw new Error('安装包校验失败，请重新下载。')
+      controller.signal.throwIfAborted()
+      await rename(partial, target)
     }
+    controller.signal.throwIfAborted()
+    downloadedPath = target
+    setState({ status: 'downloaded', version, percent: 100 })
   } catch (error) {
-    await rm(target, { force: true }).catch(() => {})
+    await rm(partial, { force: true }).catch(() => {})
+    if (controller.signal.aborted) {
+      setState({ status: 'available', version })
+      return state
+    }
     const detail = error instanceof Error ? error.message : ''
     setState({ status: 'error', error: detail || '下载安装包失败。' })
     return state
+  } finally {
+    if (downloadController === controller) downloadController = undefined
   }
 
   try {
@@ -324,17 +343,20 @@ export async function downloadUpdate(): Promise<UpdateState> {
   } catch {
     // The download still works without the marker; only cleanup is skipped.
   }
-  setState({ status: 'downloaded', version, percent: 100 })
   return state
+}
+
+export function cancelUpdateDownload(): void {
+  downloadController?.abort()
 }
 
 /** Open the verified installer and quit so the bundle can be replaced. */
 export async function installUpdate(): Promise<UpdateState> {
   if (state.status !== 'downloaded') return state
   const marker = await readPendingUpdate()
-  const target = marker?.path ?? ''
+  const target = downloadedPath ?? marker?.path ?? ''
   if (!target || !existsSync(target)) {
-    setState({ status: 'error', error: '安装包已不在下载目录，请重新下载。' })
+    setState({ status: 'error', error: '安装包已不存在，请重新下载。' })
     return state
   }
 
@@ -368,7 +390,9 @@ export async function installUpdate(): Promise<UpdateState> {
     setState({ status: 'error', error: openError })
     return state
   }
-  message('安装程序已打开，应用将在 2 秒后退出')
+  message(process.platform === 'darwin'
+    ? '安装包已打开，请将毛趣萌仔拖入应用程序'
+    : '安装程序已打开，请按提示完成安装')
   if (quitTimer) clearTimeout(quitTimer)
   quitTimer = setTimeout(() => app.quit(), quitDelayMs)
   return state
@@ -397,6 +421,7 @@ export function initUpdater(
 }
 
 export function disposeUpdater(): void {
+  cancelUpdateDownload()
   clearTimers()
   if (quitTimer) clearTimeout(quitTimer)
   quitTimer = undefined

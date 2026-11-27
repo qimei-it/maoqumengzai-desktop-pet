@@ -1200,6 +1200,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .strict(),
   z.object({ type: z.literal('update-check') }).strict(),
   z.object({ type: z.literal('update-download') }).strict(),
+  z.object({ type: z.literal('update-cancel') }).strict(),
   z.object({ type: z.literal('update-install') }).strict(),
   z
     .object({

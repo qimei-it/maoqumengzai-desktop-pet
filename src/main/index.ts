@@ -151,6 +151,7 @@ import {
   type PetRecord,
 } from './pet-store'
 import {
+  cancelUpdateDownload,
   checkForUpdates,
   disposeUpdater,
   downloadUpdate,
@@ -11809,6 +11810,7 @@ function setupIpc(): void {
       'pet-select',
       'update-check',
       'update-download',
+      'update-cancel',
       'update-install',
       'dirty-state',
     ]
@@ -12160,6 +12162,9 @@ function setupIpc(): void {
         break
       case 'update-download':
         await downloadUpdate()
+        break
+      case 'update-cancel':
+        cancelUpdateDownload()
         break
       case 'update-install':
         await installUpdate()
