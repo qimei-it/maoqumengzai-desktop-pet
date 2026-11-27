@@ -655,15 +655,18 @@ function save(): void {
   place-items: center;
   width: 24px;
   height: 24px;
+  min-height: 0;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-pill);
-  background: var(--color-dialog-glass);
+  background: transparent;
   color: var(--color-ink);
   cursor: pointer;
   opacity: 0.55;
   transition: opacity 0.15s ease;
 }
+.pet-wizard-refresh:hover,
 .pet-wizard-refresh:focus-visible {
+  background: transparent;
   opacity: 1;
 }
 .pet-wizard-pose-meta {
