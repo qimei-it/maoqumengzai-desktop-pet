@@ -117,6 +117,21 @@ describe('settings store', () => {
     expect(loaded.settings.agentDefaultAudioModel).toBe('speech-2.8-hd')
   })
 
+  test('migrates removed Ark defaults without changing other settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-removed-ark-'))
+    const path = join(directory, 'mqmz.settings.json')
+    for (const [old, replacement] of [
+      ['deepseek-v4-pro-260425', 'deepseek-v4-pro-ga-260813'],
+      ['doubao-seed-2-0-code-preview-260215', 'doubao-seed-2-1-pro-260915'],
+      ['doubao-seed-2-0-pro-260215', 'doubao-seed-2-1-pro-260915'],
+    ]) {
+      await writeFile(path, JSON.stringify({ ...defaultSettings, petName: '团子', agentDefaultChatModel: old }))
+      const result = await loadSettingsFile(path)
+      expect(result.upgraded).toBe(true)
+      expect(result.settings).toMatchObject({ petName: '团子', agentDefaultChatModel: replacement })
+    }
+  })
+
   test('allows every default model to be unset', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'mqmz-settings-'))
     const path = join(directory, 'mqmz.settings.json')

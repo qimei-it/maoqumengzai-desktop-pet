@@ -178,6 +178,9 @@ test('agent panel configures, switches mode, and keeps sessions', async () => {
 
 test('projects group sessions and support session actions', async () => {
   await agent.evaluate(() =>
+    window.mqmz!.command({ type: 'agent-config', apiKey: 'sk-agent-test' }),
+  )
+  await agent.evaluate(() =>
     window.mqmz!.command({ type: 'agent-open' }),
   )
   const workspace = process.cwd()
@@ -843,7 +846,7 @@ test('agent model menu lists only configured providers', async () => {
   expect(
     await modelOptions.evaluateAll((nodes) =>
       nodes.every((node) =>
-        Boolean(node.querySelector('svg.model-brand-mark')),
+        Boolean(node.querySelector('.model-brand-mark')),
       ),
     ),
   ).toBe(true)
@@ -871,6 +874,10 @@ test('agent model menu lists only configured providers', async () => {
 })
 
 test('pet profile section exposes the create entry', async () => {
+  // The key-removal assertions below require a configured DeepSeek default,
+  // including when this test is run alone.
+  await agent.evaluate(() => window.mqmz!.command({ type: 'agent-config', apiKey: 'sk-agent-test' }))
+  await agent.evaluate(() => window.mqmz!.command({ type: 'settings-update', patch: { agentDefaultChatModel: 'deepseek-flash' } }))
   await application.evaluate(() => {
     globalThis.fetch = async () =>
       new Response(
@@ -973,7 +980,7 @@ test('pet profile section exposes the create entry', async () => {
   ).toBeDisabled()
   await expect(
     agent.getByRole('menuitemradio', { name: /Doubao Seed 2\.0 Pro/ }),
-  ).toBeDisabled()
+  ).toHaveCount(0)
   await agent.locator('.agent-model-trigger').click()
   await settings.getByRole('button', { name: '宠物档案', exact: true }).click()
   await settings.getByRole('button', { name: '新建桌宠', exact: true }).click()

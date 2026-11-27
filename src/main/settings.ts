@@ -18,6 +18,7 @@ import {
 import { deepseekModelIds } from '../shared/deepseek'
 import {
   modelInfo,
+  migrateRemovedVolcanoModel,
   type AgentModelId,
   type AgentModelKind,
 } from '../shared/agent-models'
@@ -180,12 +181,15 @@ export type LoadedSettings = {
 
 export async function loadSettingsFile(path: string): Promise<LoadedSettings> {
   try {
-    const parsed = settingsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const raw = JSON.parse(await readFile(path, 'utf8'))
+    const migratedModel = migrateRemovedVolcanoModel(raw?.agentDefaultChatModel)
+    const modelUpgraded = migratedModel !== raw?.agentDefaultChatModel
+    const parsed = settingsSchema.parse(modelUpgraded ? { ...raw, agentDefaultChatModel: migratedModel } : raw)
     const settings = migrateSettings(parsed)
     return {
       settings,
       existed: true,
-      upgraded: JSON.stringify(parsed) !== JSON.stringify(settings),
+      upgraded: modelUpgraded || JSON.stringify(parsed) !== JSON.stringify(settings),
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')

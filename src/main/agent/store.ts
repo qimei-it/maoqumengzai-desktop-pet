@@ -16,6 +16,7 @@ import type { AgentModelId } from '../../shared/agent-models'
 import {
   isAgentModelId,
   isGenerationModel,
+  migrateRemovedVolcanoModel,
   modelInfo,
 } from '../../shared/agent-models'
 import type { GenerationParams } from '../../shared/generation'
@@ -29,6 +30,8 @@ export type StoredProject = {
   pinned: boolean
   toolPolicy?: 'ask' | 'allow' | 'deny'
   createdAt: number
+  workspaceIdentity?: string
+  workspaceReplaced?: boolean
 }
 
 export type StoredFileRef = {
@@ -67,6 +70,7 @@ export type StoredSession = {
   reasoning: AgentReasoning
   workspace: string | null
   projectId: string | null
+  projectUnavailable?: boolean
   pinned: boolean
   archived?: boolean
   createdAt: number
@@ -109,6 +113,8 @@ function parseProject(value: unknown): StoredProject | null {
     id: value.id,
     name: value.name.slice(0, 40),
     workspace: value.workspace,
+    ...(typeof value.workspaceIdentity === 'string' ? { workspaceIdentity: value.workspaceIdentity } : {}),
+    ...(value.workspaceReplaced === true ? { workspaceReplaced: true } : {}),
     pinned: value.pinned === true,
     ...(value.toolPolicy === 'allow' || value.toolPolicy === 'deny'
       ? { toolPolicy: value.toolPolicy }
@@ -198,7 +204,9 @@ function parseSession(value: unknown): StoredSession | null {
   if (typeof value.id !== 'string' || !value.id) return null
   if (typeof value.title !== 'string') return null
   if (value.mode !== 'plan' && value.mode !== 'build') return null
-  if (!isAgentModelId(value.model)) return null
+  const model = migrateRemovedVolcanoModel(value.model)
+  const selectedModel = migrateRemovedVolcanoModel(value.selectedModel)
+  if (!isAgentModelId(model)) return null
   if (!Array.isArray(value.ui) || !Array.isArray(value.history)) return null
   const usage = isRecord(value.usage) ? value.usage : {}
   const lastGeneration = parseGenerationTurn(value.lastGeneration)
@@ -225,12 +233,12 @@ function parseSession(value: unknown): StoredSession | null {
       value.approvalMode === 'auto' || value.approvalMode === 'full'
         ? value.approvalMode
         : 'ask',
-    model: isGenerationModel(value.model) ? 'deepseek-flash' : value.model,
-    selectedModel: isAgentModelId(value.selectedModel)
-      ? value.selectedModel
-      : isGenerationModel(value.model)
+    model: isGenerationModel(model) ? 'deepseek-flash' : model,
+    selectedModel: isAgentModelId(selectedModel)
+      ? selectedModel
+      : isGenerationModel(model)
         ? 'deepseek-flash'
-        : value.model,
+        : model,
     ...(imageModel ? { imageModel } : {}),
     ...(videoModel ? { videoModel } : {}),
     ...(audioModel ? { audioModel } : {}),
@@ -248,6 +256,7 @@ function parseSession(value: unknown): StoredSession | null {
       typeof value.projectId === 'string' && value.projectId
         ? value.projectId
         : null,
+    ...(value.projectUnavailable === true ? { projectUnavailable: true } : {}),
     pinned: value.pinned === true,
     ...(value.archived === true ? { archived: true } : {}),
     createdAt:

@@ -869,6 +869,7 @@ export const commandSchema = z.discriminatedUnion('type', [
       patch: z
         .object({
           text: z.string().trim().min(1).max(200).optional(),
+          listId: z.string().uuid().nullable().optional(),
           dueAt: z.number().finite().nullable().optional(),
           urgent: z.boolean().optional(),
           flagged: z.boolean().optional(),
@@ -912,6 +913,7 @@ export const commandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('todo-list-update'),
       id: z.string().uuid(),
+      groupId: z.string().uuid().nullable().optional(),
       name: z.string().trim().min(1).max(40).optional(),
       color: z.enum(todoListColors).optional(),
       icon: z.string().trim().min(1).max(80).optional(),

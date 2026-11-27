@@ -225,6 +225,7 @@ export type AgentSessionSummary = {
   pinned: boolean
   archived: boolean
   updatedAt: number
+  unavailable?: boolean
 }
 
 export const agentToolPolicies = ['ask', 'allow', 'deny'] as const
@@ -242,6 +243,7 @@ export type AgentProjectView = {
   pinned: boolean
   toolPolicy: AgentToolPolicy
   createdAt: number
+  unavailable?: boolean
 }
 
 export type AgentApproval = {
@@ -275,6 +277,7 @@ export type AgentState = {
   sessions: AgentSessionSummary[]
   projects: AgentProjectView[]
   sessionId: string | null
+  sessionUnavailable?: boolean
   /** Project context, including an empty project that has no session yet. */
   projectId: string | null
   mode: AgentMode

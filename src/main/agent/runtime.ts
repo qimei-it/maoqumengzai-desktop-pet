@@ -1,6 +1,7 @@
 /** Agent loop: streaming, tool calls, approvals, cancellation and sessions. */
 
 import { randomUUID } from 'node:crypto'
+import { statSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -371,6 +372,7 @@ function providerSize(message: ProviderMessage): number {
   if (message.role === 'assistant')
     return (
       (message.content?.length ?? 0) +
+      (message.encrypted_content?.length ?? 0) +
       (message.tool_calls?.reduce(
         (sum, call) => sum + call.function.arguments.length,
         0,
@@ -1457,6 +1459,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ...(result.reasoning
             ? { reasoning_content: result.reasoning }
             : {}),
+          ...(result.encryptedContent
+            ? { encrypted_content: result.encryptedContent, reasoning_model: subModel }
+            : {}),
           tool_calls: calls.map((call) => ({
             id: call.id,
             type: 'function',
@@ -1534,6 +1539,53 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
 
   function persist(): void {
     void saveAgentStore(deps.storePath, { sessions, projects }).catch(() => {})
+  }
+
+  function directoryIdentity(path: string): { identity: string; birthtime: number } | null {
+    try {
+      const info = statSync(path)
+      if (!info.isDirectory()) return null
+      return { identity: `${info.dev}:${info.ino}:${info.birthtimeMs}`, birthtime: info.birthtimeMs }
+    } catch {
+      return null
+    }
+  }
+
+  function projectAvailable(project: StoredProject): boolean {
+    if (project.workspaceReplaced) return false
+    const directory = directoryIdentity(project.workspace)
+    if (!directory) return false
+    if (project.workspaceIdentity) {
+      if (project.workspaceIdentity === directory.identity) return true
+      project.workspaceReplaced = true
+      persist()
+      return false
+    }
+    // Legacy projects did not record a directory identity. A directory born
+    // after the project was registered cannot be its original workspace.
+    if (directory.birthtime > 0 && directory.birthtime > project.createdAt + 2000) {
+      project.workspaceReplaced = true
+      persist()
+      return false
+    }
+    project.workspaceIdentity = directory.identity
+    persist()
+    return true
+  }
+
+  function assertSessionProject(session: StoredSession): void {
+    if (session.projectUnavailable) throw new Error('原项目目录已失效，请为新目录创建项目并新建会话。')
+    if (!session.projectId) return
+    const project = projects.find((item) => item.id === session.projectId)
+    if (!project || !projectAvailable(project))
+      throw new Error('原项目目录已失效，请为新目录创建项目并新建会话。')
+  }
+
+  function sessionAvailable(session: StoredSession): boolean {
+    if (session.projectUnavailable) return false
+    if (!session.projectId) return true
+    const project = projects.find((item) => item.id === session.projectId)
+    return Boolean(project && projectAvailable(project))
   }
 
   function rememberSource(
@@ -1954,6 +2006,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     artifacts?: { name: string; path: string }[]
     media?: import('./generation').GeneratedMedia[]
   }> {
+    try {
+      assertSessionProject(session)
+    } catch (error) {
+      return { allowed: false, ok: false, text: error instanceof Error ? error.message : '项目目录不可用。' }
+    }
     let permission = permissionFor(tool, session.mode)
     const project = session.projectId
       ? projects.find((item) => item.id === session.projectId)
@@ -2006,6 +2063,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         }
     }
     try {
+      assertSessionProject(session)
       const result = await tool.run(args, {
         workspace: effectiveWorkspace,
         signal,
@@ -2180,6 +2238,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           ...(result.reasoning
             ? { reasoning_content: result.reasoning }
             : {}),
+          ...(result.encryptedContent
+            ? { encrypted_content: result.encryptedContent, reasoning_model: session.model }
+            : {}),
         })
         persist()
         return
@@ -2197,6 +2258,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         role: 'assistant',
         content: result.text.trim() ? result.text : null,
         ...(result.reasoning ? { reasoning_content: result.reasoning } : {}),
+        ...(result.encryptedContent
+          ? { encrypted_content: result.encryptedContent, reasoning_model: session.model }
+          : {}),
         tool_calls: callEntries.map((call) => ({
           id: call.id,
           type: 'function',
@@ -2722,6 +2786,21 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const store = await loadAgentStore(deps.storePath)
       sessions = store.sessions
       projects = store.projects
+      let lastAvailability = new Map(projects.map((project) => [project.id, projectAvailable(project)]))
+      const availabilityTimer = setInterval(() => {
+        const next = new Map(projects.map((project) => [project.id, projectAvailable(project)]))
+        const changed = next.size !== lastAvailability.size ||
+          [...next].some(([id, available]) => lastAvailability.get(id) !== available)
+        lastAvailability = next
+        if (!changed) return
+        const active = currentSession()
+        if (active && !sessionAvailable(active) && busy) {
+          settleApproval(false)
+          controller?.abort()
+        }
+        emit()
+      }, 2000)
+      availabilityTimer.unref()
       let normalized = false
       for (const session of sessions) {
         if (!session.projectId) continue
@@ -2774,6 +2853,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const project = session?.projectId
         ? projects.find((item) => item.id === session.projectId)
         : undefined
+      const unavailable = session ? !sessionAvailable(session) : false
       return {
         configured: Boolean(
           deps.getKey() || deps.getMiniMaxKey?.() || deps.getVolcanoKey?.(),
@@ -2788,6 +2868,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           pinned: item.pinned,
           archived: item.archived === true,
           updatedAt: item.updatedAt,
+          unavailable: !sessionAvailable(item),
         })),
         projects: [...projects]
           .sort(
@@ -2802,8 +2883,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
             pinned: project.pinned,
             toolPolicy: project.toolPolicy ?? 'ask',
             createdAt: project.createdAt,
+            unavailable: !projectAvailable(project),
           })),
         sessionId: draft ? null : (stored?.id ?? null),
+        sessionUnavailable: unavailable,
         projectId: session?.projectId ?? null,
         mode: session?.mode ?? 'build',
         approvalMode: session?.approvalMode ?? 'ask',
@@ -2816,8 +2899,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         defaultChatModelMissing: !deps.getSettings().agentDefaultChatModel,
         reasoning: session?.reasoning ?? 'high',
         workspace: project?.workspace ?? session?.workspace ?? null,
-        messages: session?.ui.slice(-80) ?? [],
-        approval: pending?.info ?? null,
+        messages: unavailable ? [] : (session?.ui.slice(-80) ?? []),
+        approval: unavailable ? null : (pending?.info ?? null),
         usage: session?.usage ?? { input: 0, output: 0 },
         contextTokens: session?.contextTokens ?? 0,
         ...(session?.compacted
@@ -2836,6 +2919,8 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       const value = prompt.trim()
       if (!value) return
       if (busy) throw new Error('正在执行，请稍候。')
+      const current = currentSession()
+      if (current) assertSessionProject(current)
       const session = promoteDraft() ?? ensureSession()
       if (generationKindForModel(session.model)) {
         const generationKey = deps.getMiniMaxKey?.()
@@ -2968,6 +3053,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (busy) throw new Error('正在执行，请稍候。')
       const session = currentSession()
       if (!session) throw new Error('没有可以重试的内容。')
+      assertSessionProject(session)
       if (generationKindForModel(session.model)) {
         const key = deps.getMiniMaxKey?.()
         if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
@@ -3012,6 +3098,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       if (busy) throw new Error('正在执行，请稍候。')
       const session = currentSession()
       if (!session) throw new Error('没有可以重新生成的内容。')
+      assertSessionProject(session)
       if (generationKindForModel(session.model)) {
         const key = deps.getMiniMaxKey?.()
         if (!key) throw new Error('请先在设置中配置 MiniMax API Key。')
@@ -3121,14 +3208,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     createProject(name: string, workspace: string) {
       const path = workspace.trim()
       if (!path) throw new Error('缺少项目文件夹。')
-      if (projects.some((item) => item.workspace === path))
+      if (projects.some((item) => item.workspace === path && projectAvailable(item)))
         throw new Error('这个文件夹已经是项目。')
+      const identity = directoryIdentity(path)
       projects.push({
         id: randomUUID(),
         name: projectNameValue(name, path),
         workspace: path,
         pinned: false,
         createdAt: now(),
+        ...(identity ? { workspaceIdentity: identity.identity } : {}),
       })
       if (projects.length > maxAgentProjects)
         projects.splice(0, projects.length - maxAgentProjects)
@@ -3138,13 +3227,15 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     updateProject(id, patch) {
       const project = projects.find((item) => item.id === id)
       if (!project) return
+      if (!projectAvailable(project) && patch.workspace !== undefined)
+        throw new Error('原项目目录已失效，请为新目录创建项目并新建会话。')
       let workspace = project.workspace
       if (patch.workspace !== undefined) {
         const value = patch.workspace.trim()
         if (!value) throw new Error('缺少项目文件夹。')
         if (
           projects.some(
-            (item) => item.id !== id && item.workspace === value,
+            (item) => item.id !== id && item.workspace === value && projectAvailable(item),
           )
         )
           throw new Error('这个文件夹已经是项目。')
@@ -3154,6 +3245,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         project.name = projectNameValue(patch.name, workspace)
       if (patch.workspace !== undefined) {
         project.workspace = workspace
+        project.workspaceIdentity = directoryIdentity(workspace)?.identity
         for (const session of sessions) {
           if (session.projectId === id) session.workspace = workspace
         }
@@ -3165,10 +3257,25 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     deleteProject(id: string) {
       const index = projects.findIndex((item) => item.id === id)
       if (index < 0) return
-      projects.splice(index, 1)
-      for (const session of sessions) {
-        if (session.projectId === id) session.projectId = null
+      const unavailable = !projectAvailable(projects[index])
+      if (unavailable) {
+        const removed = sessions.filter((session) => session.projectId === id)
+        if (removed.some((session) => session.id === activeId)) {
+          if (busy) this.cancel()
+          activeId = null
+        }
+        sessions = sessions.filter((session) => session.projectId !== id)
+        for (const session of removed) releaseSessionFiles(session)
+      } else {
+        for (const session of sessions) {
+          if (session.projectId !== id) continue
+          session.projectId = null
+          session.workspace = null
+          session.pinned = false
+          session.archived = false
+        }
       }
+      projects.splice(index, 1)
       if (draft?.projectId === id) {
         draft.projectId = null
         draft.workspace = null
@@ -3244,17 +3351,24 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     moveSession(id: string, projectId: string | null) {
       const session = sessions.find((item) => item.id === id)
       if (!session) return
+      assertSessionProject(session)
       const project = projectId
         ? projects.find((item) => item.id === projectId)
         : null
       if (projectId && !project) return
+      if (project && !projectAvailable(project)) throw new Error('项目目录不可用，请创建新项目。')
       session.projectId = project?.id ?? null
       if (project) session.workspace = project.workspace
       persist()
       emit()
     },
     select(id: string) {
-      if (!sessions.some((session) => session.id === id)) return
+      const selected = sessions.find((session) => session.id === id)
+      if (!selected) return
+      if (!sessionAvailable(selected)) {
+        emit()
+        return
+      }
       if (id === activeId && !draft) return
       if (busy) this.cancel()
       draft = null
@@ -3395,9 +3509,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     setWorkspace(projectId: string | null) {
       if (busy) return
       const session = settingsSession()
+      assertSessionProject(session)
       if (projectId) {
         const project = projects.find((item) => item.id === projectId)
         if (!project) return
+        if (!projectAvailable(project)) throw new Error('项目目录不可用，请创建新项目。')
         session.workspace = project.workspace
         session.projectId = project.id
       } else {

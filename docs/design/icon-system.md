@@ -17,7 +17,7 @@
 | 继续选择文件 | Plus |
 | 设置/智能体中的外链与 API Key 入口 | ExternalLink |
 | 智能问答面板标题 | DeepSeek 鲸鱼标志（品牌素材，非 Lucide） |
-| 智能体模型菜单 | MiniMax / DeepSeek / 豆包品牌标志（用户提供，固定品牌色） |
+| 智能体模型菜单 | MiniMax / DeepSeek / 豆包 / Kimi / 智谱品牌标志（固定品牌色，来源见下文） |
 | 设置面板标题与左侧导航 | Settings / Palette / Monitor / Database / KeyRound / Info |
 | 待办清单的自定义清单 | Firefox Emoji 官方 SVG，圆形底色使用语义功能色 |
 | 系统托盘 | 毛趣映画猫脸（品牌素材，非 Lucide） |
@@ -28,7 +28,7 @@
 
 智能问答面板标题使用用户提供的 DeepSeek 品牌鲸鱼标志，固定品牌蓝 `#4d6bfe`，不随主题改为 `currentColor`；标记为装饰性，标题文字仍提供可访问名称。组件保存在 `src/renderer/DeepSeekMark.vue`。设置面板“API Key”导航使用 Lucide `KeyRound`，以 `currentColor` 跟随导航文字颜色。
 
-智能体模型菜单在模型名称前显示供应商品牌标志：MiniMax `#E73562`、DeepSeek `#4D6BFE`、豆包 `#1E37FC / #37E1BE / #A569FF`，均由用户提供，固定品牌色，不跟随主题；组件保存在 `src/renderer/ModelBrandMark.vue`，高度为 `1em`，与模型名称文字高度一致，标记为装饰性。品牌标识归各自公司所有，仅用于本地模型来源识别。
+智能体模型菜单按模型品牌而非托管供应商显示标志：DeepSeek、Kimi、GLM（智谱）、Doubao 和 MiniMax 使用各自标识；火山方舟分组内的第三方模型不使用豆包标识。MiniMax、DeepSeek 和豆包标识由用户提供；Kimi、智谱标识来自 [LobeHub Icons](https://github.com/lobehub/lobe-icons/tree/05260484d9f4de68f90cc87a634ae68fa4043efd/packages/static-svg/icons)，MIT 许可证见 `resources/licenses/lobehub-icons-MIT.txt`。品牌色固定，图标保存在 `src/renderer/ModelBrandMark.vue` 和 `src/renderer/assets/model-brands/`，高度为 `1em`，标记为装饰性；未知模型使用 Lucide 通用图标。品牌标识归各自权利人所有。
 
 系统托盘使用用户提供的品牌猫脸 `resources/icons/cat-face.svg`，属于品牌原生素材而非功能图标；导出时保留纯黑剪影与透明背景，作为 macOS 模板图像参与系统深浅色适配。
 

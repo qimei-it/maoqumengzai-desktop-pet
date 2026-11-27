@@ -71,6 +71,26 @@ test('migrates generation-only session models to a text model', async () => {
   expect(loaded.sessions[0].model).toBe('deepseek-flash')
 })
 
+test('preserves sessions that used removed Ark models and migrates their selection', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-removed-ark-'))
+  const path = join(directory, 'agent.json')
+  const removed = [
+    ['deepseek-v4-pro-260425', 'deepseek-v4-pro-ga-260813'],
+    ['doubao-seed-2-0-code-preview-260215', 'doubao-seed-2-1-pro-260915'],
+    ['doubao-seed-2-0-pro-260215', 'doubao-seed-2-1-pro-260915'],
+  ] as const
+  await writeFile(path, JSON.stringify({
+    version: 2, projects: [],
+    sessions: removed.map(([model], i) => ({ ...session(i), model, selectedModel: model })),
+  }))
+  const loaded = await loadAgentStore(path)
+  expect(loaded.sessions).toHaveLength(3)
+  for (const [index, [, replacement]] of removed.entries()) {
+    expect(loaded.sessions[index]).toMatchObject({ model: replacement, selectedModel: replacement })
+    expect(loaded.sessions[index].history).toEqual([{ role: 'user', content: '你好' }])
+  }
+})
+
 test('restores per-session generation model overrides', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'mqmz-store-generation-'))
   const path = join(directory, 'agent.json')

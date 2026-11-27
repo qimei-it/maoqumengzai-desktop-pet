@@ -4,9 +4,10 @@
  * format used by DeepSeek and MiniMax.
  */
 
-import type { AgentModelId } from '../../shared/agent-models'
+import { modelInfo, type AgentModelId } from '../../shared/agent-models'
 import type { AgentReasoning } from '../../shared/agent'
 import { volcanoBaseUrl } from '../../shared/volcano'
+import { messagesForModel } from './provider'
 import type {
   ProviderToolCall,
   StreamOptions,
@@ -21,6 +22,7 @@ type StreamChunk = {
     delta?: {
       content?: string | null
       reasoning_content?: string | null
+      encrypted_content?: string | null
       tool_calls?: Array<{
         index?: number
         id?: string
@@ -43,7 +45,7 @@ function friendlyError(status: number, detail?: string): Error {
     return new Error(
       detail
         ? `火山方舟模型不可用：${detail}`
-        : '火山方舟未开通该模型，请到控制台开通 Doubao Seed 2.1 Pro。',
+        : '该模型未开通、无权访问或已下线，请在火山方舟控制台检查。',
     )
   if (status >= 500)
     return new Error('火山方舟服务暂时不可用，请稍后重试。')
@@ -65,15 +67,17 @@ function reasoningEffort(
 export function volcanoRequestBody(
   options: StreamOptions,
 ): Record<string, unknown> {
-  const reasoning = options.reasoning ?? 'high'
+  const requested = options.reasoning ?? 'high'
+  const reasoning = modelInfo(options.model)?.reasoningRequired && requested === 'off' ? 'low' : requested
   const body: Record<string, unknown> = {
     model: options.model,
-    messages: options.messages,
+    messages: messagesForModel(options.messages, options.model),
     stream: true,
     stream_options: { include_usage: true },
     max_tokens: options.maxTokens ?? 32_768,
-    thinking: { type: reasoning === 'off' ? 'disabled' : 'enabled' },
   }
+  if (options.model !== 'kimi-k3-1-pro-261024')
+    body.thinking = { type: reasoning === 'off' ? 'disabled' : 'enabled' }
   if (reasoning !== 'off') body.reasoning_effort = reasoningEffort(reasoning)
   if (options.tools?.length) {
     body.tools = options.tools
@@ -118,6 +122,7 @@ export async function streamVolcanoChat(
 
   let text = ''
   let reasoning = ''
+  let encryptedContent: string | undefined
   let finishReason: string | undefined
   let usage: StreamResult['usage']
   const calls: ProviderToolCall[] = []
@@ -150,6 +155,8 @@ export async function streamVolcanoChat(
       reasoning += delta.reasoning_content
       options.onReasoning?.(delta.reasoning_content)
     }
+    if (typeof delta.encrypted_content === 'string' && delta.encrypted_content)
+      encryptedContent = delta.encrypted_content
     if (typeof delta.content === 'string' && delta.content) {
       text += delta.content
       options.onText?.(delta.content)
@@ -183,6 +190,7 @@ export async function streamVolcanoChat(
   return {
     text,
     ...(reasoning ? { reasoning } : {}),
+    ...(encryptedContent ? { encryptedContent } : {}),
     toolCalls: calls.filter((call) => call.name),
     ...(usage ? { usage } : {}),
     ...(finishReason ? { finishReason } : {}),

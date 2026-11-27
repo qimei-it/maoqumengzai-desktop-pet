@@ -19,7 +19,6 @@ import { builtinEngines, optionalEngines } from '../shared/conversion-engines'
 import { minimaxModelCatalog } from '../shared/minimax'
 import {
   hasVolcanoSeedreamModel,
-  resolveVolcanoImageModel,
   volcanoApiKeyUrl,
   volcanoModelManagementUrl,
 } from '../shared/volcano'
@@ -28,6 +27,8 @@ import {
   agentImageModels,
   agentProviderLabels,
   agentTextModels,
+  integratedVolcanoModels,
+  volcanoModelListed,
   type AgentModelId,
   type AgentModelInfo,
   type AgentProvider,
@@ -298,6 +299,7 @@ const volcanoTest = computed<AiTestState>(
   () => volcano.value?.test ?? { status: 'idle' },
 )
 const volcanoModels = computed(() => volcano.value?.models ?? [])
+const supportedVolcanoModels = computed(() => integratedVolcanoModels(volcanoModels.value))
 const volcanoModelsError = computed(() => volcano.value?.modelsError)
 const volcanoVerifiedKey = ref('')
 const volcanoModelsVisible = computed(() => {
@@ -532,11 +534,10 @@ watch(volcanoKey, (value) => {
     volcanoModelsOpen.value = false
 })
 watch(
-  volcanoModels,
+  supportedVolcanoModels,
   (models) => {
-    if (!models.includes(volcanoModelPreview.value))
-      volcanoModelPreview.value =
-        resolveVolcanoImageModel(models) ?? models[0] ?? ''
+    if (!models.some((model) => model.id === volcanoModelPreview.value))
+      volcanoModelPreview.value = models[0]?.id ?? ''
   },
   { immediate: true },
 )
@@ -2105,7 +2106,7 @@ function onEscape(): void {
                   <SelectField
                     :model-value="
                       volcanoModelsVisible
-                        ? volcanoModelPreview || volcanoModels[0] || ''
+                        ? volcanoModelPreview || supportedVolcanoModels[0]?.id || ''
                         : ''
                     "
                     aria-label="火山方舟可用模型"
@@ -2118,11 +2119,11 @@ function onEscape(): void {
                     <option value="" disabled>模型列表</option>
                     <template v-if="volcanoModelsVisible">
                       <option
-                        v-for="model in volcanoModels"
-                        :key="model"
-                        :value="model"
+                        v-for="model in supportedVolcanoModels"
+                        :key="model.id"
+                        :value="model.id"
                       >
-                        {{ model }}
+                        {{ model.label }}
                       </option>
                     </template>
                   </SelectField>
@@ -2281,9 +2282,9 @@ function onEscape(): void {
               class="settings-model-list"
             >
               <SelectField
-                v-if="volcanoModels.length"
+                v-if="supportedVolcanoModels.length"
                 :model-value="
-                  volcanoModelPreview || volcanoModels[0]
+                  volcanoModelPreview || supportedVolcanoModels[0]?.id
                 "
                 aria-label="火山方舟可用模型"
                 title="仅查看，不会切换当前模型"
@@ -2293,11 +2294,11 @@ function onEscape(): void {
                 "
               >
                 <option
-                  v-for="model in volcanoModels"
-                  :key="model"
-                  :value="model"
+                  v-for="model in supportedVolcanoModels"
+                  :key="model.id"
+                  :value="model.id"
                 >
-                  {{ model }}
+                  {{ model.label }}
                 </option>
               </SelectField>
               <p v-else class="settings-error">
@@ -2339,6 +2340,8 @@ function onEscape(): void {
                     v-for="model in group.models"
                     :key="model.id"
                     :value="model.id"
+                    :disabled="model.provider === 'volcano' && volcanoModels.length > 0 && !volcanoModelListed(model, volcanoModels)"
+                    :title="model.provider === 'volcano' && volcanoModels.length > 0 && !volcanoModelListed(model, volcanoModels) ? '当前 API Key 无法使用该模型' : undefined"
                   >
                     {{ model.label }}
                   </option>

@@ -964,6 +964,7 @@ export type Command =
       id: string
       patch: {
         text?: string
+        listId?: string | null
         dueAt?: number | null
         urgent?: boolean
         flagged?: boolean
@@ -985,6 +986,7 @@ export type Command =
       name?: string
       color?: TodoListColor
       icon?: string
+      groupId?: string | null
     }
   | { type: 'todo-list-remove'; id: string }
   | { type: 'todo-group-add'; name: string }

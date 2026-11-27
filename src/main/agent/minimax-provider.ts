@@ -5,6 +5,7 @@
 
 import type { AgentModelId } from '../../shared/agent-models'
 import type { AgentReasoning } from '../../shared/agent'
+import { messagesForModel } from './provider'
 import type {
   ProviderToolCall,
   StreamOptions,
@@ -59,7 +60,7 @@ export function miniMaxRequestBody(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: options.model,
-    messages: options.messages,
+    messages: messagesForModel(options.messages, options.model),
     stream: true,
     stream_options: { include_usage: true },
     max_completion_tokens: options.maxTokens ?? 32_768,

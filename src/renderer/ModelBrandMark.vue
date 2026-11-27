@@ -1,15 +1,30 @@
 <script setup lang="ts">
-import type { AgentProvider } from '../shared/agent-models'
+import { computed } from 'vue'
+import { Bot } from '@lucide/vue'
+import { agentModelBrand, type AgentModelInfo } from '../shared/agent-models'
+import kimiIcon from './assets/model-brands/kimi.svg'
+import zhipuIcon from './assets/model-brands/zhipu.svg'
 
-defineProps<{ provider: AgentProvider }>()
+const props = defineProps<{ model: AgentModelInfo }>()
+const brand = computed(() => agentModelBrand(props.model))
 </script>
 
 <template>
-  <!-- Provider brand marks supplied by the user. Their colors are part of the
+  <!-- Brand marks keep their own colors regardless of the hosting provider. -->
+  <img
+    v-if="brand === 'kimi' || brand === 'zhipu'"
+    class="model-brand-mark"
+    :data-model-brand="brand"
+    :src="brand === 'kimi' ? kimiIcon : zhipuIcon"
+    alt=""
+    aria-hidden="true"
+  />
+  <!-- Existing brand marks supplied by the user. Their colors are part of the
        identity, so they stay fixed instead of following the theme ink. -->
   <svg
-    v-if="provider === 'minimax'"
+    v-else-if="brand === 'minimax'"
     class="model-brand-mark"
+    :data-model-brand="brand"
     viewBox="0 0 24 24"
     fill="#E73562"
     xmlns="http://www.w3.org/2000/svg"
@@ -20,8 +35,9 @@ defineProps<{ provider: AgentProvider }>()
     />
   </svg>
   <svg
-    v-else-if="provider === 'deepseek'"
+    v-else-if="brand === 'deepseek'"
     class="model-brand-mark"
+    :data-model-brand="brand"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
     aria-hidden="true"
@@ -32,8 +48,9 @@ defineProps<{ provider: AgentProvider }>()
     />
   </svg>
   <svg
-    v-else
+    v-else-if="brand === 'doubao'"
     class="model-brand-mark"
+    :data-model-brand="brand"
     viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
     aria-hidden="true"
@@ -55,6 +72,7 @@ defineProps<{ provider: AgentProvider }>()
       d="M17.305 4.961a199.47 199.47 0 01-1.08-1.094c-.202-.213-.398-.419-.586-.622l-1.333-1.378c.151.615.648 2.786.869 5.617 3.288.395 6.185 1.898 7.396 2.8-1.306-1.275-3.475-3.487-5.266-5.323z"
     />
   </svg>
+  <Bot v-else class="model-brand-mark" :data-model-brand="brand" :stroke-width="2" aria-hidden="true" />
 </template>
 
 <style scoped>

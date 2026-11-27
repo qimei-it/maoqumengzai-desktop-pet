@@ -7843,6 +7843,7 @@ function updateTodo(
   id: string,
   patch: {
     text?: string
+    listId?: string | null
     dueAt?: number | null
     urgent?: boolean
     flagged?: boolean
@@ -7853,6 +7854,7 @@ function updateTodo(
 ): void {
   if (
     patch.text === undefined &&
+    patch.listId === undefined &&
     patch.dueAt === undefined &&
     patch.urgent === undefined &&
     patch.flagged === undefined &&
@@ -7861,6 +7863,7 @@ function updateTodo(
     patch.repeat === undefined
   )
     return
+  if (patch.listId != null && !focusData.todoLists.some((list) => list.id === patch.listId)) return
   const text = patch.text?.trim()
   const notes =
     patch.notes === undefined ? undefined : patch.notes.slice(0, 2000)
@@ -7877,6 +7880,7 @@ function updateTodo(
       return {
         ...todo,
         ...(text ? { text: text.slice(0, 200) } : {}),
+        ...(patch.listId !== undefined ? { listId: patch.listId } : {}),
         ...(patch.dueAt !== undefined ? { dueAt: patch.dueAt } : {}),
         ...(repeatNeedsDate ? { dueAt: endOfLocalDay(Date.now()) } : {}),
         ...(patch.urgent !== undefined ? { urgent: patch.urgent } : {}),
@@ -7984,10 +7988,11 @@ function addTodoList(
 }
 function updateTodoList(
   id: string,
-  patch: { name?: string; color?: TodoListColor; icon?: string },
+  patch: { name?: string; color?: TodoListColor; icon?: string; groupId?: string | null },
 ): void {
   const value = patch.name?.trim()
   if (value && todoNameTaken(value, id)) return
+  if (patch.groupId != null && !focusData.todoGroups.some((group) => group.id === patch.groupId)) return
   focusData = {
     ...focusData,
     todoLists: focusData.todoLists.map((list) =>
@@ -7997,6 +8002,7 @@ function updateTodoList(
             name: value || list.name,
             color: patch.color ?? list.color,
             icon: patch.icon?.trim() || list.icon,
+            groupId: patch.groupId === undefined ? list.groupId : patch.groupId,
           }
         : list,
     ),
@@ -12750,6 +12756,7 @@ function setupIpc(): void {
           name: command.name,
           color: command.color,
           icon: command.icon,
+          groupId: command.groupId,
         })
         break
       case 'todo-list-remove':

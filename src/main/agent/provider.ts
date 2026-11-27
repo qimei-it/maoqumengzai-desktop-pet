@@ -17,6 +17,9 @@ export type ProviderAssistantMessage = {
   content: string | null
   /** Must be echoed back on later tool-enabled turns. */
   reasoning_content?: string
+  encrypted_content?: string
+  /** Local-only owner of encrypted content; removed before provider requests. */
+  reasoning_model?: string
   tool_calls?: Array<{
     id: string
     type: 'function'
@@ -55,6 +58,7 @@ export type ProviderToolDefinition = {
 export type StreamResult = {
   text: string
   reasoning?: string
+  encryptedContent?: string
   toolCalls: ProviderToolCall[]
   usage?: { input: number; output: number }
   finishReason?: string
@@ -70,6 +74,17 @@ export type StreamOptions = {
   signal: AbortSignal
   onText?: (delta: string) => void
   onReasoning?: (delta: string) => void
+}
+
+/** Encrypted Ark reasoning is scoped to the model that generated it. */
+export function messagesForModel(messages: ProviderMessage[], model: string): ProviderMessage[] {
+  return messages.map((message) => {
+    if (message.role !== 'assistant' || !message.reasoning_model) return message
+    const { reasoning_model, encrypted_content, reasoning_content, ...rest } = message
+    return reasoning_model === model
+      ? { ...rest, ...(reasoning_content ? { reasoning_content } : {}), ...(encrypted_content ? { encrypted_content } : {}) }
+      : rest
+  })
 }
 
 const endpoint = 'https://api.deepseek.com/chat/completions'
@@ -124,7 +139,7 @@ export function chatRequestBody(
   const thinking = reasoning !== 'off'
   const body: Record<string, unknown> = {
     model: options.model,
-    messages: options.messages,
+    messages: messagesForModel(options.messages, options.model),
     stream: true,
     stream_options: { include_usage: true },
     thinking: { type: thinking ? 'enabled' : 'disabled' },

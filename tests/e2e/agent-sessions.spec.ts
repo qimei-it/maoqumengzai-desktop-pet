@@ -131,6 +131,7 @@ test('supports search, archive, clear and shortcuts', async () => {
   await expect(agent.getByText('已归档')).toBeVisible()
   await agent.getByText('已归档').click()
   await expect(weekly).toBeVisible()
+  await expect(weekly.locator('.agent-archive-mark')).toHaveCount(0)
   await weekly.getByLabel('对话菜单').click()
   await agent.getByRole('menuitem', { name: '取消归档' }).click()
   await expect(agent.getByText('已归档')).toHaveCount(0)

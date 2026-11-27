@@ -261,6 +261,8 @@ const groupInput = ref<HTMLInputElement>()
 const collapsedGroups = ref<Record<string, boolean>>({})
 const UNGROUPED_ID = '__ungrouped__'
 const groupMenu = ref<{ id: string; x: number; y: number } | null>(null)
+const listMenu = ref<{ id: string; x: number; y: number } | null>(null)
+const todoMoveMenu = ref<{ id: string; x: number; y: number } | null>(null)
 const tagMenu = ref<{ tag: string; x: number; y: number } | null>(null)
 const renamingTag = ref<string | null>(null)
 const tagRenameDraft = ref('')
@@ -572,6 +574,14 @@ function closeEditing(): void {
   editingId.value = null
 }
 function handleEscape(): void {
+  if (todoMoveMenu.value) {
+    todoMoveMenu.value = null
+    return
+  }
+  if (listMenu.value) {
+    listMenu.value = null
+    return
+  }
   if (repeatMenu.value) {
     closeRepeatMenu()
     return
@@ -754,6 +764,57 @@ function removeList(id: string): void {
   if (selection.value.kind === 'list' && selection.value.id === id)
     selection.value = { kind: 'smart', id: 'all' }
   emit('command', { type: 'todo-list-remove', id })
+}
+async function openListMenu(event: MouseEvent, list: TodoList): Promise<void> {
+  listMenu.value = { id: list.id, x: event.clientX, y: event.clientY }
+  await nextTick()
+  const menu = document.querySelector<HTMLElement>('.todo-move-menu')
+  if (!menu || !listMenu.value) return
+  const rect = menu.getBoundingClientRect()
+  listMenu.value = {
+    id: list.id,
+    x: Math.max(8, Math.min(event.clientX, window.innerWidth - rect.width - 8)),
+    y: Math.max(8, Math.min(event.clientY, window.innerHeight - rect.height - 8)),
+  }
+  menu.querySelector<HTMLButtonElement>('button')?.focus()
+}
+function moveList(groupId: string | null): void {
+  const id = listMenu.value?.id
+  if (!id) return
+  listMenu.value = null
+  if (lists.value.find((list) => list.id === id)?.groupId === groupId) return
+  collapsedGroups.value = { ...collapsedGroups.value, [groupId ?? UNGROUPED_ID]: false }
+  emit('command', { type: 'todo-list-update', id, groupId })
+}
+const listMenuCurrentGroup = computed(() =>
+  lists.value.find((list) => list.id === listMenu.value?.id)?.groupId ?? null,
+)
+async function openTodoMoveMenu(event: MouseEvent, todo: FocusTodo): Promise<void> {
+  const target = event.currentTarget as HTMLElement | null
+  const rect = event.type === 'click' ? target?.getBoundingClientRect() : undefined
+  const x = rect?.left ?? event.clientX
+  const y = rect ? rect.bottom + 4 : event.clientY
+  todoMoveMenu.value = { id: todo.id, x, y }
+  await nextTick()
+  const menu = document.querySelector<HTMLElement>('.todo-item-move-menu')
+  if (!menu || !todoMoveMenu.value) return
+  const bounds = menu.getBoundingClientRect()
+  todoMoveMenu.value = {
+    id: todo.id,
+    x: Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8)),
+    y: Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8)),
+  }
+  menu.querySelector<HTMLButtonElement>('button')?.focus()
+}
+const todoMoveCurrentList = computed(() =>
+  todos.value.find((todo) => todo.id === todoMoveMenu.value?.id)?.listId ?? null,
+)
+function moveTodo(listId: string | null): void {
+  const id = todoMoveMenu.value?.id
+  if (!id) return
+  todoMoveMenu.value = null
+  closeEditing()
+  emit('command', { type: 'todo-update', id, patch: { listId } })
 }
 function removeGroup(id: string): void {
   closeGroupMenu()
@@ -1142,6 +1203,7 @@ watch(todoTags, (value) => {
                 v-for="list in listsOf(group.id)"
                 :key="list.id"
                 class="todo-list-row"
+                @contextmenu.prevent.stop="openListMenu($event, list)"
                 :class="{
                   active:
                     selection.kind === 'list' && selection.id === list.id,
@@ -1247,6 +1309,7 @@ watch(todoTags, (value) => {
                 v-for="list in ungrouped"
                 :key="list.id"
                 class="todo-list-row"
+                @contextmenu.prevent.stop="openListMenu($event, list)"
                 :class="{
                   active:
                     selection.kind === 'list' && selection.id === list.id,
@@ -1407,6 +1470,7 @@ watch(todoTags, (value) => {
                   revealed: highlightId === todo.id,
                 }"
                 :data-todo-id="todo.id"
+                @contextmenu.prevent.stop="openTodoMoveMenu($event, todo)"
                 @keydown.esc.stop.prevent="closeEditing"
               >
                 <button
@@ -1548,6 +1612,15 @@ watch(todoTags, (value) => {
                   <div class="todo-edit-toolbar">
                     <button
                       type="button"
+                      class="todo-edit-tool"
+                      aria-label="移动待办到清单"
+                      title="移动到清单"
+                      @click="openTodoMoveMenu($event, todo)"
+                    >
+                      <ListTodo :size="14" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
                       class="todo-edit-due"
                       :class="{ active: todo.dueAt !== null }"
                       :aria-label="
@@ -1631,6 +1704,70 @@ watch(todoTags, (value) => {
             <p v-else class="todo-empty">{{ emptyText }}</p>
           </div>
         </section>
+      </div>
+
+      <div
+        v-if="todoMoveMenu"
+        class="todo-group-menu-backdrop"
+        @pointerdown.self="todoMoveMenu = null"
+        @contextmenu.prevent
+      >
+        <div
+          class="todo-group-menu todo-move-menu todo-item-move-menu"
+          role="menu"
+          aria-label="移动待办到清单"
+          :style="{ left: `${todoMoveMenu.x}px`, top: `${todoMoveMenu.y}px` }"
+        >
+          <div class="todo-move-menu-label">移动到</div>
+          <button
+            v-for="list in lists"
+            :key="list.id"
+            type="button"
+            role="menuitemradio"
+            :aria-checked="todoMoveCurrentList === list.id"
+            :class="{ active: todoMoveCurrentList === list.id }"
+            @click="moveTodo(list.id)"
+          >{{ list.name }}</button>
+          <button
+            type="button"
+            role="menuitemradio"
+            :aria-checked="todoMoveCurrentList === null"
+            :class="{ active: todoMoveCurrentList === null }"
+            @click="moveTodo(null)"
+          >无清单</button>
+        </div>
+      </div>
+
+      <div
+        v-if="listMenu"
+        class="todo-group-menu-backdrop"
+        @pointerdown.self="listMenu = null"
+        @contextmenu.prevent
+      >
+        <div
+          class="todo-group-menu todo-move-menu"
+          role="menu"
+          aria-label="移动清单到分组"
+          :style="{ left: `${listMenu.x}px`, top: `${listMenu.y}px` }"
+        >
+          <div class="todo-move-menu-label">移动到</div>
+          <button
+            v-for="group in groups"
+            :key="group.id"
+            type="button"
+            role="menuitemradio"
+            :aria-checked="listMenuCurrentGroup === group.id"
+            :class="{ active: listMenuCurrentGroup === group.id }"
+            @click="moveList(group.id)"
+          >{{ group.name }}</button>
+          <button
+            type="button"
+            role="menuitemradio"
+            :aria-checked="listMenuCurrentGroup === null"
+            :class="{ active: listMenuCurrentGroup === null }"
+            @click="moveList(null)"
+          >未分组</button>
+        </div>
       </div>
 
       <div
@@ -2802,6 +2939,15 @@ watch(todoTags, (value) => {
 }
 .todo-group-menu button.danger:hover {
   background: var(--color-danger-soft);
+}
+.todo-move-menu {
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+.todo-move-menu-label {
+  padding: 6px 9px;
+  color: var(--color-muted);
+  font-size: var(--font-size-label);
 }
 .todo-due-backdrop {
   position: absolute;

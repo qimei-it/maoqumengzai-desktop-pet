@@ -390,12 +390,12 @@ const modelReasoning = computed(
   () => selectedModelInfo.value?.reasoning === true,
 )
 const reasoningLevels = computed(() =>
-  selectedModel.value === 'MiniMax-M3.1-Flash'
+  selectedModel.value === 'MiniMax-M3.1-Flash' || selectedModelInfo.value?.reasoningRequired
     ? agentReasoningLevels.filter((level) => level !== 'off')
     : agentReasoningLevels,
 )
 const reasoningLabel = computed(() =>
-  selectedModel.value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off'
+  (selectedModel.value === 'MiniMax-M3.1-Flash' || selectedModelInfo.value?.reasoningRequired) && reasoning.value === 'off'
     ? agentReasoningLabels.low
     : agentReasoningLabels[reasoning.value],
 )
@@ -1921,9 +1921,11 @@ function openProject(projectId: string): void {
 }
 function openProjectRow(projectId: string): void {
   toggleProject(projectId)
-  openProject(projectId)
+  if (!projects.value.find((project) => project.id === projectId)?.unavailable)
+    openProject(projectId)
 }
 function selectSession(id: string): void {
+  if (sessions.value.find((session) => session.id === id)?.unavailable) return
   skillsOpen.value = false
   skillDetail.value = null
   emit('command', { type: 'agent-session-select', id })
@@ -2081,7 +2083,7 @@ function setModel(value: AgentModelId): void {
   modelMenuOpen.value = false
   if (selectedModel.value === value) return
   if (value !== 'deepseek-flash') pendingFlashSend.value = false
-  if (value === 'MiniMax-M3.1-Flash' && reasoning.value === 'off')
+  if ((value === 'MiniMax-M3.1-Flash' || modelInfo(value)?.reasoningRequired) && reasoning.value === 'off')
     emit('command', { type: 'agent-reasoning', reasoning: 'low' })
   emit('command', { type: 'agent-model', model: value })
 }
@@ -2313,10 +2315,14 @@ async function createProject(): Promise<void> {
   closeDialog()
   if (autoSelect && snapshot !== true) {
     const created = snapshot.agent.projects.find(
-      (item) => item.workspace === path,
+      (item) => item.workspace === path && !item.unavailable,
     )
-    if (created)
-      emit('command', { type: 'agent-workspace', projectId: created.id })
+    if (created) {
+      const oldProject = snapshot.agent.projects.find((item) => item.id === snapshot.agent.projectId)
+      emit('command', oldProject?.unavailable
+        ? { type: 'agent-project-open', projectId: created.id }
+        : { type: 'agent-workspace', projectId: created.id })
+    }
   }
 }
 async function saveProject(): Promise<void> {
@@ -2628,7 +2634,7 @@ function statusLabel(status: string): string {
               v-for="session in matchedSessions"
               :key="session.id"
               class="agent-session"
-              :class="{ active: session.id === agent?.sessionId }"
+              :class="{ active: session.id === agent?.sessionId && !session.unavailable, unavailable: session.unavailable }"
               role="button"
               tabindex="0"
               :aria-current="session.id === agent?.sessionId"
@@ -2702,7 +2708,7 @@ function statusLabel(status: string): string {
                 v-for="session in pinnedSessions"
                 :key="session.id"
                 class="agent-session"
-                :class="{ active: session.id === agent?.sessionId }"
+                :class="{ active: session.id === agent?.sessionId && !session.unavailable, unavailable: session.unavailable }"
                 role="button"
                 tabindex="0"
                 :aria-current="session.id === agent?.sessionId"
@@ -2787,6 +2793,7 @@ function statusLabel(status: string): string {
               >
                 <div
                   class="agent-project-row"
+                  :class="{ unavailable: project.unavailable }"
                   :title="project.workspace"
                   @click="openProjectRow(project.id)"
                 >
@@ -2831,6 +2838,7 @@ function statusLabel(status: string): string {
                       class="agent-row-button"
                       :aria-label="`在${project.name}中新建对话`"
                       title="新建对话"
+                      :disabled="project.unavailable"
                       @click.stop="newChatIn(project.id)"
                     >
                       <MessageCirclePlus
@@ -2856,7 +2864,7 @@ function statusLabel(status: string): string {
                     v-for="session in projectSessions(project.id)"
                     :key="session.id"
                     class="agent-session"
-                    :class="{ active: session.id === agent?.sessionId }"
+                    :class="{ active: session.id === agent?.sessionId && !session.unavailable, unavailable: session.unavailable }"
                     role="button"
                     tabindex="0"
                     :aria-current="session.id === agent?.sessionId"
@@ -2940,7 +2948,7 @@ function statusLabel(status: string): string {
                 v-for="session in ungrouped"
                 :key="session.id"
                 class="agent-session"
-                :class="{ active: session.id === agent?.sessionId }"
+                :class="{ active: session.id === agent?.sessionId && !session.unavailable, unavailable: session.unavailable }"
                 role="button"
                 tabindex="0"
                 :aria-current="session.id === agent?.sessionId"
@@ -3006,19 +3014,13 @@ function statusLabel(status: string): string {
                 v-for="session in archivedSessions"
                 :key="session.id"
                 class="agent-session"
-                :class="{ active: session.id === agent?.sessionId }"
+                :class="{ active: session.id === agent?.sessionId && !session.unavailable, unavailable: session.unavailable }"
                 role="button"
                 tabindex="0"
                 :aria-current="session.id === agent?.sessionId"
                 @click="selectSession(session.id)"
                 @keydown.enter.prevent="selectSession(session.id)"
               >
-                <Archive
-                  class="agent-archive-mark"
-                  :size="11"
-                  :stroke-width="2"
-                  aria-hidden="true"
-                />
                 <span class="agent-session-text">{{ session.title }}</span>
                 <button
                   type="button"
@@ -3424,6 +3426,14 @@ function statusLabel(status: string): string {
             </div>
           </div>
         </template>
+
+        <div v-else-if="agent?.sessionUnavailable" class="agent-messages">
+          <div class="agent-messages-inner">
+            <div class="agent-empty" role="status">
+              <p>项目目录已失效，此对话不可用。</p>
+            </div>
+          </div>
+        </div>
 
         <template v-else-if="!chatAvailable">
           <div class="agent-setup">
@@ -4258,6 +4268,7 @@ function statusLabel(status: string): string {
                         type="button"
                         class="agent-workspace-option"
                         role="option"
+                        :disabled="project.unavailable"
                         :aria-selected="activeProject?.id === project.id"
                         @click="selectWorkspaceProject(project.id)"
                       >
@@ -4890,7 +4901,7 @@ function statusLabel(status: string): string {
                               class="agent-model-check-space"
                               aria-hidden="true"
                             ></span>
-                            <ModelBrandMark :provider="item.provider" />
+                            <ModelBrandMark :model="item" />
                             <span class="agent-model-option-label">{{
                               item.label
                             }}</span>
@@ -5089,6 +5100,7 @@ function statusLabel(status: string): string {
         </template>
 
         <template v-else-if="menuSession">
+          <template v-if="!menuSession.unavailable">
           <button
             type="button"
             class="agent-menu-item"
@@ -5165,6 +5177,7 @@ function statusLabel(status: string): string {
             />
             取消归档
           </button>
+          </template>
           <button
             type="button"
             class="agent-menu-item danger"
@@ -5410,7 +5423,9 @@ function statusLabel(status: string): string {
       >
         <h2 class="agent-confirm-title">{{ confirm.title }}</h2>
         <p v-if="confirm.kind === 'project'" class="agent-confirm-note">
-          项目下的对话会移动到未分组。
+          {{ projects.find((project) => project.id === confirm?.id)?.unavailable
+            ? '项目目录已失效，项目及其对话将被删除。'
+            : '项目下的对话会移动到未分组。' }}
         </p>
         <p
           v-if="confirm.kind === 'clear-session'"
@@ -5699,6 +5714,9 @@ function statusLabel(status: string): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.agent-project-row.unavailable .agent-project-name {
+  color: var(--color-subtle);
+}
 .agent-pin {
   flex: none;
   color: var(--color-subtle);
@@ -5764,6 +5782,12 @@ function statusLabel(status: string): string {
 }
 .agent-session.active {
   background: var(--color-brand-soft);
+}
+.agent-session.unavailable .agent-session-text {
+  color: var(--color-subtle);
+}
+.agent-session.unavailable {
+  cursor: default;
 }
 .agent-session-text {
   flex: 1;

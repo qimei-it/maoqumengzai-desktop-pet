@@ -101,6 +101,7 @@ Supervisor-Skills（CC BY-NC-SA 4.0）与 academic-research-skills-codex（CC BY
 - Pages、Keynote、Numbers 文件类型图标由用户提供的 macOS 应用 `.icns` 图标转换为 PNG，保存在 `src/renderer/assets/file-icons/pages.png`、`keynote.png`、`numbers.png`；Apple、Pages、Keynote、Numbers 标识归 Apple Inc. 所有，仅用于本地文件类型识别。
 - 待办清单图标使用 Mozilla FxEmojis（https://github.com/mozilla/fxemoji）的官方 SVG，保存在 `src/renderer/assets/fxemoji/`，清单与中文名称见同目录 `manifest.json`。视觉设计采用 CC BY 4.0，代码采用 Apache-2.0；仅移除未使用的内嵌字体与文本元数据，图形路径未改动。许可证原文：`resources/licenses/fxemoji-LICENSE.md`。
 - OpenAI 服务标识来自 LobeHub Icons（https://github.com/lobehub/lobe-icons，MIT，Copyright (c) 2023 LobeHub），保存在 `src/renderer/OpenAiMark.vue`，仅用于识别 OpenAI 额度药丸；未使用其品牌名以外的素材。
+- 智能体模型菜单的 Kimi 与智谱标识取自 LobeHub Icons 固定版本 `05260484d9f4de68f90cc87a634ae68fa4043efd` 的 `packages/static-svg/icons/kimi-color.svg` 与 `zhipu-color.svg`，保存在 `src/renderer/assets/model-brands/`。Copyright (c) 2023 LobeHub，MIT 许可原文见 `resources/licenses/lobehub-icons-MIT.txt`；相关品牌标识归各自权利人所有。
 
 ## Not included
 

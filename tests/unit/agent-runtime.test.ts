@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
@@ -13,6 +13,7 @@ import type {
 } from '../../src/main/agent/provider'
 import { makeServices, shelfFileId } from './agent-fixtures'
 import { defaultSettings } from '../../src/shared/settings'
+import { agentTextModels } from '../../src/shared/agent-models'
 
 function scripted(results: StreamResult[]) {
   let index = 0
@@ -105,6 +106,74 @@ function toolParts(runtime: ReturnType<typeof createAgentRuntime>) {
 }
 
 describe('agent runtime', () => {
+  test('recognizes a legacy project whose current folder was created later', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'mqmz-legacy-replaced-'))
+    const { runtime } = await makeRuntime([], [], {
+      seedStore: (path) => saveAgentStore(path, {
+        sessions: [],
+        projects: [{ id: 'old-project', name: '旧项目', workspace, pinned: false, createdAt: Date.now() - 60_000 }],
+      }),
+    })
+    expect(runtime.state().projects[0].unavailable).toBe(true)
+    runtime.createProject('新项目', workspace)
+    expect(runtime.state().projects).toHaveLength(2)
+    expect(runtime.state().projects.find((item) => item.name === '新项目')?.unavailable).toBe(false)
+    await rm(workspace, { recursive: true, force: true })
+  })
+
+  test('keeps old sessions unavailable when a project directory is replaced at the same path', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mqmz-project-replaced-'))
+    const workspace = join(root, '项目')
+    await mkdir(workspace)
+    const { runtime, storePath } = await makeRuntime([{ text: '旧回复', toolCalls: [] }, { text: '新回复', toolCalls: [] }])
+    runtime.createProject('旧项目', workspace)
+    const oldProject = runtime.state().projects[0]
+    runtime.openProject(oldProject.id)
+    await runtime.send('旧会话')
+    const oldSession = runtime.state().sessionId!
+    await rename(workspace, join(root, '原目录'))
+    await mkdir(workspace)
+    expect(runtime.state().projects.find((item) => item.id === oldProject.id)?.unavailable).toBe(true)
+    await expect(runtime.send('不能继续')).rejects.toThrow('原项目目录已失效')
+    runtime.createProject('新项目', workspace)
+    const newProject = runtime.state().projects.find((item) => item.name === '新项目')!
+    expect(newProject.id).not.toBe(oldProject.id)
+    expect(() => runtime.moveSession(oldSession, newProject.id)).toThrow('原项目目录已失效')
+    runtime.openProject(newProject.id)
+    await runtime.send('新会话')
+    expect(runtime.state().messages.some((message) => message.parts.some((part) => part.type === 'text' && part.text === '新回复'))).toBe(true)
+    await runtime.flush()
+    const saved = JSON.parse(await readFile(storePath, 'utf8'))
+    expect(saved.projects.find((item: { id: string }) => item.id === oldProject.id).workspaceReplaced).toBe(true)
+    const newSession = runtime.state().sessionId
+    runtime.select(oldSession)
+    expect(runtime.state().sessionId).toBe(newSession)
+    runtime.deleteProject(oldProject.id)
+    expect(runtime.state().sessions.some((session) => session.id === oldSession)).toBe(false)
+    expect(runtime.state().sessionId).toBe(newSession)
+    await runtime.flush()
+    const afterDelete = JSON.parse(await readFile(storePath, 'utf8'))
+    expect(afterDelete.sessions.find((item: { id: string }) => item.id === oldSession)).toBeUndefined()
+    await rm(root, { recursive: true, force: true })
+  })
+
+  test('moves all sessions to ungrouped when deleting a project with its directory intact', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'mqmz-project-delete-'))
+    const { runtime } = await makeRuntime([{ text: '回复', toolCalls: [] }])
+    runtime.createProject('项目', workspace)
+    const project = runtime.state().projects[0]
+    runtime.openProject(project.id)
+    await runtime.send('保留对话')
+    const sessionId = runtime.state().sessionId!
+    runtime.setSessionPinned(sessionId, true)
+    runtime.setSessionArchived(sessionId, true)
+    runtime.deleteProject(project.id)
+    expect(runtime.state().sessions.find((session) => session.id === sessionId)).toMatchObject({ projectId: null, workspace: null, pinned: false, archived: false, unavailable: false })
+    runtime.select(sessionId)
+    expect(runtime.state().messages.some((message) => message.parts.some((part) => part.type === 'text' && part.text === '保留对话'))).toBe(true)
+    await rm(workspace, { recursive: true, force: true })
+  })
+
   test('runs a tool after approval and continues the turn', async () => {
     const calls: string[] = []
     const { runtime } = await makeRuntime(
@@ -612,6 +681,29 @@ describe('agent runtime', () => {
       )
       .join('')
     expect(text).toContain('你好')
+  })
+
+  test('routes each screenshot model to Ark and preserves encrypted tool context', async () => {
+    const models = agentTextModels.filter((model) => model.provider === 'volcano')
+    const seen: StreamOptions[] = []
+    const { runtime } = await makeRuntime([], [], {
+      getKey: () => undefined,
+      getVolcanoKey: () => 'ark-key',
+      getVolcanoModels: () => models.map((model) => model.id),
+      volcanoStream: async (_key, options) => {
+        seen.push(options)
+        if (seen.length === 1)
+          return { text: '', reasoning: '摘要', encryptedContent: 'opaque-cipher', toolCalls: [{ id: 'call-1', name: 'shelf_list', arguments: '{}' }] }
+        return { text: '完成', toolCalls: [] }
+      },
+    })
+    for (const model of models) {
+      runtime.setModel(model.id)
+      await runtime.send('测试模型')
+      expect(seen.at(-1)?.model).toBe(model.id)
+    }
+    const message = seen[1]?.messages.find((item) => item.role === 'assistant' && item.tool_calls?.length)
+    expect(message).toMatchObject({ encrypted_content: 'opaque-cipher', reasoning_model: models[0].id })
   })
 
   test('includes the pet species in the system prompt', async () => {
@@ -1202,7 +1294,7 @@ describe('agent runtime', () => {
 
   test('opens an empty project without creating a session, then sends into it', async () => {
     const { runtime } = await makeRuntime([{ text: '好的', toolCalls: [] }])
-    runtime.createProject('计划项目', `/tmp/mqmz-project-${Date.now()}`)
+    runtime.createProject('计划项目', await mkdtemp(join(tmpdir(), 'mqmz-project-')))
     const project = runtime
       .state()
       .projects.find((item) => item.name === '计划项目')!
@@ -1227,7 +1319,7 @@ describe('agent runtime', () => {
 
   test('returns to the project empty state after deleting its last session', async () => {
     const { runtime } = await makeRuntime([{ text: '好的', toolCalls: [] }])
-    runtime.createProject('收尾项目', `/tmp/mqmz-project-${Date.now()}`)
+    runtime.createProject('收尾项目', await mkdtemp(join(tmpdir(), 'mqmz-project-')))
     const project = runtime
       .state()
       .projects.find((item) => item.name === '收尾项目')!
@@ -1247,7 +1339,7 @@ describe('agent runtime', () => {
       { text: '第一次', toolCalls: [] },
       { text: '第二次', toolCalls: [] },
     ])
-    runtime.createProject('多对话项目', `/tmp/mqmz-project-${Date.now()}`)
+    runtime.createProject('多对话项目', await mkdtemp(join(tmpdir(), 'mqmz-project-')))
     const project = runtime
       .state()
       .projects.find((item) => item.name === '多对话项目')!
@@ -1421,7 +1513,7 @@ describe('agent runtime', () => {
       ],
       calls,
     )
-    runtime.createProject('允许项目', `/tmp/mqmz-allow-${Date.now()}`)
+    runtime.createProject('允许项目', await mkdtemp(join(tmpdir(), 'mqmz-allow-')))
     const allowProject = runtime
       .state()
       .projects.find((project) => project.name === '允许项目')!
@@ -1431,7 +1523,7 @@ describe('agent runtime', () => {
     expect(calls).toContain('addTodo:项目任务')
     expect(runtime.state().approval).toBeNull()
 
-    runtime.createProject('禁止项目', `/tmp/mqmz-deny-${Date.now()}`)
+    runtime.createProject('禁止项目', await mkdtemp(join(tmpdir(), 'mqmz-deny-')))
     const denyProject = runtime
       .state()
       .projects.find((project) => project.name === '禁止项目')!
@@ -1607,7 +1699,7 @@ describe('agent runtime', () => {
 
   test('sets the active session workspace from a project', async () => {
     const { runtime } = await makeRuntime([], [])
-    const workspace = '/tmp/mqmz-agent-workspace'
+    const workspace = await mkdtemp(join(tmpdir(), 'mqmz-agent-workspace-'))
     runtime.createProject('工作区项目', workspace)
     const project = runtime.state().projects[0]
     runtime.setWorkspace(project.id)
@@ -1754,7 +1846,9 @@ describe('agent runtime', () => {
 
   test('defaults project names to the folder name', async () => {
     const { runtime } = await makeRuntime([], [])
-    runtime.createProject('', '/tmp/mqmz-project-default')
+    const root = await mkdtemp(join(tmpdir(), 'mqmz-names-'))
+    await Promise.all(['mqmz-project-default', 'another-project-folder', 'third-project-folder'].map((name) => mkdir(join(root, name))))
+    runtime.createProject('', join(root, 'mqmz-project-default'))
     let project = runtime.state().projects[0]
     expect(project.name).toBe('mqmz-project-def')
 
@@ -1764,13 +1858,13 @@ describe('agent runtime', () => {
 
     runtime.updateProject(project.id, {
       name: '',
-      workspace: '/tmp/another-project-folder',
+      workspace: join(root, 'another-project-folder'),
     })
     project = runtime.state().projects[0]
     expect(project.name).toBe('another-project-')
 
     runtime.updateProject(project.id, {
-      workspace: '/tmp/third-project-folder',
+      workspace: join(root, 'third-project-folder'),
     })
     project = runtime.state().projects[0]
     expect(project.name).toBe('another-project-')
@@ -1921,7 +2015,7 @@ describe('agent runtime', () => {
               name: '固定项目',
               workspace: directory,
               pinned: false,
-              createdAt: 1,
+              createdAt: Date.now(),
             },
           ],
           sessions: [
